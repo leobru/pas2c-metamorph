@@ -7158,10 +7158,8 @@ var
             disableNorm;
             padToLeft;
             l3var7z.i := moduleOffset;
-            repeat
-                inSymbol;
-                statement;
-            until (SY <> SEMICOLON);
+            inSymbol;
+            statement;
             if (SY <> UNTILSY) then {
                 requiredSymErr(UNTILSY);
                 stmtName := 'REPEAT';

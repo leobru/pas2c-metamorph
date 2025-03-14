@@ -823,7 +823,7 @@ var
         toFCST;
     } else {
         high := FcstCountTo500;
-        repeat
+        repeat {
             mid := (low + high) div 2;
             if (curVal.a = constVals[mid]) {
                 addCurValToFCST := constNums[mid];
@@ -833,7 +833,7 @@ var
                 high := mid - 1
             else
                 low := mid + 1
-        until high < low;
+        } until high < low;
         addCurValToFCST := FcstCnt;
         if (FcstCountTo500 <> 500) {
             if (curval.a < constVals[mid])
@@ -868,7 +868,7 @@ var
         symtbidx[1] := symTabPos;
     } else {
         high := symTabCnt;
-        repeat
+        repeat {
             mid := (low + high) div 2;
             if (value = symTabArray[mid]) {
                 allocSymtab := symtbidx[mid];
@@ -878,7 +878,7 @@ var
                  high := mid - 1
             else
                  low := mid + 1;
-        until high < low;
+        } until high < low;
         allocSymtab := symTabPos;
         if (symTabCnt <> 80) {
             if (value.a < symTabArray[mid].a)
@@ -1126,13 +1126,13 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure nextCH;
 {
-    repeat
+    repeat {
         atEOL := eoln(PASINPUT);
         CH := PASINPUT@;
         get(PASINPUT);
         linePos := linePos + 1;
         lineBufBase[linePos] := CH;
-    until (maxLineLen >= linePos) or atEOL;
+    } until (maxLineLen >= linePos) or atEOL;
 }; (* nextCH *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1169,7 +1169,8 @@ procedure readOptFlag(var res: bool);
 { (* parseComment *)
     nextCH;
     if (CH = '=') {
-        repeat nextCH;
+        repeat {
+        nextCH;
         badOpt := true;
         case (CH) {
         'D': {
@@ -1205,9 +1206,9 @@ procedure readOptFlag(var res: bool);
         };
         if (badOpt)
             error(54); (* errErrorInPseudoComment *)
-        until CH <> ',';
+        } until CH <> ',';
     }; (* 1446 *)
-    repeat
+    repeat {
         while (CH <> '*') {
             c := commentModeCH;
             commentModeCH := '*';
@@ -1217,7 +1218,7 @@ procedure readOptFlag(var res: bool);
             commentModeCH := c;
         };
         nextCH
-    until CH = ')';
+    } until CH = ')';
     nextCH;
 }; (* parseComment *)
 %
@@ -1258,7 +1259,7 @@ procedure readOptFlag(var res: bool);
             IDENT: {
 1:              curToken.m := [];
                 tokenLen := 1;
-                repeat
+                repeat {
                     curVal.c := iso2text[CH];
                     nextCH;
                     if (8 >= tokenLen) {
@@ -1268,7 +1269,7 @@ procedure readOptFlag(var res: bool);
                         curToken:=;
                         curToken.m := curToken.m + curVal.m;
                     };
-                until chrClassTabBase[CH] <> ALNUM;
+                } until chrClassTabBase[CH] <> ALNUM;
                 curVal.m := curToken.m * hashMask.m;
                 mapAI(curVal.a, bucket);
                 curIdent := curToken;
@@ -1359,7 +1360,7 @@ procedure readOptFlag(var res: bool);
             INTCONST: { (*=m-*)
                 SY := INTCONST;
                 tokenLen := 0;
-                repeat
+                repeat {
                     tokenLen := tokenLen + 1;
                     if (16 >= tokenLen)
                         numstr[tokenLen].i := ord(CH)-ord('0')
@@ -1368,7 +1369,7 @@ procedure readOptFlag(var res: bool);
                         tokenLen := 1;
                     };
                     nextCH;
-                until charSymTabBase[CH] <> INTCONST;
+                } until charSymTabBase[CH] <> INTCONST;
 (octdec)        {
                     if (CH = 'B')
                         suffix := suffixB
@@ -1429,11 +1430,11 @@ procedure readOptFlag(var res: bool);
                     if (charSymTabBase[CH] <> INTCONST)
                         error(56) (* errNeedMantissaAfterDecimal *)
                     else
-                        repeat
+                        repeat {
                             curToken.r := 10.0*curToken.r + ord(CH)-48;
                             expMagnitude := expMagnitude-1;
                             nextCH;
-                        until charSymTabBase[CH] <> INTCONST;
+                        } until charSymTabBase[CH] <> INTCONST;
                 }; (*2062*)
                 if (CH = 'E') {
                     if (expMagnitude = 0) {
@@ -1452,10 +1453,10 @@ procedure readOptFlag(var res: bool);
                     if (charSymTabBase[CH] <> INTCONST)
                         error(57) (* errNeedExponentAfterE *)
                     else
-                        repeat
+                        repeat {
                             expLiteral := 10 * expLiteral + ord(CH) - 48;
                             nextCH
-                        until charSymTabBase[CH] <> INTCONST;
+                        } until charSymTabBase[CH] <> INTCONST;
                     if (expSign)
                         expMagnitude := expMagnitude - expLiteral
                     else
@@ -1470,13 +1471,13 @@ procedure readOptFlag(var res: bool);
                         expMagnitude := 1;
                         error(58); (* errExponentGreaterThan18 *)
                     };
-                    repeat
+                    repeat {
                         if (odd(expMagnitude))
                             expValue := expValue * expMultiple;
                         expMagnitude := expMagnitude div 2;
                         if (expMagnitude <> 0)
                             expMultiple := expMultiple*expMultiple;
-                    until expMagnitude = 0;
+                    } until expMagnitude = 0;
                     if (expSign)
                         curToken.r := curToken.r / expValue
                     else
@@ -3323,14 +3324,14 @@ procedure traceEntry(isEntry: bool);
                             getHelperProc(63(*P/B6*)) + 6437777777300000C,
                             allocGlobalObject(l5idr4z) + KUJ);
                         if (l5idr3z <> NIL) {
-                            repeat
+                            repeat {
                                 l5idc22z := l5idr3z@.cl;
                                 if ((l5idc22z = ROUTINEID) and
                                    (l5idr3z@.typ <> NIL))
                                     l5idc22z := ENUMID;
                                 form2Insn(0, ord(l5idc22z));
                                 l5idr3z := l5idr3z@.list;
-                            until (l5idr4z = l5idr3z);
+                            } until (l5idr4z = l5idr3z);
                         }; (* 6745 *)
                         storeObjWord([]);
                         P0715(0, l5var16z.i);
@@ -4305,7 +4306,7 @@ var
         error(errTypeMustNotBeFile);
     curType@.flag := cond or curType@.flag;
     l3idr31z := curEnum;
-    repeat
+    repeat {
         curField@.typ := selType;
 (q)     if (isPacked) {
             l5var1z := selType@.bits;
@@ -4368,7 +4369,7 @@ var
         };
         cond := (curField = curEnum);
         curField := curField@.list;
-    until cond;
+    } until cond;
     (* 11674 *)
 }; (* packFields *)
 %
@@ -4379,7 +4380,7 @@ var
     (*11702*)
     while (SY = IDENT) {
         l4var6z := NIL;
-        repeat
+        repeat {
             if (SY <> IDENT) {
                 error(errNoIdent);
             } else {
@@ -4401,7 +4402,7 @@ var
                 int93z := 3;
                 inSymbol;
             }
-        until cond;
+        } until cond;
         checkSymAndRead(COLON);
         packFields;
         if (SY = SEMICOLON) {
@@ -4456,9 +4457,9 @@ var
         cases1 := cases;
         cases2 := cases;
         l4typ1z := NIL;
-        repeat
+        repeat {
             l4var3z := NIL;
-            repeat
+            repeat {
                 parseLiteral(l4var4z, l4var7z, false);
                 if (l4var4z = NIL)
                     error(errNoConstant)
@@ -4477,7 +4478,7 @@ var
                 cond := (SY <> COMMA);
                 if (not cond)
                     inSymbol;
-            until cond;
+            } until cond;
             if (l4typ1z = NIL) {
                 if (curType@.base = NIL) {
                     curType@.base := tempType;
@@ -4505,7 +4506,7 @@ var
                 inSymbol;
             if (SY = ENDSY)
                 cond := true;
-        until cond;
+        } until cond;
         cases := cases2;
     }; (* 12232 *)
     rectype@.size := cases.size;
@@ -5057,7 +5058,7 @@ var
             };
         } else if (SY = LBRACK) {
             stmtName := '  [   ';
-            repeat
+            repeat {
                 l4exp1z := curExpr;
                 expression;
                 l4typ3z := l4exp1z@.typ;
@@ -5077,7 +5078,7 @@ var
                 };
                 curExpr := l4exp1z;
                 stmtName := '  ,   ';
-            until (SY <> COMMA);
+            } until (SY <> COMMA);
             if (SY <> RBRACK)
                 error(67 (*errNeedBracketAfterIndices*));
         } else exit;
@@ -5149,7 +5150,7 @@ var
                 goto 8888;
             }
         };
-        repeat
+        repeat {
             if ((l4var1z) and (l4arg1z = l4idr5z)) {
                 error(errTooManyArguments);
                 goto 8888;
@@ -5203,7 +5204,7 @@ var
             l4exp4z := l4exp2z;
             if (l4var1z)
                 l4idr5z := l4idr5z@.list;
-        until (SY <> COMMA);
+        } until (SY <> COMMA);
         if ((SY <> RPAREN) or
            l4var1z and (l4idr5z <> l4arg1z))
             error(errNoCommaOrParenOrTooFewArgs)
@@ -5429,7 +5430,7 @@ var
             if (SY <> RBRACK) {
                 l4var12z := true;
                 readNext := false;
-                repeat
+                repeat {
                     l4exp6z := curExpr;
                     expression;
                     if (l4var12z) {
@@ -5489,7 +5490,7 @@ var
                         expr2 := l4exp5z;
                     };
 14567:              ;
-                until SY <> COMMA;
+                } until SY <> COMMA;
             }; (* 14571 *)
             checkSymAndRead(RBRACK);
             with l4var8z@ do {
@@ -5835,7 +5836,7 @@ var
     l4var4z := localSize;
     l4var2z := set147z;
     l4var3z := [];
-    repeat
+    repeat {
         inSymbol;
         if ((hashTravPtr <> NIL) and
            (hashTravPtr@.cl >= VARID)) {
@@ -5849,7 +5850,7 @@ var
         } else {
             error(72); (* errWithOperatorNotOfAVariable *)
         }
-    until (SY <> COMMA);
+    } until (SY <> COMMA);
     checkSymAndRead(DOSY);
     statement;
     expr63z := l4exp1z;
@@ -5969,7 +5970,7 @@ function max(a, b: int): int;
     firstType := NIL;
     goodMode := true;
     (* 15640 *)
-    repeat
+    repeat {
         if (not (SY IN [SEMICOLON, ENDSY])) {
             padToLeft;
             arithMode := 1;
@@ -5979,7 +5980,7 @@ function max(a, b: int): int;
                 inSymbol;
                 otherSeen := true;
                 otherOffset := moduleOffset;
-            } else (* 15657 *) repeat
+            } else (* 15657 *) repeat {
                 parseLiteral(itemtype, itemvalue, true);
                 if (itemtype <> NIL) {
                     if (firstType = NIL) {
@@ -6015,7 +6016,7 @@ function max(a, b: int): int;
                 itemsEnded := (SY <> COMMA);
                 if (not itemsEnded)
                     inSymbol;
-            until itemsEnded; (* 15745 *)
+            } until itemsEnded; (* 15745 *)
             checkSymAndRead(COLON);
             statement;
             goodMode := goodMode and (arithMode = 1);
@@ -6025,7 +6026,7 @@ function max(a, b: int): int;
         if (not itemsEnded)
             inSymbol;
         (* 15771 *)
-    until itemsEnded;
+    } until itemsEnded;
     if (SY <> ENDSY) {
         requiredSymErr(ENDSY);
         stmtName := 'CASE  ';
@@ -6303,7 +6304,7 @@ function allocDataRef(l6arg1z: int): int;
     inSymbol;
     setcount := 0;
 (loop)
-    repeat (* 16530 *)
+    repeat { (* 16530 *)
         inSymbol;
         setup(boundary);
         if (SY <> IDENT) {
@@ -6331,7 +6332,7 @@ function allocDataRef(l6arg1z: int): int;
         l4var3z.i := FcstCnt;
         l4var4z.i := 0;
         l4var9z.i := 0;
-        repeat (* 16574 *)
+        repeat { (* 16574 *)
             expression;
             formOperator(LITINSN);
             l4var8z := curVal;
@@ -6363,9 +6364,9 @@ function allocDataRef(l6arg1z: int): int;
                     P16432(1);
                 }
             }; (* 16641 *)
-        until SY <> COMMA;
+        } until SY <> COMMA;
         rollup(boundary);
-    until SY <> SEMICOLON; (* 16645 *)
+    } until SY <> SEMICOLON; (* 16645 *)
     if (SY <> ENDSY)
         error(errBadSymbol);
     reset(F);
@@ -7117,10 +7118,8 @@ var
             disableNorm;
             padToLeft;
             l3var7z.i := moduleOffset;
-            repeat
-                inSymbol;
-                statement;
-            until (SY <> SEMICOLON);
+            inSymbol;
+            statement;
             if (SY <> UNTILSY) {
                 requiredSymErr(UNTILSY);
                 stmtName := 'REPEAT';
@@ -7218,7 +7217,7 @@ var
     if (checkBounds or not (NoStackCheck IN optSflags.m))
         P0715(-1, 95); (* P/SC *)
     l3var2z.i := lineNesting;
-    repeat
+    repeat {
         statement;
         if (SY = SEMICOLON) {
             if (curProcNesting = 1)
@@ -7235,7 +7234,7 @@ var
                 l2bool8z := (SY IN blockBegSys);
             }
         };
-    until l2bool8z;
+    } until l2bool8z;
     l2idr2z@.flags := (set145z * [0:15]) + (l2idr2z@.flags - l3var7z.m);
     lineNesting := l3var2z.i - 1;
     if (int53z <> 0)
@@ -7607,9 +7606,9 @@ procedure regSysProc(l4arg1z: int);
         outputFile := l3var7z;
     };
     l3var6z := 40;
-    repeat
+    repeat {
         programme(l3var6z, programObj);
-    until (SY = PERIOD);
+    } until (SY = PERIOD);
     if (CH <> 'D') {
         int92z := 0;
         int93z := ;
@@ -7673,7 +7672,8 @@ var
             int93z := 0;
             inSymbol;
         };
-        repeat if (SY = IDENT) {
+        repeat {
+          if (SY = IDENT) {
             if (isDefined)
                 error(errIdentAlreadyDefined);
             l3var6z := l3var6z + 1;
@@ -7704,7 +7704,7 @@ var
             int93z := 0;
             inSymbol;
         };
-        until noComma;
+        } until noComma;
         if (l3sym7z <> PROCSY) {
             checkSymAndRead(COLON);
             parseTypeRef(expType, (skipToSet + [IDENT,RPAREN]));
@@ -7777,10 +7777,10 @@ procedure exitScope(var arg: array [0..127] of irptr);
     strLabList := NIL;
     lineNesting := lineNesting + 1;
     l2var16z := numLabList;
-    repeat
+    repeat {
     if (SY = LABELSY) {
         (*22367*)
-        repeat
+        repeat {
             inSymbol;
             if (SY <> INTCONST) {
                 requiredSymErr(INTCONST);
@@ -7809,7 +7809,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
 22420:      inSymbol;
 22421:      if (not (SY IN [COMMA,SEMICOLON]))
                 errAndSkip(1, skipToSet + [COMMA,SEMICOLON]);
-        until SY <> COMMA;
+        } until SY <> COMMA;
         if (SY = SEMICOLON)
             inSymbol;
     }; (* 22432 *)
@@ -7903,10 +7903,10 @@ procedure exitScope(var arg: array [0..127] of irptr);
     if (SY = VARSY) {
         parseDecls(0);
         (*22617*)
-        repeat
+        repeat {
             workidr := NIL;
             (*22620*)
-            repeat
+            repeat {
             if (SY = IDENT) {
                 new(curIdRec=7);
                 if (isDefined)
@@ -7934,7 +7934,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
                 int93z := 0;
                 inSymbol;
             };
-            (* 22663 -> 22620 *) until l2bool8z;
+            } (* 22663 -> 22620 *) until l2bool8z;
             checkSymAndRead(COLON);
             parseTypeRef(l2typ13z, skipToSet + [IDENT,SEMICOLON]);
             jj := l2typ13z@.size;
@@ -7981,7 +7981,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
             checkSymAndRead(SEMICOLON);
             if ((SY <> IDENT) and not (SY IN skipToSet))
                 errAndSkip(errBadSymbol, skipToSet + [IDENT]);
-        (* 23001 -> 22617 *) until SY <> IDENT;
+        } (* 23001 -> 22617 *) until SY <> IDENT;
     }; (* VARSY -> 23003 *)
     if (curProcNesting = 1) {
         workidr := outputFile;
@@ -8125,12 +8125,12 @@ procedure exitScope(var arg: array [0..127] of irptr);
             };
             curIdRec@.flags := curIdRec@.flags + curVal.m;
         } else (* 23257 *) {
-            repeat
+            repeat {
                 setup(scopeBound);
                 programme(l2int18z, curIdRec);
                 if (not (SY IN [FUNCSY,PROCSY,BEGINSY]))
                     errAndSkip(errBadSymbol, skipToSet);
-            until SY IN [FUNCSY,PROCSY,BEGINSY];
+            } until SY IN [FUNCSY,PROCSY,BEGINSY];
             rollup(scopeBound);
             exitScope(symHashTabBase);
             exitScope(typeHashTabBase);
@@ -8152,7 +8152,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
     if ((SY <> BEGINSY) and
        (not allowCompat or not (SY IN blockBegSys)))
         errAndSkip(84 (* errErrorInDeclarations *), skipToSet);
-    until SY in statBegSys;
+    } until SY in statBegSys;
     if (preDefHead <> ptr(0)) {
         error(85); (* errNotFullyDefinedProcedures *)
         while (preDefHead <> ptr(0)) {
