@@ -134,14 +134,15 @@ type
 (*10B*) LBRACK,     MULOP,      ADDOP,      RELOP,
         RPAREN,     RBRACK,     COMMA,      SEMICOLON,
 (*20B*) PERIOD,     ARROW,      COLON,      BECOMES,
+        BEGINSY,    ENDSY,
         LABELSY,    CONSTSY,    TYPESY,     VARSY,
-(*30B*) FUNCSY,     PROCSY,     SETSY,      PACKEDSY,
-        ARRAYSY,    RECORDSY,   FILESY,     BEGINSY,
-(*40B*) IFSY,       CASESY,     REPEATSY,   WHILESY,
-        FORSY,      WITHSY,     GOTOSY,     ENDSY,
-(*50B*) ELSESY,     UNTILSY,    OFSY,       DOSY,
+(*32B*) FUNCSY,     PROCSY,     SETSY,      PACKEDSY,
+        ARRAYSY,    RECORDSY,   FILESY,
+(*41B*) IFSY,       CASESY,     WHILESY,
+        FORSY,      WITHSY,     GOTOSY,
+(*47B*) ELSESY,     UNTILSY,    OFSY,       DOSY,
         TOSY,       DOWNTOSY,
-(*56B*) PROGRAMSY,  OTHERSY,    NOSY
+(*55B*) PROGRAMSY,  DEFAULTSY,  NOSY
 );
 %
 idclass = (
@@ -177,7 +178,7 @@ opgen = (
     gen0,  STORE, LOAD,  gen3,  SETREG,
     gen5,  gen6,  gen7,  gen8,  gen9,
     gen10, gen11, gen12, FILEACCESS, gen14,
-    gen15, gen16, LITINSN
+    BRANCH, gen16, LITINSN
 );
 %
 % Flags for ops that can potentially be optimized if one operand is a constant
@@ -480,7 +481,7 @@ var (* total size 4791 words *)
 (*1577-
   2409*)    symTab: array [74000B..75500B] of bitset;
 (*2410*)    systemProcNames: array [0..22] of integer;
-(*2440*)    resWordNameBase: array [0..28] of integer;
+(*2440*)    resWordNameBase: array [0..26] of integer;
 (*2470*)    longSymCnt: integer;
 (*2471*)    longSymTabBase: array [1..90] of integer;
 (*2560*)    longSyms: array [1..90] of bitset;
@@ -4162,7 +4163,7 @@ var l4exf1z: @extfilerec;
         prepLoad;
         genOneOp
     };
-    gen15:
+    BRANCH:
         with insnList@ do {
             l3bool9z := jumpTarget = 0;
             l3int3z := jumpTarget;
@@ -4216,7 +4217,7 @@ var l4exf1z: @extfilerec;
                     }
                 }
             }
-        }; (* gen15 *)
+        }; (* BRANCH *)
     gen16: {
         l3var5z := curExpr;
         curExpr := curExpr@.expr1;
@@ -4652,6 +4653,9 @@ var
             };
             cases.size := 0;
             cases.count := 0;
+            inSymbol;
+            if (SY <> BEGINSY) then
+                requiredSymErr(BEGINSY);
             parseRecordDecl(curType, true);
             checkSymAndRead(ENDSY);
         } else (* 12467 *)
@@ -5003,9 +5007,9 @@ var
     l3var4z: word;
     l3bool5z: boolean;
     l3var6z: idclass;
-    l3var7z, l3var8z: word;
+    doWhlOffset, elsWhlOffset: word;
     startLine: integer;
-    l3var10z, l3var11z: word;
+    ifWhlTarget, elseJump: word;
     l3idr12z: irptr;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5744,9 +5748,8 @@ var
                ((arg1Type@.k <> kindSet) or
                not (arg2Type@.k IN [kindScalar, kindRange]) or
                (oper <> INOP)) then {
-                (*=z-*)besm(2200000B); besm(2200000B);(*=z+*)
                 error(errNeedOtherTypesOfOperands);
-            } (*=z-*)else;(*=z+*)
+            }
         }; (* 15167 *)
         new(l4var2z);
         if (arg2Type@.k = kindSet) and
@@ -6005,7 +6008,7 @@ function max(a, b: integer): integer;
         if not (SY IN [SEMICOLON, ENDSY]) then {
             padToLeft;
             arithMode := 1;
-            if (SY = OTHERSY) then {
+            if (SY = DEFAULTSY) then {
                 if (otherSeen) then
                     error(73); (* errCaseLabelsIdentical *)
                 inSymbol;
@@ -6266,8 +6269,8 @@ procedure ifWhileStatement;
         error(errBooleanNeeded)
     else {
         jumpTarget := 0;
-        formOperator(gen15);
-        l3var10z.i := jumpTarget;
+        formOperator(BRANCH);
+        ifWhlTarget.i := jumpTarget;
     };
     statement;
 }; (* ifWhileStatement *)
@@ -6787,7 +6790,7 @@ var
             formOperator(FILEACCESS);
         }
     };
-    4, 5: { (* new, dispose *)
+    4, 5: { (* new, free *)
         if (curVarKind <> kindPtr) then
             error(13); (* errVarIsNotPointer *)
         heapCallsCnt := heapCallsCnt + 1;
@@ -7017,7 +7020,7 @@ var
             debugLine := lineCnt;
             arithMode := 1;
         };
-        l3var4z.b := (SY IN [BEGINSY,CASESY,REPEATSY]);
+        l3var4z.b := (SY IN [BEGINSY,CASESY]);
         if (l3var4z.b) then
             lineNesting := lineNesting + 1;
 (ident)
@@ -7128,41 +7131,41 @@ var
         } else (* 20571 *) if (SY = IFSY) then {
             ifWhileStatement;
             if (SY = ELSESY) then {
-                l3var11z.i := 0;
-                formJump(l3var11z.i);
-                P0715(0, l3var10z.i);
-                l3var8z.i := arithMode;
+                elseJump.i := 0;
+                formJump(elseJump.i);
+                P0715(0, ifWhlTarget.i);
+                elsWhlOffset.i := arithMode;
                 arithMode := 1;
                 inSymbol;
                 statement;
-                P0715(0, l3var11z.i);
-                if (l3var8z.i <> arithMode) then {
+                P0715(0, elseJump.i);
+                if (elsWhlOffset.i <> arithMode) then {
                     arithMode := 2;
                     disableNorm;
                 }
             } else {
-                P0715(0, l3var10z.i);
+                P0715(0, ifWhlTarget.i);
             }
         } else (* 20625 *) if (SY = WHILESY) then {
             set146z := [];
             disableNorm;
             padToLeft;
-            l3var8z.i := moduleOffset;
+            elsWhlOffset.i := moduleOffset;
             ifWhileStatement;
             disableNorm;
-            form1Insn(insnTemp[UJ] + l3var8z.i);
-            P0715(0, l3var10z.i);
+            form1Insn(insnTemp[UJ] + elsWhlOffset.i);
+            P0715(0, ifWhlTarget.i);
             arithMode := 1;
-        } else (* 20644 *) if (SY = REPEATSY) then {
+        } else (* 20644 *) if (SY = DOSY) then {
             set146z := [];
             disableNorm;
             padToLeft;
-            l3var7z.i := moduleOffset;
+            doWhlOffset.i := moduleOffset;
             inSymbol;
             statement;
             if (SY <> UNTILSY) then {
                 requiredSymErr(UNTILSY);
-                stmtName := 'REPEAT';
+                stmtName := '  DO  ';
                 reportStmtType(startLine);
                 goto 8888;
             };
@@ -7171,8 +7174,8 @@ var
             if (curExpr@.typ <> booleanType) then {
                 error(errBooleanNeeded)
             } else {
-                jumpTarget := l3var7z.i;
-                formOperator(gen15);
+                jumpTarget := doWhlOffset.i;
+                formOperator(BRANCH);
             };
         } else (* 20676 *)
         if (SY = FORSY) then {
@@ -8343,7 +8346,7 @@ var
     regResWord(565764C(*"     NOT"*));
     SY := LABELSY;
     charClass := NOOP;
-    for idx := 0 to 28 do
+    for idx := 0 to 26 do
         regResWord(resWordNameBase[idx]);
 }; (* regKeywords *)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -8508,7 +8511,7 @@ procedure initOptions;
     constRegTemplate := I8;
     disNormTemplate :=  KNTR+7;
     blockBegSys := [LABELSY, CONSTSY, TYPESY, VARSY, FUNCSY, PROCSY, BEGINSY];
-    statBegSys :=  [BEGINSY, IFSY, CASESY, REPEATSY, WHILESY, FORSY, WITHSY,
+    statBegSys :=  [BEGINSY, IFSY, CASESY, DOSY, WHILESY, FORSY, WITHSY,
                     GOTOSY];
     O77777 := [33:47];
     intZero := 0;
@@ -8530,15 +8533,12 @@ procedure initOptions;
         4162624171C             (*"   ARRAY"*),
         624543576244C           (*"  RECORD"*),
         46515445C               (*"    FILE"*),
-        4245475156C             (*"   BEGIN"*),
         5146C                   (*"      IF"*),
         43416345C               (*"    CASE"*),
-        624560454164C           (*"  REPEAT"*),
         6750515445C             (*"   WHILE"*),
         465762C                 (*"     FOR"*),
         67516450C               (*"    WITH"*),
         47576457C               (*"    GOTO"*),
-        455644C                 (*"     END"*),
         45546345C               (*"    ELSE"*),
         6556645154C             (*"   UNTIL"*),
         5746C                   (*"      OF"*),
@@ -8546,7 +8546,7 @@ procedure initOptions;
         6457C                   (*"      TO"*),
         445767566457C           (*"  DOWNTO"*),
         60625747624155C         (*" PROGRAM"*),
-        576450456263C           (*"  OTHERS"*);
+        576450456263C           (*" DEFAULT"*);
 %
     charSymTabBase := NOSY:128;
     chrClassTabBase := NOOP:128;
@@ -8722,7 +8722,7 @@ procedure initOptions;
         62456762516445C        (*" REWRITE"*),
         6245634564C            (*"   RESET"*),
         564567C                (*"     NEW"*),
-        44516360576345C        (*" DISPOSE"*),
+        44516360576345C        (*"    FREE"*),
         50415464C              (*"    HALT"*),
         63645760C              (*"    STOP"*),
         6345646560C            (*"   SETUP"*),
