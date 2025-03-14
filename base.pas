@@ -1605,13 +1605,15 @@ procedure readOptFlag(var res: boolean);
                     goto 1473
                 }
             };
-            COLON: {
+            BECOMES: {
                 nextCH;
                 if CH = '=' then {
                     nextCH;
-                    SY := BECOMES;
-                    charClass := NOOP
+                    SY := RELOP;
                 }
+            };
+            COLON: {
+                nextCH;
             };
             NOTSY, LBRACK, MULOP, ADDOP, RELOP, RPAREN, RBRACK,
             COMMA, SEMICOLON, ARROW: {
@@ -5988,7 +5990,7 @@ function max(a, b: integer): integer;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* caseStatement *)
     startLine := lineCnt;
-    expression;
+    parentExpression;
     exprtype := curExpr@.typ;
     otherSeen := false;
     if (exprtype = alfaType) or
@@ -8597,7 +8599,6 @@ procedure initOptions;
     chrClassTabBase['>'] := GTOP;
     chrClassTabBase['<'] := LTOP;
     chrClassTabBase['#'] := NEOP;
-    chrClassTabBase['='] := EQOP;
     chrClassTabBase['×'] := MUL;
     chrClassTabBase['≤'] := LEOP;
     chrClassTabBase['≥'] := GEOP;
@@ -8621,7 +8622,7 @@ procedure initOptions;
     charSymTabBase['['] := LBRACK;
     charSymTabBase[']'] := RBRACK;
     charSymTabBase['#'] := RELOP;
-    charSymTabBase['='] := RELOP;
+    charSymTabBase['='] := BECOMES;
     charSymTabBase[':'] := COLON;
     charSymTabBase['÷'] := MULOP;
     charSymTabBase['~'] := NOTSY;

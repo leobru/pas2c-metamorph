@@ -20,10 +20,16 @@ cat << EOF >> tmp$$
 \`\`\`\`\`\`
 ЕКОНЕЦ
 EOF
+rm -f base.o
+if [ "$1" = "-d" ]; then ln -f tmp$$ base.b6 ; fi
 length=`dispak -l tmp$$ | tee base.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))
+grep -q 'LINES STRUCTURE' base.lst
+if [ $? -ne 0 ]; then
+echo '[1;31mFAILURE[22;39m'
+exit 1
+fi
 echo Module length is $length zones
-rm -f base.o
 besmtool dump 1234 --start=2 --length=$length --to-file=base.o
 dtran -d base.o > base.asm
-if [ "$1" = "-d" ]; then mv tmp$$ base.b6 ; else rm -f tmp$$; fi
+rm -f tmp$$

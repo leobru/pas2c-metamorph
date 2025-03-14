@@ -24,10 +24,16 @@ cat << EOF >> tmp$$
 ЕКОНЕЦ
 EOF
 if [ "$1" = "-d" ]; then ln -f tmp$$ self.b6 ; fi
+ulimit -t 3
+rm -f self.o
 length=`dispak -l tmp$$ | tee self.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))
+grep -q 'LINES STRUCTURE' self.lst
+if [ $? -ne 0 ]; then
+echo '[1;31mFAILURE[22;39m'
+exit 1
+fi
 echo Module length is $length zones
-rm -f self.o
 besmtool dump 1234 --start=0202 --length=$length --to-file=self.o
 dtran -d self.o > self.asm
 rm -f tmp$$

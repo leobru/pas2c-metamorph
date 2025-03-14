@@ -23,10 +23,16 @@ cat << EOF >> tmp$$
 \`\`\`\`\`\`
 ЕКОНЕЦ
 EOF
+ulimit -t 3
+rm -f work.o
 length=`dispak -l tmp$$ | tee work.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))
+grep -q 'LINES STRUCTURE' work.lst
+if [ $? -ne 0 ]; then
+echo '[1;31mFAILURE[22;39m'
+exit 1
+fi
 echo Module length is $length zones
-rm -f work.o
 besmtool dump 1234 --start=0102 --length=$length --to-file=work.o
 dtran -d work.o > work.asm
 rm -f tmp$$
