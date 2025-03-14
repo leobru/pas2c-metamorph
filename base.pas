@@ -140,9 +140,9 @@ type
         ARRAYSY,    RECORDSY,   FILESY,
 (*41B*) IFSY,       CASESY,     WHILESY,
         FORSY,      WITHSY,     GOTOSY,
-(*47B*) ELSESY,     UNTILSY,    OFSY,       DOSY,
+(*47B*) ELSESY,     OFSY,       DOSY,
         TOSY,       DOWNTOSY,
-(*55B*) PROGRAMSY,  DEFAULTSY,  NOSY
+(*54B*) PROGRAMSY,  DEFAULTSY,  NOSY
 );
 %
 idclass = (
@@ -481,7 +481,7 @@ var (* total size 4791 words *)
 (*1577-
   2409*)    symTab: array [74000B..75500B] of bitset;
 (*2410*)    systemProcNames: array [0..22] of integer;
-(*2440*)    resWordNameBase: array [0..26] of integer;
+(*2440*)    resWordNameBase: array [0..25] of integer;
 (*2470*)    longSymCnt: integer;
 (*2471*)    longSymTabBase: array [1..90] of integer;
 (*2560*)    longSyms: array [1..90] of bitset;
@@ -5001,16 +5001,17 @@ procedure statement;
 label
     8888;
 var
-    boundary: eptr;
-    l3var2z: @numLabel;
-    l3var3z: @strLabel;
-    l3var4z: word;
-    l3bool5z: boolean;
-    l3var6z: idclass;
-    doWhlOffset, elsWhlOffset: word;
-    startLine: integer;
-    ifWhlTarget, elseJump: word;
-    l3idr12z: irptr;
+    boundary              : eptr;
+    l3var2z               : @numLabel;
+    l3var3z               : @strLabel;
+    l3var4z               : boolean;
+    l3bool5z              : boolean;
+    l3var6z               : idclass;
+    curOffset             : word;
+    startLine             : integer;
+    ifWhlTarget, elseJump : word;
+    whileExpr             : eptr;
+    l3idr12z              : irptr;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function isCharArray(arg: tptr): boolean;
@@ -7020,8 +7021,8 @@ var
             debugLine := lineCnt;
             arithMode := 1;
         };
-        l3var4z.b := (SY IN [BEGINSY,CASESY]);
-        if (l3var4z.b) then
+        l3var4z := (SY IN [BEGINSY,CASESY]);
+        if (l3var4z) then
             lineNesting := lineNesting + 1;
 (ident)
         if SY = IDENT then {
@@ -7134,12 +7135,12 @@ var
                 elseJump.i := 0;
                 formJump(elseJump.i);
                 P0715(0, ifWhlTarget.i);
-                elsWhlOffset.i := arithMode;
+                curOffset.i := arithMode;
                 arithMode := 1;
                 inSymbol;
                 statement;
                 P0715(0, elseJump.i);
-                if (elsWhlOffset.i <> arithMode) then {
+                if (curOffset.i <> arithMode) then {
                     arithMode := 2;
                     disableNorm;
                 }
@@ -7150,31 +7151,38 @@ var
             set146z := [];
             disableNorm;
             padToLeft;
-            elsWhlOffset.i := moduleOffset;
+            curOffset.i := moduleOffset;
             ifWhileStatement;
             disableNorm;
-            form1Insn(insnTemp[UJ] + elsWhlOffset.i);
+            form1Insn(insnTemp[UJ] + curOffset.i);
             P0715(0, ifWhlTarget.i);
             arithMode := 1;
         } else (* 20644 *) if (SY = DOSY) then {
             set146z := [];
             disableNorm;
             padToLeft;
-            doWhlOffset.i := moduleOffset;
+            curOffset.i := moduleOffset;
             inSymbol;
             statement;
-            if (SY <> UNTILSY) then {
-                requiredSymErr(UNTILSY);
+            if (SY <> WHILESY) then {
+                requiredSymErr(WHILESY);
                 stmtName := '  DO  ';
                 reportStmtType(startLine);
                 goto 8888;
             };
             disableNorm;
-            expression;
+            parentExpression;
             if (curExpr@.typ <> booleanType) then {
                 error(errBooleanNeeded)
             } else {
-                jumpTarget := doWhlOffset.i;
+                jumpTarget := curOffset.i;
+                whileExpr := curExpr;
+                new(curExpr);
+                with curExpr@do {
+                    typ := booleanType;
+                    op := NOTOP;
+                    expr1 := whileExpr;
+                };
                 formOperator(BRANCH);
             };
         } else (* 20676 *)
@@ -7186,7 +7194,7 @@ var
         } else if (SY = WITHSY) then {
             withStatement;
         }; (* 20757 *)
-        if (l3var4z.b) then
+        if (l3var4z) then
             lineNesting := lineNesting - 1;
         rollup(boundary);
         if (bool110z) then {
@@ -8346,7 +8354,7 @@ var
     regResWord(565764C(*"     NOT"*));
     SY := LABELSY;
     charClass := NOOP;
-    for idx := 0 to 26 do
+    for idx := 0 to 25 do
         regResWord(resWordNameBase[idx]);
 }; (* regKeywords *)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -8519,7 +8527,7 @@ procedure initOptions;
     extSymMask := (43000000C);
     halfWord := [24:47];
     hashMask := 203407C;
-    statEndSys := [SEMICOLON, ENDSY, ELSESY, UNTILSY];
+    statEndSys := [SEMICOLON, ENDSY, ELSESY, WHILESY];
     lvalOpSet := [GETELT, GETVAR, op36, op37, GETFIELD, DEREF, FILEPTR];
     resWordNameBase :=
         5441424554C             (*"   LABEL"*),
@@ -8540,7 +8548,6 @@ procedure initOptions;
         67516450C               (*"    WITH"*),
         47576457C               (*"    GOTO"*),
         45546345C               (*"    ELSE"*),
-        6556645154C             (*"   UNTIL"*),
         5746C                   (*"      OF"*),
         4457C                   (*"      DO"*),
         6457C                   (*"      TO"*),

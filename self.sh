@@ -23,10 +23,11 @@ cat << EOF >> tmp$$
 \`\`\`\`\`\`
 ЕКОНЕЦ
 EOF
+if [ "$1" = "-d" ]; then ln -f tmp$$ self.b6 ; fi
 length=`dispak -l tmp$$ | tee self.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))
 echo Module length is $length zones
 rm -f self.o
 besmtool dump 1234 --start=0202 --length=$length --to-file=self.o
 dtran -d self.o > self.asm
-if [ "$1" = "-d" ]; then mv tmp$$ self.b6 ; else rm -f tmp$$; fi
+rm -f tmp$$
