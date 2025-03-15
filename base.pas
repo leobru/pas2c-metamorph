@@ -1722,10 +1722,6 @@ var
             litType := charType;
         LTSY:
             makeStringType(litType);
-        GTSY: {
-            litType := pointerType;
-            litValue.i := 74000C;
-        };
         end (* case *)
 }; (* parseLiteral *)
 %
@@ -5361,7 +5357,7 @@ var
             expression;
             checkSymAndRead(RPAREN);
         };
-        INTCONST, REALCONST, CHARCONST, LTSY, GTSY: {
+        INTCONST, REALCONST, CHARCONST, LTSY: {
             new(curExpr);
             parseLiteral(curExpr@.typ, curExpr@.d1, false);
             curExpr@.num2 := ord(suffix);
@@ -7367,6 +7363,8 @@ procedure regSysProc(l4arg1z: integer);
     regSysEnum(4641546345C(*"   FALSE"*), (0C));
     curIdRec@.list := hashTravPtr;
     booleanType@.enums := curIdRec;
+    tempType := pointerType;
+    regSysEnum(565154C(*"     NIL"*), (74000C));
     maxSmallString := 0;
     for strLen := 2 to 5 do
         makeStringType(smallStringType[strLen]);
@@ -8250,9 +8248,6 @@ var
     regResWord(415644C(*"     AND"*));
     regResWord(445166C(*"     DIV"*));
 %    regResWord(555744C(*"     MOD"*));
-    SY := GTSY; (* reused as NILSY *)
-    charClass := NOOP;
-    regResWord(565154C(*"     NIL"*));
     SY := ADDOP;
     charClass := OROP;
     regResWord(5762C(*"      OR"*));

@@ -1720,10 +1720,6 @@ var
             litType  =  charType;
         LTSY:
             makeStringType(litType);
-        GTSY: {
-            litType  =  pointerType;
-            litValue.i  =  74000C;
-        };
         } /* switch */
 }; /* parseLiteral */
 //
@@ -5333,7 +5329,7 @@ var
             expression;
             checkSymAndRead(RPAREN);
         };
-        INTCONST, REALCONST, CHARCONST, LTSY, GTSY: {
+        INTCONST, REALCONST, CHARCONST, LTSY: {
             new(curExpr);
             parseLiteral(curExpr@.typ, curExpr@.d1, false);
             curExpr@.num2  =  ord(suffix);
@@ -7266,13 +7262,13 @@ procedure regSysProc(l4arg1z: int);
     new(charType, kindScalar);
     with charType@ do {
         size  =  1;
-        bits  =  (8);
+        bits  =  8;
         k  =  kindScalar;
         numen  =  256;
         start  =  -1;
         enums  =  NIL;
     };
-    new(realType, kindArray);   /* could use kindReal to save 5 words */
+    new(realType, kindReal);
     with realType@ do {
         size  =  1;
         bits  =  48;
@@ -7324,6 +7320,8 @@ procedure regSysProc(l4arg1z: int);
     regSysEnum(4641546345C/*"   FALSE"*/, (0C));
     curIdRec@.list  =  hashTravPtr;
     boolType@.enums  =  curIdRec;
+    tempType = pointerType;
+    regSysEnum(565154C/*"     NIL"*/, (74000C));
     maxSmallString  =  0;
     for strLen  =  2 to 5 do
         makeStringType(smallStringType[strLen]);
@@ -8200,9 +8198,6 @@ var
     charClass  =  AMPERS;
     regResWord(415644C/*"     AND"*/);
     regResWord(445166C/*"     DIV"*/);
-    SY  =  GTSY; /* reused as NILSY */
-    charClass  =  NOOP;
-    regResWord(565154C/*"     NIL"*/);
     SY  =  ADDOP;
     charClass  =  OROP;
     regResWord(5762C/*"      OR"*/);
