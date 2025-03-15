@@ -1409,7 +1409,7 @@ procedure readOptFlag(var res: boolean);
                             besm(ASN64-3);
                             curToken :=;
                         };
-                    } (*=z-*)else(*=z+*) ;
+                    };
                     exit lexer;
                 }; (* octdec *)
                 curToken.i := 0;
@@ -1582,10 +1582,7 @@ procedure readOptFlag(var res: boolean);
             LTSY: {
                 SY := RELOP;
                 nextCH;
-                if CH = '>' then {
-                    charClass := NEOP;
-                    nextCH
-                } else if CH = '=' then {
+                if CH = '=' then {
                     charClass := LEOP;
                     nextCH;
                 }
@@ -1615,7 +1612,17 @@ procedure readOptFlag(var res: boolean);
             COLON: {
                 nextCH;
             };
-            NOTSY, LBRACK, MULOP, ADDOP, RELOP, RPAREN, RBRACK,
+            NOTSY: {
+                if charClass = NEOP then {
+                    nextCH;
+                    if CH = '=' then {
+                        SY := RELOP;
+                        nextCH;
+                    }
+                } else
+                    nextCH
+            };
+            LBRACK, MULOP, ADDOP, RELOP, RPAREN, RBRACK,
             COMMA, SEMICOLON, ARROW: {
                 nextCH;
             };
@@ -8583,7 +8590,6 @@ procedure initOptions;
     setOpMap[PLUSOP] := SETOR, SETSUB;
     imulOpMap := IMULOP, IDIVROP;
     setOpMap[MUL] := SETAND, SETXOR;
-    charSymTabBase[chr(27)] := CHARCONST;
     charSymTabBase[''''] := CHARCONST;
     charSymTabBase['_'] := REALCONST;
     charSymTabBase['<'] := LTSY;
@@ -8594,26 +8600,16 @@ procedure initOptions;
     chrClassTabBase['/'] := RDIVOP;
     chrClassTabBase['='] := EQOP;
     chrClassTabBase['&'] := AMPERS;
-    chrClassTabBase['÷'] := IDIVOP;
-    chrClassTabBase['∨'] := OROP;
     chrClassTabBase['>'] := GTOP;
     chrClassTabBase['<'] := LTOP;
-    chrClassTabBase['#'] := NEOP;
-    chrClassTabBase['×'] := MUL;
-    chrClassTabBase['≤'] := LEOP;
-    chrClassTabBase['≥'] := GEOP;
-    charSymTabBase['≤'] := RELOP;
-    charSymTabBase['≥'] := RELOP;
+    chrClassTabBase['!'] := NEOP;
     charSymTabBase['+'] := ADDOP;
     charSymTabBase['-'] := ADDOP;
-    charSymTabBase['∨'] := ADDOP;
     charSymTabBase['*'] := MULOP;
     charSymTabBase['/'] := MULOP;
     charSymTabBase['&'] := MULOP;
-    charSymTabBase['×'] := MULOP;
     charSymTabBase[','] := COMMA;
     charSymTabBase['.'] := PERIOD;
-    charSymTabBase[chr(22)] := ARROW;
     charSymTabBase['@'] := ARROW;
     charSymTabBase['^'] := ARROW;
     charSymTabBase['('] := LPAREN;
@@ -8621,11 +8617,9 @@ procedure initOptions;
     charSymTabBase[';'] := SEMICOLON;
     charSymTabBase['['] := LBRACK;
     charSymTabBase[']'] := RBRACK;
-    charSymTabBase['#'] := RELOP;
     charSymTabBase['='] := BECOMES;
     charSymTabBase[':'] := COLON;
-    charSymTabBase['÷'] := MULOP;
-    charSymTabBase['~'] := NOTSY;
+    charSymTabBase['!'] := NOTSY;
     helperNames :=
         6017210000000000C      (*"P/1     "*),
         6017220000000000C      (*"P/2     "*),
