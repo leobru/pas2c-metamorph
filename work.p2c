@@ -1,4 +1,4 @@
-/*=p-,t-,s8,y+,k9,l0*/
+/*=p-,t-,s8,y+,k9,l1*/
 program pascompl(_output_, _child_, pasinput, pasinfor);
 //
 label 9999;
@@ -139,7 +139,7 @@ type
         LABELSY,    CONSTSY,    TYPESY,     VARSY,
 /*32B*/ FUNCSY,     PROCSY,     SETSY,      PACKEDSY,
         ARRAYSY,    STRUCTSY,   FILESY,
-/*41B*/ IFSY,       CASESY,     WHILESY,
+/*41B*/ IFSY,       SWITCHSY,     WHILESY,
         FORSY,      WITHSY,     GOTOSY,
 /*47B*/ ELSESY,     OFSY,       DOSY,
         TOSY,       DOWNTOSY,
@@ -200,13 +200,13 @@ tptr = @types;
 irptr = @identrec;
 //
 word = struct { switch int of
-    0: (i: int);
-    1: (r: real);
-    2: (b: bool);
-    3: (a: alfa);
-    7: (c: char);
-    8: (cl: idclass);
-    13: (m: bitset)
+    0: {i: int};
+    1: {r: real};
+    2: {b: bool};
+    3: {a: alfa};
+    7: {c: char};
+    8: {cl: idclass};
+    13: {m: bitset}
     };
 //
 oiptr = @oneinsn;
@@ -236,31 +236,31 @@ types = struct {
     bits:   int;
     k:      kind;
     switch kind of
-    kindReal:   ();
-    kindRange:  (base:      tptr;
+    kindReal:   {};
+    kindRange:  {base:      tptr;
                  checker,
                  left,
-                 right:     int);
-    kindArray:  (abase,
+                 right:     int};
+    kindArray:  {abase,
                  range:     tptr;
                  pck:       bool;
                  perword,
-                 pcksize:   int);
-    kindScalar: (enums:     irptr;
+                 pcksize:   int};
+    kindScalar: {enums:     irptr;
                  numen,
-                 start:     int);
+                 start:     int};
     kindSet,
-    kindPtr:    (sbase:      tptr);
-    kindFile:   (fbase:      tptr;
-                 elsize:    int);
-    kindStruct: (ptr1,
+    kindPtr:    {sbase:      tptr};
+    kindFile:   {fbase:      tptr;
+                 elsize:    int};
+    kindStruct: {ptr1,
                  ptr2:      irptr;
                  flag,
-                 pckrec:    bool);
-    kindCases:  (sel:       word;
+                 pckrec:    bool};
+    kindCases:  {sel:       word;
                  first,
                  next:      tptr;
-                 r6:        tptr)
+                 r6:        tptr}
 };
 //
 typechain = struct {
@@ -275,18 +275,18 @@ entries   = array [1..42] of bitset;
 //
 expr = struct {
     switch operator of
-    NOOP:       (val:    word;
+    NOOP:       {val:    word;
                  op:     operator;
-                 d1, d2: word);
-    MUL:        (typ:    tptr;
+                 d1, d2: word};
+    MUL:        {typ:    tptr;
                  d3:     word;
-                 expr1, expr2: eptr);
-    BOUNDS:     (d4, d5: word;
-                 typ1, typ2: tptr);
-    NOTOP:      (d6, d7: word;
-                 id1, id2: irptr);
-    STANDPROC:  (d8, d9: word;
-                 num1, num2: int);
+                 expr1, expr2: eptr};
+    BOUNDS:     {d4, d5: word;
+                 typ1, typ2: tptr};
+    NOTOP:      {d6, d7: word;
+                 id1, id2: irptr};
+    STANDPROC:  {d8, d9: word;
+                 num1, num2: int};
 };
 //
 kword = struct {
@@ -320,23 +320,23 @@ identrec = struct {
     cl: idclass;
     switch idclass of
     TYPEID,
-    VARID:  ();
+    VARID:  {};
     ENUMID,
     FORMALID:
-            (list: irptr; value: int);
+            {list: irptr; value: int};
     FIELDID:
-            (maybeUnused: int;
+            {maybeUnused: int;
              uptype: tptr;
              pckfield:  bool;
              shift:     int;
-             width:     int);
+             width:     int};
     ROUTINEID:
-            (low: int;
+            {low: int;
              high: word;
              argList, preDefLink: irptr;
              level, pos: int;
              flags: bitset
-            );
+            };
 };
 extfilerec = struct {
     id:     word;
@@ -4234,7 +4234,7 @@ var
     l5var1z, pairIdx, l5var3z, l5var4z, l5var5z: int;
     l5var6z: @pair;
 {
-    parseTypeRef(selType, skipTarget + [CASESY]);
+    parseTypeRef(selType, skipTarget + [SWITCHSY]);
     if (curType@.ptr2 == NIL) {
         curType@.ptr2  =  curField;
     } else {
@@ -4313,6 +4313,8 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* parseRecordDecl */
+    if (SY != BEGINSY)
+        requiredSymErr(BEGINSY);
     int93z  =  3;
     inSymbol;
     while (SY == IDENT) {
@@ -4347,7 +4349,7 @@ var
             inSymbol;
         }
     };
-    if (SY == CASESY) {
+    if (SY == SWITCHSY) {
         int93z  =  3;
         inSymbol;
         selType  =  intType;
@@ -4427,8 +4429,6 @@ var
             };
             l4typ1z  =  tempType;
             checkSymAndRead(COLON);
-            if (SY != LPAREN)
-                requiredSymErr(LPAREN);
             parseRecordDecl(tempType, false);
             if ((cases2.size < cases.size) or
                isPacked and (cases.size == 1) and (cases2.size == 1) and
@@ -4437,7 +4437,6 @@ var
                 cases2  =  cases;
             };
             cases  =  cases1;
-            checkSymAndRead(RPAREN);
             cond  =  SY != SEMICOLON;
             if (not cond)
                 inSymbol;
@@ -4449,7 +4448,8 @@ var
     rectype@.size  =  cases.size;
     if (isPacked and (cases.size == 1) and (cases.count == 1)) {
         rectype@.bits  =  48 - cases.pairs[1].first;
-    }
+    };
+    checkSymAndRead(ENDSY);
 }; /* parseRecordDecl*/
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4567,10 +4567,7 @@ var
             cases.size  =  0;
             cases.count  =  0;
             inSymbol;
-            if (SY != BEGINSY)
-                requiredSymErr(BEGINSY);
             parseRecordDecl(curType, true);
-            checkSymAndRead(ENDSY);
         } else if (SY == ARRAYSY) {
             inSymbol;
             if (SY == LBRACK)
@@ -6163,8 +6160,8 @@ label
 type
     DATAREC = struct {
         switch bool of
-            false: (a: packed array [0..3] of 0..4095);
-            true:  (b: bitset)
+            false: {a: packed array [0..3] of 0..4095};
+            true:  {b: bitset}
         };
 var
     dsize, setcount: int;
@@ -6892,7 +6889,7 @@ var
             debugLine  =  lineCnt;
             arithMode  =  1;
         };
-        l3var4z  =  (SY IN [BEGINSY,CASESY]);
+        l3var4z  =  (SY IN [BEGINSY,SWITCHSY]);
         if (l3var4z)
             lineNesting  =  lineNesting + 1;
 (ident)
@@ -7058,7 +7055,7 @@ var
         } else if (SY == FORSY) {
             set146z  =  [];
             forStatement;
-        } else if (SY == CASESY) {
+        } else if (SY == SWITCHSY) {
             caseStatement
         } else if (SY == WITHSY) {
             withStatement;
@@ -8231,7 +8228,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure initSets;
 {
-    skipToSet  =  blockBegSys + statBegSys - [CASESY];
+    skipToSet  =  blockBegSys + statBegSys - [SWITCHSY];
     bigSkipSet  =  skipToSet + statEndSys;
 }; /* initSets */
 //
@@ -8372,7 +8369,7 @@ procedure initOptions;
     constRegTemplate  =  I8;
     disNormTemplate  =   KNTR+7;
     blockBegSys  =  [LABELSY, CONSTSY, TYPESY, VARSY, FUNCSY, PROCSY, BEGINSY];
-    statBegSys  =   [BEGINSY, IFSY, CASESY, DOSY, WHILESY, FORSY, WITHSY,
+    statBegSys  =   [BEGINSY, IFSY, SWITCHSY, DOSY, WHILESY, FORSY, WITHSY,
                     GOTOSY];
     O77777  =  [33:47];
     intZero  =  0;

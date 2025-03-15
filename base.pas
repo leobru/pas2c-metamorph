@@ -4327,6 +4327,8 @@ var
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* parseRecordDecl *)
+    if (SY <> BEGINSY) then
+       requiredSymErr(BEGINSY);
     int93z := 3;
     inSymbol;
 
@@ -4442,8 +4444,6 @@ var
             };
             l4typ1z := tempType;
             checkSymAndRead(COLON);
-            if (SY <> LPAREN) then
-                requiredSymErr(LPAREN);
             parseRecordDecl(tempType, false);
             if (cases2.size < cases.size) or
                isPacked and (cases.size = 1) and (cases2.size = 1) and
@@ -4452,7 +4452,6 @@ var
                 cases2 := cases;
             };
             cases := cases1;
-            checkSymAndRead(RPAREN);
             cond := SY <> SEMICOLON;
             if (not cond) then
                 inSymbol;
@@ -4464,8 +4463,8 @@ var
     rectype@.size := cases.size;
     if isPacked and (cases.size = 1) and (cases.count = 1) then {
         rectype@.bits := 48 - cases.pairs[1].first;
-    }
-
+    };
+    checkSymAndRead(ENDSY);
 }; (* parseRecordDecl*)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4585,10 +4584,7 @@ var
             cases.size := 0;
             cases.count := 0;
             inSymbol;
-            if (SY <> BEGINSY) then
-                requiredSymErr(BEGINSY);
             parseRecordDecl(curType, true);
-            checkSymAndRead(ENDSY);
         } else
         if (SY = ARRAYSY) then {
             inSymbol;
