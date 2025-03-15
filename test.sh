@@ -17,7 +17,7 @@ EEB1A3
 EOF
 # Compiling the compiler expressed in the syntax currently supported
 # by the base compiler.
-sed 's/{/_(/g;s/}/_)/g' < $1 >> tmp$$
+sed 's/{/<:/g;s/}/:>/g' < $1 >> tmp$$
 cat << EOF >> tmp$$
 *libra:2
 *call dtran(program)
@@ -27,6 +27,11 @@ cat << EOF >> tmp$$
 *ll
 *ee
 *execute
+EOF
+if [ "$2" != "" ]; then
+cat $2 >> tmp$$
+fi
+cat << EOF >> tmp$$
 *end file
 \`\`\`\`\`\`
 ЕКОНЕЦ
