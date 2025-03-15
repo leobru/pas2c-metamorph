@@ -406,7 +406,6 @@ var
     fuzzReals: bool;
     fixMult: bool;
     bool110z: bool;
-    pseudoZ: bool;
     allowCompat: bool;
     checkFortran: bool;
     outputFile: irptr;
@@ -1187,7 +1186,6 @@ procedure readOptFlag(var res: bool);
         'M': readOptFlag(fixMult);
         'B': readOptVal(fileBufSize, 4);
         'K': readOptVal(heapSize, 23);
-        'Z': readOptFlag(pseudoZ);
         };
         if (badOpt)
             error(54); /* errErrorInPseudoComment */
@@ -1208,8 +1206,7 @@ procedure readOptFlag(var res: bool);
 }; /* parseComment */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{
-(again) { /* inSymbol */
+{ /* inSymbol */
         if (dataCheck) {
             error(errEOFEncountered);
             readToPos80;
@@ -1613,13 +1610,8 @@ procedure readOptFlag(var res: bool);
         } else
             nextCH;
         prevSY  =  SY;
-        if (!pseudoZ and !(DebugCode in optSflags.m)) {
-            commentModeCH  =  '=';
-            goto again;
-        };
         commentModeCH  =  ' ';
         int93z  =  int92z;
-    }
 }; /* inSymbol */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -8372,7 +8364,6 @@ procedure initOptions;
     checkTypes  =  true;
     fixMult  =  true;
     fuzzReals  =  true;
-    pseudoZ  =  ;
     checkBounds  =  not (44 in curVal.m);
     declExternal  =  false;
     errors  =  false;
