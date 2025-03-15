@@ -20,6 +20,7 @@ cat << EOF >> tmp$$
 \`\`\`\`\`\`
 ЕКОНЕЦ
 EOF
+ulimit -t 3
 rm -f base.o
 if [ "$1" = "-d" ]; then ln -f tmp$$ base.b6 ; fi
 length=`dispak -l tmp$$ | tee base.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
