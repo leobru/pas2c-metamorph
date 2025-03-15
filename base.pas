@@ -137,7 +137,7 @@ type
         BEGINSY,    ENDSY,
         LABELSY,    CONSTSY,    TYPESY,     VARSY,
 (*32B*) FUNCSY,     PROCSY,     SETSY,      PACKEDSY,
-        ARRAYSY,    RECORDSY,   FILESY,
+        ARRAYSY,    STRUCTSY,   FILESY,
 (*41B*) IFSY,       CASESY,     WHILESY,
         FORSY,      WITHSY,     GOTOSY,
 (*47B*) ELSESY,     OFSY,       DOSY,
@@ -188,7 +188,7 @@ opflg = (
 %
 kind = (
     kindReal, kindScalar, kindRange, kindPtr,
-    kindSet, kindArray, kindRecord, kindFile,
+    kindSet, kindArray, kindStruct, kindFile,
     kindCases
 );
 %
@@ -252,7 +252,7 @@ types = record
     kindPtr:    (sbase:      tptr);
     kindFile:   (fbase:      tptr;
                  elsize:    integer);
-    kindRecord: (ptr1,
+    kindStruct: (ptr1,
                  ptr2:      irptr;
                  flag,
                  pckrec:    boolean);
@@ -1219,7 +1219,7 @@ procedure readOptFlag(var res: boolean);
             commentModeCH := c;
         };
         nextCH
-    until CH = ')';
+    until CH = '/';
     nextCH;
 }; (* parseComment *)
 %
@@ -1247,8 +1247,6 @@ procedure readOptFlag(var res: boolean);
         if atEOL then {
             endOfLine;
             nextCH;
-            if CH = '%' then while not atEOL do
-                nextCH;
             goto 1473;
         };
         hashTravPtr := NIL;
@@ -1595,13 +1593,6 @@ procedure readOptFlag(var res: boolean);
                     nextCH
                 }
             }; (* GTOP *)
-            LPAREN: {
-                nextCH;
-                if CH = '*' then {
-                    parseComment;
-                    goto 1473
-                }
-            };
             BECOMES: {
                 nextCH;
                 if CH = '=' then {
@@ -1622,7 +1613,23 @@ procedure readOptFlag(var res: boolean);
                 } else
                     nextCH
             };
-            LBRACK, MULOP, ADDOP, RELOP, RPAREN, RBRACK,
+            MULOP: {
+               if charClass = RDIVOP then {
+                   nextCH;
+                   case CH of
+                   '*': {
+                       parseComment;
+                       goto 1473
+                   };
+                   '/': {
+                       while not atEOL do nextCH;
+                       goto 1473;
+                   }
+                   end
+               } else
+                   nextCH
+            };
+            LPAREN, LBRACK, ADDOP, RELOP, RPAREN, RBRACK,
             COMMA, SEMICOLON, ARROW: {
                 nextCH;
             };
@@ -1808,7 +1815,7 @@ var
 function isFileType(typtr: tptr): boolean;
 {
     isFileType := (typtr@.k = kindFile) or
-        (typtr@.k = kindRecord) and typtr@.flag;
+        (typtr@.k = kindStruct) and typtr@.flag;
 }; (* isFileType *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1958,7 +1965,7 @@ var
                     if typeCheck(type1@.base, type2@.base) then
                         goto 1;
                 };
-                kindRecord: {
+                kindStruct: {
                     if checkRecord(type1@.first, type2@.first) then
                         goto 1;
                 }
@@ -2471,7 +2478,7 @@ var
             } else {
                 l4var5z := l4typ4z@.k;
                 if (l4var5z < kindSet) or
-                   (l4var5z = kindRecord) and (s6 in optSflags.m) then {
+                   (l4var5z = kindStruct) and (s6 in optSflags.m) then {
                     l4bool7z := true;
                     l4bool8z := typeCheck(l4typ4z, integerType);
                 } else {
@@ -2657,7 +2664,7 @@ var
         l4var7z := insnList@.typ@.k;
         l4int1z := insnList@.typ@.bits;
         l4bool5z := (l4var7z < kindSet) or
-                     (l4var7z = kindRecord) and (S6 in optSflags.m);
+                     (l4var7z = kindStruct) and (S6 in optSflags.m);
         if (l4st6z = st1) then {
             l4int2z := insnList@.shift;
             l4int3z := l4int2z + insnList@.width;
@@ -4648,13 +4655,13 @@ var
             inSymbol;
             goto 12247;
         };
-        if (SY = RECORDSY) then { (* 12446 *)
+        if (SY = STRUCTSY) then { (* 12446 *)
             new(curType = 7);
             typ121z := curType;
             with curType@ do {
                 size := 0;
                 bits := 48;
-                k := kindRecord;
+                k := kindStruct;
                 ptr1 := NIL;
                 first := NIL;
                 flag := false;
@@ -5011,8 +5018,8 @@ label
     8888;
 var
     boundary              : eptr;
-    l3var2z               : @numLabel;
-    l3var3z               : @strLabel;
+    numLabPtr             : @numLabel;
+    strLabPtr               : @strLabel;
     l3var4z               : boolean;
     l3bool5z              : boolean;
     l3var6z               : idclass;
@@ -5074,7 +5081,7 @@ var
             };
             curExpr := l4exp1z;
         } else if (SY = PERIOD) then {
-            if (l4var4z = kindRecord) then {
+            if (l4var4z = kindStruct) then {
                 int93z := 3;
                 typ121z := l4typ3z;
                 inSymbol;
@@ -5885,7 +5892,7 @@ var
         if (hashTravPtr <> NIL) and
            (hashTravPtr@.cl >= VARID) then {
             parseLval;
-            if (curExpr@.typ@.k = kindRecord) then {
+            if (curExpr@.typ@.k = kindStruct) then {
                 formOperator(SETREG);
                 l4var3z := (l4var3z + [curVal.i]) * set148z;
             } else {
@@ -6191,7 +6198,7 @@ var
     checkSymAndRead(BECOMES);
     readNext := false;
     targType := curExpr@.typ;
-    if (targType@.k = kindRecord) and
+    if (targType@.k = kindStruct) and
        (SY = LBRACK) then {
         formOperator(gen5);
         indCnt := 0;
@@ -6816,7 +6823,7 @@ var
             formOperator(LOAD);
             form1Insn(KATI+14);
         } else {
-            if (arg1Type@.base@.k = kindRecord) then (*=z-*)(x)(*=z+*) {
+            if (arg1Type@.base@.k = kindStruct) then {
                 l4typ1z := l2typ13z@.base;
 (loop)          while (SY = COMMA) and (l4typ1z <> NIL) do {
                     with l4typ1z@ do
@@ -6988,35 +6995,35 @@ var
     else {
         if SY = INTCONST then {
             set146z := [];
-            l3var2z := numLabList;
+            numLabPtr := numLabList;
             disableNorm;
             l3bool5z := true;
             padToLeft;
-            while l3var2z <> l2var16z do { with l3var2z@ do
+            while numLabPtr <> l2var16z do { with numLabPtr@ do
                 if id <> curToken then {
-                    l3var2z := next;
+                    numLabPtr := next;
                 } else {
                     l3bool5z := false;
                     if (defined) then {
                         curVal.i := line;
                         error(17); (* errLblAlreadyDefinedInLine *);
                     } else {
-                        l3var2z@.line := lineCnt;
-                        l3var2z@.defined := true;
+                        numLabPtr@.line := lineCnt;
+                        numLabPtr@.defined := true;
                         padToLeft;
-                        if l3var2z@.offset = 0 then {
+                        if numLabPtr@.offset = 0 then {
                             (* empty *)
-                        } else if (l3var2z@.offset >= 74000B) then {
+                        } else if (numLabPtr@.offset >= 74000B) then {
                             curVal.i := (moduleOffset - 40000B);
-                            symTab[l3var2z@.offset] := [24,29] +
+                            symTab[numLabPtr@.offset] := [24,29] +
                                                          curVal.m * O77777;
                         } else (q) {
-                            P0715(0, l3var2z@.offset);
+                            P0715(0, numLabPtr@.offset);
                             (*=z-*)exit q(*=z+*)
                         }; (* 20342 *)
-                        l3var2z@.offset := moduleOffset;
+                        numLabPtr@.offset := moduleOffset;
                     };
-                    l3var2z := l2var16z;
+                    numLabPtr := l2var16z;
                 };
             }; (* while 20346 *)
             if (l3bool5z) then
@@ -7069,20 +7076,20 @@ var
                 error(errNoIdent);
                 goto 8888;
             };
-            new(l3var3z);
+            new(strLabPtr);
             padToLeft;
             disableNorm;
-            with l3var3z@ do {
+            with strLabPtr@ do {
                 next := strLabList;
                 ident := curIdent;
                 offset := moduleOffset;
                 exitTarget := 0;
             };
-            strLabList := l3var3z;
+            strLabList := strLabPtr;
             inSymbol;
             checkSymAndRead(RPAREN);
             statement;
-            P0715(0, l3var3z@.exitTarget);
+            P0715(0, strLabPtr@.exitTarget);
             strLabList := strLabList@.next;
         } else (* 20463 *) if (SY = BEGINSY) then
 (rep)   {
@@ -7113,10 +7120,10 @@ var
                     goto 8888;
             };
             disableNorm;
-            l3var2z := numLabList;
-(loop)      if (l3var2z <> NIL) then with l3var2z@ do {
+            numLabPtr := numLabList;
+(loop)      if (numLabPtr <> NIL) then with numLabPtr@ do {
                 if (id <> curToken) then {
-                    l3var2z := next;
+                    numLabPtr := next;
                 } else {
                     if (curFrameRegTemplate = frame) then {
                         if (offset >= 40000B) then {
@@ -8348,7 +8355,7 @@ var
     charClass := AMPERS;
     regResWord(415644C(*"     AND"*));
     regResWord(445166C(*"     DIV"*));
-    regResWord(555744C(*"     MOD"*));
+%    regResWord(555744C(*"     MOD"*));
     SY := GTSY; (* reused as NILSY *)
     charClass := NOOP;
     regResWord(565154C(*"     NIL"*));
@@ -8548,7 +8555,7 @@ procedure initOptions;
         634564C                 (*"     SET"*),
         604143534544C           (*"  PACKED"*),
         4162624171C             (*"   ARRAY"*),
-        624543576244C           (*"  RECORD"*),
+        636462654364C           (*"  STRUCT"*),
         46515445C               (*"    FILE"*),
         5146C                   (*"      IF"*),
         43416345C               (*"    CASE"*),
@@ -8598,6 +8605,7 @@ procedure initOptions;
     chrClassTabBase['-'] := MINUSOP;
     chrClassTabBase['*'] := MUL;
     chrClassTabBase['/'] := RDIVOP;
+    chrClassTabBase['%'] := IMODOP;
     chrClassTabBase['='] := EQOP;
     chrClassTabBase['&'] := AMPERS;
     chrClassTabBase['>'] := GTOP;
@@ -8607,6 +8615,7 @@ procedure initOptions;
     charSymTabBase['-'] := ADDOP;
     charSymTabBase['*'] := MULOP;
     charSymTabBase['/'] := MULOP;
+    charSymTabBase['%'] := MULOP;
     charSymTabBase['&'] := MULOP;
     charSymTabBase[','] := COMMA;
     charSymTabBase['.'] := PERIOD;

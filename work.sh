@@ -10,7 +10,6 @@ EEB1A3
 *     taking the base compiler module
 *libra:41
 *call yesmemory
-*system
 *call *pascom
 EOF
 # Compiling the compiler expressed in the syntax currently supported
