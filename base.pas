@@ -176,7 +176,7 @@ operator = (
 %
 opgen = (
     gen0,  STORE, LOAD,  gen3,  SETREG,
-    gen5,  gen6,  gen7,  gen8,  gen9,
+    CTOR,  gen6,  gen7,  gen8,  gen9,
     gen10, gen11, gen12, FILEACCESS, gen14,
     BRANCH, gen16, LITINSN
 );
@@ -1476,14 +1476,6 @@ procedure readOptFlag(var res: boolean);
                                     else {
                                         curChar := iso2text[CH];
                                     }
-                                } else if '_176' < CH then {
-                                    curChar := CH;
-                                } else if charEncoding = 0 then {
-                                    curChar := a0@[CH];
-                                } else if charEncoding = 1 then {
-                                    curChar := a1@[CH];
-                                } else if charEncoding = 4 then {
-                                    curChar := a4@[CH];
                                 } else {
                                     curChar := CH;
                                 };
@@ -3631,7 +3623,7 @@ var
                 NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP,
                 badop27, badop30, badop31, MKRANGE, ASSIGNOP:
                     error(200);
-                end; (* case 7750 *)
+                end;
                 insnList@.ilf5 := arg1Val;
             } else {
                 l3int3z := opToMode[curOP];
@@ -4053,7 +4045,7 @@ var l4exf1z: @extfilerec;
         formOperator(LOAD);
         curInsnTemplate := insnTemp[XTA];
     };
-    gen5: {
+    CTOR: {
         if (insnList@.st <> st0) then
             error(errVarTooComplex);
         setAddrTo(9);
@@ -5701,10 +5693,10 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure forStatement;
 var
-    l4typ1z: tptr;
-    l4exp2z, l4var3z, l4var4z: eptr;
-    l4int5z, l4int6z, l4int7z, l4int8z: integer;
-    l4var9z: boolean;
+    idxType: tptr;
+    idxVar, initExpr, finalExpr: eptr;
+    plusOne, addOrSub, toIdxUpdate, toLoop: integer;
+    nonDefInit: boolean;
 {
     inSymbol;
     disableNorm;
@@ -5721,64 +5713,64 @@ var
     };
     if (curExpr = NIL) then
         curExpr := uVarPtr;
-    l4exp2z := curExpr;
-    l4typ1z := l4exp2z@.typ;
-    if not (l4typ1z@.k IN [kindScalar, kindRange]) then
+    idxVar := curExpr;
+    idxType := idxVar@.typ;
+    if not (idxType@.k IN [kindScalar, kindRange]) then
         error(25); (* errExprNotOfADiscreteType *)
-    if typeCheck(integerType, l4typ1z) then
-        l4int5z := KATX+PLUS1
+    if typeCheck(integerType, idxType) then
+        plusOne := KATX+PLUS1
     else
-        l4int5z := KATX+E1;
+        plusOne := KATX+E1;
     if (SY = BECOMES) then {
         expression;
-        l4var9z := true;
+        nonDefInit := true;
     } else {
-        l4var9z := false;
+        nonDefInit := false;
     };
-    l4var3z := curExpr;
-    l4int6z := insnTemp[ADD];
-    if not typeCheck(l4typ1z, l4var3z@.typ) then
+    initExpr := curExpr;
+    addOrSub := insnTemp[ADD];
+    if not typeCheck(idxType, initExpr@.typ) then
         error(31); (* errIncompatibleTypesOfLoopIndexAndExpr *)
 (todownto)
     if (SY = TOSY) then
         exit todownto
     else if (SY = DOWNTOSY) then
-        l4int6z := insnTemp[SUB]
+        addOrSub := insnTemp[SUB]
     else {
         error(70); (* errNeitherToNorDownto *)
     };
     expression;
-    if not typeCheck(l4typ1z, curExpr@.typ) then
+    if not typeCheck(idxType, curExpr@.typ) then
         error(31); (* errIncompatibleTypesOfLoopIndexAndExpr *)
     formOperator(gen0);
-    l4var4z := curExpr;
-    if (l4var9z) then {
-        curExpr := l4var3z;
+    finalExpr := curExpr;
+    if (nonDefInit) then {
+        curExpr := initExpr;
         formOperator(LOAD);
     } else {
-        form1Insn(insnTemp[XTA] + l4int5z);
+        form1Insn(insnTemp[XTA] + plusOne);
     };
-    l4int7z := 0;
+    toIdxUpdate := 0;
     disableNorm;
-    formJump(l4int7z);
+    formJump(toIdxUpdate);
     padToLeft;
-    l4int8z := moduleOffset;
+    toLoop := moduleOffset;
     checkSymAndRead(DOSY);
     statement;
     disableNorm;
-    curExpr := l4exp2z;
+    curExpr := idxVar;
     formOperator(LOAD);
-    form1Insn(l4int6z + l4int5z);
-    P0715(0, l4int7z);
+    form1Insn(addOrSub + plusOne);
+    P0715(0, toIdxUpdate);
     formOperator(STORE);
-    curExpr := l4var4z;
-    if (l4int6z = insnTemp[SUB]) then
-        curVal.i := l4int6z
+    curExpr := finalExpr;
+    if (addOrSub = insnTemp[SUB]) then
+        curVal.i := addOrSub
     else
         curVal.i := insnTemp[RSUB];
 
     formOperator(gen3);
-    form1Insn(insnTemp[UZA] + l4int8z);
+    form1Insn(insnTemp[UZA] + toLoop);
 }; (* forStatement *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6106,7 +6098,7 @@ var
     targType := curExpr@.typ;
     if (targType@.k = kindStruct) and
        (SY = LBRACK) then {
-        formOperator(gen5);
+        formOperator(CTOR);
         indCnt := 0;
         inSymbol;
         l3bool5z := false;
@@ -6283,7 +6275,7 @@ function allocDataRef(l6arg1z: integer): integer;
         };
         putLeft := true;
         objBufIdx := 1;
-        formOperator(gen5);
+        formOperator(CTOR);
         if (objBufIdx <> 1) then
             error(errVarTooComplex);
         l4var7z.m := (leftInsn * [12,13,14,15,16,17,18,19,20,21,22,23]);
@@ -6346,7 +6338,7 @@ var
     l4typ1z, l4typ2z, l4typ3z: tptr;
     l4var4z, l4var5z: eptr;
     l4exp6z: eptr;
-    l4exp7z, l4exp8z, l4exp9z: eptr;
+    l4exp7z, l4exp8z, workExpr: eptr;
     l4bool10z,
     l4bool11z, l4bool12z: boolean;
     l4var13z, l4var14z, l4var15z: word;
@@ -6379,30 +6371,30 @@ procedure startReadOrWrite(l5arg1z: boolean);
         if not (curExpr@.op IN lvalOpSet) then
             error(27); (* errExpressionWhereVariableExpected *)
     };
-    if (l4exp9z = NIL) then {
+    if (workExpr = NIL) then {
         if (l4typ3z@.k = kindFile) then {
-            l4exp9z := curExpr;
+            workExpr := curExpr;
         } else {
-            new(l4exp9z);
-            l4exp9z@.typ := textType;
-            l4exp9z@.op := GETVAR;
+            new(workExpr);
+            workExpr@.typ := textType;
+            workExpr@.op := GETVAR;
             if (l5arg1z) then {
-                l4exp9z@.id1 := outputFile;
+                workExpr@.id1 := outputFile;
             } else {
                 if (inputFile <> NIL) then
-                    l4exp9z@.id1 := inputFile
+                    workExpr@.id1 := inputFile
                 else {
                     error(37); (* errInputMissingInProgramHeader *)
                 }
             }
         };
-        arg2Type := l4exp9z@.typ;
+        arg2Type := workExpr@.typ;
         l4var13z.b := typeCheck(arg2Type@.base, charType);
         l4bool12z := true;
         new(l4exp8z);
         l4exp8z@.typ := arg2Type@.base;
         l4exp8z@.op := FILEPTR;
-        l4exp8z@.expr1 := l4exp9z;
+        l4exp8z@.expr1 := workExpr;
         new(l4exp6z);
         l4exp6z@.typ := l4exp8z@.typ;
         l4exp6z@.op := ASSIGNOP;
@@ -6428,7 +6420,7 @@ procedure parseWidthSpecifier(var l5arg1z: eptr);
 procedure callHelperWithArg;
 {
     if ([12] <= set145z) or l4bool12z then {
-        curExpr := l4exp9z;
+        curExpr := workExpr;
         formOperator(gen8);
     };
     l4bool12z := false;
@@ -6499,11 +6491,11 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure writeProc;
 {
-    l4exp9z := NIL;
+    workExpr := NIL;
     l4var13z.b := true;
     repeat {
         startReadOrWrite(true);
-        if (l4exp7z <> l4exp9z) then {
+        if (l4exp7z <> workExpr) then {
             if not (l4var13z.b) then {
                 helperNo := 29;         (* P/PF *)
                 P17037;
@@ -6588,12 +6580,12 @@ procedure readProc;
 label
     17346, 17362;
 {
-    l4exp9z := NIL;
+    workExpr := NIL;
     l4var13z.b := true;
     l4var14z.i := moduleOffset;
     repeat {
         startReadOrWrite(false);
-        if (l4exp7z <> l4exp9z) then {
+        if (l4exp7z <> workExpr) then {
             if not (l4var13z.b) then {
                 helperNo := 30;         (* P/GF *)
 17346:
@@ -6609,7 +6601,7 @@ label
                     helperNo := 51;             (* P/RA7 *)
 17362:
                     curExpr := l4exp7z;
-                    formOperator(gen5);
+                    formOperator(CTOR);
                     form1Insn(KVTM+I10 + l4var15z.i);
                     callHelperWithArg;
                 } else {
@@ -6638,7 +6630,7 @@ label
 procedure checkArrayArg;
 {
     verifyType(NIL);
-    l4exp9z := curExpr;
+    workExpr := curExpr;
     l4typ1z := curExpr@.typ;
     if (l4typ1z@.pck) or
        (l4typ1z@.k <> kindArray) then
@@ -6659,7 +6651,7 @@ var
     new(l4exp7z);
     l4exp7z@.typ := l4typ1z@.base;
     l4exp7z@.op := GETELT;
-    l4exp7z@.expr1 := l4exp9z;
+    l4exp7z@.expr1 := workExpr;
     l4exp7z@.expr2 := l4exp8z;
     t := ref(l4exp6z@.typ@);
     if (t@.k <> kindArray) or
@@ -6713,9 +6705,9 @@ var
         if (curVarKind <> kindPtr) then
             error(13); (* errVarIsNotPointer *)
         heapCallsCnt := heapCallsCnt + 1;
-        l4exp9z := curExpr;
+        workExpr := curExpr;
         if (procNo = 5) then
-            formOperator(gen5);
+            formOperator(CTOR);
         l2typ13z := arg1Type@.base;
         ii := l2typ13z@.size;
         if (charClass = EQOP) then {
@@ -6753,8 +6745,8 @@ var
             form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
         };
         formAndAlign(jumpTarget);
-        if (procNo = (4)) then {
-            curExpr := l4exp9z;
+        if (procNo = 4) then {
+            curExpr := workExpr;
             formOperator(STORE);
         }
     };
@@ -7230,11 +7222,11 @@ var
         P0715(0, exitTarget);
     if not bool48z and not doPMD and (l2int21z = 3) and
        (curProcNesting <> 1) and (set145z * [1:15] <> [1:15]) then {
-        objBuffer[1] := [7:11,21:23,28,31];
+        objBuffer[1] := [7:11,21:23,28,31]; (* ,NTR,7; ,UTC, *)
         with l2idr2z@ do
             flags := flags + [25];
         if (objBufIdx = 2) then {
-            objBuffer[1] := [0,1,3:5];
+            objBuffer[1] := [0,1,3:5]; (* 13,UJ, *)
             putLeft := true;
         } else {
             l2idr2z@.pos := l3var1z.i;

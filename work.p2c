@@ -1475,14 +1475,6 @@ procedure readOptFlag(var res: bool);
                                     else {
                                         curChar  =  iso2text[CH];
                                     }
-                                } else if ('_176' < CH) {
-                                    curChar  =  CH;
-                                } else if (charEncoding == 0) {
-                                    curChar  =  a0@[CH];
-                                } else if (charEncoding == 1) {
-                                    curChar  =  a1@[CH];
-                                } else if (charEncoding == 4) {
-                                    curChar  =  a4@[CH];
                                 } else {
                                     curChar  =  CH;
                                 };
@@ -6307,7 +6299,7 @@ var
     l4typ1z, l4typ2z, l4typ3z: tptr;
     l4var4z, l4var5z: eptr;
     l4exp6z: eptr;
-    l4exp7z, l4exp8z, l4exp9z: eptr;
+    l4exp7z, l4exp8z, workExpr: eptr;
     l4bool10z,
     l4bool11z, l4bool12z: bool;
     l4var13z, l4var14z, l4var15z: word;
@@ -6340,30 +6332,30 @@ procedure startReadOrWrite(l5arg1z: bool);
         if (not (curExpr@.op IN lvalOpSet))
             error(27); /* errExpressionWhereVariableExpected */
     };
-    if (l4exp9z == NIL) {
+    if (workExpr == NIL) {
         if (l4typ3z@.k == kindFile) {
-            l4exp9z  =  curExpr;
+            workExpr  =  curExpr;
         } else {
-            new(l4exp9z);
-            l4exp9z@.typ  =  textType;
-            l4exp9z@.op  =  GETVAR;
+            new(workExpr);
+            workExpr@.typ  =  textType;
+            workExpr@.op  =  GETVAR;
             if (l5arg1z) {
-                l4exp9z@.id1  =  outputFile;
+                workExpr@.id1  =  outputFile;
             } else {
                 if (inputFile != NIL)
-                    l4exp9z@.id1  =  inputFile
+                    workExpr@.id1  =  inputFile
                 else {
                     error(37); /* errInputMissingInProgramHeader */
                 }
             }
         };
-        arg2Type  =  l4exp9z@.typ;
+        arg2Type  =  workExpr@.typ;
         l4var13z.b  =  typeCheck(arg2Type@.base, charType);
         l4bool12z  =  true;
         new(l4exp8z);
         l4exp8z@.typ  =  arg2Type@.base;
         l4exp8z@.op  =  FILEPTR;
-        l4exp8z@.expr1  =  l4exp9z;
+        l4exp8z@.expr1  =  workExpr;
         new(l4exp6z);
         l4exp6z@.typ  =  l4exp8z@.typ;
         l4exp6z@.op  =  ASSIGNOP;
@@ -6389,7 +6381,7 @@ procedure parseWidthSpecifier(var l5arg1z: eptr);
 procedure callHelperWithArg;
 {
     if (([12] <= set145z) or l4bool12z) {
-        curExpr  =  l4exp9z;
+        curExpr  =  workExpr;
         formOperator(gen8);
     };
     l4bool12z  =  false;
@@ -6460,11 +6452,11 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure writeProc;
 {
-    l4exp9z  =  NIL;
+    workExpr  =  NIL;
     l4var13z.b  =  true;
     do {
         startReadOrWrite(true);
-        if (l4exp7z != l4exp9z) {
+        if (l4exp7z != workExpr) {
             if (not (l4var13z.b)) {
                 helperNo  =  29;         /* P/PF */
                 P17037;
@@ -6549,12 +6541,12 @@ procedure readProc;
 label
     17346, 17362;
 {
-    l4exp9z  =  NIL;
+    workExpr  =  NIL;
     l4var13z.b  =  true;
     l4var14z.i  =  moduleOffset;
     do {
         startReadOrWrite(false);
-        if (l4exp7z != l4exp9z) {
+        if (l4exp7z != workExpr) {
             if (not (l4var13z.b)) {
                 helperNo  =  30;         /* P/GF */
 17346:
@@ -6599,7 +6591,7 @@ label
 procedure checkArrayArg;
 {
     verifyType(NIL);
-    l4exp9z  =  curExpr;
+    workExpr  =  curExpr;
     l4typ1z  =  curExpr@.typ;
     if ((l4typ1z@.pck) or
        (l4typ1z@.k != kindArray))
@@ -6620,7 +6612,7 @@ var
     new(l4exp7z);
     l4exp7z@.typ  =  l4typ1z@.base;
     l4exp7z@.op  =  GETELT;
-    l4exp7z@.expr1  =  l4exp9z;
+    l4exp7z@.expr1  =  workExpr;
     l4exp7z@.expr2  =  l4exp8z;
     t  =  ref(l4exp6z@.typ@);
     if ((t@.k != kindArray) or
@@ -6674,7 +6666,7 @@ var
         if (curVarKind != kindPtr)
             error(13); /* errVarIsNotPointer */
         heapCallsCnt  =  heapCallsCnt + 1;
-        l4exp9z  =  curExpr;
+        workExpr  =  curExpr;
         if (procNo == 5)
             formOperator(gen5);
         l2typ13z  =  arg1Type@.base;
@@ -6712,8 +6704,8 @@ var
             form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
         };
         formAndAlign(jumpTarget);
-        if (procNo == (4)) {
-            curExpr  =  l4exp9z;
+        if (procNo == 4) {
+            curExpr  =  workExpr;
             formOperator(STORE);
         }
     };
@@ -8338,11 +8330,11 @@ procedure initOptions;
     litExternal.i  =  'EXTERNAL';
     litForward.i  =  ' FORWARD';
     litFortran.i  =  ' FORTRAN';
-    /*=A2*/
     fileBufSize  =  1;
     charEncoding  =  2;
     chain  =  NIL;
-    litOct.i  =  574364C;
+    litOct.i  =  '     OCT';
+    /*=A2*/
     longSymCnt  =  0;
     pasinfor.errors@  =  true;
     symTabCnt  =  0;
