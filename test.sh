@@ -3,7 +3,7 @@
 # disassembling and running
 cat << EOF > tmp$$
 ШИФР 419900ЗС5^
-ЛЕН 41(1234)42(2148)67(1234-WR)^
+ЛЕН 41(1234)42(2148)^
 EEB1A3
 *NAME work
 *      pascal runtime library
@@ -20,7 +20,7 @@ EOF
 sed 's/{/<:/g;s/}/:>/g' < $1 >> tmp$$
 cat << EOF >> tmp$$
 *libra:2
-*call dtran(program)
+*call dtran(main)
 *super
 *edit
 *r:1
@@ -36,5 +36,6 @@ cat << EOF >> tmp$$
 \`\`\`\`\`\`
 ЕКОНЕЦ
 EOF
+ulimit -t 3
 dispak -l tmp$$ 
 rm -f tmp$$

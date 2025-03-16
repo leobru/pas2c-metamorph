@@ -20,7 +20,6 @@ const
     NoPtrCheck = 4;
     NoStackCheck = 5;
 //
-    DebugInteractive = 44;
     DebugCode  = 45;
     DebugPrint = 46;
     DebugEntry = 47;
@@ -204,6 +203,7 @@ word = struct { switch int of
     1: {r: real};
     2: {b: bool};
     3: {a: alfa};
+    4: {t: packed array[0..7] of '_000' .. '_077'};
     7: {c: char};
     8: {cl: idclass};
     13: {m: bitset}
@@ -271,7 +271,7 @@ charmap   = packed array ['_000'..'_176'] of char;
 textmap   = packed array ['_052'..'_177'] of '_000'..'_077';
 //
 four = array [1..4] of int;
-entries   = array [1..42] of bitset;
+entries   = array [1..42] of word;
 //
 expr = struct {
     switch operator of
@@ -355,7 +355,7 @@ var
     dataCheck: bool;
     jumpType: int;
     jumpTarget: int;
-    int53z: int;
+    exitTarget: int;
     charClass: operator;
     SY, prevSY: symbol;
     savedObjIdx: int;
@@ -1509,9 +1509,14 @@ procedure readOptFlag(var res: bool);
                     unpck(localBuf[tokenIdx], curVal.a);
                     pck(localBuf[6], curToken.a);
                     curVal  = ;
-                    if (6 >= strLen)
+                    if (strLen <= 6)
                         exit lexer
-                    else {
+                    else if ((charEncoding == 3) and (strLen == 8)) {
+                        pack(localbuf, 6, curToken.t);
+                        curVal = ;
+                        SY = INTCONST;
+                        exit lexer
+                    } else {
                         curToken.i  =  FcstCnt;
                         tokenLen  =  6;
                         (loop) {
@@ -4837,8 +4842,8 @@ var
         if (l3var3z) {
             if (41 >= entryPtCnt) {
                 curVal  =  l2idr2z@.id;
-                entryPtTable[entryPtCnt]  =  makeNameWithStars(true);
-                entryPtTable[entryPtCnt+1]  =  [1] + frame.m - [0, 3];
+                entryPtTable[entryPtCnt].m  =  makeNameWithStars(true);
+                entryPtTable[entryPtCnt+1].m  =  [1] + frame.m - [0, 3];
                 entryPtCnt  =  entryPtCnt + 2;
             } else
                 error(87); /* errTooManyEntryProcs */
@@ -5829,7 +5834,7 @@ var
                 form1Insn(getValueOrAllocSymtab(ii) + (KVTM+I13));
                 form1Insn(getHelperProc(60)); /* P/ZAM */
             };
-            formJump(int53z);
+            formJump(exitTarget);
         } else {
             error(errNotDefined);
         }
@@ -6763,7 +6768,7 @@ var
                 error(1); /* errCommaOrSemicolonNeeded */
             inSymbol;
         } else {
-            formJump(int53z);
+            formJump(exitTarget);
         };
         if (not (l4bool10z))
             exit
@@ -6882,12 +6887,6 @@ var
                 error(16); /* errLblNotDefinedInBlock */;
             inSymbol;
             checkSymAndRead(COLON);
-        };
-        if ((DebugInteractive IN optSflags.m) and
-           (debugLine != lineCnt)) {
-            P0715(-1, 96 /* "P/DD" */);
-            debugLine  =  lineCnt;
-            arithMode  =  1;
         };
         l3var4z  =  (SY IN [BEGINSY,SWITCHSY]);
         if (l3var4z)
@@ -7104,7 +7103,7 @@ var
     set147z  =  [curProcNesting+1..6];
     set148z  =  set147z - [minel(set147z)];
     l3var7z.m  =  set147z;
-    int53z  =  0;
+    exitTarget  =  0;
     set145z  =  [1:15] - set147z;
     if (curProcNesting != 1)
         parseDecls(2);
@@ -7153,8 +7152,8 @@ var
     } while (not l2bool8z);
     l2idr2z@.flags  =  (set145z * [0:15]) + (l2idr2z@.flags - l3var7z.m);
     lineNesting  =  l3var2z.i - 1;
-    if (int53z != 0)
-        P0715(0, int53z);
+    if (exitTarget != 0)
+        P0715(0, exitTarget);
     if (not bool48z and not doPMD and (l2int21z == 3) and
        (curProcNesting != 1) and (set145z * [1:15] != [1:15])) {
         objBuffer[1]  =  [7:11,21:23,28,31];
@@ -7305,20 +7304,21 @@ procedure regSysProc(l4arg1z: int);
         pcksize  =  8;
     };
     smallStringType[6]  =  alfaType;
-    regSysType(515664C  /*"     INT"*/, intType);
-    regSysType(42575754C/*"    BOOL"*/, boolType);
-    regSysType(43504162C/*"    CHAR"*/, charType);
-    regSysType(62454154C/*"    REAL"*/, realType);
-    regSysType(41544641C/*"    ALFA"*/, alfaType);
-    regSysType(64457064C/*"    TEXT"*/, textType);
+     /*=A3 constructing TEXT constants */
+    regSysType('     INT', intType);
+    regSysType('    BOOL', boolType);
+    regSysType('    CHAR', charType);
+    regSysType('    REAL', realType);
+    regSysType('    ALFA', alfaType);
+    regSysType('    TEXT', textType);
     temptype  =  boolType;
-    regSysEnum(64626545C/*"    TRUE"*/, (1C));
+    regSysEnum('    TRUE', 1C);
     hashTravPtr  =  curIdRec;
-    regSysEnum(4641546345C/*"   FALSE"*/, (0C));
+    regSysEnum('   FALSE', 0C);
     curIdRec@.list  =  hashTravPtr;
     boolType@.enums  =  curIdRec;
     tempType = pointerType;
-    regSysEnum(565154C/*"     NIL"*/, (74000C));
+    regSysEnum('     NIL', 74000C);
     maxSmallString  =  0;
     for strLen  =  2 to 5 do
         makeStringType(smallStringType[strLen]);
@@ -7351,46 +7351,43 @@ procedure regSysProc(l4arg1z: int);
         regSysProc(systemProcNames[l3var5z]);
     l3var9z  =  0;
     temptype  =  realType;
-    regSysProc(63616264C/*"    SQRT"*/);
-    regSysProc(635156C/*"     SIN"*/);
-    regSysProc(435763C/*"     COS"*/);
-    regSysProc(416243644156C/*"  ARCTAN"*/);
-    regSysProc(416243635156C/*"  ARCSIN"*/);
-    regSysProc(5456C/*"      LN"*/);
-    regSysProc(457060C/*"     EXP"*/);
-    regSysProc(414263C/*"     ABS"*/);
+    regSysProc('    SQRT');
+    regSysProc('     SIN');
+    regSysProc('     COS');
+    regSysProc('  ARCTAN');
+    regSysProc('  ARCSIN');
+    regSysProc('      LN');
+    regSysProc('     EXP');
+    regSysProc('     ABS');
     temptype  =  intType;
-    regSysProc(6462655643C/*"   TRUNC"*/);
+    regSysProc('   TRUNC');
     temptype  =  boolType;
-    regSysProc(574444C/*"     ODD"*/);
+    regSysProc('     ODD');
     temptype  =  intType;
-    regSysProc(576244C/*"     ORD"*/);
+    regSysProc('     ORD');
     temptype  =  charType;
-    regSysProc(435062C/*"     CHR"*/);
-    regSysProc(63654343C/*"    SUCC"*/);
-    regSysProc(60624544C/*"    PRED"*/);
+    regSysProc('     CHR');
+    regSysProc('    SUCC');
+    regSysProc('    PRED');
     temptype  =  boolType;
-    regSysProc(455746C/*"     EOF"*/);
+    regSysProc('     EOF');
     temptype  =  pointerType;
-    regSysProc(624546C/*"     REF"*/);
+    regSysProc('     REF');
     temptype  =  boolType;
-    regSysProc(45575456C/*"    EOLN"*/);
+    regSysProc('    EOLN');
     temptype  =  intType;
-    regSysProc(636162C/*"     SQR"*/);
-    regSysProc(6257655644C/*"   ROUND"*/);
-    regSysProc(43416244C/*"    CARD"*/);
-    regSysProc(5551564554C/*"   MINEL"*/);
+    regSysProc('     SQR');
+    regSysProc('   ROUND');
+    regSysProc('    CARD');
+    regSysProc('   MINEL');
     temptype  =  pointerType;
-    regSysProc(606462C/*"     PTR"*/);
+    regSysProc('     PTR');
     l3var11z.i  =  30;
     l3var11z.m  =  l3var11z.m * halfWord + [24,27,28,29];
     new(programObj, 12);
-    curVal.i  =  1257656460656412C/*"*OUTPUT*"*/;
-    l3var3z  =  curVal;
-    curVal.i  =  12515660656412C/*" *INPUT*"*/;
-    l3var4z  =  curVal;
-    curVal.i  =  5657606257476241C/*"NOPROGRA"*/;
-    noProgram  =  curVal;
+    l3var3z.i  = '*OUTPUT*';
+    l3var4z.i  =  ' *INPUT*';
+    noProgram.i  =  'NOPROGRA';
     test1(PROGRAMSY, (skipToSet + [IDENT,LPAREN]));
     symTabPos  =  74004B;
     with programObj@ do {
@@ -7406,9 +7403,8 @@ procedure regSysProc(l4arg1z: int);
         };
     };
     if (curIdent != noProgram) {
-        entryPtTable[1]  =  symTab[74000B];
-        entryPtTable[3]  =
-            [0,1,6,7,10,12,14:18,21:25,28,30,35,36,38,39,41];/*"PROGRAM "*/
+        entryPtTable[1].m  =  symTab[74000B];
+        entryPtTable[3].i  = 'PROGRAM ';
         entryPtTable[2]  =  [1];
         entryPtTable[4]  =  [1];
         entryPtCnt  =  5;
@@ -7441,7 +7437,8 @@ procedure regSysProc(l4arg1z: int);
         cl  =  VARID;
         list  =  NIL;
     };
-    curVal.i  =  1257656460656412C/*"*OUTPUT*"*/;
+    curVal.i  =  '*OUTPUT*';
+    /*=A2 done with TEXT constants */
     l3var7z@.value  =  allocExtSymbol(l3var11z.m);
     addToHashTab(l3var7z);
     l3var5z  =  1;
@@ -7894,7 +7891,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
             if ((SY != IDENT) and not (SY IN skipToSet))
                 errAndSkip(errBadSymbol, skipToSet + [IDENT]);
         } while (SY == IDENT);
-    }; /* VARSY -> 23003 */
+    };
     if (curProcNesting == 1) {
         workidr  =  outputFile;
         curExternFile  =  fileForOutput;
@@ -8190,25 +8187,25 @@ var
 }; /* regResWord */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* regKeywords */
+{ /*=A3 regKeywords */
     SY  =  MULOP;
     charClass  =  AMPERS;
-    regResWord(415644C/*"     AND"*/);
-    regResWord(445166C/*"     DIV"*/);
+    regResWord('     AND');
+    regResWord('     DIV');
     SY  =  ADDOP;
     charClass  =  OROP;
-    regResWord(5762C/*"      OR"*/);
+    regResWord('      OR');
     SY  =  RELOP;
     charClass  =  INOP;
-    regResWord(5156C/*"      IN"*/);
+    regResWord('      IN');
     SY  =  NOTSY;
     charClass  =  NOOP;
-    regResWord(565764C/*"     NOT"*/);
+    regResWord('     NOT');
     SY  =  LABELSY;
     charClass  =  NOOP;
     for idx  =  0 to 26 do
         regResWord(resWordNameBase[idx]);
-}; /* regKeywords */
+}; /*=A2 regKeywords */
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure initArrays;
 var
@@ -8337,9 +8334,11 @@ procedure initOptions;
     declExternal  =  false;
     errors  =  false;
     allowCompat  =  false;
-    litExternal.i  =  4570644562564154C;
-    litForward.i  =  46576267416244C;
-    litFortran.i  =  46576264624156C;
+    /*=A3*/
+    litExternal.i  =  'EXTERNAL';
+    litForward.i  =  ' FORWARD';
+    litFortran.i  =  ' FORTRAN';
+    /*=A2*/
     fileBufSize  =  1;
     charEncoding  =  2;
     chain  =  NIL;
@@ -8379,32 +8378,33 @@ procedure initOptions;
     hashMask  =  203407C;
     statEndSys  =  [SEMICOLON, ENDSY, ELSESY, WHILESY];
     lvalOpSet  =  [GETELT, GETVAR, op36, op37, GETFIELD, DEREF, FILEPTR];
+    /*=A3*/
     resWordNameBase  =
-        5441424554C             /*"   LABEL"*/,
-        4357566364C             /*"   CONST"*/,
-        64716045C               /*"    TYPE"*/,
-        664162C                 /*"     VAR"*/,
-        4665564364515756C       /*"FUNCTION"*/,
-        6062574345446562C       /*"PROCEDUR"*/,
-        634564C                 /*"     SET"*/,
-        604143534544C           /*"  PACKED"*/,
-        4162624171C             /*"   ARRAY"*/,
-        636462654364C           /*"  STRUCT"*/,
-        46515445C               /*"    FILE"*/,
-        5146C                   /*"      IF"*/,
-        636751644350C           /*"  SWITCH"*/,
-        6750515445C             /*"   WHILE"*/,
-        465762C                 /*"     FOR"*/,
-        67516450C               /*"    WITH"*/,
-        47576457C               /*"    GOTO"*/,
-        45546345C               /*"    ELSE"*/,
-        5746C                   /*"      OF"*/,
-        4457C                   /*"      DO"*/,
-        6457C                   /*"      TO"*/,
-        445767566457C           /*"  DOWNTO"*/,
-        60625747624155C         /*" PROGRAM"*/,
-        576450456263C           /*" DEFAULT"*/;
-//
+        '   LABEL',
+        '   CONST',
+        '    TYPE',
+        '     VAR',
+        'FUNCTION',
+        'PROCEDUR',
+        '     SET',
+        '  PACKED',
+        '   ARRAY',
+        '  STRUCT',
+        '    FILE',
+        '      IF',
+        '  SWITCH',
+        '   WHILE',
+        '     FOR',
+        '    WITH',
+        '    GOTO',
+        '    ELSE',
+        '      OF',
+        '      DO',
+        '      TO',
+        '  DOWNTO',
+        ' PROGRAM',
+        ' DEFAULT';
+/*=A2*/
     charSymTabBase  =  NOSY:128;
     chrClassTabBase  =  NOOP:128;
     charSymTabBase['0']  =  INTCONST:10;
@@ -8464,126 +8464,127 @@ procedure initOptions;
     charSymTabBase['=']  =  BECOMES;
     charSymTabBase[':']  =  COLON;
     charSymTabBase['!']  =  NOTSY;
+    /*=A3*/
     helperNames  =
-        6017210000000000C      /*"P/1     "*/,
-        6017220000000000C      /*"P/2     "*/,
-        6017230000000000C      /*"P/3     "*/,
-        6017240000000000C      /*"P/4     "*/,
-        6017250000000000C      /*"P/5     "*/,
-        6017260000000000C      /*"P/6     "*/,
-        6017434100000000C      /*"P/CA    "*/,
-        6017455700000000C      /*"P/EO    "*/,
-        6017636300000000C      /*"P/SS    "*/,
-/*10*/  6017455400000000C      /*"P/EL    "*/,
-        6017554400000000C      /*"P/MD    "*/,
-        6017555100000000C      /*"P/MI    "*/,
-        6017604100000000C      /*"P/PA    "*/,
-        6017655600000000C      /*"P/UN    "*/,
-        6017436000000000C      /*"P/CP    "*/,
-        6017414200000000C      /*"P/AB    "*/,
-        6017445100000000C      /*"P/DI    "*/,
-        6017624300000000C      /*"P/RC    "*/,
-        6017454100000000C      /*"P/EA    "*/,
-/*20*/  6017564100000000C      /*"P/NA    "*/,
-        6017424100000000C      /*"P/BA    "*/,
-        6017515100000000C      /*"P/II   u"*/,
-        6017626200000000C      /*"P/RR    "*/,
-        6017625100000000C      /*"P/RI    "*/,
-        6017214400000000C      /*"P/1D    "*/,
-        6017474400000000C      /*"P/GD    "*/,
-        6017450000000000C      /*"P/E     "*/,
-        6017454600000000C      /*"P/EF    "*/,
-        6017604600000000C      /*"P/PF    "*/,
-/*30*/  6017474600000000C      /*"P/GF    "*/,
-        6017644600000000C      /*"P/TF    "*/,
-        6017624600000000C      /*"P/RF    "*/,
-        6017566700000000C      /*"P/NW    "*/,
-        6017446300000000C      /*"P/DS    "*/,
-        6017506400000000C      /*"P/HT    "*/,
-        6017675100000000C      /*"P/WI    "*/,
-        6017676200000000C      /*"P/WR    "*/,
-        6017674300000000C      /*"P/WC    "*/,
-        6017412600000000C      /*"P/A6    "*/,
-/*40*/  6017412700000000C      /*"P/A7    "*/,
-        6017677000000000C      /*"P/WX    "*/,
-        6017675700000000C      /*"P/WO    "*/,
-        6017436700000000C      /*"P/CW    "*/,
-        6017264100000000C      /*"P/6A    "*/,
-        6017274100000000C      /*"P/7A    "*/,
-        6017675400000000C      /*"P/WL    "*/,
-        6017624451000000C      /*"P/RDI   "*/,
-        6017624462000000C      /*"P/RDR   "*/,
-        6017624443000000C      /*"P/RDC   "*/,
-/*50*/  6017624126000000C      /*"P/RA6   "*/,
-        6017624127000000C      /*"P/RA7   "*/,
-        6017627000000000C      /*"P/RX   u"*/,
-        6017625400000000C      /*"P/RL    "*/,
-        6017675754560000C      /*"P/WOLN  "*/,
-        6017625154560000C      /*"P/RILN  "*/,
-        6017626200000000C      /*"P/RR    "*/,
-        6017434500000000C      /*"P/CE    "*/,
-        6017646200000000C      /*"P/TR    "*/,
-        6017546600000000C      /*"P/LV    "*/,
-/*60*/  6017724155000000C      /*"P/ZAM  u"*/,
-        6017605100000000C      /*"P/PI    "*/,
-        6017426000000000C      /*"P/BP    "*/,
-        6017422600000000C      /*"P/B6    "*/,
-        6017604200000000C      /*"P/PB    "*/,
-        6017422700000000C      /*"P/B7    "*/,
-        6017515600000000C      /*"P/IN    "*/,
-        6017516300000000C      /*"P/IS    "*/,
-        6017444100000000C      /*"P/DA    "*/,
-        6017435700000000C      /*"P/CO    "*/,
-/*70*/  6017516400000000C      /*"P/IT    "*/,
-        6017435300000000C      /*"P/CK    "*/,
-        6017534300000000C      /*"P/KC    "*/,
-        6017545647604162C      /*"P/LNGPAR"*/,
-        6017544441620000C      /*"P/LDAR  "*/,
-        6017544441625156C      /*"P/LDARIN"*/,
-        6017202043000000C      /*"P/00C   "*/,
-        6017636441620000C      /*"P/STAR  "*/,
-        6017605544634564C      /*"P/PMDSET"*/,
-        6017435100000000C      /*"P/CI    "*/,
-/*80*/  6041514200000000C      /*"PAIB    "*/,
-        6017674100000000C      /*"P/WA    "*/,
-        6361626412000000C      /*"SQRT*   "*/,
-        6351561200000000C      /*"SIN*    "*/,
-        4357631200000000C      /*"COS*    "*/,
-        4162436441561200C      /*"ARCTAN* "*/,
-        4162436351561200C      /*"ARCSIN* "*/,
-        5456120000000000C      /*"LN*     "*/,
-        4570601200000000C      /*"EXP*    "*/,
-        6017456100000000C      /*"P/EQ    "*/,
-/*90*/  6017624100000000C      /*"P/RA    "*/,
-        6017474500000000C      /*"P/GE    "*/,
-        6017554600000000C      /*"P/MF    "*/,
-        6017465500000000C      /*"P/FM    "*/,
-        6017565600000000C      /*"P/NN    "*/,
-        6017634300000000C      /*"P/SC    "*/,
-        6017444400000000C      /*"P/DD    "*/,
-        6017624500000000C      /*"P/RE    "*/;
+        'P/1     ',
+        'P/2     ',
+        'P/3     ',
+        'P/4     ',
+        'P/5     ',
+        'P/6     ',
+        'P/CA    ',
+        'P/EO    ',
+        'P/SS    ',
+/*10*/  'P/EL    ',
+        'P/MD    ',
+        'P/MI    ',
+        'P/PA    ',
+        'P/UN    ',
+        'P/CP    ',
+        'P/AB    ',
+        'P/DI    ',
+        'P/RC    ',
+        'P/EA    ',
+/*20*/  'P/NA    ',
+        'P/BA    ',
+        'P/II   u',
+        'P/RR    ',
+        'P/RI    ',
+        'P/1D    ',
+        'P/GD    ',
+        'P/E     ',
+        'P/EF    ',
+        'P/PF    ',
+/*30*/  'P/GF    ',
+        'P/TF    ',
+        'P/RF    ',
+        'P/NW    ',
+        'P/DS    ',
+        'P/HT    ',
+        'P/WI    ',
+        'P/WR    ',
+        'P/WC    ',
+        'P/A6    ',
+/*40*/  'P/A7    ',
+        'P/WX    ',
+        'P/WO    ',
+        'P/CW    ',
+        'P/6A    ',
+        'P/7A    ',
+        'P/WL    ',
+        'P/RDI   ',
+        'P/RDR   ',
+        'P/RDC   ',
+/*50*/  'P/RA6   ',
+        'P/RA7   ',
+        'P/RX   u',
+        'P/RL    ',
+        'P/WOLN  ',
+        'P/RILN  ',
+        'P/RR    ',
+        'P/CE    ',
+        'P/TR    ',
+        'P/LV    ',
+/*60*/  'P/ZAM  u',
+        'P/PI    ',
+        'P/BP    ',
+        'P/B6    ',
+        'P/PB    ',
+        'P/B7    ',
+        'P/IN    ',
+        'P/IS    ',
+        'P/DA    ',
+        'P/CO    ',
+/*70*/  'P/IT    ',
+        'P/CK    ',
+        'P/KC    ',
+        'P/LNGPAR',
+        'P/LDAR  ',
+        'P/LDARIN',
+        'P/00C   ',
+        'P/STAR  ',
+        'P/PMDSET',
+        'P/CI    ',
+/*80*/  'PAIB    ',
+        'P/WA    ',
+        'SQRT*   ',
+        'SIN*    ',
+        'COS*    ',
+        'ARCTAN* ',
+        'ARCSIN* ',
+        'LN*     ',
+        'EXP*    ',
+        'P/EQ    ',
+/*90*/  'P/RA    ',
+        'P/GE    ',
+        'P/MF    ',
+        'P/FM    ',
+        'P/NN    ',
+        'P/SC    ',
+        'P/DD    ',
+        'P/RE    ';
     systemProcNames  =
-/*0*/   606564C                /*"     PUT"*/,
-        474564C                /*"     GET"*/,
-        62456762516445C        /*" REWRITE"*/,
-        6245634564C            /*"   RESET"*/,
-        564567C                /*"     NEW"*/,
-        44516360576345C        /*"    FREE"*/,
-        50415464C              /*"    HALT"*/,
-        63645760C              /*"    STOP"*/,
-        6345646560C            /*"   SETUP"*/,
-        625754546560C          /*"  ROLLUP"*/,
-/*10*/  6762516445C            /*"   WRITE"*/,
-        67625164455456C        /*" WRITELN"*/,
-        62454144C              /*"    READ"*/,
-        624541445456C          /*"  READLN"*/,
-        45705164C              /*"    EXIT"*/,
-        4445426547C            /*"   DEBUG"*/,
-        42456355C              /*"    BESM"*/,
-        5541605141C            /*"   MAPIA"*/,
-        5541604151C            /*"   MAPAI"*/,
-        604353C                /*"     PCK"*/,
-/*20*/  6556604353C            /*"   UNPCK"*/,
-        60414353C              /*"    PACK"*/,
-        655660414353C          /*"  UNPACK"*/;
+/*0*/   '     PUT',
+        '     GET',
+        ' REWRITE',
+        '   RESET',
+        '     NEW',
+        '    FREE',
+        '    HALT',
+        '    STOP',
+        '   SETUP',
+        '  ROLLUP',
+/*10*/  '   WRITE',
+        ' WRITELN',
+        '    READ',
+        '  READLN',
+        '    EXIT',
+        '   DEBUG',
+        '    BESM',
+        '   MAPIA',
+        '   MAPAI',
+        '     PCK',
+/*20*/  '   UNPCK',
+        '    PACK',
+        '  UNPACK';
 }

@@ -4,12 +4,12 @@ cat << EOF > tmp$$
 ЛЕН 41(1234)42(2148)67(1234-WR)^
 EEB1A3
 *NAME self
-*     taking the compiled work.p2c module
-*table:liblist(pascompl)
-*liblist:410100
 *      pascal runtime library
 *tapes:420440
 *libra:42
+*     taking the compiled work.p2c module
+*tapes:410100
+*libra:41
 *call yesmemory
 *     system
 *call *pascom

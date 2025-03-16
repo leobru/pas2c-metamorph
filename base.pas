@@ -20,7 +20,6 @@ const
     NoPtrCheck = 4;
     NoStackCheck = 5;
 %
-    DebugInteractive = 44;
     DebugCode  = 45;
     DebugPrint = 46;
     DebugEntry = 47;
@@ -143,7 +142,7 @@ type
         FORSY,      WITHSY,     GOTOSY,
 (*47B*) ELSESY,     OFSY,       DOSY,
         TOSY,       DOWNTOSY,
-(*54B*) PROGRAMSY,  DEFAULTSY,  NOSY
+(*54B*) PROGRAMSY,  BREAKSY, CONTSY, DEFAULTSY,  NOSY
 );
 %
 idclass = (
@@ -204,6 +203,7 @@ word = record case integer of
     1: (r: real);
     2: (b: boolean);
     3: (a: alfa);
+    4: (t: packed array[0..7] of '_000' .. '_077');
     7: (c: char);
     8: (cl: idclass);
     13: (m: bitset)
@@ -356,7 +356,7 @@ var
    dataCheck: boolean;
    jumpType: integer;
    jumpTarget: integer;
-   int53z: integer;
+   exitTarget: integer;
    charClass: operator;
    SY, prevSY: symbol;
    savedObjIdx: integer;
@@ -1510,9 +1510,14 @@ procedure readOptFlag(var res: boolean);
                     unpck(localBuf[tokenIdx], curVal.a);
                     pck(localBuf[6], curToken.a);
                     curVal :=;
-                    if 6 >= strLen then
+                    if strLen <= 6 then
                         exit lexer
-                    else {
+                    else if (charEncoding = 3) and (strLen = 8) then {
+                        pack(localbuf, 6, curToken.t);
+                        curVal := ;
+                        SY := INTCONST;
+                        exit lexer
+                    } else {
                         curToken.i := FcstCnt;
                         tokenLen := 6;
                         (loop) {
@@ -5832,10 +5837,12 @@ var
                 } else {
                     if (ident = curIdent) then {
                         if (ii = 1) then {
-                            if (isGoto) then {
+                            if (isGoto and (offset <> -1)) then {
                                 form1Insn(insnTemp[UJ] + offset);
+                                writeln(' goto ', offset oct);
                             } else {
                                 formJump(curLab@.exitTarget);
+                                writeln(' formjump ', curLab@.exitTarget);
                             };
                         } else {
                             form1Insn(getValueOrAllocSymtab(ii) +
@@ -5861,7 +5868,7 @@ var
                 form1Insn(getValueOrAllocSymtab(ii) + (KVTM+I13));
                 form1Insn(getHelperProc(60)); (* P/ZAM *)
             };
-            formJump(int53z);
+            formJump(exitTarget);
         } else {
             error(errNotDefined);
         }
@@ -6802,7 +6809,7 @@ var
                 error(1); (* errCommaOrSemicolonNeeded *)
             inSymbol;
         } else {
-            formJump(int53z);
+            formJump(exitTarget);
         };
         if not (l4bool10z) then
             exit
@@ -6877,6 +6884,19 @@ var
     checkSymAndRead(RPAREN);
 
 }; (* standProc *)
+procedure setStrLab(forGoto: boolean);
+{
+    new(strLabPtr);
+    padToLeft;
+    disableNorm;
+    with strLabPtr@ do {
+        next := strLabList;
+        ident := curIdent;
+        if forGoto then offset := moduleOffset else offset := -1;
+        exitTarget := 0;
+    };
+    strLabList := strLabPtr;
+};
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* statement *)
@@ -6923,12 +6943,6 @@ var
             inSymbol;
             checkSymAndRead(COLON);
         }; (* 20355*)
-        if (DebugInteractive IN optSflags.m) and
-           (debugLine <> lineCnt) then {
-            P0715(-1, 96 (* "P/DD" *));
-            debugLine := lineCnt;
-            arithMode := 1;
-        };
         l3var4z := (SY IN [BEGINSY,SWITCHSY]);
         if (l3var4z) then
             lineNesting := lineNesting + 1;
@@ -6968,16 +6982,7 @@ var
                 error(errNoIdent);
                 goto 8888;
             };
-            new(strLabPtr);
-            padToLeft;
-            disableNorm;
-            with strLabPtr@ do {
-                next := strLabList;
-                ident := curIdent;
-                offset := moduleOffset;
-                exitTarget := 0;
-            };
-            strLabList := strLabPtr;
+            setStrLab(true);
             inSymbol;
             checkSymAndRead(RPAREN);
             statement;
@@ -7056,21 +7061,42 @@ var
             }
         } else  if (SY = WHILESY) then {
             set146z := [];
-            disableNorm;
-            padToLeft;
+            curIdent.i := 4262454153C;
+            setStrLab(false); (* break *)
+            curIdent.i := 4357566451566545C;
+            setStrLab(true); (* continue *)
             curOffset.i := moduleOffset;
             ifWhileStatement;
             disableNorm;
             form1Insn(insnTemp[UJ] + curOffset.i);
             P0715(0, ifWhlTarget.i);
+            strLabList := strLabList@.next; (* removing continue *)
+            P0715(0, strLabList@.exitTarget); (* assigning target for break *)
+            strLabList := strLabList@.next; (* removing break *)
             arithMode := 1;
+        } else if (SY = BREAKSY) then {
+            SY := IDENT;
+            if not structBranch(false) then goto 8888;
+            inSymbol;
+        } else if (SY = CONTSY) then {
+            SY := IDENT;
+            if not structBranch(true) then goto 8888;
+            inSymbol;
         } else  if (SY = DOSY) then {
             set146z := [];
-            disableNorm;
-            padToLeft;
+            curIdent.i := 4262454153C;
+            setStrLab(false); (* break *)
+            curIdent.i := 4357566451566545C;
+            setStrLab(false); (* continue *)
             curOffset.i := moduleOffset;
             inSymbol;
             statement;
+            (* assigning target for continue if used *)
+            with strLabList@ do if exitTarget <> 0 then {
+                 P0715(0, exitTarget);
+writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
+                                                        };
+            strLabList := strLabList@.next; (* removing continue *)
             if (SY <> WHILESY) then {
                 requiredSymErr(WHILESY);
                 stmtName := '  DO  ';
@@ -7092,6 +7118,11 @@ var
                 };
                 formOperator(BRANCH);
             };
+            with strLabList@ do if exitTarget <> 0 then {
+            P0715(0, exitTarget); (* assigning target for break *)
+writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
+};
+            strLabList := strLabList@.next; (* removing break *)
         } else
         if (SY = FORSY) then {
             set146z := [];
@@ -7146,7 +7177,7 @@ var
     set147z := [curProcNesting+1..6];
     set148z := set147z - [minel(set147z)];
     l3var7z.m := set147z;
-    int53z := 0;
+    exitTarget := 0;
     set145z := [1:15] - set147z;
     if (curProcNesting <> 1) then
         parseDecls(2);
@@ -7195,8 +7226,8 @@ var
     until l2bool8z;
     l2idr2z@.flags := (set145z * [0:15]) + (l2idr2z@.flags - l3var7z.m);
     lineNesting := l3var2z.i - 1;
-    if (int53z <> 0) then
-        P0715(0, int53z);
+    if (exitTarget <> 0) then
+        P0715(0, exitTarget);
     if not bool48z and not doPMD and (l2int21z = 3) and
        (curProcNesting <> 1) and (set145z * [1:15] <> [1:15]) then {
         objBuffer[1] := [7:11,21:23,28,31];
@@ -8452,6 +8483,8 @@ procedure initOptions;
         6457C                   (*"      TO"*),
         445767566457C           (*"  DOWNTO"*),
         60625747624155C         (*" PROGRAM"*),
+        4262454153C             (*"   BREAK"*),
+        4357566451566545C       (*"CONTINUE"*),
         576450456263C           (*" DEFAULT"*);
 %
     charSymTabBase := NOSY:128;
