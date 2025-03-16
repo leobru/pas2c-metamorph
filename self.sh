@@ -29,7 +29,7 @@ ulimit -t 3
 rm -f self.o
 length=`dispak -l tmp$$ | tee self.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))
-grep -q 'LINES STRUCTURE' self.lst
+grep -q 'LINES STRUCTURE 1' self.lst
 if [ $? -ne 0 ]; then
 echo '[1;31mFAILURE[22;39m'
 exit 1

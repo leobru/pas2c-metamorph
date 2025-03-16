@@ -346,10 +346,10 @@ extfilerec = record
     location,
     line: integer
 end;
-numberSuffix = (noSuffix, suffixB, suffixC);
+numberFormat = (decimal, octal, fullword);
 %
 var
-   suffix: numberSuffix;
+   numFormat: numberFormat;
    bigSkipSet, statEndSys, blockBegSys, statBegSys,
    skipToSet, lvalOpSet: setofsys;
    bool47z, bool48z, bool49z: boolean;
@@ -1104,7 +1104,7 @@ var
     l3var135z: irptr;
     expMultiple, expValue: real;
     curChar: char;
-    numstr: array [1..16] of word;
+    numstr: array [1..17] of word;
     l3vars2: array [155..159] of word;
     expLiteral, expMagnitude: integer;
     l3int162z: integer;
@@ -1324,7 +1324,7 @@ procedure readOptFlag(var res: boolean);
                 tokenLen := 0;
                 repeat
                     tokenLen := tokenLen + 1;
-                    if (16 >= tokenLen) then
+                    if (tokenLen <= 17) then
                         numstr[tokenLen].i := ord(CH)-ord('0')
                     else {
                         error(55); (* errMoreThan16DigitsInNumber *)
@@ -1333,15 +1333,16 @@ procedure readOptFlag(var res: boolean);
                     nextCH;
                 until charSymTabBase[CH] <> INTCONST;
 (octdec)        {
-                    if CH = 'B' then
-                        suffix := suffixB
-                    else if CH = 'C' then
-                        suffix := suffixC
-                    else {
-                        suffix := noSuffix;
+                    if numstr[1].i = 0 then {
+                        numFormat := OCTAL;
+                        if CH = 'U' then {
+                            numFormat := FULLWORD;
+                            nextCH;
+                        }
+                    } else {
+                        numFormat := DECIMAL;
                         exit octdec;
                     };
-                    nextCH;
                     curToken.c := chr(0);
                     for tokenIdx to tokenLen do {
                         if 7 < numstr[tokenIdx].i then
@@ -1352,7 +1353,7 @@ procedure readOptFlag(var res: boolean);
                         curToken.m := numstr[tokenIdx].m * [45..47] +
                         curToken.m;
                     };
-                    if suffix = suffixB then {
+                    if numFormat = OCTAL then {
                         if curToken.m * [0..6] <> [] then {
                             error(errNumberTooLarge);
                             curToken.i := 1;
@@ -1370,6 +1371,12 @@ procedure readOptFlag(var res: boolean);
                         error(errNumberTooLarge);
                         curToken.i := 1;
                     };
+                };
+                if CH = 'U' then {
+                    curToken.m := curToken.m - [0,1,3];
+                    numFormat := FULLWORD;
+                    nextCH;
+                    exit lexer;
                 };
                 expMagnitude := 0;
                 if CH = '.' then {
@@ -5353,7 +5360,7 @@ var
         INTCONST, REALCONST, CHARCONST, LTSY: {
             new(curExpr);
             parseLiteral(curExpr@.typ, curExpr@.d1, false);
-            curExpr@.num2 := ord(suffix);
+            curExpr@.num2 := ord(numFormat);
             curExpr@.op := GETENUM;
             inSymbol;
         };
@@ -7563,11 +7570,11 @@ procedure regSysProc(l4arg1z: integer);
         };
         if (SY = INTCONST) then {
             l3var6z := 1000B * curToken.i + l3var6z;
-            if (suffix = noSuffix) and
+            if (numFormat = DECIMAL) and
                (1 < curToken.i) and
                (curToken.i < 127) then {
                 l3var6z := l3var6z + 128;
-            } else if (suffix = suffixB) and
+            } else if (numFormat = OCTAL) and
                       (1000000B < curToken.i) and
                       (curToken.i < 1743671743B) then {
                 l3var6z := l3var6z + 256;

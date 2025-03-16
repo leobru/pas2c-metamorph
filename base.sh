@@ -25,7 +25,7 @@ rm -f base.o
 if [ "$1" = "-d" ]; then ln -f tmp$$ base.b6 ; fi
 length=`dispak -l tmp$$ | tee base.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))
-grep -q 'LINES STRUCTURE' base.lst
+grep -q 'LINES STRUCTURE 1' base.lst
 if [ $? -ne 0 ]; then
 echo '[1;31mFAILURE[22;39m'
 exit 1
