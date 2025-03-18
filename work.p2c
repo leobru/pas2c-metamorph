@@ -999,7 +999,7 @@ var
         form3Insn(KITA+14, insnTemp[ASN] + arg, KAOX+I7+1);
         form1Insn(KATX+I7+1);
         exit;
-    } else if ((mode == 1) or (mode < -2)) {
+    } else if ((mode == 1) || (mode < -2)) {
         arg  =  arg - curVal.i;
         offset  =  getFCSToffset;
         if (mode == 1)
@@ -1031,7 +1031,7 @@ var
         external;
 {
     listMode  =  pasinfor.listMode;
-    if ((listMode != 0) or (errsInLine != 0))
+    if ((listMode != 0) || (errsInLine != 0))
     {
         write(' ', (lineStartOffset + PASINFOR.startOffset):5 oct,
               lineCnt:5, lineNesting:3, commentModeCH);
@@ -1145,7 +1145,7 @@ procedure readOptVal(var res: int; limit: int);
 procedure readOptFlag(var res: bool);
 {
     nextCH;
-    if ((CH == '-') or (CH == '+')) {
+    if ((CH == '-') || (CH == '+')) {
         res  =  CH == '+';
         badOpt  =  false;
     };
@@ -1458,7 +1458,7 @@ procedure readOptFlag(var res: bool);
                         if (atEOL) {
 2175:                       error(59); /* errEOLNInStringLiteral */
                             exit loop
-                        } else if (((CH == chr(035)) or
+                        } else if (((CH == chr(035)) ||
                                    (CH == '_'))
                                && (charSymTabBase[PASINPUT@] == INTCONST))
                          {
@@ -1477,7 +1477,7 @@ procedure readOptFlag(var res: bool);
                         } else
 2233:                       with PASINFOR do {
                                 if (charEncoding == 3) {
-                                    if ((ch < '*') or ('_176' < CH))
+                                    if ((ch < '*') || ('_176' < CH))
                                         curChar  =  chr(0)
                                     else {
                                         curChar  =  iso2text[CH];
@@ -1575,6 +1575,14 @@ procedure readOptFlag(var res: bool);
                 } else
                     nextCH
             };
+            ADDOP: {
+                if (charClass == OROP) {
+                    nextCH;
+                    if (CH == '|') nextCH
+                    else charClass = SETOR;
+                } else
+                    nextCH;
+            };
             MULOP: {
                if (charClass == AMPERS) {
                    nextCH;
@@ -1595,7 +1603,7 @@ procedure readOptFlag(var res: bool);
                } else
                    nextCH
             };
-            LPAREN, LBRACK, ADDOP, RELOP, RPAREN, RBRACK,
+            LPAREN, LBRACK, RELOP, RPAREN, RBRACK,
             COMMA, SEMICOLON, ARROW: {
                 nextCH;
             };
@@ -1627,7 +1635,7 @@ var
     sym: symbol;
 {
     sym  =  SY;
-    while ((sym != ENDSY) or (SY != PERIOD)) {
+    while ((sym != ENDSY) || (SY != PERIOD)) {
         sym  =  SY;
         inSymbol
     };
@@ -1642,7 +1650,7 @@ var
     errors  =  true;
     bool110z  = ;
     if (((linePos != prevErrPos) && (9 >= errsInLine))
-        or (errno == 52))
+        || (errno == 52))
      {
         write(' ');
         totalErrors  =  totalErrors + 1;
@@ -1714,7 +1722,7 @@ var
     } else
         switch (SY) {
         IDENT: {
-            if ((hashTravPtr == NIL) or
+            if ((hashTravPtr == NIL) ||
                (hashTravPtr@.cl != ENUMID))
                 goto 99;
             litType  =  hashTravPtr@.typ;
@@ -1770,7 +1778,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function isFileType(typtr: tptr): bool;
 {
-    isFileType  =  (typtr@.k == kindFile) or
+    isFileType  =  (typtr@.k == kindFile) ||
         (typtr@.k == kindStruct) && typtr@.flag;
 }; /* isFileType */
 //
@@ -1825,7 +1833,7 @@ function checkRecord(l4arg1z, l4arg2z: tptr): bool;
 var
     l4var1z: bool;
 {
-    l4var1z  =  (l4arg1z == NIL) or (l4arg2z == NIL);
+    l4var1z  =  (l4arg1z == NIL) || (l4arg2z == NIL);
     if (l4var1z) {
         checkRecord  =  l4arg1z == l4arg2z;
     } else {
@@ -1842,7 +1850,7 @@ var
     } else {
         typ120z  =  type1;
     };
-    if (!checkTypes or (type1 == type2))
+    if (!checkTypes || (type1 == type2))
 1:      typeCheck  =  true
     else
         with type1@ do {
@@ -1869,13 +1877,13 @@ var
                 kindRange: {
                     baseMatch  =  (type1@.base == type2@.base);
                     typ120z  =  type1@.base;
-                    rangeMismatch  =  (type1@.left != type2@.left) or
+                    rangeMismatch  =  (type1@.left != type2@.left) ||
                                 (type1@.right != type2@.right);
                     typeCheck  =  baseMatch;
                     exit
                 };
                 kindPtr: {
-                    if ((type1 == pointerType) or (type2 == pointerType))
+                    if ((type1 == pointerType) || (type2 == pointerType))
                         goto 1;
                     basetyp1  =  type1@.base;
                     basetyp2  =  type2@.base;
@@ -1883,7 +1891,7 @@ var
                         link  =  chain;
                         while (link != NIL) with link@ do {
                             if ((type1 == basetyp1) &&
-                               (type2 == basetyp2) or
+                               (type2 == basetyp2) ||
                                (type2 == basetyp1) &&
                                (type1 == basetyp2))
                                 goto 1;
@@ -2185,7 +2193,7 @@ procedure addJumpInsn(opcode: int);
                 if (curVal.i < 2048)
                     addInsnToBuf(tempInsn.i + curInsn.i)
                 else
-(stmt)          if ((curVal.i >= 28672) or (curVal.i < 4096)) {
+(stmt)          if ((curVal.i >= 28672) || (curVal.i < 4096)) {
                     addInsnToBuf(
                         allocSymtab((curVal.m + [24]) & halfWord)
                         + tempInsn.i - 28672);
@@ -2199,14 +2207,14 @@ procedure addJumpInsn(opcode: int);
     insnBufIdx  =  insnBufIdx-1;
     for l4var4z  =  insnBufIdx downto 1 do {
         curInsn  =  insnBuf[l4var4z];
-        if ((curInsn.i == insnTemp[NTR]) or
+        if ((curInsn.i == insnTemp[NTR]) ||
            (curInsn.i == 0370007))
          {
             l4var3z  =  l4var4z - 1;
             l4var213z  =  false;
 (loop)      if (l4var3z < 1)  exit loop else {
                 tempInsn.m  =  insnBuf[l4var3z].m & [28:32];
-                if ((tempInsn.i == CUTC) or (tempInsn.i == CWTC))
+                if ((tempInsn.i == CUTC) || (tempInsn.i == CWTC))
                  {
                     l4var3z  =  l4var3z-1;
                     goto loop;
@@ -2245,9 +2253,9 @@ procedure addJumpInsn(opcode: int);
                 } else if (curVal.i == insnTemp[ITA]) {
                     insnBuf[l4var2z].m  =  insnBuf[l4var2z].m + [35];
                     exit iter;
-                } else if ((curVal.i == insnTemp[NTR]) or
-                    (tempInsn.i == insnTemp[UTC]) or
-                    (tempInsn.i == insnTemp[WTC]) or
+                } else if ((curVal.i == insnTemp[NTR]) ||
+                    (tempInsn.i == insnTemp[UTC]) ||
+                    (tempInsn.i == insnTemp[WTC]) ||
                     (tempInsn.i == insnTemp[VTM]))
                     l4var2z  =  l4var2z + 1
                 else {
@@ -2260,7 +2268,7 @@ procedure addJumpInsn(opcode: int);
         if (curInsn.i < macro) {
             form1Insn(curInsn.i);
             tempInsn.m  =  curInsn.m & [28:32];
-            if ((tempInsn.i == 03100000U) or /* VJM */
+            if ((tempInsn.i == 03100000U) || /* VJM */
                (tempInsn.i == 0500000U))    /* ELFUN */
              {
                 padToLeft;
@@ -2408,7 +2416,7 @@ var
                 addInsnAndOffset(l4int2z + curInsnTemplate, l4int3z);
             } else {
                 l4var5z  =  l4typ4z@.k;
-                if ((l4var5z < kindSet) or
+                if ((l4var5z < kindSet) ||
                    (l4var5z == kindStruct) && (s6 in optSflags.m)) {
                     l4bool7z  =  true;
                     l4bool8z  =  typeCheck(l4typ4z, intType);
@@ -2417,8 +2425,8 @@ var
                     l4bool8z  =  false;
                 };
                 if (l4st6z == st1) {
-                    if ((l4int3z != l4int2z) or
-                       (helper != 18) or /* P/RC */
+                    if ((l4int3z != l4int2z) ||
+                       (helper != 18) || /* P/RC */
                        (l4int2z != 0))
                         addInsnAndOffset(l4int2z + insnTemp[XTA],
                                          l4int3z);
@@ -2579,7 +2587,7 @@ var
     };
     l4bool4z  =  0 in insnList@.regsused;
     l4st6z  =  insnList@.st;
-    if ((l4st6z != st0) or l4bool4z)
+    if ((l4st6z != st0) || l4bool4z)
         addxToInsnList(macro + mcPUSH);
     if (l4st6z == st0) {
         if (l4bool4z) {
@@ -2592,7 +2600,7 @@ var
     } else {
         l4var7z  =  insnList@.typ@.k;
         l4int1z  =  insnList@.typ@.bits;
-        l4bool5z  =  (l4var7z < kindSet) or
+        l4bool5z  =  (l4var7z < kindSet) ||
                      (l4var7z == kindStruct) && (S6 in optSflags.m);
         if (l4st6z == st1) {
             l4int2z  =  insnList@.shift;
@@ -2685,13 +2693,13 @@ var
     doPtrCheck  =  checkBounds && not (NoPtrCheck in optSflags.m)
                && (curOP == DEREF);
     if (not doPtrCheck && (
-        (insnList@.st == st0) or
+        (insnList@.st == st0) ||
         (insnList@.st == st1) &&
         (insnList@.shift == 0)))
      {
         l5var1z.i  =  insnList@.ilf7;
         l5var2z.i  =  insnList@.ilf6;
-        if ((l5var1z.i == 18) or (l5var1z.i == 16)) {
+        if ((l5var1z.i == 18) || (l5var1z.i == 16)) {
 5220:       addInsnAndOffset((insnList@.ilf5.i + insnTemp[WTC]), l5var2z.i);
         } else {
             if (l5var1z.i == 17) {
@@ -3012,7 +3020,7 @@ function myminel(l6arg1z: bitset): int;
         if (l5ilm28z == ilCONST) {
             curVal  =  insnList@.ilf5;
             curVal.m  =  curVal.m +  intZero;
-            if ((curVal.i < l5var7z) or
+            if ((curVal.i < l5var7z) ||
                (l5var27z@.right < curVal.i))
                 error(29); /* errIndexOutOfBounds */
             if (l5var25z) {
@@ -3054,7 +3062,7 @@ function myminel(l6arg1z: bitset): int;
                 else
                     addToInsnList(macro + mcMULTI);
            };
-           if ((l5ilm28z == il3) or
+           if ((l5ilm28z == il3) ||
               (l5ilm28z == il1) &&
               (insnList@.st != st0))
                prepLoad;
@@ -3227,7 +3235,7 @@ procedure traceEntry(isEntry: bool);
     } else {
         l5bool8z  =  true;
         if ((not l5bool9z) && (l5exp1z != NIL)
-            or (l5bool9z) && (l5var14z.i >= 2)) {
+            || (l5bool9z) && (l5var14z.i >= 2)) {
             addToInsnList(KUTM+SP + l5var13z.i);
         };
     };
@@ -3239,7 +3247,7 @@ procedure traceEntry(isEntry: bool);
         l5op21z  =  l5exp2z@.op;
         l5var14z.i  =  l5var14z.i + 1;
         l5inl20z  =  insnList;
-        if ((l5op21z == PCALL) or (l5op21z == FCALL)) {
+        if ((l5op21z == PCALL) || (l5op21z == FCALL)) {
             l5idr4z  =  l5exp2z@.id2;
             new(insnList);
             insnList@.next2  =  NIL;
@@ -3311,10 +3319,10 @@ procedure traceEntry(isEntry: bool);
             else
                 l5idc22z  =  VARID;
         };
-        if (not (not l5bool9z or (l5idc22z != FORMALID) or
+        if (not (not l5bool9z || (l5idc22z != FORMALID) ||
                (l5idr6z@.cl != VARID)))
             l5idc22z  =  VARID;
-(loop)      if ((l5idc22z == FORMALID) or (l5bool11z)) {
+(loop)      if ((l5idc22z == FORMALID) || (l5bool11z)) {
             setAddrTo(14);
             addToInsnList(KITA+14);
         } else if (l5idc22z == VARID) {
@@ -3389,7 +3397,7 @@ procedure traceEntry(isEntry: bool);
             }
         }
     };
-    if (not l5bool9z or ([20, 21] & l5var12z.m != [])) {
+    if (not l5bool9z || ([20, 21] & l5var12z.m != [])) {
         addToInsnList(KVTM+040074001);
     };
     set145z  =  (set145z + l5var12z.m) & [1:15];
@@ -3615,7 +3623,7 @@ var
                 IMODOP:     arg1Val.i  =  arg1Val.i % arg2Val.i;
                 PLUSOP:     arg1Val.r  =  arg1Val.r + arg2Val.r;
                 MINUSOP:    arg1Val.r  =  arg1Val.r - arg2Val.r;
-                OROP:       arg1Val.b  =  arg1Val.b or arg2Val.b:
+                OROP:       arg1Val.b  =  arg1Val.b || arg2Val.b:
                 IMULOP:     arg1Val.i  =  arg1Val.i * arg2Val.i;
                 SETAND:     arg1Val.m  =  arg1Val.m & arg2Val.m;
                 SETXOR:     arg1Val.m  =  arg1Val.m % arg2Val.m;
@@ -3772,7 +3780,7 @@ var
                 };
             } else if (curOP == GETELT)
                 genGetElt
-            else if ((curOP == DEREF) or (curOP == FILEPTR)) {
+            else if ((curOP == DEREF) || (curOP == FILEPTR)) {
                 genFullExpr(exprToGen@.expr1);
                 genDeref;
             } else
@@ -3795,7 +3803,7 @@ var
                 BOUNDS: {
                     arg2Val.m  =  [0,1,3] + arg1Val.m;
                     with exprToGen@.typ2@ do {
-                        if ((arg2Val.i < left) or
+                        if ((arg2Val.i < left) ||
                            (right < arg2Val.i))
                             error(errNeedOtherTypesOfOperands)
                     }
@@ -3979,7 +3987,7 @@ var l4exf1z: @extfilerec;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* formOperator */
     l3bool13z  =  true;
-    if ((errors && (l3arg1z != SETREG)) or (curExpr == NIL))
+    if ((errors && (l3arg1z != SETREG)) || (curExpr == NIL))
         exit;
     if (not (l3arg1z IN [gen3, gen6, gen9, gen14, gen16]))
         genFullExpr(curExpr);
@@ -4251,7 +4259,7 @@ var
     cond  =  isFileType(selType);
     if ((not isOuterDecl) && cond)
         error(errTypeMustNotBeFile);
-    curType@.flag  =  cond or curType@.flag;
+    curType@.flag  =  cond || curType@.flag;
     l3idr31z  =  curEnum;
     do {
         curField@.typ  =  selType;
@@ -4438,7 +4446,7 @@ var
             l4typ1z  =  tempType;
             checkSymAndRead(COLON);
             parseRecordDecl(tempType, false);
-            if ((cases2.size < cases.size) or
+            if ((cases2.size < cases.size) ||
                isPacked && (cases.size == 1) && (cases2.size == 1) &&
                 (cases.count == 1) && (cases2.count == 1) &&
                 (cases.pairs[1].first < cases2.pairs[1].first)) {
@@ -4889,7 +4897,7 @@ var
             if ((heapCallsCnt != 0) &&
                (heapSize == 0))
                 error(65 /*errCannotHaveK0AndNew*/);
-            l3var3z  =  (heapSize == 0) or
+            l3var3z  =  (heapSize == 0) ||
                 (heapCallsCnt == 0) && (heapSize == 100);
             if (heapSize == 100)
                 heapSize  =  4;
@@ -5098,7 +5106,7 @@ var
 (a)         if (l4var1z) {
                 l4idc7z  =  l4idr5z@.cl;
                 if (l4op6z == PCALL) {
-                    if ((l4idc7z != ROUTINEID) or
+                    if ((l4idc7z != ROUTINEID) ||
                        (l4idr5z@.typ != NIL)) {
 13736:                  error(39); /*errIncompatibleArgumentKinds*/
                         exit a
@@ -5140,7 +5148,7 @@ var
             if (l4var1z)
                 l4idr5z  =  l4idr5z@.list;
         } while (SY == COMMA);
-        if ((SY != RPAREN) or
+        if ((SY != RPAREN) ||
            l4var1z && (l4idr5z != l4arg1z))
             error(errNoCommaOrParenOrTooFewArgs)
         else
@@ -5214,15 +5222,15 @@ var
     asBitset  =  [stProcNo];
     if (not ((checkMode == chkREAL) &&
             (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnSQR, fnROUND, fn29])
-           or ((checkMode == chkINT) &&
+           || ((checkMode == chkINT) &&
             (asBitset <= [fnSQRT:fnABS, fnODD, fnCHR, fnREF, fnSQR, fnPTR]))
-           or ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) &&
+           || ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) &&
             (asBitset <= [fnORD, fnSUCC, fnPRED, fnREF]))
-           or ((checkMode == chkFILE) &&
+           || ((checkMode == chkFILE) &&
             (asBitset <= [fnEOF, fnREF, fnEOLN]))
-           or ((checkMode == chkSET) &&
+           || ((checkMode == chkSET) &&
             (asBitset <= [fnREF, fnCARD, fnMINEL]))
-           or ((checkMode == chkOTHER) &&
+           || ((checkMode == chkOTHER) &&
             (stProcNo == fnREF))))
         error(errNeedOtherTypesOfOperands);
     if (not (asBitset <= [fnABS, fnSUCC, fnPRED, fnSQR])) {
@@ -5485,7 +5493,7 @@ var
                 }
             };
             AMPERS: {
-                if ((arg1Type == intType) or (arg1Type@.k == kindSet))
+                if ((arg1Type == intType) || (arg1Type@.k == kindSet))
                         curOp = SETAND
                     else if (arg1Type != boolType)
                         goto 14650;
@@ -5569,7 +5577,7 @@ var
             new(l4var1z);
             with l4var1z@ do {
                 if (l4var3z == OROP) {
-                    if ((not l4bool5z) or
+                    if ((not l4bool5z) ||
                        (arg1Type != boolType))
                         goto 15031;
                     typ  =  boolType;
@@ -5632,16 +5640,16 @@ var
         arg1Type  =  curExpr@.typ;
         arg2Type  =  l4var3z@.typ;
         if (typeCheck(arg1Type, arg2Type)) {
-            if ((oper == INOP) or
-               (arg1Type@.k == kindFile) or
+            if ((oper == INOP) ||
+               (arg1Type@.k == kindFile) ||
                (arg1Type@.size != 1) &&
                (oper >= LTOP) &&
                not isCharArray(arg1Type))
                 error(errNeedOtherTypesOfOperands);
         } else {
             if (not areTypesCompatible(l4var3z) &&
-               ((arg1Type@.k != kindSet) or
-               not (arg2Type@.k IN [kindScalar, kindRange]) or
+               ((arg1Type@.k != kindSet) ||
+               not (arg2Type@.k IN [kindScalar, kindRange]) ||
                (oper != INOP))) {
                 error(errNeedOtherTypesOfOperands);
             }
@@ -5797,7 +5805,7 @@ var
     curLab: @strLabel;
 {
     structBranch  =  true;
-    if ((SY == IDENT) or not isGoto) {
+    if ((SY == IDENT) || not isGoto) {
         curLab  =  strLabList;
         ii  =  1;
         while (curLab != NIL) {
@@ -5882,7 +5890,7 @@ function max(a, b: int): int;
     parentExpression;
     exprtype  =  curExpr@.typ;
     otherSeen  =  false;
-    if ((exprtype == alfaType) or
+    if ((exprtype == alfaType) ||
        (exprtype@.k IN [kindScalar, kindRange]))
         formOperator(LOAD)
     else
@@ -6390,7 +6398,7 @@ procedure parseWidthSpecifier(var l5arg1z: eptr);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure callHelperWithArg;
 {
-    if (([12] <= set145z) or l4bool12z) {
+    if (([12] <= set145z) || l4bool12z) {
         curExpr  =  workExpr;
         formOperator(gen8);
     };
@@ -6519,14 +6527,14 @@ procedure writeProc;
                     else
                         l4var18z  =  LOAD;
                 } else {
-                    if ((helperNo == 40) or       /* P/A7 */
+                    if ((helperNo == 40) ||       /* P/A7 */
                        (helperNo == 81))      /* P/WA */
                         l4var18z  =  gen12
                     else
                         l4var18z  =  gen10;
                 };
                 formOperator(l4var18z);
-                if ((helperNo IN [39,40,44,45]) or /* A6,A7,6A,7A */
+                if ((helperNo IN [39,40,44,45]) || /* A6,A7,6A,7A */
                    (helperNo == 81))
                     form1Insn(KVTM+I10 + l4var15z.i)
                 else {
@@ -6567,7 +6575,7 @@ label
                     helperNo  =  49;             /* P/RDC */
                     goto 17346;
                 };
-                if ((helperNo == 39) or           /* A6,A7 */
+                if ((helperNo == 39) ||           /* A6,A7 */
                    (helperNo == 40)) {
                     helperNo  =  51;             /* P/RA7 */
 17362:
@@ -6603,7 +6611,7 @@ procedure checkArrayArg;
     verifyType(NIL);
     workExpr  =  curExpr;
     l4typ1z  =  curExpr@.typ;
-    if ((l4typ1z@.pck) or
+    if ((l4typ1z@.pck) ||
        (l4typ1z@.k != kindArray))
         error(errNeedOtherTypesOfOperands);
     checkSymAndRead(COMMA);
@@ -6625,9 +6633,9 @@ var
     l4exp7z@.expr1  =  workExpr;
     l4exp7z@.expr2  =  l4exp8z;
     t  =  ref(l4exp6z@.typ@);
-    if ((t@.k != kindArray) or
-       not t@.pck or
-       not typeCheck(t@.base, l4typ1z@.base) or
+    if ((t@.k != kindArray) ||
+       not t@.pck ||
+       not typeCheck(t@.base, l4typ1z@.base) ||
        not typeCheck(l4typ1z@.range, t@.range))
         error(errNeedOtherTypesOfOperands);
     new(curExpr);
@@ -7131,7 +7139,7 @@ var
             l3idr5z  =  l3idr5z@.list;
         }
     };
-    if (checkBounds or not (NoStackCheck IN optSflags.m))
+    if (checkBounds || not (NoStackCheck IN optSflags.m))
         P0715(-1, 95); /* P/SC */
     l3var2z.i  =  lineNesting;
     do {
@@ -7921,7 +7929,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
         }
     };
     outputObjFile;
-    while ((SY == PROCSY) or (SY == FUNCSY)) {
+    while ((SY == PROCSY) || (SY == FUNCSY)) {
         l2bool8z  =  SY == PROCSY;
         if (curFrameRegTemplate == 7) {
             error(81); /* errProcNestingTooDeep */
@@ -8024,7 +8032,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
             level  =  l2int18z;
             preDefLink  =  preDefHead;
             preDefHead  =  curIdRec;
-        } else if ((curIdent == litExternal) or
+        } else if ((curIdent == litExternal) ||
             (curIdent == litFortran)) {
             if (curIdent == litExternal) {
                 curVal.m  =  [20];
@@ -8061,7 +8069,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
         curProcNesting  =  curProcNesting - 1;
     };
     if ((SY != BEGINSY) &&
-       (not allowCompat or not (SY IN blockBegSys)))
+       (not allowCompat || not (SY IN blockBegSys)))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
     } while (not (SY in statBegSys));
     if (preDefHead != ptr(0)) {
@@ -8192,9 +8200,6 @@ var
     SY  =  MULOP;
     charClass  =  IDIVOP;
     regResWord('     DIV');
-    SY  =  ADDOP;
-    charClass  =  OROP;
-    regResWord('      OR');
     SY  =  RELOP;
     charClass  =  INOP;
     regResWord('      IN');
@@ -8438,6 +8443,7 @@ procedure initOptions;
     charSymTabBase['>']  =  GTSY;
     chrClassTabBase['+']  =  PLUSOP;
     chrClassTabBase['-']  =  MINUSOP;
+    chrClassTabBase['|']  =  OROP;
     chrClassTabBase['*']  =  MUL;
     chrClassTabBase['/']  =  RDIVOP;
     chrClassTabBase['%']  =  IMODOP;
@@ -8448,6 +8454,7 @@ procedure initOptions;
     chrClassTabBase['!']  =  NEOP;
     charSymTabBase['+']  =  ADDOP;
     charSymTabBase['-']  =  ADDOP;
+    charSymTabBase['|']  =  ADDOP;
     charSymTabBase['*']  =  MULOP;
     charSymTabBase['/']  =  MULOP;
     charSymTabBase['%']  =  MULOP;

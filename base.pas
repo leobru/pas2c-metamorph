@@ -1576,6 +1576,14 @@ procedure readOptFlag(var res: boolean);
                 } else
                     nextCH
             };
+            ADDOP: {
+                if charClass = OROP then {
+                    nextCH;
+                    if CH = '|' then nextCH
+                    else charClass := SETOR;
+                } else
+                    nextCH;
+            };
             MULOP: {
                if charClass = AMPERS then {
                    nextCH;
@@ -1596,7 +1604,7 @@ procedure readOptFlag(var res: boolean);
                } else
                    nextCH
             };
-            LPAREN, LBRACK, ADDOP, RELOP, RPAREN, RBRACK,
+            LPAREN, LBRACK, RELOP, RPAREN, RBRACK,
             COMMA, SEMICOLON, ARROW: {
                 nextCH;
             };
@@ -5514,10 +5522,8 @@ var
                 }
             };
             AMPERS: {
-(*                if (arg1Type = integerType) or (arg1Type@.k = kindSet) then
-                    curOp := SETAND
-                else *) if (arg1Type <> booleanType) then
-                    goto 14650;
+                    if (arg1Type <> booleanType) then
+                        goto 14650;
             };
             IDIVOP: {
                 if (typ120z <> integerType) then
@@ -5598,13 +5604,9 @@ var
             new(finalExpr);
             with finalExpr@ do {
                 if (l4var3z = OROP) then {
-                    if (match) then {
+                    if match and (arg1Type = booleanType) then {
                        typ := arg1Type;
-                       if (arg1Type = integerType) then
-                           op := SETOR
-                        else if (arg1Type = booleanType) then
-                           op := l4var3z
-                        else goto 15031
+                       op := l4var3z
                     } else goto 15031;
                 } else  {
                     if (match) then {
@@ -8279,9 +8281,6 @@ var
     charClass := AMPERS;
     regResWord(415644C(*"     AND"*));
     regResWord(445166C(*"     DIV"*));
-    SY := ADDOP;
-    charClass := OROP;
-    regResWord(5762C(*"      OR"*));
     SY := RELOP;
     charClass := INOP;
     regResWord(5156C(*"      IN"*));
@@ -8529,11 +8528,13 @@ procedure initOptions;
     chrClassTabBase['%'] := IMODOP;
     chrClassTabBase['='] := EQOP;
     chrClassTabBase['&'] := AMPERS;
+    chrClassTabBase['|'] := OROP;
     chrClassTabBase['>'] := GTOP;
     chrClassTabBase['<'] := LTOP;
     chrClassTabBase['!'] := NEOP;
     charSymTabBase['+'] := ADDOP;
     charSymTabBase['-'] := ADDOP;
+    charSymTabBase['|'] := ADDOP;
     charSymTabBase['*'] := MULOP;
     charSymTabBase['/'] := MULOP;
     charSymTabBase['%'] := MULOP;
