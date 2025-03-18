@@ -5469,7 +5469,7 @@ label
 var
     l4var1z: operator;
     l4var2z, l4var3z: eptr;
-    l4var4z: boolean;
+    match: boolean;
 {
     factor;
     while (SY = MULOP) do {
@@ -5479,14 +5479,14 @@ var
         factor;
         arg1Type := curExpr@.typ;
         arg2Type := l4var2z@.typ;
-        l4var4z := typeCheck(arg1Type, arg2Type);
-        if (not l4var4z) and
+        match := typeCheck(arg1Type, arg2Type);
+        if (not match) and
            (RDIVOP < l4var1z) then
 14650:      error(errNeedOtherTypesOfOperands)
         else {
             case l4var1z of
             MUL, RDIVOP: {
-                if (l4var4z) then {
+                if (match) then {
                     if (arg1Type = realType) then {
                         (* empty *)
                     } else {
@@ -5498,10 +5498,7 @@ var
                             };
                             l4var1z := imulOpMap[l4var1z];
                         } else {
-                            if (arg1Type@.k = kindSet) then {
-                                l4var1z := setOpMap[l4var1z];
-                            } else
-                                goto 14650;
+                            goto 14650;
                         }
                     }
                 } else {
@@ -5512,7 +5509,9 @@ var
                 }
             };
             AMPERS: {
-                if (arg1Type <> booleanType) then
+                if (arg1Type = integerType) or (arg1Type@.k = kindSet) then
+                    l4var1z := SETAND
+                else if (arg1Type <> booleanType) then
                     goto 14650;
             };
             IDIVOP: {
@@ -5541,7 +5540,6 @@ var
             }
         }
     }
-
 }; (* term *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5549,59 +5547,62 @@ procedure simpleExpression;
 label
     15031;
 var
-    l4var1z, l4var2z: eptr;
+    finalExpr, leftExpr: eptr;
     l4var3z: operator;
     argKind: kind;
-    l4bool5z: boolean;
+    match: boolean;
 {
-    l4bool5z := false;
+    match := false;
     if (charClass IN [PLUSOP, MINUSOP]) then {
         if (charClass = MINUSOP) then
-            l4bool5z := true;
+            match := true;
         inSymbol;
     };
     term;
 (minus)
-    if (l4bool5z) then {
+    if (match) then {
         arg1Type := curExpr@.typ;
-        new(l4var2z);
-        with l4var2z@ do {
+        new(leftExpr);
+        with leftExpr@ do {
             typ := arg1Type;
             expr1 := curExpr;
             if (arg1Type = realType) then {
                 op := RNEGOP;
             } else if typeCheck(arg1Type, integerType) then {
-                l4var2z@.op := INEGOP;
-                l4var2z@.typ := integerType;
+                leftExpr@.op := INEGOP;
+                leftExpr@.typ := integerType;
             } else {
                 error(69); (* errUnaryMinusNeedRealOrInteger *)
                 exit minus
             };
-            curExpr := l4var2z;
+            curExpr := leftExpr;
         }
     };
     while (SY = ADDOP) do {
         l4var3z := charClass;
         inSymbol;
-        l4var2z := curExpr;
+        leftExpr := curExpr;
         term;
         arg1Type := curExpr@.typ;
-        arg2Type := l4var2z@.typ;
-        l4bool5z := typeCheck(arg1Type, arg2Type);
+        arg2Type := leftExpr@.typ;
+        match := typeCheck(arg1Type, arg2Type);
         argKind := arg2Type@.k;
         if (kindSet < argKind) then {
 15031:      error(errNeedOtherTypesOfOperands);
         } else {
-            new(l4var1z);
-            with l4var1z@ do {
+            new(finalExpr);
+            with finalExpr@ do {
                 if (l4var3z = OROP) then {
-                    if (not l4bool5z) or
-                       (arg1Type <> booleanType) then
-                        goto 15031;
-                    typ := booleanType;
-                    op := l4var3z;
+                    if (match) then {
+                       typ := arg1Type;
+                       if (arg1Type = integerType) then
+                           op := SETOR
+                        else if (arg1Type = booleanType) then
+                           op := l4var3z
+                        else goto 15031
+                    } else goto 15031;
                 } else  {
-                    if (l4bool5z) then {
+                    if (match) then {
                         if (arg1Type = realType) then {
                             op := l4var3z;
                             typ := realType;
@@ -5614,15 +5615,15 @@ var
                         } else {
                             goto 15031
                         }
-                    } else if areTypesCompatible(l4var2z) then {
-                        l4var1z@.typ := realType;
-                        l4var1z@.op := l4var3z;
+                    } else if areTypesCompatible(leftExpr) then {
+                        finalExpr@.typ := realType;
+                        finalExpr@.op := l4var3z;
                     } else
                         goto 15031
                 };
-                l4var1z@.expr1 := l4var2z;
-                l4var1z@.expr2 := curExpr;
-                curExpr := l4var1z;
+                finalExpr@.expr1 := leftExpr;
+                finalExpr@.expr2 := curExpr;
+                curExpr := finalExpr;
             }
         };
     }
