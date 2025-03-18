@@ -1,0 +1,23 @@
+# Remains to be done
+ - shifts (constant, variable)
+ - `case <type> of` -> `union`
+ - `enum`, allow assigning values to elements
+ - `break`/`continue`
+ - `return`
+ - parsing C-style expressions as statements 
+ - increment/decrement (pre-, post-)
+ - C-style string literals using "" with terminating \0
+ - helper routine for printing C-style strings for `write` (`puts`) 
+ - C-style of variable declarations and type definitions
+ - C style of function declarations
+ - `main` as a regular function
+ - starting routine calling `main`
+ - C style of statement terminators
+ - `sizeof`
+ - function pointers
+ - operations on pointers to words
+ - `char *`, operations of `char *`
+ - vararg functions
+ - `setjmp`, `longjmp` based on `P/RC`
+ - `printf`
+ 
