@@ -415,7 +415,7 @@ var
    hashTravPtr: irptr;
    uProcPtr: irptr;
    externFileList: @extfilerec;
-   typ120z, typ121z: tptr;
+   baseType, typ121z: tptr;
    pointerType: tptr;
    setType: tptr;
    booleanType: tptr;
@@ -1848,9 +1848,9 @@ var
 { (* typeCheck *)
     rangeMismatch := false;
     if (type1@.k = kindRange) then {
-        typ120z := type1@.base;
+        baseType := type1@.base;
     } else {
-        typ120z := type1;
+        baseType := type1;
     };
     if not checkTypes or (type1 = type2) then
 1:      typeCheck := true
@@ -1878,7 +1878,7 @@ var
                 };
                 kindRange: {
                     baseMatch := (type1@.base = type2@.base);
-                    typ120z := type1@.base;
+                    baseType := type1@.base;
                     rangeMismatch := (type1@.left <> type2@.left) or
                                 (type1@.right <> type2@.right);
                     typeCheck := baseMatch;
@@ -1938,7 +1938,7 @@ var
             } else {
                 if (kind1 = kindRange) then {
                     rangeMismatch := true;
-                    typ120z := type2;
+                    baseType := type2;
                     if (type1@.base = type2) then
                         goto 1;
                 } else if (kind2 = kindRange) and
@@ -5503,7 +5503,7 @@ var
                     if (arg1Type = realType) then {
                         (* empty *)
                     } else {
-                        if (typ120z = integerType) then {
+                        if (baseType = integerType) then {
                             if (curOp = MUL) then {
                                 arg1Type := integerType;
                             } else {
@@ -5526,18 +5526,15 @@ var
                         goto 14650;
             };
             IDIVOP: {
-                if (typ120z <> integerType) then
+                if (baseType <> integerType) then
                     goto 14650;
                 arg1Type := integerType;
             };
             IMODOP: {
-                if (typ120z = integerType) then {
+                if (baseType = integerType) then {
                     arg1Type := integerType;
                 } else {
-                    if (arg1Type@.k = kindSet) then
-                        curOp := SETXOR
-                    else
-                        goto 14650;
+                    goto 14650;
                 }
             };
             end;
@@ -5610,13 +5607,17 @@ var
                     } else goto 15031;
                 } else  {
                     if (match) then {
-                        if (arg1Type = realType) then {
+                        if (l4var3z = SETOR) then {
+                            op := l4var3z;
+                            typ := arg1Type;
+                        } else if (arg1Type = realType) then {
                             op := l4var3z;
                             typ := realType;
-                        } else if (typ120z = integerType) then {
+                        } else if (baseType = integerType) then {
                             op := iAddOpMap[l4var3z];
                             typ := integerType;
-                        } else if (argKind = kindSet) then {
+                        } else if (argKind = kindSet)
+                           and (l4var3z = MINUSOP) then {
                             op := setOpMap[l4var3z];
                             typ := arg1Type;
                         } else {
@@ -8529,6 +8530,7 @@ procedure initOptions;
     chrClassTabBase['='] := EQOP;
     chrClassTabBase['&'] := AMPERS;
     chrClassTabBase['|'] := OROP;
+    chrClassTabBase['^'] := SETXOR;
     chrClassTabBase['>'] := GTOP;
     chrClassTabBase['<'] := LTOP;
     chrClassTabBase['!'] := NEOP;
@@ -8542,7 +8544,7 @@ procedure initOptions;
     charSymTabBase[','] := COMMA;
     charSymTabBase['.'] := PERIOD;
     charSymTabBase['@'] := ARROW;
-    charSymTabBase['^'] := ARROW;
+    charSymTabBase['^'] := MULOP;
     charSymTabBase['('] := LPAREN;
     charSymTabBase[')'] := RPAREN;
     charSymTabBase[';'] := SEMICOLON;
