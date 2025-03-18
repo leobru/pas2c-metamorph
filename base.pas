@@ -1577,7 +1577,11 @@ procedure readOptFlag(var res: boolean);
                     nextCH
             };
             MULOP: {
-               if charClass = RDIVOP then {
+               if charClass = AMPERS then {
+                   nextCH;
+                   if CH = '&' then nextCH
+                   else charClass := SETAND;
+               } else if charClass = RDIVOP then {
                    nextCH;
                    case CH of
                    '*': {
@@ -5467,13 +5471,13 @@ procedure term;
 label
     14650;
 var
-    l4var1z: operator;
+    curOp: operator;
     l4var2z, l4var3z: eptr;
     match: boolean;
 {
     factor;
     while (SY = MULOP) do {
-        l4var1z := charClass;
+        curOp := charClass;
         inSymbol;
         l4var2z := curExpr;
         factor;
@@ -5481,22 +5485,23 @@ var
         arg2Type := l4var2z@.typ;
         match := typeCheck(arg1Type, arg2Type);
         if (not match) and
-           (RDIVOP < l4var1z) then
-14650:      error(errNeedOtherTypesOfOperands)
-        else {
-            case l4var1z of
+           (RDIVOP < curOp) then {
+14650:                           error(errNeedOtherTypesOfOperands);
+                                 writeln(curOp)
+        } else {
+            case curOp of
             MUL, RDIVOP: {
                 if (match) then {
                     if (arg1Type = realType) then {
                         (* empty *)
                     } else {
                         if (typ120z = integerType) then {
-                            if (l4var1z = MUL) then {
+                            if (curOp = MUL) then {
                                 arg1Type := integerType;
                             } else {
                                 arg1Type := realType;
                             };
-                            l4var1z := imulOpMap[l4var1z];
+                            curOp := imulOpMap[curOp];
                         } else {
                             goto 14650;
                         }
@@ -5509,9 +5514,9 @@ var
                 }
             };
             AMPERS: {
-                if (arg1Type = integerType) or (arg1Type@.k = kindSet) then
-                    l4var1z := SETAND
-                else if (arg1Type <> booleanType) then
+(*                if (arg1Type = integerType) or (arg1Type@.k = kindSet) then
+                    curOp := SETAND
+                else *) if (arg1Type <> booleanType) then
                     goto 14650;
             };
             IDIVOP: {
@@ -5524,7 +5529,7 @@ var
                     arg1Type := integerType;
                 } else {
                     if (arg1Type@.k = kindSet) then
-                        l4var1z := SETXOR
+                        curOp := SETXOR
                     else
                         goto 14650;
                 }
@@ -5532,7 +5537,7 @@ var
             end;
             new(l4var3z);
             with l4var3z@ do {
-                op := l4var1z;
+                op := curOp;
                 expr1 := l4var2z;
                 expr2 := curExpr;
                 curExpr := l4var3z;
@@ -8274,7 +8279,6 @@ var
     charClass := AMPERS;
     regResWord(415644C(*"     AND"*));
     regResWord(445166C(*"     DIV"*));
-%    regResWord(555744C(*"     MOD"*));
     SY := ADDOP;
     charClass := OROP;
     regResWord(5762C(*"      OR"*));
