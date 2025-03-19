@@ -136,7 +136,7 @@ type
 (*20B*) PERIOD,     ARROW,      COLON,      BECOMES,
         BEGINSY,    ENDSY,
         LABELSY,    CONSTSY,    TYPESY,     VARSY,
-(*32B*) FUNCSY,     PROCSY,     SETSY,      PACKEDSY,
+(*32B*) FUNCSY,     VOIDSY,     SETSY,      PACKEDSY,
         ARRAYSY,    STRUCTSY,   FILESY,
 (*41B*) IFSY,       SWITCHSY,     WHILESY,
         FORSY,      WITHSY,     GOTOSY,
@@ -7644,10 +7644,10 @@ var
     int93z := 0;
     inSymbol;
     l3var2z := NIL;
-    if not (SY IN [IDENT,VARSY,FUNCSY,PROCSY]) then
+    if not (SY IN [IDENT,VARSY,FUNCSY,VOIDSY]) then
         errAndSkip(errBadSymbol, (skipToSet + [IDENT,RPAREN]));
     int92z := 1;
-    while (SY IN [IDENT,VARSY,FUNCSY,PROCSY]) do {
+    while (SY IN [IDENT,VARSY,FUNCSY,VOIDSY]) do {
         l3sym7z := SY;
         if (SY = IDENT) then
             parClass := VARID
@@ -7657,7 +7657,7 @@ var
             parClass := ROUTINEID;
         };
         l3var3z := NIL;
-        if (SY = PROCSY) then
+        if (SY = VOIDSY) then
             expType := NIL
         else
             expType := integerType;
@@ -7698,7 +7698,7 @@ var
             inSymbol;
         };
         until noComma;
-        if (l3sym7z <> PROCSY) then {
+        if (l3sym7z <> VOIDSY) then {
             checkSymAndRead(COLON);
             parseTypeRef(expType, (skipToSet + [IDENT,RPAREN]));
             if (l3sym7z <> VARSY) then {
@@ -7717,7 +7717,7 @@ var
         if (SY = SEMICOLON) then {
             int93z := 0;
             inSymbol;
-            if not (SY IN (skipToSet + [IDENT,VARSY,FUNCSY,PROCSY])) then
+            if not (SY IN (skipToSet + [IDENT,VARSY,FUNCSY,VOIDSY])) then
                 errAndSkip(errBadSymbol, (skipToSet + [IDENT,RPAREN]));
         };
     };
@@ -8003,8 +8003,8 @@ procedure exitScope(var arg: array [0..127] of irptr);
         }
     };
     outputObjFile;
-    while (SY = PROCSY) or (SY = FUNCSY) do {
-        l2bool8z := SY = PROCSY;
+    while (SY = VOIDSY) or (SY = FUNCSY) do {
+        l2bool8z := SY = VOIDSY;
         if (curFrameRegTemplate = 7) then {
             error(81); (* errProcNestingTooDeep *)
         };
@@ -8121,9 +8121,9 @@ procedure exitScope(var arg: array [0..127] of irptr);
             repeat
                 setup(scopeBound);
                 programme(l2int18z, curIdRec);
-                if not (SY IN [FUNCSY,PROCSY,BEGINSY]) then
+                if not (SY IN [FUNCSY,VOIDSY,BEGINSY]) then
                     errAndSkip(errBadSymbol, skipToSet);
-            until SY IN [FUNCSY,PROCSY,BEGINSY];
+            until SY IN [FUNCSY,VOIDSY,BEGINSY];
             rollup(scopeBound);
             exitScope(symHashTabBase);
             exitScope(typeHashTabBase);
@@ -8445,7 +8445,7 @@ procedure initOptions;
     frameRegTemplate := 04000000B;
     constRegTemplate := I8;
     disNormTemplate :=  KNTR+7;
-    blockBegSys := [LABELSY, CONSTSY, TYPESY, VARSY, FUNCSY, PROCSY, BEGINSY];
+    blockBegSys := [LABELSY, CONSTSY, TYPESY, VARSY, FUNCSY, VOIDSY, BEGINSY];
     statBegSys :=  [BEGINSY, IFSY, SWITCHSY, DOSY, WHILESY, FORSY, WITHSY,
                     GOTOSY];
     O77777 := [33:47];
@@ -8462,7 +8462,7 @@ procedure initOptions;
         64716045C               (*"    TYPE"*),
         664162C                 (*"     VAR"*),
         4665564364515756C       (*"FUNCTION"*),
-        6062574345446562C       (*"PROCEDUR"*),
+        66575144C               (*"    VOID"*),
         634564C                 (*"     SET"*),
         604143534544C           (*"  PACKED"*),
         4162624171C             (*"   ARRAY"*),
