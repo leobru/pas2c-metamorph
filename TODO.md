@@ -1,5 +1,5 @@
 # Remains to be done
- - shifts (constant, variable)
+ - shifts (~constant,~ variable)
  - `case <type> of` -> `union`
  - `enum`, allow assigning values to elements
  - `break`/`continue`

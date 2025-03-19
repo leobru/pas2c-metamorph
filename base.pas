@@ -162,6 +162,7 @@ insn = (
 setofsys = set of ident .. downtosy;
 %
 operator = (
+    SHLEFT,     SHRIGHT,
     MUL,        RDIVOP,     AMPERS,     IDIVOP,     IMODOP,
     PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
@@ -183,7 +184,8 @@ opgen = (
 %
 % Flags for ops that can potentially be optimized if one operand is a constant
 opflg = (
-    opfCOMM, opfHELP, opfAND, opfOR, opfDIV, opfMOD, opfMULMSK, opfASSN, opfINV
+    opfCOMM, opfHELP, opfAND, opfOR, opfDIV, opfMOD, opfSHIFT,
+    opfMULMSK, opfASSN, opfINV
 );
 %
 kind = (
@@ -458,9 +460,9 @@ var
    entryPtTable: entries;
    frameRestore: array [3..6] of four;
    indexreg: array [1..15] of integer;
-   opToInsn: array [MUL..op44] of integer;
-   opToMode: array [MUL..op44] of integer;
-   opFlags: array [MUL..op44] of opflg;
+   opToInsn: array [SHLEFT..op44] of integer;
+   opToMode: array [SHLEFT..op44] of integer;
+   opFlags: array [SHLEFT..op44] of opflg;
    funcInsn: array [0..23] of integer;
    insnTemp: array [insn] of integer;
    frameRegTemplate: integer;
@@ -1538,6 +1540,11 @@ procedure readOptFlag(var res: boolean);
                     charClass := LEOP;
                     nextCH;
                 };
+                '<':   {
+                    SY := MULOP;
+                    charClass := SHLEFT;
+                    nextCH;
+                };
                 ':': {
                     SY := BEGINSY;
                     nextCH;
@@ -1547,10 +1554,17 @@ procedure readOptFlag(var res: boolean);
             GTSY: {
                 SY := RELOP;
                 nextCH;
-                if CH = '=' then {
+                case CH of
+                '>': {
+                    SY := MULOP;
+                    charClass := SHRIGHT;
+                    nextCH;
+                };
+                '=':  {
                     charClass := GEOP;
                     nextCH
                 }
+                end
             }; (* GTOP *)
             BECOMES: {
                 nextCH;
@@ -3639,6 +3653,7 @@ var
                 SETSUB:
                     goto 10075;
                 NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP,
+                SHLEFT, SHRIGHT,
                 badop27, badop30, badop31, MKRANGE, ASSIGNOP:
                     error(200);
                 end;
@@ -3724,6 +3739,14 @@ var
                     prepLoad;
                     addToInsnList(KAEX+ALLONES);
                     goto 7760
+                };
+                opfSHIFT: {
+                    if (not arg2Const) then error(200);
+                    prepLoad;
+                    if (curOP = SHRIGHT) then
+                        addToInsnList(ASN64+arg2Val.i)
+                    else
+                        addToInsnList(ASN64-arg2Val.i)
                 }
                 end; (* case 10122 *)
 10122:          insnList@.next@.mode := l3int3z;
@@ -5479,17 +5502,17 @@ label
     14650;
 var
     curOp: operator;
-    l4var2z, l4var3z: eptr;
+    leftArg, l4var3z: eptr;
     match: boolean;
 {
     factor;
     while (SY = MULOP) do {
         curOp := charClass;
         inSymbol;
-        l4var2z := curExpr;
+        leftArg := curExpr;
         factor;
         arg1Type := curExpr@.typ;
-        arg2Type := l4var2z@.typ;
+        arg2Type := leftArg@.typ;
         match := typeCheck(arg1Type, arg2Type);
         if (not match) and
            (RDIVOP < curOp) then {
@@ -5510,7 +5533,7 @@ var
                         }
                     }
                 } else {
-                    if areTypesCompatible(l4var2z) then {
+                    if areTypesCompatible(leftArg) then {
                         arg1Type := realType;
                     } else
                         goto 14650;
@@ -5525,6 +5548,7 @@ var
                     goto 14650;
                 arg1Type := integerType;
             };
+            SHLEFT, SHRIGHT: { arg1Type := arg2Type; };
             IMODOP: {
                 if (baseType = integerType) then {
                     arg1Type := integerType;
@@ -5536,7 +5560,7 @@ var
             new(l4var3z);
             with l4var3z@ do {
                 op := curOp;
-                expr1 := l4var2z;
+                expr1 := leftArg;
                 expr2 := curExpr;
                 curExpr := l4var3z;
                 typ := arg1Type;
@@ -8225,6 +8249,8 @@ var
     opToInsn[badop31] := 24; (* P/RI *)
     opToInsn[MKRANGE] := 61; (* P/PI *)
     opToInsn[SETSUB] := insnTemp[AAX];
+    opToInsn[SHLEFT] := insnTemp[ASN];
+    opToInsn[SHRIGHT] := insnTemp[ASN];
     opFlags[AMPERS] := opfAND;
     opFlags[IDIVOP] := opfDIV;
     opFlags[OROP] := opfOR;
@@ -8236,6 +8262,8 @@ var
     opFlags[MKRANGE] := opfHELP;
     opFlags[ASSIGNOP] := opfASSN;
     opFlags[SETSUB] := opfINV;
+    opFlags[SHLEFT] := opfSHIFT;
+    opFlags[SHRIGHT] := opfSHIFT;
     for jdx := 0 to 6 do {
         funcInsn[jdx] := (500000B + jdx);
     }
