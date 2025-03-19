@@ -165,7 +165,7 @@ operator = (
     MUL,        RDIVOP,     AMPERS,     IDIVOP,     IMODOP,
     PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
-    IMULOP,     IDIVROP,    SETAND,     SETXOR,     SETOR,
+    IMULOP,     SETAND,     SETXOR,     SETOR,
     SETSUB,     INTPLUS,    INTMINUS,   badop27,    badop30,
     badop31,    MKRANGE,    ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
@@ -602,7 +602,7 @@ var span: tptr;
             right  =  strLen;
         };
         with res@ do {
-            size  =  (strLen + 5) div 6;
+            size  =  (strLen + 5) / 6;
             if (size == 1)
                 bits  =  strLen * 8
             else
@@ -820,7 +820,7 @@ var
     } else {
         high  =  FcstCountTo500;
         do {
-            mid  =  (low + high) div 2;
+            mid  =  (low + high) / 2;
             if (curVal.a == constVals[mid]) {
                 addCurValToFCST  =  constNums[mid];
                 exit
@@ -865,7 +865,7 @@ var
     } else {
         high  =  symTabCnt;
         do {
-            mid  =  (low + high) div 2;
+            mid  =  (low + high) / 2;
             if (value == symTabArray[mid]) {
                 allocSymtab  =  symtbidx[mid];
                 exit
@@ -1432,7 +1432,7 @@ procedure readOptFlag(var res: bool);
                     do {
                         if (odd(expMagnitude))
                             expValue  =  expValue * expMultiple;
-                        expMagnitude  =  expMagnitude div 2;
+                        expMagnitude  =  expMagnitude / 2;
                         if (expMagnitude != 0)
                             expMultiple  =  expMultiple*expMultiple;
                     } while (expMagnitude != 0);
@@ -2098,7 +2098,7 @@ procedure addJumpInsn(opcode: int);
             1:  addJumpInsn(insnTemp[U1A]);
             2: {
                 tempInsn.i  =  curInsn.i % 4096;
-                curInsn.i  =  curInsn.i div 4096;
+                curInsn.i  =  curInsn.i / 4096;
                 addJumpInsn(insnTemp[UJ]);
                 curInsn.i  =  tempInsn.i;
 3556:           if (F3413)
@@ -2108,7 +2108,7 @@ procedure addJumpInsn(opcode: int);
             };
             3: {
                  tempInsn.i  =  curInsn.i % 4096;
-                 curInsn.i  =  curInsn.i div 4096;
+                 curInsn.i  =  curInsn.i / 4096;
                  l4var213z  =   F3413;
                  l4inl8z  =  l4inl7z;
                  curInsn.i  =  tempInsn.i;
@@ -3026,7 +3026,7 @@ function myminel(l6arg1z: bitset): int;
                 l5var4z  =  curVal.i - l5var7z;
                 l5var5z  =  insnCopy.typ@.perword;
                 insnCopy.regsused  =  insnCopy.regsused | [0];
-                insnCopy.ilf6  =  l5var4z DIV l5var5z + insnCopy.ilf6;
+                insnCopy.ilf6  =  l5var4z / l5var5z + insnCopy.ilf6;
                 l5var6z  =  (l5var5z-1-l5var4z % l5var5z) *
                            insnCopy.typ@.pcksize;
                 switch (insnCopy.st) {
@@ -3357,7 +3357,7 @@ procedure traceEntry(isEntry: bool);
         if (20 in l5idr5z@.flags) {
             l5var17z.i  =  1;
         } else {
-            l5var17z.i  =  l5idr5z@.offset div 04000000;
+            l5var17z.i  =  l5idr5z@.offset / 04000000;
         }
     } else {
         l5var15z  =  0;
@@ -3471,7 +3471,7 @@ procedure genConstDiv;
     function PASDIV(r: real): word;
         external;
 {
-    curVal  =  PASDIV(1/arg2Val.i);
+    curVal  =  PASDIV(1.0/arg2Val.i);
     addToInsnList(KMUL+I8 + getFCSToffset);
 }; /* genConstDiv */
 //
@@ -3618,7 +3618,7 @@ var
                 MUL:        arg1Val.r  =  arg1Val.r * arg2Val.r;
                 RDIVOP:     arg1Val.r  =  arg1Val.r / arg2Val.r;
                 AMPERS:     arg1Val.b  =  arg1Val.b && arg2Val.b;
-                IDIVOP:     arg1Val.i  =  arg1Val.i DIV arg2Val.i;
+                IDIVOP:     arg1Val.i  =  arg1Val.i / arg2Val.i;
                 IMODOP:     arg1Val.i  =  arg1Val.i % arg2Val.i;
                 PLUSOP:     arg1Val.r  =  arg1Val.r + arg2Val.r;
                 MINUSOP:    arg1Val.r  =  arg1Val.r - arg2Val.r;
@@ -3629,7 +3629,6 @@ var
                 INTPLUS:    arg1Val.i  =  arg1Val.i + arg2Val.i;
                 INTMINUS:   arg1Val.i  =  arg1Val.i - arg2Val.i;
                 SETOR:      arg1Val.m  =  arg1Val.m | arg2Val.m;
-                IDIVROP:    arg1Val.r  =  arg1Val.i / arg2Val.i;
                 SETSUB:
                     goto 10075;
                 NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP,
@@ -4632,20 +4631,20 @@ var
                     isPacked  =  false;
                 bits  =  48;
                 if (isPacked) {
-                    l3int22z  =  48 DIV l3int22z;
+                    l3int22z  =  48 / l3int22z;
                     if (l3int22z == 9) {
                         l3int22z  =  8;
                     } else if (l3int22z == 5) {
                         l3int22z  =  4
                     };
                     perword  =  l3int22z;
-                    pcksize  =  48 DIV l3int22z;
+                    pcksize  =  48 / l3int22z;
                     l3int22z  =  span * pcksize;
                     if (l3int22z % 48 == 0)
                         numBits  =  0
                     else
                         numBits  =  1;
-                    size  =  l3int22z div 48 + numBits;
+                    size  =  l3int22z / 48 + numBits;
                     if (size == 1)
                         bits  =  l3int22z;
                 } else {
@@ -5474,11 +5473,7 @@ var
                         /* empty */
                     } else {
                         if (baseType == intType) {
-                            if (curOp == MUL) {
-                                arg1Type  =  intType;
-                            } else {
-                                arg1Type  =  realType;
-                            };
+                            arg1Type  =  intType;
                             curOp  =  imulOpMap[curOp];
                         } else {
                             goto 14650;
@@ -5496,11 +5491,6 @@ var
                         curOp = SETAND
                     else if (arg1Type != boolType)
                         goto 14650;
-            };
-            IDIVOP: {
-                if (baseType != intType)
-                    goto 14650;
-                arg1Type  =  intType;
             };
             IMODOP: {
                 if (baseType == intType) {
@@ -8126,7 +8116,7 @@ var
             opToMode[l3var2z]  =  2;
         } else if (l3var2z IN [IMULOP, INTPLUS, INTMINUS, badop27]) {
             opToMode[l3var2z]  =  1;
-        } else if (l3var2z IN [IDIVROP,badop30,badop31]) {
+        } else if (l3var2z IN [badop30,badop31]) {
             opToMode[l3var2z]  =  4;
         } else {
             opToMode[l3var2z]  =  0;
@@ -8144,7 +8134,6 @@ var
     opToInsn[SETOR]  =  insnTemp[AOX];
     opToInsn[INTPLUS]  =  insnTemp[ADD];
     opToInsn[INTMINUS]  =  insnTemp[SUB];
-    opToInsn[IDIVROP]  =  67; /* P/IS */
     opToInsn[badop27]  =  22; /* P/II unused, undefined */
     opToInsn[badop30]  =  23; /* P/RR */
     opToInsn[badop31]  =  24; /* P/RI */
@@ -8159,7 +8148,6 @@ var
     opFlags[badop30]  =  opfHELP;
     opFlags[badop31]  =  opfHELP;
     opFlags[MKRANGE]  =  opfHELP;
-    opFlags[IDIVROP]  =  opfHELP;
     opFlags[ASSIGNOP]  =  opfASSN;
     opFlags[SETSUB]  =  opfINV;
     for jdx  =  0 to 6 do {
@@ -8196,9 +8184,6 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /*=A3 regKeywords */
-    SY  =  MULOP;
-    charClass  =  IDIVOP;
-    regResWord('     DIV');
     SY  =  RELOP;
     charClass  =  INOP;
     regResWord('      IN');
@@ -8433,7 +8418,7 @@ procedure initOptions;
     funcInsn[fnABSI]  =  KAMX;
     funcInsn[fnSQRI]  =  macro + mcSQRI;
     iAddOpMap[PLUSOP]  =  INTPLUS, INTMINUS;
-    imulOpMap  =  IMULOP, IDIVROP;
+    imulOpMap  =  IMULOP, IDIVOP;
     charSymTabBase['''']  =  CHARCONST;
     charSymTabBase['_']  =  IDENT;
     charSymTabBase['<']  =  LTSY;

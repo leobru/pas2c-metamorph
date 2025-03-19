@@ -165,7 +165,7 @@ operator = (
     MUL,        RDIVOP,     AMPERS,     IDIVOP,     IMODOP,
     PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
-    IMULOP,     IDIVROP,    SETAND,     SETXOR,     SETOR,
+    IMULOP,     SETAND,     SETXOR,     SETOR,
     SETSUB,     INTPLUS,    INTMINUS,   badop27,    badop30,
     badop31,    MKRANGE,    ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
@@ -3477,7 +3477,7 @@ procedure genConstDiv;
     function PASDIV(r: real): word;
         external;
 {
-    curVal := PASDIV(1/arg2Val.i);
+    curVal := PASDIV(1.0/arg2Val.i);
     addToInsnList(KMUL+I8 + getFCSToffset);
 }; (* genConstDiv *)
 %
@@ -3636,7 +3636,6 @@ var
                 INTPLUS:    arg1Val.i := arg1Val.i + arg2Val.i;
                 INTMINUS:   arg1Val.i := arg1Val.i - arg2Val.i;
                 SETOR:      arg1Val.m := arg1Val.m + arg2Val.m;
-                IDIVROP:    arg1Val.r := arg1Val.i / arg2Val.i;
                 SETSUB:
                     goto 10075;
                 NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP,
@@ -5504,11 +5503,7 @@ var
                         (* empty *)
                     } else {
                         if (baseType = integerType) then {
-                            if (curOp = MUL) then {
-                                arg1Type := integerType;
-                            } else {
-                                arg1Type := realType;
-                            };
+                            arg1Type := integerType;
                             curOp := imulOpMap[curOp];
                         } else {
                             goto 14650;
@@ -8207,7 +8202,7 @@ var
             opToMode[l3var2z] := 2;
         } else if (l3var2z IN [IMULOP, INTPLUS, INTMINUS, badop27]) then {
             opToMode[l3var2z] := 1;
-        } else if (l3var2z IN [IDIVROP,badop30,badop31]) then {
+        } else if (l3var2z IN [badop30,badop31]) then {
             opToMode[l3var2z] := 4;
         } else {
             opToMode[l3var2z] := 0;
@@ -8225,7 +8220,6 @@ var
     opToInsn[SETOR] := insnTemp[AOX];
     opToInsn[INTPLUS] := insnTemp[ADD];
     opToInsn[INTMINUS] := insnTemp[SUB];
-    opToInsn[IDIVROP] := 67; (* P/IS *)
     opToInsn[badop27] := 22; (* P/II unused, undefined *)
     opToInsn[badop30] := 23; (* P/RR *)
     opToInsn[badop31] := 24; (* P/RI *)
@@ -8240,7 +8234,6 @@ var
     opFlags[badop30] := opfHELP;
     opFlags[badop31] := opfHELP;
     opFlags[MKRANGE] := opfHELP;
-    opFlags[IDIVROP] := opfHELP;
     opFlags[ASSIGNOP] := opfASSN;
     opFlags[SETSUB] := opfINV;
     for jdx := 0 to 6 do {
@@ -8516,7 +8509,7 @@ procedure initOptions;
     funcInsn[fnSQRI] := macro + mcSQRI;
     iAddOpMap[PLUSOP] := INTPLUS, INTMINUS;
     setOpMap[PLUSOP] := SETOR, SETSUB;
-    imulOpMap := IMULOP, IDIVROP;
+    imulOpMap := IMULOP, IDIVOP;
     setOpMap[MUL] := SETAND, SETXOR;
     charSymTabBase[''''] := CHARCONST;
     charSymTabBase['_'] := IDENT;
