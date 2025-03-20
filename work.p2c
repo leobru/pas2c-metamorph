@@ -9,9 +9,8 @@ const
     fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
     fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnODD  = 9;
     fnORD   = 10; fnCHR  = 11; fnSUCC = 12; fnPRED  = 13; fnEOF  = 14;
-    fnREF   = 15; fnEOLN = 16; fnSQR =  17; fnROUND = 18; fnCARD = 19;
-    fnMINEL = 20; fnPTR  = 21; fnABSI = 22; fnSQRI  = 23; fn24 = 24;
-    fn29    = 29;
+    fnREF   = 15; fnEOLN = 16; /*   17   */ fnROUND = 18; fnCARD = 19;
+    fnMINEL = 20; fnPTR  = 21; fnABSI = 22; /*   23   */  fn24 = 24;
 //
     S3 = 0;
     S4 = 1;
@@ -47,6 +46,7 @@ const
     errFirstDigitInCharLiteralGreaterThan3 = 60;
 //
     macro = 0100000000;
+    mcJUMP = 2;
     mcACC2ADDR = 6;
     mcPOP = 4;
     mcPUSH = 5;
@@ -54,11 +54,11 @@ const
     mcADDSTK2REG = 8;
     mcADDACC2REG = 9;
     mcODD = 10;
-    mcSQRR = 12;
     mcROUND = 11;
     mcMINEL = 15;
-    mcSQRI = 13;
     mcPOP2ADDR = 19;
+    mcCOND2INT = 20;
+    mcPCKSTORE = 22;
     mcCARD = 23;
 //
     ASCII0 =    04000007;
@@ -2085,9 +2085,7 @@ void addJumpInsn(opcode: int);
         l4oi212z  =  l4oi212z@.next;
         if (l4var4z >= 0) {
             switch (l4var4z) {
-            mcCARD: {
-                add2InsnsToBuf(KACX, KAEX+ZERO);
-            };
+            mcCARD: add2InsnsToBuf(KACX, KAEX+ZERO);
             21: goto 3556;
             0:  addJumpInsn(insnTemp[UZA]);
             1:  addJumpInsn(insnTemp[U1A]);
@@ -2116,14 +2114,14 @@ void addJumpInsn(opcode: int);
                 else
                     error(207);
             };
-            20: addInsnToBuf(3*macro + curInsn.i);
-            4: {
+            mcCOND2INT: addInsnToBuf(3*macro + curInsn.i);
+            mcPOP: {
                 if (insnBuf[insnBufIdx-1].m & [21:23, 28:35] == [])
                     insnBuf[insnBufIdx-1].m  =  insnBuf[insnBufIdx-1].m | [35]
                 else
                     addInsnToBuf(KXTA+SP)
             };
-            5:
+            mcPUSH:
 (blk)       {
                 if (l4oi212z != NIL) {
                     tempInsn.i  =  l4oi212z@.code;
@@ -2149,15 +2147,9 @@ void addJumpInsn(opcode: int);
                 addInsnToBuf(KADD+REAL05);                /* round */
                 add2InsnsToBuf(KNTR+7, KADD+ZERO)
             };
-            mcSQRR: {
-                add2InsnsToBuf(KATX+SP, KMUL+SP);   /* sqr */
-            };
-            mcSQRI: {
-                add2InsnsToBuf(KATX+SP, KAEX+MULTMASK);   /* sqrint */
-                add2InsnsToBuf(KMUL+SP, KYTA+64)
-            };
-            14: add2InsnsToBuf(indexreg[curInsn.i] + KVTM,
+            14: { add2InsnsToBuf(indexreg[curInsn.i] + KVTM,
                                KITA + curInsn.i);
+            };
             mcMINEL: {
                 add2InsnsToBuf(KANX+ZERO, KSUB+PLUS1);   /* minel */
             };
@@ -2171,7 +2163,7 @@ void addJumpInsn(opcode: int);
                 addInsnToBuf(KVTM+I14);
                 add2InsnsToBuf(KXTA+SP, KATX+I14)
             };
-            22: {
+            mcPCKSTORE: {
                 add2InsnsToBuf(KVTM+I14, KXTA+I14);
                 curVal.i  =  040077777U;
                 add2InsnsToBuf(allocSymtab(curVal.m) + (KXTS+SP),
@@ -2468,7 +2460,7 @@ var
         };
         il3: {
             if (bool49z)
-                addInsnAndOffset(macro+20,
+                addInsnAndOffset(macro+mcCOND2INT,
                     ord(16 in insnList@.regsused)*010000 + insnList@.ilf5.i);
         };
         }; /* switch */
@@ -2607,7 +2599,7 @@ var
             addInsnAndOffset(insnTemp[UTC] + insnList@.ilf5.i,
                              insnList@.ilf6);
             curVal.m  =  [0..47] ~ [(48-l4int3z)..(47 -l4int2z)];
-            addInsnAndOffset(macro+22, getFCSToffset);
+            addInsnAndOffset(macro+mcPCKSTORE, getFCSToffset);
         } else {
             if (not l4bool5z) {
                 l4int2z  =  (insnList@.width - l4int1z);
@@ -2898,7 +2890,7 @@ var
                     addInsnAndOffset(l5var6z, l5var5z);
                     l5ins8z  =  insnList;
                     insnList  =  otherIns;
-                    addInsnAndOffset(macro + 2,
+                    addInsnAndOffset(macro + mcJUMP,
                                      010000 * l5var5z + l5var4z);
                 } else {
                     addInsnAndOffset(l5var6z, l5var4z);
@@ -2910,7 +2902,7 @@ var
         } else {
             if (l5var4z == 0) {
                 if (l5var1z) {
-                    addInsnAndOffset(macro + 2,
+                    addInsnAndOffset(macro + mcJUMP,
                                      010000 * l5var5z + l5var3z);
                     l5ins8z  =  insnList;
                     insnList  =  otherIns;
@@ -2926,14 +2918,14 @@ var
             } else {
                 if (l5var1z) {
                     if (l5var2z) {
-                        addInsnAndOffset(macro + 2,
+                        addInsnAndOffset(macro + mcJUMP,
                                          010000 * l5var5z + l5var3z);
                         l5ins8z  =  insnList;
                         insnList  =  otherIns;
-                        addInsnAndOffset(macro + 2,
+                        addInsnAndOffset(macro + mcJUMP,
                                          010000 * l5var5z + l5var4z);
                     } else {
-                        addInsnAndOffset(macro + 2,
+                        addInsnAndOffset(macro + mcJUMP,
                                          010000 * l5var4z + l5var3z);
                         l5ins8z  =  insnList;
                         insnList  =  otherIns;
@@ -2944,7 +2936,7 @@ var
                     insnList  =  otherIns;
                     l5var5z  =  l5var3z;
                     if (l5var2z)
-                        addInsnAndOffset(macro + 2,
+                        addInsnAndOffset(macro + mcJUMP,
                                          010000 * l5var3z + l5var4z)
                     else
                         addInsnAndOffset(macro + 3,
@@ -3860,12 +3852,10 @@ var
                     fnSUCC:  arg1Val.c  =  succ(arg1Val.c);
                     fnPRED:  arg1Val.c  =  pred(arg1Val.c);
                     fnPTR:   arg1Val.c  =  chr(arg1Val.i);
-                    fnSQR:   arg1Val.r  =  arg1Val.r*arg1Val.r;
                     fnROUND: arg1Val.i  =  round(arg1Val.r);
                     fnCARD:  arg1Val.i  =  card(arg1Val.m);
                     fnMINEL: arg1Val.i  =  minel(arg1Val.m);
                     fnABSI:  arg1Val.i  =  abs(arg1Val.i);
-                    fnSQRI:  arg1Val.i  =  arg1Val.i*arg1Val.i;
                     fnEOF,
                     fnREF,
                     fnEOLN:
@@ -3894,7 +3884,7 @@ var
                     if (work IN [fnSQRT:fnEXP,
                                  fnODD:fnSUCC, fnCARD, fnPTR]) {
                         l3int3z  =  0;
-                    } else if (work IN [fnABS, fnSQR])
+                    } else if (work == fnABS)
                         l3int3z  =  3
                     else {
                         l3int3z  =  1;
@@ -5215,9 +5205,9 @@ var
     };
     asBitset  =  [stProcNo];
     if (not ((checkMode == chkREAL) &&
-            (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnSQR, fnROUND, fn29])
+            (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnROUND])
            || ((checkMode == chkINT) &&
-            (asBitset <= [fnSQRT:fnABS, fnODD, fnCHR, fnREF, fnSQR, fnPTR]))
+            (asBitset <= [fnSQRT:fnABS, fnODD, fnCHR, fnREF, fnPTR]))
            || ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) &&
             (asBitset <= [fnORD, fnSUCC, fnPRED, fnREF]))
            || ((checkMode == chkFILE) &&
@@ -5227,13 +5217,10 @@ var
            || ((checkMode == chkOTHER) &&
             (stProcNo == fnREF))))
         error(errNeedOtherTypesOfOperands);
-    if (not (asBitset <= [fnABS, fnSUCC, fnPRED, fnSQR])) {
+    if (not (asBitset <= [fnABS, fnSUCC, fnPRED])) {
         arg1Type  =  routine@.typ;
-    } else if ((checkMode == chkINT) && (asBitset <= [fnABS, fnSQR])) {
-        if (stProcNo == fnABS)
-            stProcNo  =  fnABSI
-        else
-            stProcNo  =  fnSQRI;
+    } else if ((checkMode == chkINT) && (asBitset <= [fnABS])) {
+        stProcNo  =  fnABSI
     };
     new(l4exp6z);
     l4exp6z@.op  =  STANDPROC;
@@ -6762,7 +6749,7 @@ var
         } else {
             formJump(exitTarget);
         };
-        if (not (l4bool10z))
+        if (not l4bool10z)
             exit
     };
     15: { /* debug */
@@ -7363,7 +7350,7 @@ void regSysProc(l4arg1z: int);
     temptype  =  boolType;
     regSysProc('    EOLN');
     temptype  =  intType;
-    regSysProc('     SQR');
+    regSysProc('        '); /* was SQR, fn17 */
     regSysProc('   ROUND');
     regSysProc('    CARD');
     regSysProc('   MINEL');
@@ -8378,13 +8365,11 @@ void initOptions;
     funcInsn[fnCHR]  =  KAAX+MANTISSA;
     funcInsn[fnSUCC]  =  KARX+E1;
     funcInsn[fnPRED]  =  KSUB+E1;
-    funcInsn[fnSQR]  =  macro + mcSQRR;
     funcInsn[fnROUND]  =  macro + mcROUND;
     funcInsn[fnCARD]  =  macro + mcCARD;
     funcInsn[fnMINEL]  =  macro + mcMINEL;
     funcInsn[fnPTR]  =  KAAX+MANTISSA;
     funcInsn[fnABSI]  =  KAMX;
-    funcInsn[fnSQRI]  =  macro + mcSQRI;
     iAddOpMap[PLUSOP]  =  INTPLUS, INTMINUS;
     imulOpMap  =  IMULOP, IDIVOP;
     charSymTabBase['''']  =  CHARCONST;

@@ -9,9 +9,8 @@ const
     fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
     fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnODD  = 9;
     fnORD   = 10; fnCHR  = 11; fnSUCC = 12; fnPRED  = 13; fnEOF  = 14;
-    fnREF   = 15; fnEOLN = 16; fnSQR =  17; fnROUND = 18; fnCARD = 19;
-    fnMINEL = 20; fnPTR  = 21; fnABSI = 22; fnSQRI  = 23; fn24 = 24;
-    fn29    = 29;
+    fnREF   = 15; fnEOLN = 16; (*   17   *) fnROUND = 18; fnCARD = 19;
+    fnMINEL = 20; fnPTR  = 21; fnABSI = 22; (*   23   *)  fn24 = 24;
 %
     S3 = 0;
     S4 = 1;
@@ -54,10 +53,8 @@ const
     mcADDSTK2REG = 8;
     mcADDACC2REG = 9;
     mcODD = 10;
-    mcSQRR = 12;
     mcROUND = 11;
     mcMINEL = 15;
-    mcSQRI = 13;
     mcPOP2ADDR = 19;
     mcCARD = 23;
 %
@@ -455,7 +452,6 @@ var
    symtabarray: array [1..80] of word;
    symtbidx: array [1..80] of integer;
    iMulOpMap: array [MUL..IMODOP] of operator;
-   setOpMap: array [MUL..MINUSOP] of operator;
    iAddOpMap: array [PLUSOP..MINUSOP] of operator;
    entryPtTable: entries;
    frameRestore: array [3..6] of four;
@@ -2187,13 +2183,6 @@ procedure addJumpInsn(opcode: integer);
                 addInsnToBuf(KADD+REAL05);                (* round *)
                 add2InsnsToBuf(KNTR+7, KADD+ZERO)
             };
-            mcSQRR: {
-                add2InsnsToBuf(KATX+SP, KMUL+SP);   (* sqr *)
-            };
-            mcSQRI: {
-                add2InsnsToBuf(KATX+SP, KAEX+MULTMASK);   (* sqrint *)
-                add2InsnsToBuf(KMUL+SP, KYTA+64)
-            };
             14: add2InsnsToBuf(indexreg[curInsn.i] + KVTM,
                                KITA + curInsn.i);
             mcMINEL: {
@@ -3914,12 +3903,10 @@ var
                     fnSUCC:  arg1Val.c := succ(arg1Val.c);
                     fnPRED:  arg1Val.c := pred(arg1Val.c);
                     fnPTR:   arg1Val.c := chr(arg1Val.i);
-                    fnSQR:   arg1Val.r := arg1Val.r*arg1Val.r;
                     fnROUND: arg1Val.i := round(arg1Val.r);
                     fnCARD:  arg1Val.i := card(arg1Val.m);
                     fnMINEL: arg1Val.i := minel(arg1Val.m);
                     fnABSI:  arg1Val.i := abs(arg1Val.i);
-                    fnSQRI:  arg1Val.i := arg1Val.i*arg1Val.i;
                     fnEOF,
                     fnREF,
                     fnEOLN:
@@ -3949,7 +3936,7 @@ var
                     if (work IN [fnSQRT:fnEXP,
                                  fnODD:fnSUCC, fnCARD, fnPTR]) then {
                         l3int3z := 0;
-                    } else if (work IN [fnABS, fnSQR]) then
+                    } else if (work = fnABS) then
                         l3int3z := 3
                     else {
                         l3int3z := 1;
@@ -5285,9 +5272,9 @@ var
     };
     asBitset := [stProcNo];
     if not ((checkMode = chkREAL) and
-            (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnSQR, fnROUND, fn29])
+            (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnROUND])
            or ((checkMode = chkINT) and
-            (asBitset <= [fnSQRT:fnABS, fnODD, fnCHR, fnREF, fnSQR, fnPTR]))
+            (asBitset <= [fnSQRT:fnABS, fnODD, fnCHR, fnREF, fnPTR]))
            or ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) and
             (asBitset <= [fnORD, fnSUCC, fnPRED, fnREF]))
            or ((checkMode = chkFILE) and
@@ -5297,13 +5284,10 @@ var
            or ((checkMode = chkOTHER) and
             (stProcNo = fnREF))) then
         error(errNeedOtherTypesOfOperands);
-    if not (asBitset <= [fnABS, fnSUCC, fnPRED, fnSQR]) then {
+    if not (asBitset <= [fnABS, fnSUCC, fnPRED]) then {
         arg1Type := routine@.typ;
-    } else if (checkMode = chkINT) and (asBitset <= [fnABS, fnSQR]) then {
-        if stProcNo = fnABS then
-            stProcNo := fnABSI
-        else
-            stProcNo := fnSQRI;
+    } else if (checkMode = chkINT) and (asBitset <= [fnABS]) then {
+        stProcNo := fnABSI
     };
     new(newExpr);
     newExpr@.op := STANDPROC;
@@ -7491,7 +7475,7 @@ procedure regSysProc(l4arg1z: integer);
     temptype := booleanType;
     regSysProc(45575456C(*"    EOLN"*));
     temptype := integerType;
-    regSysProc(636162C(*"     SQR"*));
+    regSysProc(0C); (* was SQR, unused *)
     regSysProc(6257655644C(*"   ROUND"*));
     regSysProc(43416244C(*"    CARD"*));
     regSysProc(5551564554C(*"   MINEL"*));
@@ -8526,17 +8510,13 @@ procedure initOptions;
     funcInsn[fnCHR] := KAAX+MANTISSA;
     funcInsn[fnSUCC] := KARX+E1;
     funcInsn[fnPRED] := KSUB+E1;
-    funcInsn[fnSQR] := macro + mcSQRR;
     funcInsn[fnROUND] := macro + mcROUND;
     funcInsn[fnCARD] := macro + mcCARD;
     funcInsn[fnMINEL] := macro + mcMINEL;
     funcInsn[fnPTR] := KAAX+MANTISSA;
     funcInsn[fnABSI] := KAMX;
-    funcInsn[fnSQRI] := macro + mcSQRI;
     iAddOpMap[PLUSOP] := INTPLUS, INTMINUS;
-    setOpMap[PLUSOP] := SETOR, SETSUB;
     imulOpMap := IMULOP, IDIVOP;
-    setOpMap[MUL] := SETAND, SETXOR;
     charSymTabBase[''''] := CHARCONST;
     charSymTabBase['_'] := IDENT;
     charSymTabBase['<'] := LTSY;
