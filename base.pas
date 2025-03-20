@@ -142,7 +142,7 @@ type
         FORSY,      WITHSY,     GOTOSY,
 (*47B*) ELSESY,     OFSY,       DOSY,
         TOSY,       DOWNTOSY,
-(*54B*) PROGRAMSY,  BREAKSY, CONTSY, DEFAULTSY,  NOSY
+(*54B*) EXTERNSY,  BREAKSY, CONTSY, DEFAULTSY,  NOSY
 );
 %
 idclass = (
@@ -443,7 +443,6 @@ var
    toAlloc, set145z, set146z, set147z, set148z: bitset;
    optSflags: word;
    litOct: word;
-   litExternal: word;
    litForward: word;
    litFortran: word;
    uVarPtr: eptr;
@@ -7309,7 +7308,7 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure initScalars;
 var
-    l3var1z, noProgram, l3var3z, l3var4z: word;
+    l3var1z, l3var3z, l3var4z: word;
     l3var5z, l3var6z: integer;
     l3var7z: irptr;
     l3var8z, l3var9z: integer;
@@ -7493,35 +7492,22 @@ procedure regSysProc(l4arg1z: integer);
     l3var3z := curVal;
     curVal.i := 12515660656412C(*" *INPUT*"*);
     l3var4z := curVal;
-    curVal.i := 5657606257476241C(*"NOPROGRA"*);
-    noProgram := curVal;
-    test1(PROGRAMSY, (skipToSet + [IDENT,LPAREN]));
+    test1(EXTERNSY, (skipToSet + [IDENT,SEMICOLON]));
     symTabPos := 74004B;
     with programObj@ do {
-        if (SY = IDENT) then {
-            curVal := curIdent;
+            curVal.i := 6041634357556054C; (* PASCOMPL *)
             id := ;
             pos := 0;
             symTab[74000B] := makeNameWithStars(true);
-        } else {
-            id.m := [3];
-            error(errNoIdent);
-            skip(skipToSet + [LPAREN]);
-        };
     };
-    if (curIdent <> noProgram) then {
-        entryPtTable[1] := symTab[74000B];
-        entryPtTable[3] :=
-            [0,1,6,7,10,12,14:18,21:25,28,30,35,36,38,39,41];(*"PROGRAM "*)
-        entryPtTable[2] := [1];
-        entryPtTable[4] := [1];
-        entryPtCnt := 5;
-        write(CHILD, [0,4,6,9:12,23,28,29,33:36,46]);(*10 24 74001 00 30 74002*)
-        moduleOffset := 40001B;
-    } else {
-        entryPtCnt := 1;
-        moduleOffset := 40000B;
-    };
+    entryPtTable[1] := symTab[74000B];
+    entryPtTable[3] :=
+        [0,1,6,7,10,12,14:18,21:25,28,30,35,36,38,39,41];(*"PROGRAM "*)
+    entryPtTable[2] := [1];
+    entryPtTable[4] := [1];
+    entryPtCnt := 5;
+    write(CHILD, [0,4,6,9:12,23,28,29,33:36,46]);(*10 24 74001 00 30 74002*)
+    moduleOffset := 40001B;
     programObj@.argList := NIL;
     programObj@.flags := [];
     objBufIdx := 1;
@@ -7529,8 +7515,6 @@ procedure regSysProc(l4arg1z: integer);
     defineRange(temptype, 1, 6);
     alfaType@.range := temptype;
     int93z := 0;
-    inSymbol;
-    test1(LPAREN, skipToSet + [IDENT]);
     outputObjFile;
     outputFile := NIL;
     inputFile := NIL;
@@ -7621,7 +7605,6 @@ procedure regSysProc(l4arg1z: integer);
         if (SY = COMMA) then
             inSymbol;
     };
-    checkSymAndRead(RPAREN);
     checkSymAndRead(SEMICOLON);
     if (outputFile = NIL) then {
         error(77); (* errNoOutput *)
@@ -8134,9 +8117,9 @@ procedure exitScope(var arg: array [0..127] of irptr);
             level := l2int18z;
             preDefLink := preDefHead;
             preDefHead := curIdRec;
-        } else  if (curIdent = litExternal) or
+        } else  if (SY = EXTERNSY) or
             (curIdent = litFortran) then {
-            if (curIdent = litExternal) then {
+            if (SY = EXTERNSY) then {
                 curVal.m := [20];
             } else if (checkFortran) then {
                 curVal.m := [21,24];
@@ -8446,7 +8429,6 @@ procedure initOptions;
     declExternal := false;
     errors := false;
     allowCompat := false;
-    litExternal.i := 4570644562564154C;
     litForward.i := 46576267416244C;
     litFortran.i := 46576264624156C;
     fileBufSize := 1;
@@ -8511,7 +8493,7 @@ procedure initOptions;
         4457C                   (*"      DO"*),
         6457C                   (*"      TO"*),
         445767566457C           (*"  DOWNTO"*),
-        60625747624155C         (*" PROGRAM"*),
+        457064456256C           (*"  EXTERN"*),
         4262454153C             (*"   BREAK"*),
         4357566451566545C       (*"CONTINUE"*),
         576450456263C           (*" DEFAULT"*);

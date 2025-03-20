@@ -1,5 +1,5 @@
 /*=p-,t-,s8,y+,k9,l1*/
-program pascompl(_output_, _child_, pasinput, pasinfor);
+extern _output_, _child_, pasinput, pasinfor;
 //
 label 9999;
 //
@@ -128,7 +128,6 @@ const
 //
     maxLineLen = 130;
     /*=A3*/
-    litExternal  =  'EXTERNAL';
     litForward  =  ' FORWARD';
     litFortran  =  ' FORTRAN';
     litOct  =  '     OCT';
@@ -148,7 +147,7 @@ type
         FORSY,      WITHSY,     GOTOSY,
 /*47B*/ ELSESY,     OFSY,       DOSY,
         TOSY,       DOWNTOSY,
-/*54B*/ PROGRAMSY,  DEFAULTSY,  NOSY
+/*54B*/ EXTERNSY,  DEFAULTSY,  NOSY
 );
 //
 idclass = (
@@ -579,7 +578,7 @@ var
 void printTextWord(val: word);
 //
     void PASTPR(val: word);
-        external;
+        extern;
 //
 { /* printTextWord */
     write(' ');
@@ -1021,7 +1020,7 @@ var
     startPos, lastErr: int;
 //
     void OBPROG(var start, fin: bitset);
-        external;
+        extern;
 {
     listMode  =  pasinfor.listMode;
     if ((listMode != 0) || (errsInLine != 0))
@@ -3459,7 +3458,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genConstDiv;
     function PASDIV(r: real): word;
-        external;
+        extern;
 {
     curVal  =  PASDIV(1.0/arg2Val.i);
     addToInsnList(KMUL+I8 + getFCSToffset);
@@ -7196,7 +7195,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void initScalars;
 var
-    l3var1z, noProgram, l3var3z, l3var4z: word;
+    l3var1z, l3var3z, l3var4z: word;
     l3var5z, l3var6z: int;
     l3var7z: irptr;
     l3var8z, l3var9z: int;
@@ -7379,34 +7378,22 @@ void regSysProc(l4arg1z: int);
     new(programObj, 12);
     l3var3z.i  = '*OUTPUT*';
     l3var4z.i  =  ' *INPUT*';
-    noProgram.i  =  'NOPROGRA';
-    test1(PROGRAMSY, (skipToSet | [IDENT,LPAREN]));
+    test1(EXTERNSY, (skipToSet | [IDENT,LPAREN]));
     symTabPos  =  074004;
     with programObj@ do {
-        if (SY == IDENT) {
-            curVal  =  curIdent;
-            id  =  ;
-            pos  =  0;
-            symTab[074000]  =  makeNameWithStars(true);
-        } else {
-            id.m  =  [3];
-            error(errNoIdent);
-            skip(skipToSet | [LPAREN]);
-        };
+        curVal.i  =  'PASCOMPL';
+        id  =  ;
+        pos  =  0;
+        symTab[074000]  =  makeNameWithStars(true);
     };
-    if (curIdent != noProgram) {
-        entryPtTable[1].m  =  symTab[074000];
-        entryPtTable[3].i  = 'PROGRAM ';
-        entryPtTable[2]  =  [1];
-        entryPtTable[4]  =  [1];
-        entryPtCnt  =  5;
-        /*10 24 74001 00 30 74002*/
-        write(_CHILD_,[0,4,6,9:12,23,28,29,33:36,46]);
-        moduleOffset  =  040001;
-    } else {
-        entryPtCnt  =  1;
-        moduleOffset  =  040000;
-    };
+    entryPtTable[1].m  =  symTab[074000];
+    entryPtTable[3].i  = 'PROGRAM ';
+    entryPtTable[2]  =  [1];
+    entryPtTable[4]  =  [1];
+    entryPtCnt  =  5;
+    /*10 24 74001 00 30 74002*/
+    write(_CHILD_,[0,4,6,9:12,23,28,29,33:36,46]);
+    moduleOffset  =  040001;
     programObj@.argList  =  NIL;
     programObj@.flags  =  [];
     objBufIdx  =  1;
@@ -7414,8 +7401,6 @@ void regSysProc(l4arg1z: int);
     defineRange(temptype, 1, 6);
     alfaType@.range  =  temptype;
     int93z  =  0;
-    inSymbol;
-    test1(LPAREN, skipToSet | [IDENT]);
     outputObjFile;
     outputFile  =  NIL;
     inputFile  =  NIL;
@@ -7507,7 +7492,6 @@ void regSysProc(l4arg1z: int);
         if (SY == COMMA)
             inSymbol;
     };
-    checkSymAndRead(RPAREN);
     checkSymAndRead(SEMICOLON);
     if (outputFile == NIL) {
         error(77); /* errNoOutput */
@@ -8014,9 +7998,9 @@ void exitScope(var arg: array [0..127] of irptr);
             level  =  l2int18z;
             preDefLink  =  preDefHead;
             preDefHead  =  curIdRec;
-        } else if ((curIdent.i == litExternal) ||
+        } else if ((SY == EXTERNSY) ||
             (curIdent.i == litFortran)) {
-            if (curIdent.i == litExternal) {
+            if (SY == EXTERNSY) {
                 curVal.m  =  [20];
             } else if (checkFortran) {
                 curVal.m  =  [21,24];
@@ -8379,7 +8363,7 @@ void initOptions;
         '      DO',
         '      TO',
         '  DOWNTO',
-        ' PROGRAM',
+        '  EXTERN',
         ' DEFAULT';
 /*=A2*/
     charSymTabBase  =  NOSY:128;
