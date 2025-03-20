@@ -2317,7 +2317,7 @@ void addJumpInsn(opcode: int);
             } else
                 l4inl6z  =  next;
     };
-    set146z  =  set146z - set145z;
+    set146z  =  set146z ~ set145z;
 }; /* genOneOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2606,7 +2606,7 @@ var
             };
             addInsnAndOffset(insnTemp[UTC] + insnList@.ilf5.i,
                              insnList@.ilf6);
-            curVal.m  =  [0..47] - [(48-l4int3z)..(47 -l4int2z)];
+            curVal.m  =  [0..47] ~ [(48-l4int3z)..(47 -l4int2z)];
             addInsnAndOffset(macro+22, getFCSToffset);
         } else {
             if (not l4bool5z) {
@@ -2952,7 +2952,7 @@ var
                 }
             }
         };
-        insnList@.regsused  =  l5var9z.m - [16];
+        insnList@.regsused  =  l5var9z.m ~ [16];
         l5ins8z@.next@.next  =  insnList@.next2;
         insnList@.next2  =  l5ins8z@.next2;
         insnList@.ilm  =  il3;
@@ -2998,7 +2998,7 @@ function myminel(l6arg1z: bitset): int;
     copyPtr  =  ref(insnCopy);
     l5var22z.m  =  set147z;
     for curDim to dimCnt do
-       l5var22z.m  =  l5var22z.m - getEltInsns[curDim]@.regsused;
+       l5var22z.m  =  l5var22z.m ~ getEltInsns[curDim]@.regsused;
     for curDim  =  dimCnt downto 1 do {
         l5var26z  =  insnCopy.typ@.base;
         l5var27z  =  insnCopy.typ@.range;
@@ -3075,7 +3075,7 @@ function myminel(l6arg1z: bitset): int;
                     if (insnCopy.ilf7 >= 15) {
                         l5var1z  =   myminel(l5var22z.m);
                         if (0 >= l5var1z) {
-                            l5var1z  =  myminel(set147z - insnCopy.regsused);
+                            l5var1z  =  myminel(set147z ~ insnCopy.regsused);
                             if (0 >= l5var1z)
                                 l5var1z  =  9;
                         };
@@ -3118,7 +3118,7 @@ function myminel(l6arg1z: bitset): int;
                     if (l5var7z != 0) {
                         curVal.i  =  0 - l5var7z;
                         if (not typeCheck(insnList@.typ, intType))
-                            curVal.m  =  curVal.m - intZero;
+                            curVal.m  =  curVal.m ~ intZero;
                         addToInsnList(KADD+I8 + getFCSToffset);
                         insnList@.next@.mode  =  1;
                     };
@@ -3404,7 +3404,7 @@ void traceEntry(isEntry: bool);
         insnList@.typ  =  l5idr5z@.typ;
         insnList@.regsused  =  insnList@.regsused | [0];
         insnList@.ilm  =  il2;
-        set146z  =  set146z - l5var12z.m;
+        set146z  =  set146z ~ l5var12z.m;
     }
 }; /* genEntry */
 //
@@ -3569,7 +3569,7 @@ var
             };
             }; /* switch */
         };
-        insnList@.regsused  =  insnList@.regsused - [16];
+        insnList@.regsused  =  insnList@.regsused ~ [16];
         if (hasEq)
              negateCond;
     };
@@ -3658,14 +3658,14 @@ var
                     if (arg2Const) {
                         prepLoad;
                         if (card(arg2Val.m) == 4) {
-                            curVal.m = intZero|[minel(arg2Val.m-intZero)+1..47];
+                            curVal.m = intZero|[minel(arg2Val.m~intZero)+1..47];
                             addToInsnList(KAAX+I8 +getFCSToffset);
                             l3int3z  =  0;
                         } else {
                             addToInsnList(macro + mcPUSH);
                             genConstDiv;
                             insnList@.next@.mode  =  1;
-                            curVal.m  =  arg2Val.m - [1, 3];
+                            curVal.m  =  arg2Val.m ~ [1, 3];
                             addToInsnList(KMUL+I8 + getFCSToffset);
                             addToInsnList(KYTA+64);
                             addToInsnList(KRSUB+SP);
@@ -4015,9 +4015,9 @@ var l4exf1z: @extfilerec;
                         setAddrTo(l3int2z);
                         genOneOp;
                     };
-                    l3var11z.m  =  [l3int2z] - [14];
-                    set145z  =  set145z - l3var11z.m;
-                    set147z  =  set147z - l3var11z.m;
+                    l3var11z.m  =  [l3int2z] ~ [14];
+                    set145z  =  set145z ~ l3var11z.m;
+                    set147z  =  set147z ~ l3var11z.m;
                     set146z  =  set146z | l3var11z.m;
                 };
                 curVal.i  =  l3int2z;
@@ -4848,7 +4848,7 @@ var
             if (41 >= entryPtCnt) {
                 curVal  =  l2idr2z@.id;
                 entryPtTable[entryPtCnt].m  =  makeNameWithStars(true);
-                entryPtTable[entryPtCnt+1].m  =  [1] | frame.m - [0, 3];
+                entryPtTable[entryPtCnt+1].m  =  [1] | frame.m ~ [0, 3];
                 entryPtCnt  =  entryPtCnt + 2;
             } else
                 error(87); /* errTooManyEntryProcs */
@@ -5069,7 +5069,7 @@ var
 {
     with l4arg1z@ do {
         if (typ != NIL)
-            set146z  =  set146z - flags;
+            set146z  =  set146z ~ flags;
         l4var1z  =  (list == NIL) && not (24 in flags);
     };
     new(l4exp3z);
@@ -5385,8 +5385,8 @@ var
                            (curExpr@.op == GETENUM)) {
                             l4var4z.i  =  l4exp5z@.num1;
                             l4var3z.i  =  curExpr@.num1;
-                            l4var4z.m  =  l4var4z.m - intZero;
-                            l4var3z.m  =  l4var3z.m - intZero;
+                            l4var4z.m  =  l4var4z.m ~ intZero;
+                            l4var3z.m  =  l4var3z.m ~ intZero;
                             l4var1z.m  =  l4var1z.m | [l4var4z.i..l4var3z.i];
                             curExpr  =  l4exp6z;
                             goto 14567;
@@ -5402,7 +5402,7 @@ var
                    } else {
                         if (l4exp5z@.op == GETENUM) {
                             l4var4z.i  =  l4exp5z@.num1;
-                            l4var4z.m  =  l4var4z.m - intZero;
+                            l4var4z.m  =  l4var4z.m ~ intZero;
                             l4var1z.m  =  l4var1z.m | [l4var4z.i];
                             curExpr  =  l4exp6z;
                             goto 14567;
@@ -5566,7 +5566,7 @@ var
                     typ  =  boolType;
                     op  =  l4var3z;
                 } else {
-                    if (l4var3z == SETOR) {
+                    if ((l4var3z == SETOR) || (l4var3z == SETSUB)) {
                         op = l4var3z;
                         typ = arg1Type;
                     } else if (match) {
@@ -5576,10 +5576,6 @@ var
                         } else if (baseType == intType) {
                             op  =  iAddOpMap[l4var3z];
                             typ  =  intType;
-                        } else if ((argKind == kindSet) &&
-                                   (l4var3z == MINUSOP)) {
-                            op  =  SETSUB;
-                            typ  =  arg1Type;
                         } else {
                             goto 15031
                         }
@@ -6397,7 +6393,7 @@ void callHelperWithArg;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void P17037;
 {
-    set145z  =  set145z - [12];
+    set145z  =  set145z ~ [12];
     if ((helperNo != 49) &&             /* P/RDC */
        not typeCheck(l4exp8z@.typ, l4exp7z@.typ))
         error(34) /* errTypeIsNotAFileElementType */
@@ -6420,7 +6416,7 @@ void checkElementForReadWrite;
 var
     l5typ1z: tptr;
 {
-    set145z  =  set145z - [12];
+    set145z  =  set145z ~ [12];
     if (l4typ3z@.k == kindRange)
         l4typ3z  =  l4typ3z@.base;
     curVarKind  =  l4typ3z@.k;
@@ -7097,10 +7093,10 @@ var
     arithMode  =  1;
     set146z  =  [];
     set147z  =  [curProcNesting+1..6];
-    set148z  =  set147z - [minel(set147z)];
+    set148z  =  set147z ~ [minel(set147z)];
     l3var7z.m  =  set147z;
     exitTarget  =  0;
-    set145z  =  [1:15] - set147z;
+    set145z  =  [1:15] ~ set147z;
     if (curProcNesting != 1)
         parseDecls(2);
     l2int21z  =  localSize;
@@ -7146,7 +7142,7 @@ var
             }
         };
     } while (not l2bool8z);
-    l2idr2z@.flags  =  (set145z & [0:15]) | (l2idr2z@.flags - l3var7z.m);
+    l2idr2z@.flags  =  (set145z & [0:15]) | (l2idr2z@.flags ~ l3var7z.m);
     lineNesting  =  l3var2z.i - 1;
     if (exitTarget != 0)
         P0715(0, exitTarget);
@@ -7161,7 +7157,7 @@ var
         } else {
             l2idr2z@.pos  =  l3var1z.i;
             if (13 IN set145z) {
-                curVal.i  =  minel([1:15] - set145z);
+                curVal.i  =  minel([1:15] ~ set145z);
                 objBuffer[2]  =  objBuffer[2] | [0,1,3,6,9] | (curVal.m << 24);
             } else {
                 curVal.i  =  13;
@@ -8195,7 +8191,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void initSets;
 {
-    skipToSet  =  blockBegSys | statBegSys - [SWITCHSY];
+    skipToSet  =  blockBegSys | statBegSys ~ [SWITCHSY];
     bigSkipSet  =  skipToSet | statEndSys;
 }; /* initSets */
 //
@@ -8241,7 +8237,7 @@ var
     sizes[9]  =  ptr(int92z);
     sizes[10]  =  ptr(int93z);
     curVal.i  =  moduleOffset - 040000;
-    symTab[074001]  =  [24,29] | curVal.m - intZero;
+    symTab[074001]  =  [24,29] | curVal.m ~ intZero;
     reset(FCST);
     while (not eof(FCST)) {
         write(_CHILD_, FCST@);
@@ -8407,6 +8403,7 @@ void initOptions;
     chrClassTabBase['>']  =  GTOP;
     chrClassTabBase['<']  =  LTOP;
     chrClassTabBase['!']  =  NEOP;
+    chrClassTabBase['~']  =  SETSUB;
     charSymTabBase['+']  =  ADDOP;
     charSymTabBase['-']  =  ADDOP;
     charSymTabBase['|']  =  ADDOP;
@@ -8426,6 +8423,7 @@ void initOptions;
     charSymTabBase['=']  =  BECOMES;
     charSymTabBase[':']  =  COLON;
     charSymTabBase['!']  =  NOTSY;
+    charSymTabBase['~']  =  ADDOP;
     /*=A3*/
     helperNames  =
         'P/1     ',

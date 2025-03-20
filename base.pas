@@ -809,6 +809,22 @@ procedure toFCST;
     FcstCnt := FcstCnt + 1;
 }; (* toFCST *)
 %
+function bitsetcmp(a, b: alfa):boolean;
+var i : integer; aw, bw: word;
+{
+(*  TODO: implement proper less-than comparison of full words
+    aw.a := a; bw.a := b;
+    for i := 0 to 47 do
+        if (i in bw.m) and not (i in aw.m) then {
+            bitsetcmp := true; exit
+        } else if (i in aw.m) and not (i in bw.m) then {
+            bitsetcmp := false; exit
+        };
+    bitsetcmp := false;
+*)
+    bitsetcmp := a < b;
+};
+%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function addCurValToFCST: integer;
 var
@@ -829,14 +845,14 @@ var
                 addCurValToFCST := constNums[mid];
                 exit
             };
-            if curval.a < constVals[mid] then
+            if bitsetcmp(curval.a, constVals[mid]) then
                 high := mid - 1
             else
                 low := mid + 1
         until high < low;
         addCurValToFCST := FcstCnt;
         if FcstCountTo500 <> 500 then {
-            if curval.a < constVals[mid] then
+            if bitsetcmp(curval.a, constVals[mid]) then
                 high := mid
             else
                 high := mid + 1;
@@ -5216,7 +5232,7 @@ var
     l4var1z: word;
     l4var2z: boolean;
     l4var3z, l4var4z: word;
-    l4exp5z, l4exp6z, l4var7z, l4var8z: eptr;
+    l4exp5z, newExpr, l4var7z, l4var8z: eptr;
     routine: irptr;
     l4op10z: operator;
     l4typ11z: tptr;
@@ -5289,10 +5305,10 @@ var
         else
             stProcNo := fnSQRI;
     };
-    new(l4exp6z);
-    l4exp6z@.op := STANDPROC;
-    l4exp6z@.expr1 := curExpr;
-    l4exp6z@.num2 := stProcNo;
+    new(newExpr);
+    newExpr@.op := STANDPROC;
+    newExpr@.expr1 := curExpr;
+    newExpr@.num2 := stProcNo;
     if stProcNo = fn24 then {
         if SY <> COMMA then {
             requiredSymErr(COMMA);
@@ -5308,10 +5324,10 @@ var
             l5op1z := badop30
         else if (checkMode = chkREAL) then
             l5op1z := badop31;
-        l4exp6z@.expr2 := curExpr;
-        l4exp6z@.op := l5op1z;
+        newExpr@.expr2 := curExpr;
+        newExpr@.op := l5op1z;
     };
-    curExpr := l4exp6z;
+    curExpr := newExpr;
     curExpr@.typ := arg1Type;
     checkSymAndRead(RPAREN);
 
@@ -5403,12 +5419,12 @@ var
             factor;
             if (curExpr@.typ <> booleanType) then
                 error(1); (* errNoCommaNorSemicolon *)
-            l4exp6z := curExpr;
+            newExpr := curExpr;
             new(curExpr);
             with curExpr@ do {
                 typ := booleanType;
                 op := NOTOP;
-                expr1 := l4exp6z;
+                expr1 := newExpr;
             }
         };
         LBRACK: {
@@ -5420,7 +5436,7 @@ var
                 l4var12z := true;
                 readNext := false;
                 repeat
-                    l4exp6z := curExpr;
+                    newExpr := curExpr;
                     expression;
                     if (l4var12z) then {
                         l4typ11z := curExpr@.typ;
@@ -5443,7 +5459,7 @@ var
                             l4var4z.m := l4var4z.m - intZero;
                             l4var3z.m := l4var3z.m - intZero;
                             l4var1z.m := l4var1z.m + [l4var4z.i..l4var3z.i];
-                            curExpr := l4exp6z;
+                            curExpr := newExpr;
                             goto 14567;
                         };
                         new(l4var7z);
@@ -5459,7 +5475,7 @@ var
                             l4var4z.i := l4exp5z@.num1;
                             l4var4z.m := l4var4z.m - intZero;
                             l4var1z.m := l4var1z.m + [l4var4z.i];
-                            curExpr := l4exp6z;
+                            curExpr := newExpr;
                             goto 14567;
                         };
                         new(l4var7z);
@@ -5475,7 +5491,7 @@ var
                     with curExpr@ do {
                         typ := setType;
                         op := SETOR;
-                        expr1 := l4exp6z;
+                        expr1 := newExpr;
                         expr2 := l4exp5z;
                     };
 14567:              ;
@@ -5625,7 +5641,7 @@ var
                        op := l4var3z
                     } else goto 15031;
                 } else  {
-                   if (l4var3z = SETOR) then {
+                   if (l4var3z = SETOR) or (l4var3z = SETSUB) then {
                        op := l4var3z;
                        typ := arg2Type;
                    } else  if (match) then {
@@ -5635,10 +5651,6 @@ var
                         } else if (baseType = integerType) then {
                             op := iAddOpMap[l4var3z];
                             typ := integerType;
-                        } else if (argKind = kindSet)
-                           and (l4var3z = MINUSOP) then {
-                            op := setOpMap[l4var3z];
-                            typ := arg1Type;
                         } else {
                             goto 15031
                         }
@@ -8538,6 +8550,7 @@ procedure initOptions;
     chrClassTabBase['&'] := AMPERS;
     chrClassTabBase['|'] := OROP;
     chrClassTabBase['^'] := SETXOR;
+    chrClassTabBase['~'] := SETSUB;
     chrClassTabBase['>'] := GTOP;
     chrClassTabBase['<'] := LTOP;
     chrClassTabBase['!'] := NEOP;
@@ -8560,6 +8573,7 @@ procedure initOptions;
     charSymTabBase['='] := BECOMES;
     charSymTabBase[':'] := COLON;
     charSymTabBase['!'] := NOTSY;
+    charSymTabBase['~'] := ADDOP;
     helperNames :=
         6017210000000000C      (*"P/1     "*),
         6017220000000000C      (*"P/2     "*),
