@@ -163,10 +163,11 @@ setofsys = set of ident .. downtosy;
 %
 operator = (
     SHLEFT,     SHRIGHT,
+    SETAND,     SETXOR,     SETOR,
     MUL,        RDIVOP,     AMPERS,     IDIVOP,     IMODOP,
     PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
-    IMULOP,     SETAND,     SETXOR,     SETOR,
+    IMULOP,
     SETSUB,     INTPLUS,    INTMINUS,   badop27,    badop30,
     badop31,    MKRANGE,    ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
@@ -177,7 +178,7 @@ operator = (
 %
 opgen = (
     gen0,  STORE, LOAD,  gen3,  SETREG,
-    CTOR,  gen6,  gen7,  gen8,  gen9,
+    SETREG9,  gen6,  gen7,  gen8,  gen9,
     gen10, gen11, gen12, FILEACCESS, gen14,
     BRANCH, gen16, LITINSN
 );
@@ -4086,7 +4087,7 @@ var l4exf1z: @extfilerec;
         formOperator(LOAD);
         curInsnTemplate := insnTemp[XTA];
     };
-    CTOR: {
+    SETREG9: {
         if (insnList@.st <> st0) then
             error(errVarTooComplex);
         setAddrTo(9);
@@ -5625,11 +5626,11 @@ var
                        op := l4var3z
                     } else goto 15031;
                 } else  {
-                    if (match) then {
-                        if (l4var3z = SETOR) then {
-                            op := l4var3z;
-                            typ := arg1Type;
-                        } else if (arg1Type = realType) then {
+                   if (l4var3z = SETOR) then {
+                       op := l4var3z;
+                       typ := arg2Type;
+                   } else  if (match) then {
+                   if (arg1Type = realType) then {
                             op := l4var3z;
                             typ := realType;
                         } else if (baseType = integerType) then {
@@ -6133,7 +6134,7 @@ var
     targType := curExpr@.typ;
     if (targType@.k = kindStruct) and
        (SY = LBRACK) then {
-        formOperator(CTOR);
+        formOperator(SETREG9);
         indCnt := 0;
         inSymbol;
         l3bool5z := false;
@@ -6186,6 +6187,9 @@ var
                 };
                 curExpr := assnExpr;
             }
+        } else if ((targType = integerType) and (srcType@.k = kindSet))
+           or ((srcType = integerType) and (targType@.k = kindSet)) then {
+           goto 16332;
         } else if (targType = realType) and
             typeCheck(integerType, srcType) then {
             castToReal(curExpr);
@@ -6310,7 +6314,7 @@ function allocDataRef(l6arg1z: integer): integer;
         };
         putLeft := true;
         objBufIdx := 1;
-        formOperator(CTOR);
+        formOperator(SETREG9);
         if (objBufIdx <> 1) then
             error(errVarTooComplex);
         l4var7z.m := (leftInsn * [12,13,14,15,16,17,18,19,20,21,22,23]);
@@ -6636,7 +6640,7 @@ label
                     helperNo := 51;             (* P/RA7 *)
 17362:
                     curExpr := l4exp7z;
-                    formOperator(CTOR);
+                    formOperator(SETREG9);
                     form1Insn(KVTM+I10 + l4var15z.i);
                     callHelperWithArg;
                 } else {
@@ -6742,7 +6746,7 @@ var
         heapCallsCnt := heapCallsCnt + 1;
         workExpr := curExpr;
         if (procNo = 5) then
-            formOperator(CTOR);
+            formOperator(SETREG9);
         l2typ13z := arg1Type@.base;
         ii := l2typ13z@.size;
         if (charClass = EQOP) then {

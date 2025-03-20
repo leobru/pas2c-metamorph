@@ -127,6 +127,12 @@ const
     SP =        074000000;      /* stack pointer, reg 15 */
 //
     maxLineLen = 130;
+    /*=A3*/
+    litExternal  =  'EXTERNAL';
+    litForward  =  ' FORWARD';
+    litFortran  =  ' FORTRAN';
+    litOct  =  '     OCT';
+    /*=A2*/
 type
     symbol = (
 /*0B*/  IDENT,      INTCONST,   REALCONST,  CHARCONST,
@@ -163,10 +169,11 @@ setofsys = set of ident .. downtosy;
 //
 operator = (
     SHLEFT,     SHRIGHT,
+    SETAND,     SETXOR,     SETOR,
     MUL,        RDIVOP,     AMPERS,     IDIVOP,     IMODOP,
     PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
-    IMULOP,     SETAND,     SETXOR,     SETOR,
+    IMULOP,
     SETSUB,     INTPLUS,    INTMINUS,   badop27,    badop30,
     badop31,    MKRANGE,    ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
@@ -177,7 +184,7 @@ operator = (
 //
 opgen = (
     gen0,  STORE, LOAD,  gen3,  SETREG,
-    gen5,  gen6,  gen7,  gen8,  gen9,
+    SETREG9,  gen6,  gen7,  gen8,  gen9,
     gen10, gen11, gen12, FILEACCESS, gen14,
     BRANCH, gen16, LITINSN
 );
@@ -440,10 +447,6 @@ var
     curIdent: word;
     toAlloc, set145z, set146z, set147z, set148z: bitset;
     optSflags: word;
-    litOct: word;
-    litExternal: word;
-    litForward: word;
-    litFortran: word;
     uVarPtr: eptr;
     curExpr: eptr;
     insnList: @insnltyp;
@@ -665,8 +668,8 @@ var
             pos  =  objBufIdx - 1;
             if (objBuffer[pos] & [0..8] == [0, 1, 3..5, 8]) {
                 prevOpcode  =  opcode.i;
-                half1 = (insn.m & [33..47]) << 24;
-                half2 = (objBuffer[pos] & [9..23]) >> 24;
+                half1 = (insn.m & 077777U) << 24;
+                half2 = (objBuffer[pos] >> 24) & 077777U;
                 objBuffer[pos]  =  [0, 1, 3, 4, 6, 28, 29] |
                     half1 | half2;
                 exit;
@@ -778,7 +781,7 @@ var
         };
         longSymTabBase[longSymCnt]  =  symTabPos;
         longSyms[longSymCnt]  =  curVal.m;
-        l3arg1z  =  l3arg1z | [25];
+        l3arg1z  =  l3arg1z | 020000000U;
     } else
         l3arg1z  =  l3arg1z | curVal.m;
     putToSymTab(l3arg1z);
@@ -963,7 +966,7 @@ var
     if (mode == 0) {
         padToLeft;
         curVal.i  =  moduleOffset;
-1:      addr  =  curval.m & [33..47];
+1:      addr  =  curval.m & 077777U;
         leftHalf = curVal.m << 24;
         while (arg != 0) {
             if (4096 < arg) {
@@ -972,10 +975,10 @@ var
             } else isLarge  =  false;
             insn  =  objBuffer[arg];
             if (isLarge) {
-                curVal.m  = ((insn & [9..23]) >> 24) | intZero;
+                curVal.m  = (insn >> 24) & 077777U | intZero;
                 insn  =  insn & [0..8, 24..47] | leftHalf;
             } else {
-                curVal.m  =  intZero | insn & [33..47];
+                curVal.m  =  intZero | insn & 077777U;
                 insn  =  insn & [0..32] | addr;
             };
             objBuffer[arg]  =  insn;
@@ -1094,11 +1097,9 @@ var
     expMultiple, expValue: real;
     curChar: char;
     numstr: array [1..17] of word;
-    l3vars2: array [155..159] of word;
     expLiteral, expMagnitude: int;
-    l3int162z: int;
+    val: int;
     chord: int;
-    l3var164z: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void nextCH;
@@ -1279,11 +1280,11 @@ void readOptFlag(var res: bool);
                     l3var135z  =  typeHashTabBase[bucket];
                     if (l3var135z != NIL) {
                         while (expr62z != NIL) {
-                            l3int162z  =  expr62z@.typ2@.size;
+                            val  =  expr62z@.typ2@.size;
                             hashTravPtr  =  l3var135z;
                             while (hashTravPtr != NIL) {
                                 if ((hashTravPtr@.id == curIdent)
-                                && (hashTravPtr@.value == l3int162z))
+                                && (hashTravPtr@.value == val))
                                     exit lexer;
                                 hashTravPtr  =  hashTravPtr@.next;
                             };
@@ -2207,7 +2208,7 @@ void addJumpInsn(opcode: int);
             l4var3z  =  l4var4z - 1;
             l4var213z  =  false;
 (loop)      if (l4var3z < 1)  exit loop else {
-                tempInsn.m  =  insnBuf[l4var3z].m & [28:32];
+                tempInsn.m  =  insnBuf[l4var3z].m & 03700000U;
                 if ((tempInsn.i == CUTC) || (tempInsn.i == CWTC))
                  {
                     l4var3z  =  l4var3z-1;
@@ -2497,12 +2498,10 @@ var
     l4var6z, regField: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void P4613;
+void getOffset;
 {
-    l4var1z.i  =  insnList@.ilf6;
-    l4var1z.i  =  l4var1z.i % 32768;
-    l4var6z  =  l4var1z.i
-}; /* P4613 */
+      l4var6z = insnList@.ilf6 % 32768;
+}; /* getOffset */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* setAddrTo */
@@ -2520,7 +2519,7 @@ void P4613;
             l4var5z  =  074001;
             goto 4654;
         } else if (l4int2z == 18) {
-4650:       P4613;
+4650:       getOffset;
             if (l4var4z == indexreg[1]) {
                 l4var5z  =  074003;
 4654:           l4var1z.i  =  macro * l4var5z + l4var6z;
@@ -2533,7 +2532,7 @@ void P4613;
                 addInsnAndOffset(regField + opCode, l4var6z);
             }
         } else if (l4int2z == 17) {
-            P4613;
+            getOffset;
             l4var4z  =  insnList@.ilf6;
             l4var5z  =  insnList@.next@.code - insnTemp[UTC];
             if (l4var4z != 0) {
@@ -2542,7 +2541,7 @@ void P4613;
             };
             insnList@.next@.code  =  regField + l4var5z + opCode;
         } else if (l4int2z == 16) {
-            P4613;
+            getOffset;
             if (l4var4z != 0)
                 addToInsnList(l4var4z + insnTemp[UTC]);
             addInsnAndOffset(regField + opCode, l4var6z);
@@ -4049,7 +4048,7 @@ var l4exf1z: @extfilerec;
         formOperator(LOAD);
         curInsnTemplate  =  insnTemp[XTA];
     };
-    gen5: {
+    SETREG9: {
         if (insnList@.st != st0)
             error(errVarTooComplex);
         setAddrTo(9);
@@ -5568,11 +5567,11 @@ var
                     typ  =  boolType;
                     op  =  l4var3z;
                 } else {
-                    if (match) {
-                        if (l4var3z == SETOR) {
-                            op = l4var3z;
-                            typ = arg1Type;
-                        } else if (arg1Type == realType) {
+                    if (l4var3z == SETOR) {
+                        op = l4var3z;
+                        typ = arg1Type;
+                    } else if (match) {
+                    if (arg1Type == realType) {
                             op  =  l4var3z;
                             typ  =  realType;
                         } else if (baseType == intType) {
@@ -6067,7 +6066,7 @@ var
     targType  =  curExpr@.typ;
     if ((targType@.k == kindStruct) &&
        (SY == LBRACK)) {
-        formOperator(gen5);
+        formOperator(SETREG9);
         indCnt  =  0;
         inSymbol;
         l3bool5z  =  false;
@@ -6119,6 +6118,9 @@ var
                 };
                 curExpr  =  assnExpr;
             }
+        } else if (((targType == intType) && (srcType@.k == kindSet))
+           || ((srcType == intType) && (targType@.k == kindSet))) {
+           goto 16332;
         } else if ((targType == realType) &&
             typeCheck(intType, srcType)) {
             castToReal(curExpr);
@@ -6241,7 +6243,7 @@ function allocDataRef(l6arg1z: int): int;
         };
         putLeft  =  true;
         objBufIdx  =  1;
-        formOperator(gen5);
+        formOperator(SETREG9);
         if (objBufIdx != 1)
             error(errVarTooComplex);
         l4var7z.m  =  (leftInsn & [12,13,14,15,16,17,18,19,20,21,22,23]);
@@ -6475,7 +6477,7 @@ void writeProc;
                     if (helperNo != 37)     /* P/WR */
                         error(35); /* errSecondSpecifierForWriteOnlyForReal */
                 } else {
-                    if (curToken == litOct) {
+                    if (curToken.i == litOct) {
                         helperNo  =  42; /* P/WO */
                         l4var15z.i  =  17;
                         if (l4typ3z@.size != 1)
@@ -6566,7 +6568,7 @@ label
                     helperNo  =  51;             /* P/RA7 */
 17362:
                     curExpr  =  l4exp7z;
-                    formOperator(gen5);
+                    formOperator(SETREG9);
                     form1Insn(KVTM+I10 + l4var15z.i);
                     callHelperWithArg;
                 } else {
@@ -6648,14 +6650,13 @@ var
         arg1Type  =  curExpr@.typ;
         curVarKind  =  arg1Type@.k;
     };
-    if (procNo IN [0..6])
+    if (procNo < 7)
         jumpTarget  =  getHelperProc(29 + procNo); /* P/PF */
     switch (procNo) {
     0, 1, 2, 3: { /* put, get, rewrite, reset */
         if (curVarKind != kindFile)
             error(47); /* errNoVarOfFileType */
-        if ((procNo == 3) &&
-           (SY == COMMA)) {
+        if ((procNo == 3) && (SY == COMMA)) { // reset with file location
             formOperator(gen8);
             expression;
             if (not typeCheck(intType, curExpr@.typ))
@@ -6672,7 +6673,7 @@ var
         heapCallsCnt  =  heapCallsCnt + 1;
         workExpr  =  curExpr;
         if (procNo == 5)
-            formOperator(gen5);
+            formOperator(SETREG9);
         l2typ13z  =  arg1Type@.base;
         ii  =  l2typ13z@.size;
         if (charClass == EQOP) {
@@ -8007,15 +8008,15 @@ void exitScope(var arg: array [0..127] of irptr);
             inSymbol;
         };
         checkSymAndRead(SEMICOLON);
-        with curIdRec@ do if (curIdent == litForward) {
+        with curIdRec@ do if (curIdent.i == litForward) {
             if (isPredefined)
                 error(83); /* errRepeatedPredefinition */
             level  =  l2int18z;
             preDefLink  =  preDefHead;
             preDefHead  =  curIdRec;
-        } else if ((curIdent == litExternal) ||
-            (curIdent == litFortran)) {
-            if (curIdent == litExternal) {
+        } else if ((curIdent.i == litExternal) ||
+            (curIdent.i == litFortran)) {
+            if (curIdent.i == litExternal) {
                 curVal.m  =  [20];
             } else if (checkFortran) {
                 curVal.m  =  [21,24];
@@ -8316,15 +8317,9 @@ void initOptions;
     declExternal  =  false;
     errors  =  false;
     allowCompat  =  false;
-    /*=A3*/
-    litExternal.i  =  'EXTERNAL';
-    litForward.i  =  ' FORWARD';
-    litFortran.i  =  ' FORTRAN';
     fileBufSize  =  1;
     charEncoding  =  2;
     chain  =  NIL;
-    litOct.i  =  '     OCT';
-    /*=A2*/
     longSymCnt  =  0;
     pasinfor.errors@  =  true;
     symTabCnt  =  0;
