@@ -20,7 +20,7 @@ EOF
 sed 's/{/<:/g;s/}/:>/g' < $1 >> tmp$$
 cat << EOF >> tmp$$
 *libra:2
-*call dtran(main)
+*call dtran(program)
 *super
 *edit
 *r:1

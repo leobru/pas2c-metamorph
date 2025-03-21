@@ -1962,6 +1962,8 @@ var
                 }
                 end (* case *)
             } else {
+                if ((kind1 = kindSet) and (kind2 = kindScalar) or
+                    (kind2 = kindSet) and (kind1 = kindScalar)) then goto 1;
                 if (kind1 = kindRange) then {
                     rangeMismatch := true;
                     baseType := type2;
@@ -5274,7 +5276,7 @@ var
     if not ((checkMode = chkREAL) and
             (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnROUND])
            or ((checkMode = chkINT) and
-            (asBitset <= [fnSQRT:fnABS, fnODD, fnCHR, fnREF, fnPTR]))
+            (asBitset <= [fnSQRT:fnABS, fnODD, fnCHR, fnREF, fnMINEL, fnPTR]))
            or ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) and
             (asBitset <= [fnORD, fnSUCC, fnPRED, fnREF]))
            or ((checkMode = chkFILE) and
@@ -5668,7 +5670,7 @@ procedure parentExpression;
 procedure expression;
 var
     oper: operator;
-    l4var2z, l4var3z: eptr;
+    ex1, ex2: eptr;
 {
     if (readNext) then
         inSymbol
@@ -5678,44 +5680,44 @@ var
     if (SY = RELOP) then {
         oper := charClass;
         inSymbol;
-        l4var3z := curExpr;
+        ex2 := curExpr;
         simpleExpression;
         arg1Type := curExpr@.typ;
-        arg2Type := l4var3z@.typ;
+        arg2Type := ex2@.typ;
         if typeCheck(arg1Type, arg2Type) then {
-            if (oper = INOP) or
+            if
                (arg1Type@.k = kindFile) or
                (arg1Type@.size <> 1) and
                (oper >= LTOP) and
                not isCharArray(arg1Type) then
                 error(errNeedOtherTypesOfOperands);
         } else  {
-            if not areTypesCompatible(l4var3z) and
+            if not areTypesCompatible(ex2) and
                ((arg1Type@.k <> kindSet) or
                not (arg2Type@.k IN [kindScalar, kindRange]) or
                (oper <> INOP)) then {
                 error(errNeedOtherTypesOfOperands);
             }
         };
-        new(l4var2z);
+        new(ex1);
         if (arg2Type@.k = kindSet) and
            (oper IN [LTOP, GTOP]) then
             error(errNeedOtherTypesOfOperands);
-        with l4var2z@ do {
+        with ex1@ do {
             typ := booleanType;
             if (oper IN [GTOP, LEOP]) then {
                 expr1 := curExpr;
-                expr2 := l4var3z;
+                expr2 := ex2;
                 if (oper = GTOP) then
                     op := LTOP
                 else
                     op := GEOP;
             } else {
-                expr1 := l4var3z;
+                expr1 := ex2;
                 expr2 := curExpr;
                 op := oper;
             };
-            curExpr := l4var2z;
+            curExpr := ex1;
         }
     }
 
