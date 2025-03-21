@@ -133,7 +133,7 @@ type
 (*20B*) PERIOD,     ARROW,      COLON,      BECOMES,
         BEGINSY,    ENDSY,
         LABELSY,    CONSTSY,    TYPESY,     VARSY,
-(*32B*) FUNCSY,     VOIDSY,     SETSY,      PACKEDSY,
+(*32B*) FUNCSY,     VOIDSY,     ENUMSY,     PACKEDSY,
         ARRAYSY,    STRUCTSY,   FILESY,
 (*41B*) IFSY,       SWITCHSY,     WHILESY,
         FORSY,      WITHSY,     GOTOSY,
@@ -188,7 +188,7 @@ opflg = (
 %
 kind = (
     kindReal, kindScalar, kindRange, kindPtr,
-    kindSet, kindArray, kindStruct, kindFile,
+    kindArray, kindStruct, kindFile,
     kindCases
 );
 %
@@ -249,7 +249,6 @@ types = record
     kindScalar: (enums:     irptr;
                  numen,
                  start:     integer);
-    kindSet,
     kindPtr:    (sbase:      tptr);
     kindFile:   (fbase:      tptr;
                  elsize:    integer);
@@ -417,7 +416,6 @@ var
    externFileList: @extfilerec;
    baseType, typ121z: tptr;
    pointerType: tptr;
-   setType: tptr;
    booleanType: tptr;
    textType: tptr;
    integerType: tptr;
@@ -1829,9 +1827,10 @@ function knownInType(var rec: irptr): boolean;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure checkSymAndRead(sym: symbol);
 {
-    if (SY <> sym) then
-        requiredSymErr(sym)
-    else
+    if (SY <> sym) then {
+        requiredSymErr(sym);
+        writeln('         got ', SY);
+    } else
         inSymbol
 }; (* checkSymAndRead *)
 %
@@ -1934,8 +1933,6 @@ var
                         exit
                     }
                 };
-                kindSet:
-                    goto 1;
                 kindArray: {
                     with type1@.range@ do
                         span1 := right - left;
@@ -1962,8 +1959,6 @@ var
                 }
                 end (* case *)
             } else {
-                if ((kind1 = kindSet) and (kind2 = kindScalar) or
-                    (kind2 = kindSet) and (kind1 = kindScalar)) then goto 1;
                 if (kind1 = kindRange) then {
                     rangeMismatch := true;
                     baseType := type2;
@@ -2441,7 +2436,7 @@ var
                 addInsnAndOffset(l4int2z + curInsnTemplate, l4int3z);
             } else {
                 l4var5z := l4typ4z@.k;
-                if (l4var5z < kindSet) or
+                if (l4var5z < kindArray) or
                    (l4var5z = kindStruct) and (s6 in optSflags.m) then {
                     l4bool7z := true;
                     l4bool8z := typeCheck(l4typ4z, integerType);
@@ -2625,7 +2620,7 @@ var
     } else {
         l4var7z := insnList@.typ@.k;
         l4int1z := insnList@.typ@.bits;
-        l4bool5z := (l4var7z < kindSet) or
+        l4bool5z := (l4var7z < kindArray) or
                      (l4var7z = kindStruct) and (S6 in optSflags.m);
         if (l4st6z = st1) then {
             l4int2z := insnList@.shift;
@@ -3549,9 +3544,7 @@ var
                 work := 0
             else
                 work := 1;
-        } else if (curVarKind = kindSet) then
-            work := 2
-        else if (curVarKind IN [kindScalar, kindRange]) then
+        } else if (curVarKind IN [kindScalar, kindRange]) then
             work := 3
         else {
             work := 4;
@@ -3590,7 +3583,7 @@ var
                 };
                 goto 7504;
             };
-            2: {
+            2: { (* work = 2 unused *)
                 nextInsn := insnTemp[AAX];
 7530:           prepLoad;
                 addToInsnList(KAEX+ALLONES);
@@ -4514,10 +4507,11 @@ var
 { (* parseTypeRef *)
     isPacked := false;
 12247:
-    if (SY = LPAREN) then {
+    if (SY = ENUMSY) then {
+        inSymbol;
+        checkSymAndRead(BEGINSY);
         span := 0;
         int93z := 0;
-        inSymbol;
         curField := NIL;
         new(curType = 6);
         while (SY = IDENT) do {
@@ -4540,11 +4534,11 @@ var
                 int93z := 0;
                 inSymbol;
             } else {
-                if (SY <> RPAREN) then
-                    requiredSymErr(RPAREN);
+                if (SY <> ENDSY) then
+                    requiredSymErr(ENDSY);
             };
         };
-        checkSymAndRead(RPAREN);
+        checkSymAndRead(ENDSY);
         if (curField = NIL) then {
             curType := booleanType;
             error(errNoIdent);
@@ -4728,31 +4722,6 @@ var
                 k := kindFile;
                 base := nestedType;
                 elsize := l3int22z;
-            }
-        } else
-        if (SY = SETSY) then {
-            inSymbol;
-            checkSymAndRead(OFSY);
-            parseTypeRef(nestedType, skipTarget);
-            with nestedType@ do {
-                if (k = kindRange) and
-                   (left >= 0) and
-                   (47 >= right) then
-                    numBits := right + 1
-                else if (k = kindScalar) and
-                        (48 >= numen) then
-                    numBits := numen
-                else {
-                    numBits := 48;
-                    error(63); (* errBadBaseTypeForSet *)
-                }
-            };
-            new(curType, kindSet);
-            with curType@ do {
-                size := 1;
-                bits := numBits;
-                k := kindSet;
-                base := nestedType;
             }
         } else {
 12760:      ;
@@ -5267,8 +5236,6 @@ var
         checkMode := chkPTR
     else if (argKind = kindFile) then
         checkMode := chkFILE
-    else if (argKind = kindSet) then
-        checkMode := chkSET
     else {
         checkMode := chkOTHER;
     };
@@ -5276,13 +5243,11 @@ var
     if not ((checkMode = chkREAL) and
             (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnROUND])
            or ((checkMode = chkINT) and
-            (asBitset <= [fnSQRT:fnABS, fnODD, fnCHR, fnREF, fnMINEL, fnPTR]))
+            (asBitset <= [fnSQRT:fnABS,fnODD,fnCHR,fnREF,fnCARD,fnMINEL,fnPTR]))
            or ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) and
             (asBitset <= [fnORD, fnSUCC, fnPRED, fnREF]))
            or ((checkMode = chkFILE) and
             (asBitset <= [fnEOF, fnREF, fnEOLN]))
-           or ((checkMode = chkSET) and
-            (asBitset <= [fnREF, fnCARD, fnMINEL]))
            or ((checkMode = chkOTHER) and
             (stProcNo = fnREF))) then
         error(errNeedOtherTypesOfOperands);
@@ -5450,7 +5415,7 @@ var
                         };
                         new(l4var7z);
                         with l4var7z@ do {
-                            typ := setType;
+                            typ := integerType;
                             op := MKRANGE;
                             expr1 := l4exp5z;
                             expr2 := curExpr;
@@ -5466,16 +5431,16 @@ var
                         };
                         new(l4var7z);
                         with l4var7z@ do {
-                            typ := setType;
+                            typ := integerType;
                             op := STANDPROC;
                             expr1 := l4exp5z;
-                            num2 := 109;
+                            num2 := 109; (* P/SS *)
                             l4exp5z := l4var7z;
                         }
                     };
                     new(curExpr);
                     with curExpr@ do {
-                        typ := setType;
+                        typ := integerType;
                         op := SETOR;
                         expr1 := newExpr;
                         expr2 := l4exp5z;
@@ -5486,7 +5451,7 @@ var
             checkSymAndRead(RBRACK);
             with l4var8z@ do {
                 op := GETENUM;
-                typ := setType;
+                typ := integerType;
                 d1 := l4var1z;
             }
         };
@@ -5616,7 +5581,7 @@ var
         arg2Type := leftExpr@.typ;
         match := typeCheck(arg1Type, arg2Type);
         argKind := arg2Type@.k;
-        if (kindSet < argKind) then {
+        if (kindArray <= argKind) then {
 15031:      error(errNeedOtherTypesOfOperands);
         } else {
             new(finalExpr);
@@ -5693,16 +5658,13 @@ var
                 error(errNeedOtherTypesOfOperands);
         } else  {
             if not areTypesCompatible(ex2) and
-               ((arg1Type@.k <> kindSet) or
+               ((arg1Type <> integerType) or
                not (arg2Type@.k IN [kindScalar, kindRange]) or
                (oper <> INOP)) then {
                 error(errNeedOtherTypesOfOperands);
             }
         };
         new(ex1);
-        if (arg2Type@.k = kindSet) and
-           (oper IN [LTOP, GTOP]) then
-            error(errNeedOtherTypesOfOperands);
         with ex1@ do {
             typ := booleanType;
             if (oper IN [GTOP, LEOP]) then {
@@ -6184,9 +6146,6 @@ var
                 };
                 curExpr := assnExpr;
             }
-        } else if ((targType = integerType) and (srcType@.k = kindSet))
-           or ((srcType = integerType) and (targType@.k = kindSet)) then {
-           goto 16332;
         } else if (targType = realType) and
             typeCheck(integerType, srcType) then {
             castToReal(curExpr);
@@ -7372,13 +7331,6 @@ procedure regSysProc(l4arg1z: integer);
         bits := 48;
         k := kindReal;
     };
-    new(setType, kindSet);
-    with setType@ do {
-        size := 1;
-        bits := 48;
-        k := kindSet;
-        base := integerType;
-    };
     new(pointerType, kindPtr);
     with pointerType@ do {
         size := 1;
@@ -8475,7 +8427,7 @@ procedure initOptions;
         664162C                 (*"     VAR"*),
         4665564364515756C       (*"FUNCTION"*),
         66575144C               (*"    VOID"*),
-        634564C                 (*"     SET"*),
+        45566555C               (*"    ENUM"*),
         604143534544C           (*"  PACKED"*),
         4162624171C             (*"   ARRAY"*),
         636462654364C           (*"  STRUCT"*),

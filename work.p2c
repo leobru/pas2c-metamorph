@@ -136,7 +136,7 @@ const
     litOct  =  '     OCT';
     /*=A2*/
 type
-    symbol = (
+    symbol = enum {
 /*0B*/  IDENT,      INTCONST,   REALCONST,  CHARCONST,
         LTSY,       GTSY,       NOTSY,      LPAREN,
 /*10B*/ LBRACK,     MULOP,      ADDOP,      RELOP,
@@ -144,32 +144,32 @@ type
 /*20B*/ PERIOD,     ARROW,      COLON,      BECOMES,
         BEGINSY,    ENDSY,
         LABELSY,    CONSTSY,    TYPESY,     VARSY,
-/*32B*/ FUNCSY,     VOIDSY,     SETSY,      PACKEDSY,
+/*32B*/ FUNCSY,     VOIDSY,     ENUMSY,     PACKEDSY,
         ARRAYSY,    STRUCTSY,   FILESY,
 /*41B*/ IFSY,       SWITCHSY,     WHILESY,
         FORSY,      WITHSY,     GOTOSY,
 /*47B*/ ELSESY,     OFSY,       DOSY,
         TOSY,       DOWNTOSY,
 /*54B*/ EXTERNSY,  DEFAULTSY,  NOSY
-);
+};
 //
-idclass = (
+idclass = enum {
         TYPEID,     ENUMID,     ROUTINEID,  VARID,
         FORMALID,   FIELDID
-);
+};
 //
-insn = (
+insn = enum {
 /*000*/ ATX,   STX,   OP2,   XTS,   ADD,   SUB,   RSUB,  AMX,
 /*010*/ XTA,   AAX,   AEX,   ARX,   AVX,   AOX,   ADIVX, AMULX,
 /*020*/ APX,   AUX,   ACX,   ANX,   EADD,  ESUB,  ASX,   XTR,
 /*030*/ RTE,   YTA,   OP32,  OP33,  EADDI, ESUBI, ASN,   NTR,
 /*040*/ ATI,   STI,   ITA,   ITS,   MTJ,   JADDM, ELFUN,
 /*047*/ UTC,   WTC,   VTM,   UTM,   UZA,   U1A,   UJ,    VJM
-);
+};
 //
-setofsys = set of ident .. downtosy;
+setofsys = int; // set of ident .. downtosy;
 //
-operator = (
+operator = enum {
     SHLEFT,     SHRIGHT,
     SETAND,     SETXOR,     SETOR,
     MUL,        RDIVOP,     AMPERS,     IDIVOP,     IMODOP,
@@ -182,28 +182,28 @@ operator = (
     FILEPTR,    op44,       ALNUM,      PCALL,      FCALL,
     BOUNDS,     TOREAL,     NOTOP,      INEGOP,     RNEGOP,
     STANDPROC,  NOOP
-);
+};
 //
-opgen = (
+opgen = enum {
     gen0,  STORE, LOAD,  gen3,  SETREG,
     SETREG9,  gen6,  gen7,  gen8,  gen9,
     gen10, gen11, gen12, FILEACCESS, gen14,
     BRANCH, gen16, LITINSN
-);
+};
 //
 // Flags for ops that can potentially be optimized if one operand is a constant
-opflg = (
+opflg = enum {
     opfCOMM, opfHELP, opfAND, opfOR, opfDIV, opfMOD, opfSHIFT,
     opfMULMSK, opfASSN, opfINV
-);
+};
 //
-kind = (
+kind = enum {
     kindReal, kindScalar, kindRange, kindPtr,
-    kindSet, kindArray, kindStruct, kindFile,
+    kindArray, kindStruct, kindFile,
     kindCases
-);
+};
 //
-bitset = set of 0..47;
+bitset = int; // set of 0..47;
 //
 eptr = @expr;
 tptr = @types;
@@ -227,8 +227,8 @@ oneinsn  = struct {
     mode, code, offset: int;
 };
 //
-ilmode = (ilCONST, il1, il2, il3);
-state = (st0, st1, st2);
+ilmode = enum {ilCONST, il1, il2, il3};
+state = enum {st0, st1, st2};
 //
 insnltyp  = struct {
     next, next2: oiptr;
@@ -260,7 +260,6 @@ types = struct {
     kindScalar: {enums:     irptr;
                  numen,
                  start:     int};
-    kindSet,
     kindPtr:    {sbase:      tptr};
     kindFile:   {fbase:      tptr;
                  elsize:    int};
@@ -356,7 +355,7 @@ extfilerec = struct {
     location,
     line: int
 };
-NumberFormat = (DECIMAL, OCTAL, FULLWORD);
+NumberFormat = enum {DECIMAL, OCTAL, FULLWORD};
 //
 var
     numFormat: NumberFormat;
@@ -427,7 +426,6 @@ var
     externFileList: @extfilerec;
     baseType, typ121z: tptr;
     pointerType: tptr;
-    setType: tptr;
     boolType: tptr;
     textType: tptr;
     intType: tptr;
@@ -1906,8 +1904,6 @@ var
                         exit
                     }
                 };
-                kindSet:
-                    goto 1;
                 kindArray: {
                     with type1@.range@ do
                         span1  =  right - left;
@@ -1934,8 +1930,6 @@ var
                 }
                 } /* switch */
             } else {
-                if ((kind1 == kindSet) && (kind2 == kindScalar) ||
-                    (kind2 == kindSet) && (kind1 == kindScalar)) goto 1;
                 if (kind1 == kindRange) {
                     rangeMismatch  =  true;
                     baseType  =  type2;
@@ -2408,7 +2402,7 @@ var
                 addInsnAndOffset(l4int2z + curInsnTemplate, l4int3z);
             } else {
                 l4var5z  =  l4typ4z@.k;
-                if ((l4var5z < kindSet) ||
+                if ((l4var5z < kindArray) ||
                    (l4var5z == kindStruct) && (s6 in optSflags.m)) {
                     l4bool7z  =  true;
                     l4bool8z  =  typeCheck(l4typ4z, intType);
@@ -2590,7 +2584,7 @@ var
     } else {
         l4var7z  =  insnList@.typ@.k;
         l4int1z  =  insnList@.typ@.bits;
-        l4bool5z  =  (l4var7z < kindSet) ||
+        l4bool5z  =  (l4var7z < kindArray) ||
                      (l4var7z == kindStruct) && (S6 in optSflags.m);
         if (l4st6z == st1) {
             l4int2z  =  insnList@.shift;
@@ -3509,9 +3503,7 @@ var
                 work  =  0
             else
                 work  =  1;
-        } else if (curVarKind == kindSet)
-            work  =  2
-        else if (curVarKind IN [kindScalar, kindRange])
+        } else if (curVarKind IN [kindScalar, kindRange])
             work  =  3
         else {
             work  =  4;
@@ -3550,7 +3542,7 @@ var
                 };
                 goto 7504;
             };
-            2: {
+            2: { // work == 2 unused
                 nextInsn  =  insnTemp[AAX];
 7530:           prepLoad;
                 addToInsnList(KAEX+ALLONES);
@@ -4464,10 +4456,11 @@ var
 { /* parseTypeRef */
     isPacked  =  false;
 12247:
-    if (SY == LPAREN) {
+    if (SY == ENUMSY) {
+        inSymbol;
+        checkSymAndRead(BEGINSY);
         span  =  0;
         int93z  =  0;
-        inSymbol;
         curField  =  NIL;
         new(curType = 6);
         while (SY == IDENT) {
@@ -4490,11 +4483,11 @@ var
                 int93z  =  0;
                 inSymbol;
             } else {
-                if (SY != RPAREN)
-                    requiredSymErr(RPAREN);
+                if (SY != ENDSY)
+                    requiredSymErr(ENDSY);
             };
         };
-        checkSymAndRead(RPAREN);
+        checkSymAndRead(ENDSY);
         if (curField == NIL) {
             curType  =  boolType;
             error(errNoIdent);
@@ -4674,30 +4667,6 @@ var
                 k  =  kindFile;
                 base  =  nestedType;
                 elsize  =  l3int22z;
-            }
-        } else if (SY == SETSY) {
-            inSymbol;
-            checkSymAndRead(OFSY);
-            parseTypeRef(nestedType, skipTarget);
-            with nestedType@ do {
-                if ((k == kindRange) &&
-                   (left >= 0) &&
-                   (47 >= right))
-                    numBits  =  right + 1
-                else if ((k == kindScalar) &&
-                        (48 >= numen))
-                    numBits  =  numen
-                else {
-                    numBits  =  48;
-                    error(63); /* errBadBaseTypeForSet */
-                }
-            };
-            new(curType, kindSet);
-            with curType@ do {
-                size  =  1;
-                bits  =  numBits;
-                k  =  kindSet;
-                base  =  nestedType;
             }
         } else {
 12760:      ;
@@ -5172,7 +5141,7 @@ var
     l5op1z: operator;
     l5var2z: tptr;
     argKind: kind;
-    asBitset: bitset;
+    asBitset: int;
     stProcNo, checkMode: int;
 {
     curVal.i  =  routine@.low;
@@ -5204,26 +5173,22 @@ var
         checkMode  =  chkPTR
     else if (argKind == kindFile)
         checkMode  =  chkFILE
-    else if (argKind == kindSet)
-        checkMode  =  chkSET
     else {
         checkMode  =  chkOTHER;
     };
     asBitset  =  [stProcNo];
     if (not ((checkMode == chkREAL) &&
-            (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnROUND])
+            (asBitset & [fnSQRT:fnTRUNC, fnREF, fnROUND] != 0U)
            || ((checkMode == chkINT) &&
-            (asBitset <= [fnSQRT:fnABS, fnODD, fnCHR, fnMINEL, fnREF, fnPTR]))
+         (asBitset&[fnSQRT:fnABS,fnODD,fnCHR,fnCARD,fnMINEL,fnREF,fnPTR] != 0U))
            || ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) &&
-            (asBitset <= [fnORD, fnSUCC, fnPRED, fnREF]))
+            (asBitset & [fnORD, fnSUCC, fnPRED, fnREF] != 0U))
            || ((checkMode == chkFILE) &&
-            (asBitset <= [fnEOF, fnREF, fnEOLN]))
-           || ((checkMode == chkSET) &&
-            (asBitset <= [fnREF, fnCARD, fnMINEL]))
+            (asBitset & [fnEOF, fnREF, fnEOLN] != 0U))
            || ((checkMode == chkOTHER) &&
             (stProcNo == fnREF))))
         error(errNeedOtherTypesOfOperands);
-    if (not (asBitset <= [fnABS, fnSUCC, fnPRED])) {
+    if (asBitset & [fnABS, fnSUCC, fnPRED] == 0U) {
         arg1Type  =  routine@.typ;
     } else if ((checkMode == chkINT) && (stProcNo == fnABS)) {
         stProcNo  =  fnABSI
@@ -5386,7 +5351,7 @@ var
                         };
                         new(l4var7z);
                         with l4var7z@ do {
-                            typ  =  setType;
+                            typ  =  intType;
                             op  =  MKRANGE;
                             expr1  =  l4exp5z;
                             expr2  =  curExpr;
@@ -5402,7 +5367,7 @@ var
                         };
                         new(l4var7z);
                         with l4var7z@ do {
-                            typ  =  setType;
+                            typ  =  intType;
                             op  =  STANDPROC;
                             expr1  =  l4exp5z;
                             num2  =  109;
@@ -5411,7 +5376,7 @@ var
                     };
                     new(curExpr);
                     with curExpr@ do {
-                        typ  =  setType;
+                        typ  =  intType;
                         op  =  SETOR;
                         expr1  =  l4exp6z;
                         expr2  =  l4exp5z;
@@ -5422,7 +5387,7 @@ var
             checkSymAndRead(RBRACK);
             with l4var8z@ do {
                 op  =  GETENUM;
-                typ  =  setType;
+                typ  =  intType;
                 d1  =  l4var1z;
             }
         };
@@ -5477,7 +5442,7 @@ var
             };
             SHLEFT, SHRIGHT: { arg1Type = arg2Type; };
             AMPERS: {
-                if ((arg1Type == intType) || (arg1Type@.k == kindSet))
+                if (arg1Type == intType)
                         curOp = SETAND
                     else if (arg1Type != boolType)
                         goto 14650;
@@ -5547,7 +5512,7 @@ var
         arg2Type  =  l4var2z@.typ;
         match  =  typeCheck(arg1Type, arg2Type);
         argKind  =  arg2Type@.k;
-        if (kindSet < argKind) {
+        if (kindArray <= argKind) {
 15031:      error(errNeedOtherTypesOfOperands);
         } else {
             new(l4var1z);
@@ -5624,16 +5589,13 @@ var
                 error(errNeedOtherTypesOfOperands);
         } else {
             if (not areTypesCompatible(l4var3z) &&
-               ((arg1Type@.k != kindSet) ||
+               ((arg1Type != intType) ||
                not (arg2Type@.k IN [kindScalar, kindRange]) ||
                (oper != INOP))) {
                 error(errNeedOtherTypesOfOperands);
             }
         };
         new(l4var2z);
-        if ((arg2Type@.k == kindSet) &&
-           (oper IN [LTOP, GTOP]))
-            error(errNeedOtherTypesOfOperands);
         with l4var2z@ do {
             typ  =  boolType;
             if (oper IN [GTOP, LEOP]) {
@@ -6371,7 +6333,7 @@ void parseWidthSpecifier(var l5arg1z: eptr);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void callHelperWithArg;
 {
-    if (([12] <= set145z) || l4bool12z) {
+    if (([12] & set145z != 0U) || l4bool12z) {
         curExpr  =  workExpr;
         formOperator(gen8);
     };
@@ -7246,13 +7208,6 @@ void regSysProc(l4arg1z: int);
         size  =  1;
         bits  =  48;
         k  =  kindReal;
-    };
-    new(setType, kindSet);
-    with setType@ do {
-        size  =  1;
-        bits  =  48;
-        k  =  kindSet;
-        base  =  intType;
     };
     new(pointerType, kindPtr);
     with pointerType@ do {
@@ -8328,7 +8283,7 @@ void initOptions;
         '     VAR',
         'FUNCTION',
         '    VOID',
-        '     SET',
+        '    ENUM',
         '  PACKED',
         '   ARRAY',
         '  STRUCT',
