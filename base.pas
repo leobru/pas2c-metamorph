@@ -4625,22 +4625,11 @@ var
         } else
         if (SY = ARRAYSY) then {
             inSymbol;
-            if (SY = LBRACK) then
-                inSymbol;
+            checkSymAndRead(LBRACK);
             tempType := NIL;
 12476:      parseTypeRef(nestedType, skipTarget + [OFSY]);
-            curVarKind := nestedType@.k;
-            if (curVarKind <> kindRange) then {
-                if (curVarKind = kindScalar) and
-                   (nestedType <> integerType) then {
-                    span := nestedType@.numen;
-                } else {
-                    error(8); (* errNotAnIndexType *)
-                    nestedType := integerType;
-                    span := 10;
-                };
-                defineRange(nestedType, 0, span - 1);
-            };
+            if (nestedType@.k <> kindRange) then
+                error(8); (* errNotAnIndexType *)
             new(l3typ26z, kindArray);
             with l3typ26z@ do {
                 size := ord(tempType);
@@ -4657,8 +4646,7 @@ var
                 inSymbol;
                 goto 12476;
             };
-            if (SY = RBRACK) then
-                inSymbol;
+            checkSymAndRead(RBRACK);
             checkSymAndRead(OFSY);
             parseTypeRef(nestedType, skipTarget);
             l3typ26z@.base := nestedType;
@@ -5968,9 +5956,8 @@ function max(a, b: integer): integer;
             formJump(endOfStmt);
         };
         itemsEnded := (SY = ENDSY);
-        if not itemsEnded then
+        if SY = SEMICOLON then
             inSymbol;
-
     until itemsEnded;
     if (SY <> ENDSY) then {
         requiredSymErr(ENDSY);
@@ -6160,12 +6147,8 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure compoundStatement;
 {
-(loop) {
+    while SY <> ENDSY do {
         statement;
-        if (SY = SEMICOLON) then {
-            inSymbol;
-            goto loop;
-        }
     }
 }; (* compoundStatement *)
 %
@@ -6887,6 +6870,10 @@ procedure setStrLab(forGoto: boolean);
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* statement *)
+    if SY = SEMICOLON then {
+        inSymbol;
+        exit; (* empty statement *)
+    };
     setup(boundary);
     bool110z := false;
     startLine := lineCnt;
@@ -6946,6 +6933,7 @@ procedure setStrLab(forGoto: boolean);
                             inSymbol;
                             if l3idr12z@.offset = 0 then {
                                 standProc;
+                                checkSymAndRead(SEMICOLON);
                                 exit ident;
                             };
                             parseCallArgs(l3idr12z);
@@ -6958,6 +6946,7 @@ procedure setStrLab(forGoto: boolean);
                     }
                 };
                 formOperator(gen7);
+                checkSymAndRead(SEMICOLON);
             } else {
                 error(errNotDefined);
 8888:           skip(skipToSet + statEndSys);
@@ -7195,21 +7184,16 @@ var
     l3var2z.i := lineNesting;
     repeat
         statement;
-        if (SY = SEMICOLON) then {
-            if (curProcNesting = 1) then
-                requiredSymErr(PERIOD);
-            inSymbol;
+        if (curProcNesting = 1) then
+            l2bool8z := SY = PERIOD
+        else
             l2bool8z := (SY IN blockBegSys);
-            if not l2bool8z and not errors then
-                error(84); (* errErrorInDeclarations *)
-        } else {
-            if (SY = PERIOD) and (curProcNesting = 1) then
-                l2bool8z := true
-            else {
-                errAndSkip(errBadSymbol, skipToSet);
-                l2bool8z := (SY IN blockBegSys);
-            }
-        };
+        if not l2bool8z then
+           if (curProcNesting = 1) then
+               requiredSymErr(PERIOD)
+           else {
+               errAndSkip(errBadSymbol, skipToSet);
+           }
     until l2bool8z;
     l2idr2z@.flags := (set145z * [0:15]) + (l2idr2z@.flags - l3var7z.m);
     lineNesting := l3var2z.i - 1;
@@ -7325,7 +7309,7 @@ procedure regSysProc(l4arg1z: integer);
         start := -1;
         enums := NIL;
     };
-    new(realType, kindArray);   (* could use kindReal to save 5 words *)
+    new(realType, kindReal);
     with realType@ do {
         size := 1;
         bits := 48;

@@ -12,7 +12,7 @@ EEB1A3
 EOF
 # Compiling the compiler expressed in "standard" BESM-6 Pascal
 # using the existing system compiler
-sed 's/{/_(/g;s/}/_)/g' < base.pas >> tmp$$
+sed 's/^$/ /;s/{/_(/g;s/}/_)/g' < base.pas >> tmp$$
 cat << EOF >> tmp$$
 *copy:20,270000,670000
 *to perso:670000

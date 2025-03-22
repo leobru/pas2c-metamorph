@@ -16,7 +16,7 @@ EEB1A3
 EOF
 # Compiling the compiler expressed in the syntax currently supported
 # by the base compiler, by itself.
-sed 's/{/<:/g;s/}/:>/g' < work.p2c >> tmp$$
+sed 's/^$/ /;s/{/<:/g;s/}/:>/g' < work.p2c >> tmp$$
 cat << EOF >> tmp$$
 *copy:20,270000,670200
 *to perso:670200
