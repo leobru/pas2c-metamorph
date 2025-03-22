@@ -5014,101 +5014,101 @@ function areTypesCompatible(var l4arg1z: eptr): bool;
 } /* areTypesCompatible */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseCallArgs(l4arg1z: irptr);
+void parseCallArgs(subroutine: irptr);
 label
     13736;
 var
-    l4var1z: bool;
-    l4exp2z, l4exp3z, l4exp4z: eptr;
-    l4idr5z: irptr;
-    l4op6z: operator;
-    l4idc7z: idclass;
+    noArgs: bool;
+    curActual, callExpr, argList: eptr;
+    curFormal: irptr;
+    actualOp: operator;
+    formClass: idclass;
 {
-    with l4arg1z@ do {
+    with subroutine@ do {
         if (typ != NIL)
             set146z  =  set146z ~ flags;
-        l4var1z  =  (list == NIL) && not (24 in flags);
+        noArgs  =  (list == NIL) && not (24 in flags);
     }
-    new(l4exp3z);
-    l4exp4z  =  l4exp3z;
+    new(callExpr);
+    argList  =  callExpr;
     bool48z  =  true;
-    with l4exp3z@ do {
-        typ  =  l4arg1z@.typ;
+    with callExpr@ do {
+        typ  =  subroutine@.typ;
         op  =  ALNUM;
-        id2  =  l4arg1z;
+        id2  =  subroutine;
         id1  =  NIL;
     }
     if (SY == LPAREN) {
-        if (l4var1z) {
-            l4idr5z  =  l4arg1z@.argList;
-            if (l4idr5z == NIL) {
+        if (noArgs) {
+            curFormal  =  subroutine@.argList;
+            if (curFormal == NIL) {
                 error(errTooManyArguments);
                 goto 8888;
             }
         }
         do {
-            if ((l4var1z) && (l4arg1z == l4idr5z)) {
+            if (noArgs && (subroutine == curFormal)) {
                 error(errTooManyArguments);
                 goto 8888;
             }
             bool47z  =  true;
             expression;
-            l4op6z  =  curExpr@.op;
-(a)         if (l4var1z) {
-                l4idc7z  =  l4idr5z@.cl;
-                if (l4op6z == PCALL) {
-                    if ((l4idc7z != ROUTINEID) ||
-                       (l4idr5z@.typ != NIL)) {
+            actualOp  =  curExpr@.op;
+(a)         if (noArgs) {
+                formClass  =  curFormal@.cl;
+                if (actualOp == PCALL) {
+                    if ((formClass != ROUTINEID) ||
+                       (curFormal@.typ != NIL)) {
 13736:                  error(39); /*errIncompatibleArgumentKinds*/
                         exit a;
                     }
                 } else {
-                    if (l4op6z == FCALL) {
-                        if (l4idc7z == ROUTINEID) {
-                            if (l4idr5z@.typ == NIL)
+                    if (actualOp == FCALL) {
+                        if (formClass == ROUTINEID) {
+                            if (curFormal@.typ == NIL)
                                 goto 13736
                         } else if ((curExpr@.id2@.argList == NIL) &&
-                           (l4idc7z == VARID)) {
+                           (formClass == VARID)) {
                             curExpr@.op  =  ALNUM;
                             curExpr@.expr1  =  NIL;
                         } else
                             goto 13736;
-                    } else if (l4op6z IN lvalOpSet) {
-                        if ((l4idc7z != VARID) &&
-                           (l4idc7z != FORMALID))
+                    } else if (actualOp IN lvalOpSet) {
+                        if ((formClass != VARID) &&
+                           (formClass != FORMALID))
                             goto 13736;
                     } else {
-                        if (l4idc7z != VARID)
+                        if (formClass != VARID)
                             goto 13736;
                     }
                 }
                 arg1Type  =  curExpr@.typ;
                 if (arg1Type != NIL) {
-                    if (!typeCheck(arg1Type, l4idr5z@.typ))
+                    if (!typeCheck(arg1Type, curFormal@.typ))
                         error(40); /*errIncompatibleArgumentTypes*/
                 }
             }
-            new(l4exp2z);
-            with l4exp2z@ do {
+            new(curActual);
+            with curActual@ do {
                 typ  =  NIL;
                 expr1  =  NIL;
                 expr2  =  curExpr;
             }
-            l4exp4z@.expr1  =  l4exp2z;
-            l4exp4z  =  l4exp2z;
-            if (l4var1z)
-                l4idr5z  =  l4idr5z@.list;
+            argList@.expr1  =  curActual;
+            argList  =  curActual;
+            if (noArgs)
+                curFormal  =  curFormal@.list;
         } while (SY == COMMA);
         if ((SY != RPAREN) ||
-           l4var1z && (l4idr5z != l4arg1z))
+           noArgs && (curFormal != subroutine))
             error(errNoCommaOrParenOrTooFewArgs);
         else
             inSymbol;
     } else {
-        if ((l4var1z) && (l4arg1z@.argList != NIL))
+        if (noArgs && (subroutine@.argList != NIL))
             error(42); /*errNoArgList*/
     }
-    curExpr  =  l4exp3z;
+    curExpr  =  callExpr;
 } /* parseCallArgs */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

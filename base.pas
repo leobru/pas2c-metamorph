@@ -5070,104 +5070,103 @@ function areTypesCompatible(var l4arg1z: eptr): boolean;
 }; (* areTypesCompatible *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure parseCallArgs(l4arg1z: irptr);
+procedure parseCallArgs(subroutine: irptr);
 label
     13736;
 var
-    l4var1z: boolean;
-    l4exp2z, l4exp3z, l4exp4z: eptr;
-    l4idr5z: irptr;
-    l4op6z: operator;
-    l4idc7z: idclass;
+    noArgs: boolean;
+    curActual, callExpr, argList: eptr;
+    curFormal: irptr;
+    actualOp: operator;
+    formClass: idclass;
 {
-    with l4arg1z@ do {
+    with subroutine@ do {
         if typ <> NIL then
             set146z := set146z - flags;
-        l4var1z := (list = NIL) and not (24 in flags);
+        noArgs := (list = NIL) and not (24 in flags);
     };
-    new(l4exp3z);
-    l4exp4z := l4exp3z;
+    new(callExpr);
+    argList := callExpr;
     bool48z := true;
-    with l4exp3z@ do {
-        typ := l4arg1z@.typ;
+    with callExpr@ do {
+        typ := subroutine@.typ;
         op := ALNUM;
-        id2 := l4arg1z;
+        id2 := subroutine;
         id1 := NIL;
     };
     if (SY = LPAREN) then {
-        if (l4var1z) then {
-            l4idr5z := l4arg1z@.argList;
-            if (l4idr5z = NIL) then {
+        if (noArgs) then {
+            curFormal := subroutine@.argList;
+            if (curFormal = NIL) then {
                 error(errTooManyArguments);
                 goto 8888;
             }
         };
         repeat
-            if (l4var1z) and (l4arg1z = l4idr5z) then {
+            if (noArgs) and (subroutine = curFormal) then {
                 error(errTooManyArguments);
                 goto 8888;
             };
             bool47z := true;
             expression;
-            l4op6z := curExpr@.op;
-(a)         if l4var1z then {
-                l4idc7z := l4idr5z@.cl;
-                if (l4op6z = PCALL) then {
-                    if (l4idc7z <> ROUTINEID) or
-                       (l4idr5z@.typ <> NIL) then {
+            actualOp := curExpr@.op;
+(a)         if noArgs then {
+                formClass := curFormal@.cl;
+                if (actualOp = PCALL) then {
+                    if (formClass <> ROUTINEID) or
+                       (curFormal@.typ <> NIL) then {
 13736:                  error(39); (*errIncompatibleArgumentKinds*)
                         exit a
                     }
                 } else {
-                    if (l4op6z = FCALL) then {
-                        if (l4idc7z = ROUTINEID) then {
-                            if (l4idr5z@.typ = NIL) then
+                    if (actualOp = FCALL) then {
+                        if (formClass = ROUTINEID) then {
+                            if (curFormal@.typ = NIL) then
                                 goto 13736
                         } else
                         if (curExpr@.id2@.argList = NIL) and
-                           (l4idc7z = VARID) then {
+                           (formClass = VARID) then {
                             curExpr@.op := ALNUM;
                             curExpr@.expr1 := NIL;
                         } else
                             goto 13736;
                     } else
-                    if (l4op6z IN lvalOpSet) then {
-                        if (l4idc7z <> VARID) and
-                           (l4idc7z <> FORMALID) then
+                    if (actualOp IN lvalOpSet) then {
+                        if (formClass <> VARID) and
+                           (formClass <> FORMALID) then
                             goto 13736;
                     } else {
-                        if (l4idc7z <> VARID) then
+                        if (formClass <> VARID) then
                             goto 13736;
                     }
                 };
                 arg1Type := curExpr@.typ;
                 if (arg1Type <> NIL) then {
-                    if not typeCheck(arg1Type, l4idr5z@.typ) then
+                    if not typeCheck(arg1Type, curFormal@.typ) then
                         error(40); (*errIncompatibleArgumentTypes*)
                 }
             };
-            new(l4exp2z);
-            with l4exp2z@ do {
+            new(curActual);
+            with curActual@ do {
                 typ := NIL;
                 expr1 := NIL;
                 expr2 := curExpr;
             };
-            l4exp4z@.expr1 := l4exp2z;
-            l4exp4z := l4exp2z;
-            if (l4var1z) then
-                l4idr5z := l4idr5z@.list;
+            argList@.expr1 := curActual;
+            argList := curActual;
+            if (noArgs) then
+                curFormal := curFormal@.list;
         until (SY <> COMMA);
         if (SY <> RPAREN) or
-           l4var1z and (l4idr5z <> l4arg1z) then
+           noArgs and (curFormal <> subroutine) then
             error(errNoCommaOrParenOrTooFewArgs)
         else
             inSymbol;
     } else {
-        if (l4var1z) and (l4arg1z@.argList <> NIL) then
+        if (noArgs) and (subroutine@.argList <> NIL) then
             error(42); (*errNoArgList*)
     };
-    curExpr := l4exp3z;
-
+    curExpr := callExpr;
 }; (* parseCallArgs *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
