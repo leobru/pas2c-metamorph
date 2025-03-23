@@ -5098,8 +5098,14 @@ var
         if (noArgs) then {
             curFormal := subroutine@.argList;
             if (curFormal = NIL) then {
-                error(errTooManyArguments);
-                goto 8888;
+                inSymbol;
+                if (SY <> RPAREN) then {
+                    error(errTooManyArguments);
+                    goto 8888;
+                };
+                curExpr := callExpr;
+                inSymbol;
+                exit;
             }
         };
         repeat
@@ -5163,7 +5169,7 @@ var
         else
             inSymbol;
     } else {
-        if (noArgs) and (subroutine@.argList <> NIL) then
+%        if (noArgs) and (subroutine@.argList <> NIL) then
             error(42); (*errNoArgList*)
     };
     curExpr := callExpr;
