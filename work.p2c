@@ -187,8 +187,8 @@ operator = enum {
 opgen = enum {
     gen0,  STORE, LOAD,  gen3,  SETREG,
     SETREG9,  gen6,  gen7,  gen8,  gen9,
-    gen10, gen11, gen12, FILEACCESS, gen14,
-    BRANCH, gen16, LITINSN
+    gen10, gen11, gen12, FILEACCESS, FILEINIT,
+    BRANCH, PCKUNPCK, LITINSN
 };
 //
 // Flags for ops that can potentially be optimized if one operand is a constant
@@ -469,21 +469,21 @@ var
     frameRegTemplate: int;
     constRegTemplate: int;
     disNormTemplate: int;
-    lineBufBase: array [1..130] of char;
-    errMapBase: array [0..9] of int;
-    chrClassTabBase: array ['_000'..'_177'] of operator;
-    kwordHashTabBase: array [0..127] of @kword;
-    charSymTabBase: array ['_000'..'_177'] of symbol;
-    symHashTabBase: array [0..127] of irptr;
-    typeHashTabBase: array [0..127] of irptr;
+    lineBuf: array [1..130] of char;
+    errMap: array [0..9] of int;
+    chrClass: array ['_000'..'_177'] of operator;
+    kwordHash: array [0..127] of @kword;
+    charSym: array ['_000'..'_177'] of symbol;
+    symHash: array [0..127] of irptr;
+    typeHash: array [0..127] of irptr;
     helperMap: array [1..99] of int;
     helperNames: array [1..99] of int;
 //
     symTab: array [074000..075500] of int;
     systemProcNames: array [0..22] of int;
-    resWordNameBase: array [0..26] of int;
+    resWordName: array [0..26] of int;
     longSymCnt: int;
-    longSymTabBase: array [1..90] of int;
+    longSym: array [1..90] of int;
     longSyms: array [1..90] of int;
     constVals: array [1..500] of alfa;
     constNums: array [1..500] of int;
@@ -629,8 +629,8 @@ void addToHashTab(arg: irptr);
 {
     curVal.i  =  arg@.id.i & hashMask.i;
     mapai(curval.a, curval.i);
-    arg@.next  =  symHashTabBase[curval.i];
-    symHashTabBase[curval.i]  =  arg;
+    arg@.next  =  symHash[curval.i];
+    symHash[curval.i]  =  arg;
 } /* addToHashTab */
 //
 void error(errno: int);
@@ -772,7 +772,7 @@ var
     if (curVal.i & halfWord != 0U) {
         for l3var2z to longSymCnt do
             if (curVal.i == longSyms[l3var2z]) {
-                allocExtSymbol  =  longSymTabBase[l3var2z];
+                allocExtSymbol  =  longSym[l3var2z];
                 exit;
             }
         longSymCnt  =  longSymCnt + 1;
@@ -780,7 +780,7 @@ var
             error(51); /* errLongSymbolOverflow */
             longSymCnt  =  1;
         }
-        longSymTabBase[longSymCnt]  =  symTabPos;
+        longSym[longSymCnt]  =  symTabPos;
         longSyms[longSymCnt]  =  curVal.m;
         sym  =  sym | 020000000U;
     } else
@@ -1032,18 +1032,18 @@ var
         startPos  =  13;
         do
             linePos  =  linePos-1;
-        while ((lineBufBase[linePos]  == ' ') && (linePos != 0));
+        while ((lineBuf[linePos]  == ' ') && (linePos != 0));
         for err to linePos do {
-            _output_@ = lineBufBase[err];
+            _output_@ = lineBuf[err];
             put(_output_);
         }
         writeln;
         if (errsInLine != 0) {
-            write('*****':startPos, ' ':errMapBase[0], '0');
+            write('*****':startPos, ' ':errMap[0], '0');
             lastErr  =  errsInLine - 1;
             for err to lastErr do {
-                errPos  =  errMapBase[err];
-                prevPos  =  errMapBase[err-1];
+                errPos  =  errMap[err];
+                prevPos  =  errMap[err-1];
                 if (errPos != prevPos) {
                     if (prevPos + 1 != errPos)
                         write(' ':(errPos-prevPos-1));
@@ -1080,7 +1080,7 @@ void readToPos80;
 {
     while (linePos < 81) {
         linePos  =  linePos + 1;
-        lineBufBase[linePos]  =  PASINPUT@;
+        lineBuf[linePos]  =  PASINPUT@;
         if (linePos != 81)  get(PASINPUT);
     }
     endOfLine();
@@ -1110,7 +1110,7 @@ void nextCH;
         CH  =  PASINPUT@;
         get(PASINPUT);
         linePos  =  linePos + 1;
-        lineBufBase[linePos]  =  CH;
+        lineBuf[linePos]  =  CH;
     } while ((maxLineLen < linePos) && !atEOL);
 } /* nextCH */
 //
@@ -1204,11 +1204,11 @@ void readOptFlag(var res: bool);
         while ((CH == ' ') && !atEOL)
             nextCH();
         if ('_200' < CH) {
-            lineBufBase[linePos]  =  ' ';
+            lineBuf[linePos]  =  ' ';
             chord  =  ord(CH);
             for jj  =  130 to chord do {
                 linePos  =  linePos + 1;
-                lineBufBase[linePos]  =  ' ';
+                lineBuf[linePos]  =  ' ';
             }
             nextCH();
             goto 1473;
@@ -1219,8 +1219,8 @@ void readOptFlag(var res: bool);
             goto 1473;
         }
         hashTravPtr  =  NIL;
-        SY  =  charSymTabBase[CH];
-        charClass  =  chrClassTabBase[CH];
+        SY  =  charSym[CH];
+        charClass  =  chrClass[CH];
 (lexer)
         if (SY != NOSY) {
             switch (SY) {
@@ -1234,11 +1234,11 @@ void readOptFlag(var res: bool);
                         tokenLen  =  tokenLen + 1;
                         curToken.i  =  (curToken.i << 6) | curVal.i;
                     }
-                } while (chrClassTabBase[CH] == ALNUM);
+                } while (chrClass[CH] == ALNUM);
                 curVal.i  =  curToken.i & hashMask.i;
                 mapAI(curVal.a, bucket);
                 curIdent  =  curToken;
-                keywordHashPtr  =  kwordHashTabBase[bucket];
+                keywordHashPtr  =  kwordHash[bucket];
                 while (keywordHashPtr != NIL) {
                     if (keywordHashPtr@.w == curToken) {
                         SY  =  keywordHashPtr@.sym;
@@ -1251,7 +1251,7 @@ void readOptFlag(var res: bool);
                 SY  =  IDENT;
                 switch (int93z) {
                 0: {
-                    hashTravPtr  =  symHashTabBase[bucket];
+                    hashTravPtr  =  symHash[bucket];
                     while (hashTravPtr != NIL) {
                         if (hashTravPtr@.offset == curFrameRegTemplate)
                         {
@@ -1266,7 +1266,7 @@ void readOptFlag(var res: bool);
                     }
                 }
                 1: {
-2:                  hashTravPtr  =  symHashTabBase[bucket];
+2:                  hashTravPtr  =  symHash[bucket];
                     while (hashTravPtr != NIL) {
                         if (hashTravPtr@.id != curIdent)
                             hashTravPtr  =  hashTravPtr@.next;
@@ -1278,7 +1278,7 @@ void readOptFlag(var res: bool);
                     if (expr63z == NIL)
                         goto 2;
                     expr62z  =  expr63z;
-                    l3var135z  =  typeHashTabBase[bucket];
+                    l3var135z  =  typeHash[bucket];
                     if (l3var135z != NIL) {
                         while (expr62z != NIL) {
                             val  =  expr62z@.typ2@.size;
@@ -1295,7 +1295,7 @@ void readOptFlag(var res: bool);
                     goto 2;
                 }
                 3: {
-                    hashTravPtr  =  typeHashTabBase[bucket];
+                    hashTravPtr  =  typeHash[bucket];
                     while (hashTravPtr != NIL) {
                         with hashTravPtr@ do {
                             if ((id == curIdent) &&
@@ -1319,7 +1319,7 @@ void readOptFlag(var res: bool);
                         tokenLen  =  1;
                     }
                     nextCH();
-                } while (charSymTabBase[CH] == INTCONST);
+                } while (charSym[CH] == INTCONST);
 (octdec)        {
                     if (numstr[1].i == 0) {
                         numFormat  =  OCTAL;
@@ -1372,14 +1372,14 @@ void readOptFlag(var res: bool);
                     }
                     curToken.r  =  curToken.i;
                     SY  =  REALCONST;
-                    if (charSymTabBase[CH] != INTCONST)
+                    if (charSym[CH] != INTCONST)
                         error(56); /* errNeedMantissaAfterDecimal */
                     else
                         do {
                             curToken.r  =  10.0*curToken.r + ord(CH)-48;
                             expMagnitude  =  expMagnitude-1;
                             nextCH();
-                        } while (charSymTabBase[CH] == INTCONST);
+                        } while (charSym[CH] == INTCONST);
                 }
                 if (CH == 'E') {
                     if (expMagnitude == 0) {
@@ -1395,13 +1395,13 @@ void readOptFlag(var res: bool);
                         nextCH();
                     }
                     expLiteral  =  0;
-                    if (charSymTabBase[CH] != INTCONST)
+                    if (charSym[CH] != INTCONST)
                         error(57); /* errNeedExponentAfterE */
                     else
                         do {
                             expLiteral  =  10 * expLiteral + ord(CH) - 48;
                             nextCH();
-                        } while (charSymTabBase[CH] == INTCONST);
+                        } while (charSym[CH] == INTCONST);
                     if (expSign)
                         expMagnitude  =  expMagnitude - expLiteral;
                     else
@@ -1434,9 +1434,9 @@ void readOptFlag(var res: bool);
 (loop)          {
                     for tokenIdx  =  6 to 130 do {
                         nextCH();
-                        if (charSymTabBase[CH] == CHARCONST) {
+                        if (charSym[CH] == CHARCONST) {
                             nextCH();
-                            if (charSymTabBase[CH] != CHARCONST)
+                            if (charSym[CH] != CHARCONST)
                                 exit loop;
                             else
                                 goto 2233;
@@ -1446,7 +1446,7 @@ void readOptFlag(var res: bool);
                             exit loop;
                         } else if (((CH == chr(035)) ||
                                    (CH == '_'))
-                               && (charSymTabBase[PASINPUT@] == INTCONST))
+                               && (charSym[PASINPUT@] == INTCONST))
                          {
                             expLiteral  =  0;
                             for tokenLen to 3 do {
@@ -1652,7 +1652,7 @@ var
      {
         write(' ');
         totalErrors  =  totalErrors + 1;
-        errMapBase[errsInLine]  =  linePos;
+        errMap[errsInLine]  =  linePos;
         errsInLine  =  errsInLine + 1;
         prevErrPos  =  linePos;
         write('******', errno:0);
@@ -1748,14 +1748,14 @@ var
         curVal.i  =  l3arg2z@.id.i & hashMask.i;
         mapAI(curVal.a, l3var2z);
         l3var1z  =  true;
-        l3arg1z  =  symHashTabBase[l3var2z];
+        l3arg1z  =  symHash[l3var2z];
     } else {
         l3var1z  =  false;
     }
     if (l3arg1z == l3arg2z) {
         if (l3var1z) {
-            symHashTabBase[l3var2z]  =
-                symHashTabBase[l3var2z]@.next;
+            symHash[l3var2z]  =
+                symHash[l3var2z]@.next;
         } else {
             l3arg1z  =  l3arg2z@.next;
         }
@@ -3979,7 +3979,7 @@ var l4exf1z: @extfilerec;
     l3bool13z  =  true;
     if ((errors && (l3arg1z != SETREG)) || (curExpr == NIL))
         exit;
-    if (not (l3arg1z IN [gen3, gen6, gen9, gen14, gen16]))
+    if (not (l3arg1z IN [gen3, gen6, gen9, FILEINIT, PCKUNPCK]))
         genFullExpr(curExpr);
     switch (l3arg1z) {
     gen7: genOneOp();
@@ -4081,7 +4081,7 @@ var l4exf1z: @extfilerec;
         genOneOp();
         formAndAlign(jumpTarget);
     }
-    gen14:
+    FILEINIT:
         formFileInit();
     LOAD: {
         prepLoad();
@@ -4142,7 +4142,7 @@ var l4exf1z: @extfilerec;
                 }
             }
         } /* BRANCH */
-    gen16: {
+    PCKUNPCK: {
         l3var5z  =  curExpr;
         curExpr  =  curExpr@.expr1;
         formOperator(gen11);
@@ -4227,9 +4227,9 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void addFieldToHash;
 {
-    curEnum@  =  [curIdent, , typeHashTabBase[bucket], ,
+    curEnum@  =  [curIdent, , typeHash[bucket], ,
                     FIELDID, NIL, curType, isPacked];
-    typeHashTabBase[bucket]  =  curEnum;
+    typeHash[bucket]  =  curEnum;
 } /* addFieldToHash */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4379,7 +4379,7 @@ var
                 curField  =  curEnum;
                 packFields();
             } else {
-                curEnum  =  symHashTabBase[l4var9z];
+                curEnum  =  symHash[l4var9z];
                 while (curEnum != NIL) {
                     if (curEnum@.id != l4var8z) {
                         curEnum  =  curEnum@.next;
@@ -4474,9 +4474,9 @@ var
                 error(errIdentAlreadyDefined);
             new(curEnum = 7);
             curEnum@  =  [curIdent, curFrameRegTemplate,
-                            symHashTabBase[bucket], curType,
+                            symHash[bucket], curType,
                             ENUMID, NIL, ptr(span)];
-            symHashTabBase[bucket]  =  curEnum;
+            symHash[bucket]  =  curEnum;
             span  =  span + 1;
             if (curField == NIL) {
                 curType@.enums  =  curEnum;
@@ -4726,7 +4726,7 @@ var
             toFCST();
         }
         for jj  =  0 to 127 do {
-            curIdRec  =  symHashTabBase[jj];
+            curIdRec  =  symHash[jj];
             while ((curIdRec != NIL) &&
                   (l2idr2z < curIdRec)) with curIdRec@ do {
                 l3var2z.i  =  typ@.size;
@@ -6243,7 +6243,8 @@ var
     l4exp7z, l4exp8z, workExpr: eptr;
     l4bool10z,
     l4bool11z, l4bool12z: bool;
-    l4var13z, l4var14z, l4var15z: word;
+    l4var13z, l4var14z: word;
+    defWidth: int;
     procNo: int;
     helperNo: int;
     l4var18z: opgen;
@@ -6362,29 +6363,29 @@ var
     curVarKind  =  l4typ3z@.k;
     helperNo  =  36;                   /* P/WI */
     if (l4typ3z == intType)
-        l4var15z.i  =  10;
+        defWidth  =  10;
     else if (l4typ3z == realType) {
         helperNo  =  37;               /* P/WR */
-        l4var15z.i  =  14;
+        defWidth  =  14;
     } else if (l4typ3z == charType) {
         helperNo  =  38;               /* P/WC */
-        l4var15z.i  =  1;
+        defWidth  =  1;
     } else if (curVarKind == kindScalar) {
         helperNo  =  41;               /* P/WX */
         dumpEnumNames(l4typ3z);
-        l4var15z.i  =  8;
+        defWidth  =  8;
     } else if (isCharArray(l4typ3z)) {
         l5typ1z  =  ref(l4typ3z@.range@);
-        l4var15z.i  =  l5typ1z@.right - l5typ1z@.left + 1;
+        defWidth  =  l5typ1z@.right - l5typ1z@.left + 1;
         if (not (l4typ3z@.pck))
             helperNo  =  81;            /* P/WA */
-        else if (6 >= l4var15z.i)
+        else if (6 >= defWidth)
             helperNo  =  39;            /* P/A6 */
         else
             helperNo  =  40;           /* P/A7 */
     } else if (l4typ3z@.size == 1) {
         helperNo  =  42;               /* P/WO */
-        l4var15z.i  =  17;
+        defWidth  =  17;
     } else {
         error(34); /* errTypeIsNotAFileElementType */
     }
@@ -6414,7 +6415,7 @@ void writeProc;
                 } else {
                     if (curToken.i == litOct) {
                         helperNo  =  42; /* P/WO */
-                        l4var15z.i  =  17;
+                        defWidth  =  17;
                         if (l4typ3z@.size != 1)
                             error(34); /* errTypeIsNotAFileElementType */
                         inSymbol();
@@ -6427,7 +6428,7 @@ void writeProc;
                     l4bool11z  =  true;
                 } else {
                     if (l4var4z == NIL) {
-                        curVal  =  l4var15z;
+                        curVal.i  =  defWidth;
                         formOperator(gen9);
                     } else {
                         curExpr  =  l4var4z;
@@ -6459,7 +6460,7 @@ void writeProc;
                 formOperator(l4var18z);
                 if ((helperNo IN [39,40,44,45]) || /* A6,A7,6A,7A */
                    (helperNo == 81))
-                    form1Insn(KVTM+I10 + l4var15z.i);
+                    form1Insn(KVTM+I10 + defWidth);
                 else {
                     if (helperNo == 41)  /* P/WX */
                         form1Insn(KVTM+I11 + l4typ3z@.start);
@@ -6504,7 +6505,7 @@ label
 17362:
                     curExpr  =  l4exp7z;
                     formOperator(SETREG9);
-                    form1Insn(KVTM+I10 + l4var15z.i);
+                    form1Insn(KVTM+I10 + defWidth);
                     callHelperWithArg();
                 } else {
                     if (helperNo == 81) {   /* P/WA */
@@ -6565,7 +6566,7 @@ var
     curExpr@.val.c  =  chr(procNo + 50);
     curExpr@.expr1  =  l4exp7z;
     curExpr@.expr2  =  l4exp6z;
-    formOperator(gen16);
+    formOperator(PCKUNPCK);
 } /* doPackUnpack */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7492,12 +7493,12 @@ var
                 id  =  curIdent;
                 offset  =  curFrameRegTemplate;
                 cl  =  parClass;
-                next  =  symHashTabBase[bucket];
+                next  =  symHash[bucket];
                 typ  =  NIL;
                 list  =  curIdRec;
                 value  =  l2int18z;
             }
-            symHashTabBase[bucket]  =  l3var1z;
+            symHash[bucket]  =  l3var1z;
             l2int18z  =  l2int18z + 1;
             if (l3var2z == NIL)
                 curIdRec@.argList  =  l3var1z;
@@ -7625,8 +7626,8 @@ void exitScope(var arg: array [0..127] of irptr);
                 error(errIdentAlreadyDefined);
             new(workidr=7);
             workidr@  =  [curIdent, curFrameRegTemplate,
-                           symHashTabBase[bucket], , ENUMID, NIL];
-            symHashTabBase[bucket]  =  workidr;
+                           symHash[bucket], , ENUMID, NIL];
+            symHash[bucket]  =  workidr;
             inSymbol();
             if (charClass != EQOP)
                 error(errBadSymbol);
@@ -7690,8 +7691,8 @@ void exitScope(var arg: array [0..127] of irptr);
                     cl  =  TYPEID;
                 }
             }
-            curIdRec@.next  =  symHashTabBase[ii];
-            symHashTabBase[ii]  =  curIdRec;
+            curIdRec@.next  =  symHash[ii];
+            symHash[ii]  =  curIdRec;
             int93z  =  0;
             checkSymAndRead(SEMICOLON);
         }
@@ -7717,11 +7718,11 @@ void exitScope(var arg: array [0..127] of irptr);
                 with curIdRec@ do {
                     id  =  curIdent;
                     offset  =  curFrameRegTemplate;
-                    next  =  symHashTabBase[bucket];
+                    next  =  symHash[bucket];
                     cl  =  VARID;
                     list  =  NIL;
                 }
-                symHashTabBase[bucket]  =  curIdRec;
+                symHash[bucket]  =  curIdRec;
                 inSymbol();
                 if (workidr == NIL)
                     workidr  =  curIdRec;
@@ -7798,7 +7799,7 @@ void exitScope(var arg: array [0..127] of irptr);
     }
     if (curExpr != NIL) {
         l2int11z  =  moduleOffset;
-        formOperator(gen14);
+        formOperator(FILEINIT);
     } else
         l2int11z  =  0;
     if (curProcNesting == 1) {
@@ -7844,9 +7845,9 @@ void exitScope(var arg: array [0..127] of irptr);
             with curIdRec@ do {
                 id  =  curIdent;
                 offset  =  curFrameRegTemplate;
-                next  =  symHashTabBase[bucket];
+                next  =  symHash[bucket];
                 typ  =  NIL;
-                symHashTabBase[bucket]  =  curIdRec;
+                symHash[bucket]  =  curIdRec;
                 cl  =  ROUTINEID;
                 list  =  NIL;
                 value  =  0;
@@ -7935,8 +7936,8 @@ void exitScope(var arg: array [0..127] of irptr);
                     errAndSkip(errBadSymbol, skipToSet);
             } while (not (SY IN [FUNCSY,VOIDSY,BEGINSY]));
             rollup(scopeBound);
-            exitScope(symHashTabBase);
-            exitScope(typeHashTabBase);
+            exitScope(symHash);
+            exitScope(typeHash);
             goto 23301;
         }
         inSymbol();
@@ -8071,9 +8072,9 @@ var
         w  =  l4var2z;
         sym  =  SY;
         op  =  charClass;
-        next  =  kwordHashTabBase[curVal.i];
+        next  =  kwordHash[curVal.i];
     }
-    kwordHashTabBase[curVal.i]  =  kw;
+    kwordHash[curVal.i]  =  kw;
     if (charClass == NOOP) {
         SY  =  succ(SY);
     } else {
@@ -8092,7 +8093,7 @@ var
     SY  =  LABELSY;
     charClass  =  NOOP;
     for idx  =  0 to 26 do
-        regResWord(resWordNameBase[idx]);
+        regResWord(resWordName[idx]);
 } /*=A2 regKeywords */
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void initArrays;
@@ -8128,9 +8129,9 @@ void initSets;
     for jdx to 10 do
         put(_CHILD_);
     for idx  =  0 to 127 do {
-        symHashTabBase[idx]  =  NIL;
-        typeHashTabBase[idx]  =  ;
-        kwordHashTabBase[idx]  =  ;
+        symHash[idx]  =  NIL;
+        typeHash[idx]  =  ;
+        kwordHash[idx]  =  ;
     }
     regKeywords();
     numLabList  =  NIL;
@@ -8167,7 +8168,7 @@ var
     }
     curVal.i  =  (symTabPos - 070000) * 0100000000;
     for cnt to longSymCnt do {
-        idx  =  longSymTabBase[cnt];
+        idx  =  longSym[cnt];
         symTab[idx]  =  (symTab[idx] | (curVal.m & [9:23]));
         curVal.i  =  (curVal.i + 0100000000);
     }
@@ -8253,7 +8254,7 @@ void initOptions;
     statEndSys  =  [SEMICOLON, ENDSY, ELSESY, WHILESY];
     lvalOpSet  =  [GETELT, GETVAR, op36, op37, GETFIELD, DEREF, FILEPTR];
     /*=A3*/
-    resWordNameBase  =
+    resWordName  =
         '   LABEL',
         '   CONST',
         '    TYPE',
@@ -8279,15 +8280,15 @@ void initOptions;
         '  EXTERN',
         ' DEFAULT';
 /*=A2*/
-    charSymTabBase  =  NOSY:128;
-    chrClassTabBase  =  NOOP:128;
-    charSymTabBase['0']  =  INTCONST:10;
-    chrClassTabBase['0']  =  ALNUM:10;
-    charSymTabBase['A']  =  IDENT:26;
-    chrClassTabBase['A']  =  ALNUM:26;
-    charSymTabBase['Ю']  =  IDENT:31;
-    chrClassTabBase['Ю']  =  ALNUM:31;
-    chrClassTabBase['_']  =  ALNUM;
+    charSym  =  NOSY:128;
+    chrClass  =  NOOP:128;
+    charSym['0']  =  INTCONST:10;
+    chrClass['0']  =  ALNUM:10;
+    charSym['A']  =  IDENT:26;
+    chrClass['A']  =  ALNUM:26;
+    charSym['Ю']  =  IDENT:31;
+    chrClass['Ю']  =  ALNUM:31;
+    chrClass['_']  =  ALNUM;
     funcInsn[fnABS]  =  KAMX;
     funcInsn[fnTRUNC]  =  KADD+ZERO;
     funcInsn[fnODD]  =  KAAX+E1;
@@ -8302,43 +8303,43 @@ void initOptions;
     funcInsn[fnABSI]  =  KAMX;
     iAddOpMap[PLUSOP]  =  INTPLUS, INTMINUS;
     imulOpMap  =  IMULOP, IDIVOP;
-    charSymTabBase['''']  =  CHARCONST;
-    charSymTabBase['_']  =  IDENT;
-    charSymTabBase['<']  =  LTSY;
-    charSymTabBase['>']  =  GTSY;
-    chrClassTabBase['+']  =  PLUSOP;
-    chrClassTabBase['-']  =  MINUSOP;
-    chrClassTabBase['|']  =  OROP;
-    chrClassTabBase['*']  =  MUL;
-    chrClassTabBase['/']  =  RDIVOP;
-    chrClassTabBase['%']  =  IMODOP;
-    chrClassTabBase['^']  =  SETXOR;
-    chrClassTabBase['=']  =  EQOP;
-    chrClassTabBase['&']  =  AMPERS;
-    chrClassTabBase['>']  =  GTOP;
-    chrClassTabBase['<']  =  LTOP;
-    chrClassTabBase['!']  =  NEOP;
-    chrClassTabBase['~']  =  SETSUB;
-    charSymTabBase['+']  =  ADDOP;
-    charSymTabBase['-']  =  ADDOP;
-    charSymTabBase['|']  =  ADDOP;
-    charSymTabBase['*']  =  MULOP;
-    charSymTabBase['/']  =  MULOP;
-    charSymTabBase['%']  =  MULOP;
-    charSymTabBase['&']  =  MULOP;
-    charSymTabBase[',']  =  COMMA;
-    charSymTabBase['.']  =  PERIOD;
-    charSymTabBase['@']  =  ARROW;
-    charSymTabBase['^']  =  MULOP;
-    charSymTabBase['(']  =  LPAREN;
-    charSymTabBase[')']  =  RPAREN;
-    charSymTabBase[';']  =  SEMICOLON;
-    charSymTabBase['[']  =  LBRACK;
-    charSymTabBase[']']  =  RBRACK;
-    charSymTabBase['=']  =  BECOMES;
-    charSymTabBase[':']  =  COLON;
-    charSymTabBase['!']  =  NOTSY;
-    charSymTabBase['~']  =  ADDOP;
+    charSym['''']  =  CHARCONST;
+    charSym['_']  =  IDENT;
+    charSym['<']  =  LTSY;
+    charSym['>']  =  GTSY;
+    chrClass['+']  =  PLUSOP;
+    chrClass['-']  =  MINUSOP;
+    chrClass['|']  =  OROP;
+    chrClass['*']  =  MUL;
+    chrClass['/']  =  RDIVOP;
+    chrClass['%']  =  IMODOP;
+    chrClass['^']  =  SETXOR;
+    chrClass['=']  =  EQOP;
+    chrClass['&']  =  AMPERS;
+    chrClass['>']  =  GTOP;
+    chrClass['<']  =  LTOP;
+    chrClass['!']  =  NEOP;
+    chrClass['~']  =  SETSUB;
+    charSym['+']  =  ADDOP;
+    charSym['-']  =  ADDOP;
+    charSym['|']  =  ADDOP;
+    charSym['*']  =  MULOP;
+    charSym['/']  =  MULOP;
+    charSym['%']  =  MULOP;
+    charSym['&']  =  MULOP;
+    charSym[',']  =  COMMA;
+    charSym['.']  =  PERIOD;
+    charSym['@']  =  ARROW;
+    charSym['^']  =  MULOP;
+    charSym['(']  =  LPAREN;
+    charSym[')']  =  RPAREN;
+    charSym[';']  =  SEMICOLON;
+    charSym['[']  =  LBRACK;
+    charSym[']']  =  RBRACK;
+    charSym['=']  =  BECOMES;
+    charSym[':']  =  COLON;
+    charSym['!']  =  NOTSY;
+    charSym['~']  =  ADDOP;
     /*=A3*/
     helperNames  =
         'P/1     ',
