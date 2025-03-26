@@ -175,8 +175,8 @@ operator = (
 );
 %
 opgen = (
-    gen0,  STORE, LOAD,  gen3,  SETREG,
-    SETREG9,  gen6,  gen7,  gen8,  DFLTWDTH,
+    gen0,  STORE, LOAD,  FORMOP,  SETREG,
+    SETREG9,  STOREAT9,  gen7,  gen8,  DFLTWDTH,
     FRACWIDTH, gen11, gen12, FILEACCESS, FILEINIT,
     BRANCH, PCKUNPCK, LITINSN
 );
@@ -4051,7 +4051,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC,BOUNDS]) then {
     l3bool13z := true;
     if (errors and (l3arg1z <> SETREG)) or (curExpr = NIL) then
         exit;
-    if not (l3arg1z IN [gen3, gen6, DFLTWDTH, FILEINIT, PCKUNPCK]) then {
+    if not (l3arg1z IN [FORMOP, STOREAT9, DFLTWDTH, FILEINIT, PCKUNPCK]) then {
         dump(curExpr, 1);
         genFullExpr(curExpr);
     };
@@ -4110,7 +4110,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC,BOUNDS]) then {
         prepStore;
         genOneOp
     };
-    gen3: {
+    FORMOP: {
         curInsnTemplate := curVal.i;
         formOperator(LOAD);
         curInsnTemplate := insnTemp[XTA];
@@ -4121,7 +4121,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC,BOUNDS]) then {
         setAddrTo(9);
         genOneOp;
     };
-    gen6: {
+    STOREAT9: {
         l3int1z := curVal.i;
         genFullExpr(curExpr);
         prepLoad;
@@ -5788,7 +5788,7 @@ var
     else
         curVal.i := insnTemp[RSUB];
 
-    formOperator(gen3);
+    formOperator(FORMOP);
     form1Insn(insnTemp[UZA] + toLoop);
 }; (* forStatement *)
 %
@@ -6132,7 +6132,7 @@ var
                 readNext := false;
                 expression;
                 curVal.i := indCnt;
-                formOperator(gen6);
+                formOperator(STOREAT9);
             };
             goto indices;
         };
