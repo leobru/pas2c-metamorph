@@ -22,7 +22,7 @@ cat << EOF >> tmp$$
 \`\`\`\`\`\`
 ЕКОНЕЦ
 EOF
-ulimit -t 3
+ulimit -t 5
 rm -f work.o
 length=`dispak -l tmp$$ | tee work.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))

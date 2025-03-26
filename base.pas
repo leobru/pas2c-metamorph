@@ -1905,7 +1905,9 @@ var
                         };
                         if (enums1 = NIL) and (enums2 = NIL) then
                             goto 1;
-                    }
+                    } else if (type1 = booleanType) and (type2 = integerType)
+                       or (type2 = booleanType) and (type1 = integerType) then
+                       goto 1;
                 };
                 kindRange: {
                     baseMatch := (type1@.base = type2@.base);
@@ -1995,7 +1997,7 @@ var
 }; (* F3307 *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function makeNameWithStars(isProc: boolean): bitset;
+function makeNameWithStars: bitset;
 {
     while curVal.m * [0..5] = [] do {
         curVal := curVal;
@@ -3209,7 +3211,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
     if (l6arg1z@.pos = 0) then {
         if (l6arg1z@.flags * [20, 21] <> []) then {
             curVal := l6arg1z@.id;
-            curVal.m := makeNameWithStars(true);
+            curVal.m := makeNameWithStars;
             l6arg1z@.pos := allocExtSymbol(extSymMask);
         } else {
             l6arg1z@.pos := symTabPos;
@@ -4891,7 +4893,7 @@ var
         if l3var3z then {
             if (41 >= entryPtCnt) then {
                 curVal := l2idr2z@.id;
-                entryPtTable[entryPtCnt] := makeNameWithStars(true);
+                entryPtTable[entryPtCnt] := makeNameWithStars;
                 entryPtTable[entryPtCnt+1] := [1] + frame.m - [0, 3];
                 entryPtCnt := entryPtCnt + 2;
             } else
@@ -5392,7 +5394,7 @@ var
         NOTSY: {
             inSymbol;
             factor;
-            if (curExpr@.typ <> booleanType) then
+            if (curExpr@.typ<>booleanType) and (curExpr@.typ<>integerType) then
                 error(1); (* errNoCommaNorSemicolon *)
             newExpr := curExpr;
             new(curExpr);
@@ -5531,7 +5533,7 @@ var
                 }
             };
             AMPERS: {
-                    if (arg1Type <> booleanType) then
+                    if (arg1Type<>booleanType) and (arg1Type<>integerType) then
                         goto 14650;
             };
             IDIVOP: {
@@ -5611,8 +5613,9 @@ var
             new(finalExpr);
             with finalExpr@ do {
                 if (l4var3z = OROP) then {
-                    if match and (arg1Type = booleanType) then {
-                       typ := arg1Type;
+                    if match and ((arg1Type = booleanType) or
+                                  (arg1Type = integerType)) then {
+                       typ := booleanType;
                        op := l4var3z
                     } else goto 15031;
                 } else  {
@@ -6181,19 +6184,11 @@ var
 }; (* assignStatement *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure compoundStatement;
-{
-    while SY <> ENDSY do {
-        statement;
-    }
-}; (* compoundStatement *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure ifWhileStatement;
 {
     disableNorm;
     parentExpression;
-    if (curExpr@.typ <> booleanType) then
+    if (curExpr@.typ <> booleanType) and (curExpr@.typ <> integerType) then
         error(errBooleanNeeded)
     else {
         jumpTarget := 0;
@@ -7007,7 +7002,7 @@ procedure setStrLab(forGoto: boolean);
 (rep)   {
             inSymbol;
 (skip)      {
-                compoundStatement;
+                while SY <> ENDSY do statement;
                 if (SY <> ENDSY) then {
                     stmtName := ' BEGIN';
                     requiredSymErr(SEMICOLON);
@@ -7120,7 +7115,7 @@ writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
             };
             disableNorm;
             parentExpression;
-            if (curExpr@.typ <> booleanType) then {
+            if (curExpr@.typ<>booleanType)and(curExpr@.typ<>integerType) then {
                 error(errBooleanNeeded)
             } else {
                 jumpTarget := curOffset.i;
@@ -7382,17 +7377,10 @@ procedure regSysProc(l4arg1z: integer);
     };
     smallStringType[6] := alfaType;
     regSysType(515664C  (*"     INT"*), integerType);
-    regSysType(42575754C(*"    BOOL"*), booleanType);
     regSysType(43504162C(*"    CHAR"*), charType);
     regSysType(62454154C(*"    REAL"*), realType);
     regSysType(41544641C(*"    ALFA"*), alfaType);
     regSysType(64457064C(*"    TEXT"*), textType);
-    temptype := booleanType;
-    regSysEnum(64626545C(*"    TRUE"*), (1C));
-    hashTravPtr := curIdRec;
-    regSysEnum(4641546345C(*"   FALSE"*), (0C));
-    curIdRec@.list := hashTravPtr;
-    booleanType@.enums := curIdRec;
     tempType := pointerType;
     regSysEnum(565154C(*"     NIL"*), (74000C));
     maxSmallString := 0;
@@ -7437,21 +7425,18 @@ procedure regSysProc(l4arg1z: integer);
     regSysProc(414263C(*"     ABS"*));
     temptype := integerType;
     regSysProc(6462655643C(*"   TRUNC"*));
-    temptype := booleanType;
     regSysProc(574444C(*"     ODD"*));
-    temptype := integerType;
     regSysProc(576244C(*"     ORD"*));
     temptype := charType;
     regSysProc(435062C(*"     CHR"*));
     regSysProc(63654343C(*"    SUCC"*));
     regSysProc(60624544C(*"    PRED"*));
-    temptype := booleanType;
+    temptype := integerType;
     regSysProc(455746C(*"     EOF"*));
     temptype := pointerType;
     regSysProc(624546C(*"     REF"*));
-    temptype := booleanType;
-    regSysProc(45575456C(*"    EOLN"*));
     temptype := integerType;
+    regSysProc(45575456C(*"    EOLN"*));
     regSysProc(0C); (* was SQR, unused *)
     regSysProc(6257655644C(*"   ROUND"*));
     regSysProc(43416244C(*"    CARD"*));
@@ -7471,7 +7456,7 @@ procedure regSysProc(l4arg1z: integer);
             curVal.i := 6041634357556054C; (* PASCOMPL *)
             id := ;
             pos := 0;
-            symTab[74000B] := makeNameWithStars(true);
+            symTab[74000B] := makeNameWithStars;
     };
     entryPtTable[1] := symTab[74000B];
     entryPtTable[3] :=
@@ -7508,7 +7493,7 @@ procedure regSysProc(l4arg1z: integer);
     while SY = IDENT do {
         l3var8z := 0;
         curVal := curIdent;
-        l3var1z.m := makeNameWithStars(false);
+        l3var1z.m := makeNameWithStars;
         if (curIdent = l3var4z) then {
             new(inputFile, 12);
             with inputFile@ do {

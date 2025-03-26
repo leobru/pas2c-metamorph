@@ -135,6 +135,8 @@ const
     litFortran  =  ' FORTRAN';
     litOct  =  '     OCT';
     /*=A2*/
+    FALSE  =  0U;
+    TRUE  =  1U;
 type
     symbol = enum {
 /*0B*/  IDENT,      INTCONST,   REALCONST,  CHARCONST,
@@ -212,7 +214,7 @@ irptr = @identrec;
 word = struct { switch int of
     0: {i: int};
     1: {r: real};
-    2: {b: bool};
+    2: {b: int};
     3: {a: alfa};
     4: {t: packed array[0..7] of '_000' .. '_077'};
     7: {c: char};
@@ -254,7 +256,7 @@ types = struct {
                  right:     int};
     kindArray:  {abase,
                  range:     tptr;
-                 pck:       bool;
+                 pck:       int;
                  perword,
                  pcksize:   int};
     kindScalar: {enums:     irptr;
@@ -266,7 +268,7 @@ types = struct {
     kindStruct: {ptr1,
                  ptr2:      irptr;
                  flag,
-                 pckrec:    bool};
+                 pckrec:    int};
     kindCases:  {sel:       word;
                  first,
                  next:      tptr;
@@ -319,7 +321,7 @@ numLabel = struct {
     frame:      int;
     offset:     int;
     next:       @numLabel;
-    defined:    bool;
+    defined:    int;
 };
 //
 identrec = struct {
@@ -337,7 +339,7 @@ identrec = struct {
     FIELDID:
             {maybeUnused: int;
              uptype: tptr;
-             pckfield:  bool;
+             pckfield:  int;
              shift:     int;
              width:     int};
     ROUTINEID:
@@ -361,8 +363,8 @@ var
     numFormat: NumberFormat;
     bigSkipSet, statEndSys, blockBegSys, statBegSys,
     skipToSet, lvalOpSet: setofsys;
-    bool47z, bool48z, bool49z: bool;
-    dataCheck: bool;
+    bool47z, bool48z, bool49z: int;
+    dataCheck: int;
     jumpType: int;
     jumpTarget: int;
     exitTarget: int;
@@ -405,19 +407,19 @@ var
     prevOpcode: int;
     charEncoding: int;
     int97z: int;
-    atEOL: bool;
-    checkTypes: bool;
-    isDefined, putLeft, readNext: bool;
-    errors: bool;
-    declExternal: bool;
-    rangeMismatch: bool;
-    doPMD: bool;
-    checkBounds: bool;
-    fuzzReals: bool;
-    fixMult: bool;
-    bool110z: bool;
-    allowCompat: bool;
-    checkFortran: bool;
+    atEOL: int;
+    checkTypes: int;
+    isDefined, putLeft, readNext: int;
+    errors: int;
+    declExternal: int;
+    rangeMismatch: int;
+    doPMD: int;
+    checkBounds: int;
+    fuzzReals: int;
+    fixMult: int;
+    bool110z: int;
+    allowCompat: int;
+    checkFortran: int;
     outputFile: irptr;
     inputFile: irptr;
     programObj: irptr;
@@ -497,7 +499,7 @@ var
 //
     pasinfor: struct {
         /*0*/ listMode:     int;
-        /*1*/ errors:       @bool;
+        /*1*/ errors:       @int;
         /*2*/ entryptr:     @entries;
         /*3*/ startOffset:  int;
       /*4-6*/ a0, a1, a4:   @charmap;
@@ -513,7 +515,7 @@ void programme(var l2arg1z: int; l2idr2z: irptr);
 label 22420, 22421, 23301;
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
-    isPredefined, l2bool8z, inTypeDef: bool;
+    isPredefined, l2bool8z, inTypeDef: int;
     l2var10z: eptr;
     l2int11z: int;
     l2var12z: word;
@@ -723,7 +725,7 @@ function getObjBufIdxPlus: int;
 void formJump(var arg: int);
 var
     pos: int;
-    isLeft: bool;
+    isLeft: int;
 {
     if (prevOpcode != insnTemp[UJ]) {
         pos  =  getObjBufIdxPlus();
@@ -961,7 +963,7 @@ void P0715(mode, arg: int);
 label 1;
 var
     addr, insn, leftHalf: int;
-    isLarge: bool;
+    isLarge: int;
     work, offset: int;
 {
     if (mode == 0) {
@@ -1093,7 +1095,7 @@ label
 var
     localBuf: array [0..130] of char;
     tokenLen, tokenIdx: int;
-    expSign: bool;
+    expSign: int;
     l3var135z: irptr;
     expMultiple, expValue: real;
     curChar: char;
@@ -1117,7 +1119,7 @@ void nextCH;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseComment;
 var
-    badOpt, flag: bool;
+    badOpt, flag: int;
     c: char;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1134,7 +1136,7 @@ void readOptVal(var res: int; limit: int);
 } /* readOptVal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void readOptFlag(var res: bool);
+void readOptFlag(var res: int);
 {
     nextCH();
     if ((CH == '-') || (CH == '+')) {
@@ -1692,7 +1694,7 @@ void errAndSkip(errno: int; toset: setofsys);
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseLiteral(var litType: tptr; var litValue: word;
-    allowSign: bool);
+    allowSign: int);
 label
     99;
 var
@@ -1740,7 +1742,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void P2672(var l3arg1z: irptr; l3arg2z: irptr);
 var
-    l3var1z: bool;
+    l3var1z: int;
     l3var2z: int;
     l3var3z, l3var4z: irptr;
 {
@@ -1774,14 +1776,14 @@ var
 } /* P2672 */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function isFileType(typtr: tptr): bool;
+function isFileType(typtr: tptr): int;
 {
     isFileType  =  (typtr@.k == kindFile) ||
         (typtr@.k == kindStruct) && typtr@.flag;
 } /* isFileType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function knownInType(var rec: irptr): bool;
+function knownInType(var rec: irptr): int;
 {
     if (typelist != NIL) {
         rec  =  typelist;
@@ -1806,11 +1808,11 @@ void checkSymAndRead(sym: symbol);
 } /* checkSymAndRead */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function typeCheck(type1, type2: tptr): bool;
+function typeCheck(type1, type2: tptr): int;
 label
     1;
 var
-    baseMatch: bool;
+    baseMatch: int;
     kind1, kind2: kind;
     link: @typechain;
     basetyp1, basetyp2: tptr;
@@ -1827,9 +1829,9 @@ void allocWithTypeCheck;
 } /* allocWithTypeCheck */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function checkRecord(l4arg1z, l4arg2z: tptr): bool;
+function checkRecord(l4arg1z, l4arg2z: tptr): int;
 var
-    l4var1z: bool;
+    l4var1z: int;
 {
     l4var1z  =  (l4arg1z == NIL) || (l4arg2z == NIL);
     if (l4var1z) {
@@ -1870,7 +1872,9 @@ var
                         }
                         if ((enums1 == NIL) && (enums2 == NIL))
                             goto 1;
-                    }
+                    } else if ((type1 == boolType) && (type2 == intType)
+                    || (type2 == boolType) && (type1 == intType))
+                       goto 1;
                 }
                 kindRange: {
                     baseMatch  =  (type1@.base == type2@.base);
@@ -1960,9 +1964,9 @@ var
 } /* F3307 */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function makeNameWithStars(isProc: bool): int;
+function makeNameWithStars: int;
 {
-    while (curVal.m & [0..5] == []) {
+    while (curVal.m & [0..5] == 0U) {
         curVal.i  =  curVal.i << 6;
     }
     makeNameWithStars  =  curVal.i;
@@ -1977,10 +1981,10 @@ var
     flags: opflg;
     l3var7z,
     l3var8z: word;
-    l3bool9z: bool;
+    l3bool9z: int;
     l3var10z, l3var11z: word;
     saved: @insnltyp;
-    l3bool13z: bool;
+    l3bool13z: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genOneOp;
@@ -1996,7 +2000,7 @@ var
     curInsn: word;
     tempInsn: word;
     l4oi212z: oiptr;
-    l4var213z: bool;
+    l4var213z: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void P3363;
@@ -2023,7 +2027,7 @@ void add2InsnsToBuf(insn1, insn2: int);
 } /* add2InsnsToBuf */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function F3413: bool;
+function F3413: int;
 {
     l4inl7z  =  l4inl6z;
     while (l4inl7z != NIL) {
@@ -2368,7 +2372,7 @@ var
     l4typ4z: tptr;
     l4var5z: kind;
     l4st6z: state;
-    l4bool7z, l4bool8z, l4bool9z: bool;
+    l4bool7z, l4bool8z, l4bool9z: int;
 {
     l4typ4z  =  insnList@.typ;
     with insnList@ do {
@@ -2446,7 +2450,7 @@ var
                         addToInsnList(KAEX+ZERO);
                 } else {
                     if (l4bool7z)
-                        helper  =  ord(l4bool8z)+74; /* P/LDAR[IN] */
+                        helper  =  (l4bool8z|0)+74; /* P/LDAR[IN] */
                     else
                         helper  =  56; /* P/RR */
                     addToInsnList(getHelperProc(helper));
@@ -2560,7 +2564,7 @@ void prepStore;
 var
     l4int1z: int;
     l4int2z, l4int3z: int;
-    l4bool4z, l4bool5z: bool;
+    l4bool4z, l4bool5z: int;
     l4st6z: state;
     l4var7z: kind;
 {
@@ -2653,7 +2657,7 @@ void genFullExpr(exprToGen: eptr);
 label
     7567, 7760, 10075, 10122;
 var
-    arg1Const, arg2Const: bool;
+    arg1Const, arg2Const: int;
     otherIns: @insnltyp;
     arg1Val, arg2Val: word;
     curOP: operator;
@@ -2676,7 +2680,7 @@ label
     5220;
 var
     l5var1z, l5var2z: word;
-    doPtrCheck: bool;
+    doPtrCheck: int;
 {
     doPtrCheck  =  checkBounds && not (NoPtrCheck in optSflags.m)
                && (curOP == DEREF);
@@ -2734,7 +2738,7 @@ void genHelper;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void prepMultiWord;
 var
-    l5var1z: bool;
+    l5var1z: int;
     l5var2z: @insnltyp;
 {
     l5var1z  =  12 in otherIns@.regsused;
@@ -2794,7 +2798,7 @@ void negateCond;
 } /* negateCond */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void tryFlip(commutes: bool);
+void tryFlip(commutes: int);
 label
     100, 22, 33;
 var
@@ -2804,7 +2808,7 @@ var
     if (not (0 in otherIns@.regsused)) {
         l5var1z  =  0;
     } else if (not (0 in insnList@.regsused)) {
-        l5var1z  =  ord(commutes) + 1;
+        l5var1z  =  (commutes|0) + 1;
     } else {
         l5var1z  =  3;
     }
@@ -2851,7 +2855,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genBoolAnd;
 var
-    l5var1z, l5var2z: bool;
+    l5var1z, l5var2z: int;
     l5var3z, l5var4z, l5var5z, l5var6z, l5var7z: int;
     l5ins8z: @insnltyp;
     l5var9z: word;
@@ -2868,8 +2872,8 @@ var
         l5var5z  =  int94z;
         int94z  =  int94z + 1;
         bool49z  =  false;
-        l5var6z  =  ord(l5var1z) + macro;
-        l5var7z  =  ord(l5var2z) + macro;
+        l5var6z  =  (l5var1z|0) + macro;
+        l5var7z  =  (l5var2z|0) + macro;
         if (insnList@.ilm == il3) {
             l5var3z  =  insnList@.ilf5.i;
         } else {
@@ -2965,8 +2969,8 @@ var
     insnCopy: insnltyp;
     copyPtr, l5ins21z: @insnltyp;
     l5var22z, l5var23z: word;
-    l5var24z: bool;
-    l5var25z: bool;
+    l5var24z: int;
+    l5var25z: int;
     l5var26z, l5var27z: tptr;
     l5ilm28z: ilmode;
     l5var29z: eptr;
@@ -3158,7 +3162,7 @@ void genEntry;
 var
     l5exp1z, l5exp2z: eptr;
     l5idr3z, l5idr4z, l5idr5z, l5idr6z: irptr;
-    l5bool7z, l5bool8z, l5bool9z, l5bool10z, l5bool11z: bool;
+    l5bool7z, l5bool8z, l5bool9z, l5bool10z, l5bool11z: int;
     l5var12z, l5var13z, l5var14z: word;
     l5var15z: int;
     l5var16z, l5var17z, l5var18z, l5var19z: word;
@@ -3171,7 +3175,7 @@ function allocGlobalObject(l6arg1z: irptr): int;
     if (l6arg1z@.pos == 0) {
         if (l6arg1z@.flags & [20, 21] != []) {
             curVal  =  l6arg1z@.id;
-            curVal.m  =  makeNameWithStars(true);
+            curVal.m  =  makeNameWithStars();
             l6arg1z@.pos  =  allocExtSymbol(extSymMask);
         } else {
             l6arg1z@.pos  =  symTabPos;
@@ -3182,7 +3186,7 @@ function allocGlobalObject(l6arg1z: irptr): int;
 } /* allocGlobalObject */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void traceEntry(isEntry: bool);
+void traceEntry(isEntry: int);
 {
     if (not (debugEntry in optSflags.m))
         exit;
@@ -3190,7 +3194,7 @@ void traceEntry(isEntry: bool);
     addToInsnList(KVTM+I10 + addCurValToFCST());
     if (isEntry)
         addToInsnList(KVTM+I11 + lineCnt);
-    addToInsnList(getHelperProc(ord(isEntry) * 22 + 57)); /* P/C(E|I) */
+    addToInsnList(getHelperProc((isEntry | 0) * 22 + 57)); /* P/C(E|I) */
 } /* traceEntry */
 //
 { /* genEntry */
@@ -3467,7 +3471,7 @@ void genComparison;
 label
     7475, 7504, 7514, 7530;
 var
-    hasEq: bool;
+    hasEq: int;
     l5set2z: int;
     mode, size: int;
 {
@@ -4195,8 +4199,8 @@ type
             pairs: pair7;
     };
 var
-    isPacked: bool;
-    cond: bool;
+    isPacked: int;
+    cond: int;
     cases: caserec;
     leftBound, rightBound: word;
     numBits, l3int22z, span: int;
@@ -4216,7 +4220,7 @@ void definePtrType(toType: tptr);
 } /* definePtrType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseRecordDecl(rectype: tptr; isOuterDecl: bool);
+void parseRecordDecl(rectype: tptr; isOuterDecl: int);
 var
     l4typ1z, selType, l4var3z, l4var4z, l4var5z: tptr;
     l4var6z: irptr;
@@ -4712,7 +4716,7 @@ var
     l3typ1z: tptr;
     l3var2z: word;
     l3var3z: int;
-    l3var4z: bool;
+    l3var4z: int;
     l3var5z: kind;
 {
     for l3var4z  =  false to true do {
@@ -4779,7 +4783,7 @@ void parseDecls(l3arg1z: int);
 var
     l3int1z: int;
     frame:   word;
-    l3var3z: bool;
+    l3var3z: int;
 {
     switch (l3arg1z) {
     0: {
@@ -4806,7 +4810,7 @@ var
         if (l3var3z) {
             if (41 >= entryPtCnt) {
                 curVal  =  l2idr2z@.id;
-                entryPtTable[entryPtCnt].m  =  makeNameWithStars(true);
+                entryPtTable[entryPtCnt].m  =  makeNameWithStars();
                 entryPtTable[entryPtCnt+1].m  =  [1] | frame.m ~ [0, 3];
                 entryPtCnt  =  entryPtCnt + 2;
             } else
@@ -4874,8 +4878,8 @@ var
     boundary: eptr;
     l3var2z: @numLabel;
     l3var3z: @strLabel;
-    l3var4z: bool;
-    l3bool5z: bool;
+    l3var4z: int;
+    l3bool5z: int;
     l3var6z: idclass;
     curOffset: int;
     startLine: int;
@@ -4884,7 +4888,7 @@ var
     l3idr12z: irptr;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function isCharArray(arg: tptr): bool;
+function isCharArray(arg: tptr): int;
 {
     with arg@ do
         isCharArray  =  (k == kindArray) && (base == charType);
@@ -4998,7 +5002,7 @@ var
     }
 } /* castToReal */
 //
-function areTypesCompatible(var l4arg1z: eptr): bool;
+function areTypesCompatible(var l4arg1z: eptr): int;
 {
     if (arg1Type == realType) {
         if (typeCheck(intType, arg2Type)) {
@@ -5020,7 +5024,7 @@ void parseCallArgs(subroutine: irptr);
 label
     13736;
 var
-    noArgs: bool;
+    noArgs: int;
     curActual, callExpr, argList: eptr;
     curFormal: irptr;
     actualOp: operator;
@@ -5125,13 +5129,13 @@ label
     14567;
 var
     l4var1z: word;
-    l4var2z: bool;
+    l4var2z: int;
     l4var3z, l4var4z: word;
     l4exp5z, l4exp6z, l4var7z, l4var8z: eptr;
     routine: irptr;
     l4op10z: operator;
     l4typ11z: tptr;
-    l4var12z: bool;
+    l4var12z: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void stdCall;
@@ -5304,7 +5308,7 @@ var
         NOTSY: {
             inSymbol();
             factor();
-            if (curExpr@.typ != boolType)
+            if ((curExpr@.typ != boolType) && (curExpr@.typ != intType))
                 error(1); /* errNoCommaNorSemicolon */
             l4exp6z  =  curExpr;
             new(curExpr);
@@ -5405,7 +5409,7 @@ label
 var
     curOp: operator;
     leftArg, l4var3z: eptr;
-    match: bool;
+    match: int;
 {
     factor();
     while (SY == MULOP) {
@@ -5442,9 +5446,7 @@ var
             }
             SHLEFT, SHRIGHT: { arg1Type = arg2Type; }
             AMPERS: {
-                if (arg1Type == intType)
-                        curOp = SETAND;
-                    else if (arg1Type != boolType)
+                if ((arg1Type != boolType) && (arg1Type != intType))
                         goto 14650;
             }
             IMODOP: {
@@ -5475,7 +5477,7 @@ var
     l4var1z, l4var2z: eptr;
     l4var3z: operator;
     argKind: kind;
-    match: bool;
+    match: int;
 {
     match  =  false;
     if (charClass IN [PLUSOP, MINUSOP]) {
@@ -5519,7 +5521,7 @@ var
             with l4var1z@ do {
                 if (l4var3z == OROP) {
                     if ((not match) ||
-                       (arg1Type != boolType))
+                       (arg1Type != boolType) && (arg1Type != intType))
                         goto 15031;
                     typ  =  boolType;
                     op  =  l4var3z;
@@ -5621,7 +5623,7 @@ var
     l4typ1z: tptr;
     l4exp2z, l4var3z, l4var4z: eptr;
     l4int5z, l4int6z, l4int7z, l4int8z: int;
-    l4var9z: bool;
+    l4var9z: int;
 {
     inSymbol();
     disableNorm();
@@ -5738,7 +5740,7 @@ void reportStmtType(l4arg1z: int);
 } /* reportStmtType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function structBranch(isGoto: bool): bool;
+function structBranch(isGoto: int): int;
 var
     curLab: @strLabel;
 {
@@ -5802,10 +5804,10 @@ type
     };
 var
     allClauses, curClause, clause, unused: @casechain;
-    isIntCase: bool;
-    otherSeen: bool;
+    isIntCase: int;
+    otherSeen: int;
     otherOffset: int;
-    itemsEnded, goodMode: bool;
+    itemsEnded, goodMode: int;
     firstType, itemtype, exprtype: tptr;
     itemvalue: word;
     itemSpan: int;
@@ -5992,7 +5994,7 @@ function max(a, b: int): int;
 } /* caseStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void assignStatement(doLHS: bool);
+void assignStatement(doLHS: int);
 label
     16332;
 var
@@ -6083,7 +6085,7 @@ void ifWhileStatement;
 {
     disableNorm();
     parentExpression();
-    if (curExpr@.typ != boolType)
+    if ((curExpr@.typ != boolType) && (curExpr@.typ != intType))
         error(errBooleanNeeded);
     else {
         jumpTarget  =  0;
@@ -6099,7 +6101,7 @@ label
     16545;
 type
     DATAREC = struct {
-        switch bool of
+        switch int of
             false: {a: packed array [0..3] of 0..4095};
             true:  {b: int};
     };
@@ -6242,7 +6244,7 @@ var
     l4exp6z: eptr;
     l4exp7z, l4exp8z, workExpr: eptr;
     l4bool10z,
-    l4bool11z, l4bool12z: bool;
+    l4bool11z, l4bool12z: int;
     l4var13z, l4var14z: word;
     defWidth: int;
     procNo: int;
@@ -6265,7 +6267,7 @@ void verifyType(t: tptr);
 } /* verifyType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void startReadOrWrite(l5arg1z: bool);
+void startReadOrWrite(l5arg1z: int);
 {
     expression();
     l4typ3z  =  curExpr@.typ;
@@ -7216,17 +7218,10 @@ void regSysProc(l4arg1z: int);
     smallStringType[6]  =  alfaType;
      /*=A3 constructing TEXT constants */
     regSysType('     INT', intType);
-    regSysType('    BOOL', boolType);
     regSysType('    CHAR', charType);
     regSysType('    REAL', realType);
     regSysType('    ALFA', alfaType);
     regSysType('    TEXT', textType);
-    temptype  =  boolType;
-    regSysEnum('    TRUE', 1U);
-    hashTravPtr  =  curIdRec;
-    regSysEnum('   FALSE', 0U);
-    curIdRec@.list  =  hashTravPtr;
-    boolType@.enums  =  curIdRec;
     tempType = pointerType;
     regSysEnum('     NIL', 074000U);
     maxSmallString  =  0;
@@ -7271,21 +7266,18 @@ void regSysProc(l4arg1z: int);
     regSysProc('     ABS');
     temptype  =  intType;
     regSysProc('   TRUNC');
-    temptype  =  boolType;
     regSysProc('     ODD');
-    temptype  =  intType;
     regSysProc('     ORD');
     temptype  =  charType;
     regSysProc('     CHR');
     regSysProc('    SUCC');
     regSysProc('    PRED');
-    temptype  =  boolType;
+    temptype  =  intType;
     regSysProc('     EOF');
     temptype  =  pointerType;
     regSysProc('     REF');
-    temptype  =  boolType;
-    regSysProc('    EOLN');
     temptype  =  intType;
+    regSysProc('    EOLN');
     regSysProc('        '); /* was SQR, fn17 */
     regSysProc('   ROUND');
     regSysProc('    CARD');
@@ -7303,7 +7295,7 @@ void regSysProc(l4arg1z: int);
         curVal.i  =  'PASCOMPL';
         id  =  ;
         pos  =  0;
-        symTab[074000]  =  makeNameWithStars(true);
+        symTab[074000]  =  makeNameWithStars();
     }
     entryPtTable[1].m  =  symTab[074000];
     entryPtTable[3].i  = 'PROGRAM ';
@@ -7341,7 +7333,7 @@ void regSysProc(l4arg1z: int);
     while (SY == IDENT) {
         l3var8z  =  0;
         curVal  =  curIdent;
-        l3var1z.m  =  makeNameWithStars(false);
+        l3var1z.m  =  makeNameWithStars();
         if (curIdent == l3var4z) {
             new(inputFile, 12);
             with inputFile@ do {
@@ -7453,7 +7445,7 @@ var
     parClass: idclass;
     l3var5z, l3var6z: int;
     l3sym7z: symbol;
-    noComma: bool;
+    noComma: int;
     expType: tptr;
 {
     int92z  =  0;
