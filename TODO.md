@@ -5,6 +5,7 @@
  - `break`/`continue`
  - `return`
  - parsing C-style expressions as statements 
+ - optimize !x 
  - increment/decrement (pre-, post-)
  - C-style string literals using "" with terminating \0
  - helper routine for printing C-style strings for `write` (`puts`) 

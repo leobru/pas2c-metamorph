@@ -352,7 +352,7 @@ var
    numFormat: numberFormat;
    bigSkipSet, statEndSys, blockBegSys, statBegSys,
    skipToSet, lvalOpSet: setofsys;
-   bool47z, bool48z, bool49z: boolean;
+   bool47z, bool48z, forValue: boolean;
    dataCheck: boolean;
    jumpType: integer;
    jumpTarget: integer;
@@ -2016,7 +2016,7 @@ var
     flags: opflg;
     l3var7z,
     l3var8z: word;
-    l3bool9z: boolean;
+    noTarget: boolean;
     l3var10z, l3var11z: word;
     saved: @insnltyp;
     l3bool13z: boolean;
@@ -2496,12 +2496,12 @@ var
             goto 4545;
         };
         il2: {
-4545:       if bool49z and (l4typ4z = booleanType) and
+4545:       if forValue and (l4typ4z = booleanType) and
                (16 in insnList@.regsused) then
                 addToInsnList(KAEX+E1);
         };
         il3: {
-            if bool49z then
+            if forValue then
                 addInsnAndOffset(macro+20,
                     ord(16 in insnList@.regsused)*10000B + insnList@.ilf5.i);
         };
@@ -2907,7 +2907,7 @@ var
         l5var2z := 16 in otherIns@.regsused;
         l5var5z := int94z;
         int94z := int94z + 1;
-        bool49z := false;
+        forValue := false;
         l5var6z := ord(l5var1z) + macro;
         l5var7z := ord(l5var2z) + macro;
         if (insnList@.ilm = il3) then {
@@ -2993,7 +2993,7 @@ var
         insnList@.next2 := l5ins8z@.next2;
         insnList@.ilm := il3;
         insnList@.ilf5.i := l5var5z;
-        bool49z := true;
+        forValue := true;
     }
 }; (* genBoolAnd *)
 %
@@ -3510,12 +3510,12 @@ procedure genComparison;
 label
     7475, 7504, 7514, 7530;
 var
-    hasEq: boolean;
+    negate: boolean;
     l5set2z: bitset;
     mode, size: integer;
 {
     l3int3z := ord(curOP) - ord(NEOP);
-    hasEq := odd(l3int3z);
+    negate := odd(l3int3z);
     if (l3int3z = 6) then {     (* IN *)
         if (arg1Const) then {
             if (arg2Const) then {
@@ -3542,7 +3542,7 @@ var
             insnList@.ilm := il2;
         }
     } else {
-        if hasEq then
+        if negate then
             l3int3z := l3int3z - 1;
         l2typ13z := insnList@.typ;
         curVarKind := l2typ13z@.k;
@@ -3562,7 +3562,7 @@ var
             addInsnAndOffset(KVTM+I11, 1 - size);
             addToInsnList(getHelperProc(89 + l3int3z)); (* P/EQ *)
             insnList@.ilm := il2;
-            hasEq := not hasEq;
+            negate := not negate;
         } else  if l3int3z = 0 then {
             if work = 0 then {
                 nextInsn := 15;         (* P/CP *)
@@ -3609,7 +3609,7 @@ var
             end; (* case *)
         };
         insnList@.regsused := insnList@.regsused - [16];
-        if (hasEq)
+        if (negate)
             then negateCond;
     };
 
@@ -4165,13 +4165,13 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC,BOUNDS]) then {
     };
     BRANCH:
         with insnList@ do {
-            l3bool9z := jumpTarget = 0;
+            noTarget := jumpTarget = 0;
             l3int3z := jumpTarget;
             if (ilm = ilCONST) then {
                 if (ilf5.b) then {
                     jumpTarget := 0;
                 } else {
-                    if (l3bool9z) then {
+                    if (noTarget) then {
                         formJump(jumpTarget);
                     } else {
                         form1Insn(insnTemp[UJ] + jumpTarget);
@@ -4183,14 +4183,14 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC,BOUNDS]) then {
                    (insnList@.ilf5.i <> 0) then {
                     genOneOp;
                     if (l3var8z.b) then {
-                        if (l3bool9z) then
+                        if (noTarget) then
                             formJump(l3int3z)
                         else
                             form1Insn(insnTemp[UJ] + l3int3z);
                         P0715(0, jumpTarget);
                         jumpTarget := l3int3z;
                     } else {
-                        if (not l3bool9z) then {
+                        if (not noTarget) then {
                             if (not putLeft) then
                                 padToLeft;
                             P0715(l3int3z, jumpTarget);
@@ -4198,16 +4198,16 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC,BOUNDS]) then {
                     };
                 } else {
                     if (insnList@.ilm = il1) then {
-                        bool49z := false;
+                        forValue := false;
                         prepLoad;
-                        bool49z := true;
+                        forValue := true;
                     };
                     genOneOp;
                     if (l3var8z.b) then
                         nextInsn := insnTemp[U1A]
                     else
                         nextInsn := insnTemp[UZA];
-                    if (l3bool9z) then {
+                    if (noTarget) then {
                         jumpType := nextInsn;
                         formJump(l3int3z);
                         jumpType := insnTemp[UJ];
@@ -5394,15 +5394,21 @@ var
         NOTSY: {
             inSymbol;
             factor;
-            if (curExpr@.typ<>booleanType) and (curExpr@.typ<>integerType) then
-                error(1); (* errNoCommaNorSemicolon *)
             newExpr := curExpr;
             new(curExpr);
-            with curExpr@ do {
-                typ := booleanType;
+            curexpr@.typ := booleanType;
+            if (newExpr@.typ = booleanType) then with curExpr@ do {
                 op := NOTOP;
                 expr1 := newExpr;
-            }
+            } else if (newExpr@.typ = integerType) then {
+                with curExpr@ do {
+                    op := EQOP;
+                    expr1 := newExpr;
+                    new(expr2);
+                };
+               curExpr@.expr2@ := [integerType, GETENUM, 0C];
+            } else
+                error(errNeedOtherTypesOfOperands);
         };
         LBRACK: {
             new(curExpr);
@@ -5535,6 +5541,7 @@ var
             AMPERS: {
                     if (arg1Type<>booleanType) and (arg1Type<>integerType) then
                         goto 14650;
+                    arg1Type := booleanType;
             };
             IDIVOP: {
                 if (baseType <> integerType) then
@@ -7324,6 +7331,7 @@ procedure regSysProc(l4arg1z: integer);
         k := kindScalar;
         numen := 2;
         start := 0;
+        enums := NIL;
     };
     new(integerType, kindScalar);
     with integerType@ do {
@@ -8373,7 +8381,7 @@ procedure initOptions;
     bool47z := false;
     dataCheck := ;
     heapSize := 100;
-    bool49z := true;
+    forValue := true;
     atEOL := false;
     curVal.m := pasinfor.flags;
     besm(ASN64 - 39);

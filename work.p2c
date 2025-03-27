@@ -363,7 +363,7 @@ var
     numFormat: NumberFormat;
     bigSkipSet, statEndSys, blockBegSys, statBegSys,
     skipToSet, lvalOpSet: setofsys;
-    bool47z, bool48z, bool49z: int;
+    bool47z, bool48z, forValue: int;
     dataCheck: int;
     jumpType: int;
     jumpTarget: int;
@@ -1981,7 +1981,7 @@ var
     flags: opflg;
     l3var7z,
     l3var8z: word;
-    l3bool9z: int;
+    noTarget: int;
     l3var10z, l3var11z: word;
     saved: @insnltyp;
     l3bool13z: int;
@@ -2460,12 +2460,12 @@ var
             goto 4545;
         }
         il2: {
-4545:       if (bool49z && (l4typ4z == boolType) &&
+4545:       if (forValue && (l4typ4z == boolType) &&
                (16 in insnList@.regsused))
                 addToInsnList(KAEX+E1);
         }
         il3: {
-            if (bool49z)
+            if (forValue)
                 addInsnAndOffset(macro+mcCOND2INT,
                     ord(16 in insnList@.regsused)*010000 + insnList@.ilf5.i);
         }
@@ -2871,7 +2871,7 @@ var
         l5var2z  =  16 in otherIns@.regsused;
         l5var5z  =  int94z;
         int94z  =  int94z + 1;
-        bool49z  =  false;
+        forValue  =  false;
         l5var6z  =  (l5var1z|0) + macro;
         l5var7z  =  (l5var2z|0) + macro;
         if (insnList@.ilm == il3) {
@@ -2957,7 +2957,7 @@ var
         insnList@.next2  =  l5ins8z@.next2;
         insnList@.ilm  =  il3;
         insnList@.ilf5.i  =  l5var5z;
-        bool49z  =  true;
+        forValue  =  true;
     }
 } /* genBoolAnd */
 //
@@ -3471,12 +3471,12 @@ void genComparison;
 label
     7475, 7504, 7514, 7530;
 var
-    hasEq: int;
+    negate: int;
     l5set2z: int;
     mode, size: int;
 {
     l3int3z  =  ord(curOP) - ord(NEOP);
-    hasEq  =  odd(l3int3z);
+    negate  =  odd(l3int3z);
     if (l3int3z == 6) {     /* IN */
         if (arg1Const) {
             if (arg2Const) {
@@ -3503,7 +3503,7 @@ var
             insnList@.ilm  =  il2;
         }
     } else {
-        if (hasEq)
+        if (negate)
             l3int3z  =  l3int3z - 1;
         l2typ13z  =  insnList@.typ;
         curVarKind  =  l2typ13z@.k;
@@ -3523,7 +3523,7 @@ var
             addInsnAndOffset(KVTM+I11, 1 - size);
             addToInsnList(getHelperProc(89 + l3int3z)); /* P/EQ */
             insnList@.ilm  =  il2;
-            hasEq  =  not hasEq;
+            negate  =  not negate;
         } else if (l3int3z == 0) {
             if (work == 0) {
                 nextInsn  =  15;         /* P/CP */
@@ -3570,7 +3570,7 @@ var
             } /* switch */
         }
         insnList@.regsused  =  insnList@.regsused ~ [16];
-        if (hasEq)
+        if (negate)
              negateCond();
     }
 } /* genComparison */
@@ -4093,13 +4093,13 @@ var l4exf1z: @extfilerec;
     }
     BRANCH:
         with insnList@ do {
-            l3bool9z  =  jumpTarget == 0;
+            noTarget  =  jumpTarget == 0;
             l3int3z  =  jumpTarget;
             if (ilm == ilCONST) {
                 if (ilf5.b) {
                     jumpTarget  =  0;
                 } else {
-                    if (l3bool9z) {
+                    if (noTarget) {
                         formJump(jumpTarget);
                     } else {
                         form1Insn(insnTemp[UJ] + jumpTarget);
@@ -4111,14 +4111,14 @@ var l4exf1z: @extfilerec;
                    (insnList@.ilf5.i != 0)) {
                     genOneOp();
                     if (l3var8z.b) {
-                        if (l3bool9z)
+                        if (noTarget)
                             formJump(l3int3z);
                         else
                             form1Insn(insnTemp[UJ] + l3int3z);
                         P0715(0, jumpTarget);
                         jumpTarget  =  l3int3z;
                     } else {
-                        if (not l3bool9z) {
+                        if (not noTarget) {
                             if (not putLeft)
                                 padToLeft();
                             P0715(l3int3z, jumpTarget);
@@ -4126,16 +4126,16 @@ var l4exf1z: @extfilerec;
                     }
                 } else {
                     if (insnList@.ilm == il1) {
-                        bool49z  =  false;
+                        forValue  =  false;
                         prepLoad();
-                        bool49z  =  true;
+                        forValue  =  true;
                     }
                     genOneOp();
                     if (l3var8z.b)
                         nextInsn  =  insnTemp[U1A];
                     else
                         nextInsn  =  insnTemp[UZA];
-                    if (l3bool9z) {
+                    if (noTarget) {
                         jumpType  =  nextInsn;
                         formJump(l3int3z);
                         jumpType  =  insnTemp[UJ];
@@ -5308,15 +5308,21 @@ var
         NOTSY: {
             inSymbol();
             factor();
-            if ((curExpr@.typ != boolType) && (curExpr@.typ != intType))
-                error(1); /* errNoCommaNorSemicolon */
             l4exp6z  =  curExpr;
             new(curExpr);
-            with curExpr@ do {
-                typ  =  boolType;
+            curExpr@.typ  =  boolType;
+            if (l4exp6z@.typ == boolType) with curExpr@ do {
                 op  =  NOTOP;
                 expr1  =  l4exp6z;
-            }
+            } else if (l4exp6z@.typ == intType) {
+                with curExpr@ do {
+                    op  =  EQOP;
+                    expr1  =  l4exp6z;
+                    new(expr2);
+                }
+                curExpr@.expr2@ = [intType, GETENUM, 0U];
+            } else
+                error(errNeedOtherTypesOfOperands);
         }
         LBRACK: {
             new(curExpr);
@@ -8201,7 +8207,7 @@ void initOptions;
     bool47z  =  false;
     dataCheck  =  ;
     heapSize  =  100;
-    bool49z  =  true;
+    forValue  =  true;
     atEOL  =  false;
     optSflags.i  =  pasinfor.flags << 39 >> 45;
     doPMD  =  not (42 in curVal.m);
