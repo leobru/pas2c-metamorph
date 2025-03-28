@@ -277,10 +277,10 @@ entries   = array [1..42] of bitset;
 expr = record
     case operator of (* arbitrary so far *)
     NOOP:       (val:    word;
-                 op:     operator;
+                 d3:     word;
                  d1, d2: word);
     MUL:        (typ:    tptr;
-                 d3:     word;
+                 op:     operator;
                  expr1, expr2: eptr);
     BOUNDS:     (d4, d5: word;
                  typ1, typ2: tptr);
@@ -385,9 +385,7 @@ var
    curVarKind: kind;
    curExternFile: @extfilerec;
    commentModeCH: char;
-   unused85z: word;
    CH: char;
-   sunused87z: word;
    debugLine: integer;
    lineNesting: integer;
    FcstCountTo500: integer;
@@ -938,7 +936,6 @@ function nrOfBits(value: integer): integer;
 procedure defineRange(var res: tptr; l, r: integer);
 var
     temp: tptr;
-    dummyloc: word;
 {
     new(temp=7);
     with temp@ do {
@@ -1037,12 +1034,8 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure endOfLine;
 var
-    unused: array [1..14] of integer;
     err, errPos, prevPos, listMode,
     startPos, lastErr: integer;
-%
-    procedure OBPROG(var start, fin: bitset);
-        external;
 {
     listMode := pasinfor.listMode;
     if (listMode <> 0) or (errsInLine <> 0) then
@@ -1074,10 +1067,6 @@ var
             errsInLine := 0;
             prevErrPos := 0;
         }
-    };
-    if (listMode = 2) and (moduleOffset <> lineStartOffset) then {
-        OBPROG(objBuffer[objBufIdx - moduleOffset + lineStartOffset],
-               objBuffer[objBufIdx-1]);
     };
     lineStartOffset := moduleOffset;
     linePos := 0;
@@ -1905,8 +1894,11 @@ var
                         };
                         if (enums1 = NIL) and (enums2 = NIL) then
                             goto 1;
-                    } else if (type1 = booleanType) and (type2 = integerType)
-                       or (type2 = booleanType) and (type1 = integerType) then
+                    } else if ((type1 = booleanType) or (type1 = integerType)
+%                            or (type1 = charType)
+                          ) and ((type2 = booleanType) or (type2 = integerType)
+%                            or (type2 = charType)
+                           ) then
                        goto 1;
                 };
                 kindRange: {
@@ -2010,16 +2002,15 @@ function makeNameWithStars: bitset;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure formOperator(l3arg1z: opgen);
 var
-    l3int1z, l3int2z, l3int3z: integer;
-    nextInsn: integer;
-    l3var5z: eptr;
-    flags: opflg;
-    l3var7z,
-    l3var8z: word;
-    noTarget: boolean;
-    l3var10z, l3var11z: word;
-    saved: @insnltyp;
-    l3bool13z: boolean;
+    l3int1z, l3int2z, l3int3z : integer;
+    nextInsn                  : integer;
+    l3var5z                   : eptr;
+    flags                     : opflg;
+    direction                 : boolean;
+    noTarget                  : boolean;
+    l3var10z, l3var11z        : word;
+    saved                     : @insnltyp;
+    l3bool13z                 : boolean;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure genOneOp;
@@ -4024,7 +4015,7 @@ var l4exf1z: @extfilerec;
         formAndAlign(getHelperProc(69)); (*"P/CO"*)
         curVal := l4var3z@.id;
         form2Insn(KXTA+I8+getFCSToffset, KATX+I12+26);
-        if (l4int5z <> 0) and
+        if (l4int5z <> 0) and (l4var2z <> charType) and
            typeCheck(l4var2z, integerType) then
             form2Insn(KXTA+ZERO, KATX+I12+25);
         curExpr := curExpr@.expr1;
@@ -4178,11 +4169,11 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC,BOUNDS]) then {
                     }
                 }
             } else {
-                l3var8z.b := (16 in insnList@.regsused);
+                direction := (16 in insnList@.regsused);
                 if (insnList@.ilm = il3) and
                    (insnList@.ilf5.i <> 0) then {
                     genOneOp;
-                    if (l3var8z.b) then {
+                    if (direction) then {
                         if (noTarget) then
                             formJump(l3int3z)
                         else
@@ -4203,7 +4194,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC,BOUNDS]) then {
                         forValue := true;
                     };
                     genOneOp;
-                    if (l3var8z.b) then
+                    if (direction) then
                         nextInsn := insnTemp[U1A]
                     else
                         nextInsn := insnTemp[UZA];
@@ -4278,7 +4269,6 @@ var
     numBits, l3int22z, span: integer;
     curEnum, curField: irptr;
     l3typ26z, nestedType, tempType, curType: tptr;
-    l3unu30z: word;
     l3idr31z: irptr;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5218,7 +5208,7 @@ var
     l4var3z, l4var4z: word;
     l4exp5z, newExpr, l4var7z, l4var8z: eptr;
     routine: irptr;
-    l4op10z: operator;
+    newOp: operator;
     l4typ11z: tptr;
     l4var12z: boolean;
 %
@@ -5348,7 +5338,7 @@ var
                         error(44) (* errIncorrectUsageOfStandProcOrFunc *)
                     } else if (routine@.typ = NIL) then {
                         if (l4var2z) then {
-                            l4op10z := PCALL;
+                            newOp := PCALL;
                         } else {
                             error(68); (* errUsingProcedureInExpression *)
                         }
@@ -5358,7 +5348,7 @@ var
                             exit
                         };
                         if (l4var2z) then {
-                            l4op10z := FCALL;
+                            newOp := FCALL;
                         } else {
                             parseCallArgs(routine);
                             exit
@@ -5371,7 +5361,7 @@ var
                     };
                     with curExpr@ do {
                         typ := routine@.typ;
-                        op := l4op10z;
+                        op := newOp;
                         expr1 := NIL;
                         id2 := routine;
                     }
@@ -6350,7 +6340,7 @@ function allocDataRef(l6arg1z: integer): integer;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure standProc;
 label
-    17753, 20041;
+    17753;
 var
     l4typ1z, l4typ2z, l4typ3z: tptr;
     firstWidth, secondWidth: eptr;
@@ -6838,10 +6828,9 @@ var
         formOperator(LITINSN);
         formAndAlign(curVal.i);
     };
-    17: { (* mapia *)
-        l4typ1z := integerType;
-        l4typ2z := alfaType;
-20041:
+    18: { (* mapai *)
+        l4typ1z := alfaType;
+        l4typ2z := integerType;
         expression;
         if not typeCheck(curExpr@.typ, l4typ1z) then
             error(errNeedOtherTypesOfOperands);
@@ -6854,11 +6843,6 @@ var
         };
         verifyType(l4typ2z);
         formOperator(STORE);
-    };
-    18: { (* mapai *)
-        l4typ1z := alfaType;
-        l4typ2z := integerType;
-        goto 20041;
     };
     19, 20: { (* pck, unpck *)
         inSymbol;
@@ -8318,7 +8302,7 @@ procedure initSets;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure finalize;
 var
-    idx, cnt, unused: integer;
+    idx, cnt: integer;
     sizes: array [1..10] of @integer;
 {
     sizes[1] := ptr(1);
@@ -8640,7 +8624,7 @@ procedure initOptions;
         45705164C              (*"    EXIT"*),
         4445426547C            (*"   DEBUG"*),
         42456355C              (*"    BESM"*),
-        5541605141C            (*"   MAPIA"*),
+        0C                     (*"   MAPIA"*),
         5541604151C            (*"   MAPAI"*),
         604353C                (*"     PCK"*),
 (*20*)  6556604353C            (*"   UNPCK"*),
