@@ -1,5 +1,5 @@
 (*=p-,t-,s8,u-,y+,k9,l0*)
-program pascompl(output, child, pasinput, pasinfor);
+program pascompl(output, child, pasinput, pasinfor,paseofcd);
 %
 label 9999;
 %
@@ -497,6 +497,7 @@ var
      (*8-17*) sizes:        array [1..10] of @integer;
        (*18*) flags:        bitset;
         end;
+    paseofcd:alfa;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %              PROGRAMME                 %
@@ -2788,7 +2789,7 @@ var
 }; (* prepMultiWord *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure genCheckBounds(l5arg1z: tptr);
+(*procedure genCheckBounds(l5arg1z: tptr);
 var
     l5var1z: integer;
     l5var2z, l5var3z, l5var4z: word;
@@ -3062,11 +3063,12 @@ function myminel(l6arg1z: bitset): integer;
                                   insnCopy.ilf6;
             }
         } else { (* 6123*)
-            if (checkBounds) then {
+(*            if (checkBounds) then {
                 l5var24z := typeCheck(l5var27z, insnList@.typ);
                 if (rangeMismatch) then
                     genCheckBounds(l5var27z);
             };
+*)
             if (l5var8z <> 1) then {
                 prepLoad;
                 if (l5var27z@.base = integerType) then {
@@ -3859,8 +3861,9 @@ var i    : integer; ret: bitset;
             } else {
                 prepLoad;
                 if (curOP = BOUNDS) then {
-                    if (checkBounds) then
+(*                    if (checkBounds) then
                         genCheckBounds(exprToGen@.typ2);
+*)
                 } else if (curOP = TOREAL) then {
                     addToInsnList(insnTemp[AVX]);
                     l3int3z := 3;
@@ -8388,6 +8391,7 @@ procedure initOptions;
     longSymCnt := 0;
     pasinfor.errors@ := true;
     symTabCnt := 0;
+    paseofcd := '*copy:';
 }; (* initOptions *)
 %
 { (* main *)
