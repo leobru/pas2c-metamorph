@@ -212,7 +212,7 @@ word = struct { switch int of
     0: {i: int};
     1: {r: real};
     3: {a: alfa};
-    4: {t: packed array[0..7] of '_000' .. '_077'};
+    4: {t: packed array[0..7] of '\000' .. '\077'};
     7: {c: char};
     8: {cl: idclass};
     9: {tp: tptr};
@@ -275,8 +275,8 @@ typechain = struct {
     next:         @typechain;
     type1, type2: tptr;
 };
-charmap   = packed array ['_000'..'_176'] of char;
-textmap   = packed array ['_052'..'_177'] of '_000'..'_077';
+charmap   = packed array ['\000'..'\176'] of char;
+textmap   = packed array ['\052'..'\177'] of '\000'..'\077';
 //
 four = array [1..4] of int;
 entries   = array [1..42] of int;
@@ -460,9 +460,9 @@ var
     disNormTemplate: int;
     lineBuf: array [0..129] of char;
     errMap: array [0..9] of int;
-    chrClass: array ['_000'..'_177'] of operator;
+    chrClass: array ['\000'..'\177'] of operator;
     kwordHash: array [0..127] of @kword;
-    charSym: array ['_000'..'_177'] of symbol;
+    charSym: array ['\000'..'\177'] of symbol;
     symHash: array [0..127] of irptr;
     typeHash: array [0..127] of irptr;
     helperMap: array [1..99] of int;
@@ -477,7 +477,7 @@ var
     constVals: array [1..500] of alfa;
     constNums: array [1..500] of int;
     objBuffer: array [0..1023] of int;
-    iso2text: array ['_052'..'_177'] of '_000'..'_077';
+    iso2text: array ['\052'..'\177'] of '\000'..'\077';
     fcst: file of int; /* last */
 //
     pasinput: text;
@@ -519,17 +519,17 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void printErrMsg(errno: int);
 type
-    errtxt = packed array [0..100] of '_000'..'_077';
+    errtxt = packed array [0..100] of '\000'..'\077';
 var
     errptr: @errtxt;
-    errtext: array [0..100] of '_000'..'_077';
+    errtext: array [0..100] of '\000'..'\077';
     i: int;
     c: char;
 //
     function pasmitxt(errno: int): @errtxt;
         fortran;
 //
-    function pasisoxt(txtchar: '_000'..'_077'): char;
+    function pasisoxt(txtchar: '\000'..'\077'): char;
         fortran;
 //
 { /* PrintErrMsg */
@@ -1177,7 +1177,7 @@ void readOptFlag(var res: int);
 1473:
         while ((CH == ' ') && !atEOL)
             nextCH();
-        if ('_200' < CH) {
+        if (CH > '\200') {
             lineBuf[linePos]  =  ' ';
             chord  =  ord(CH);
             for (jj  =  130; jj <= chord; jj=jj+1) {
@@ -1421,8 +1421,7 @@ void readOptFlag(var res: int);
                         if (atEOL) {
 2175:                       error(59); /* errEOLNInStringLiteral */
                             exit loop;
-                        } else if (((CH == chr(035)) ||
-                                   (CH == '_'))
+                        } else if ((CH == '\035')
                                && (charSym[PASINPUT@] == INTCONST))
                          {
                             expLiteral  =  0;
@@ -1441,7 +1440,7 @@ void readOptFlag(var res: int);
                         } else
 2233:                       with PASINFOR do {
                                 if (charEncoding == 3) {
-                                    if ((ch < '*') || ('_176' < CH))
+                                    if ((ch < '*') || ('\176' < CH))
                                         curChar  =  chr(0);
                                     else {
                                         curChar  =  iso2text[CH];
@@ -5613,6 +5612,7 @@ var
     checkSymAndRead(SEMICOLON);
     padToLeft();
     toLoop = moduleOffset;
+    leave = 0;
     if (SY != SEMICOLON) {
         readNext = false;
         expression();
@@ -5633,9 +5633,10 @@ var
         formOperator(gen7);
     }
     formJump(toLoop);
-    padToLeft();
-    if (loopExpr != NIL)
+    if (leave != 0) {
+        padToLeft();
         P0715(0, leave);
+    }
 } /* forStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -8038,7 +8039,7 @@ void initSets;
     initArrays();
     initInsnTemplates();
     initSets();
-    unpack(pasinfor.a3@, iso2text, '_052'); /* '*' */
+    unpack(pasinfor.a3@, iso2text, '\052'); /* '*' */
     iso2text['_'] = iso2text['*'];
     rewrite(_CHILD_);
     for (jdx = 1; jdx <= 10; jdx=jdx+1)

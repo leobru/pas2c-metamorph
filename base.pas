@@ -1461,8 +1461,7 @@ procedure readOptFlag(var res: boolean);
                         if atEOL then {
 2175:                       error(59); (* errEOLNInStringLiteral *)
                             exit loop
-                        } else if ((CH = chr(35B)) or
-                                   (CH = '_'))
+                        } else if (CH = '_035')
                                and (charSym[PASINPUT@] = INTCONST)
                         then {
                             expLiteral := 0;
@@ -5727,6 +5726,7 @@ var
     checkSymAndRead(SEMICOLON);
     padToLeft;
     toLoop := moduleOffset;
+    leave := 0;
     if (SY <> SEMICOLON) then {
         readNext := false;
         expression;
@@ -5747,9 +5747,10 @@ var
         formOperator(gen7);
     };
     formJump(toLoop);
-    padToLeft;
-    if (loopExpr <> NIL) then
+    if (leave <> 0) then {
+        padToLeft;
         P0715(0, leave);
+    }
 }; (* forStatement *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
