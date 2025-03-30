@@ -11,4 +11,4 @@ base.o: base.pas
 	./base.sh
 
 clean:
-	rm -f *.o tmp*
+	rm -f *.o tmp* *.lst *.asm

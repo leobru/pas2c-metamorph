@@ -138,8 +138,7 @@ type
 (*41B*) IFSY,       SWITCHSY,     WHILESY,
         FORSY,      WITHSY,     GOTOSY,
 (*47B*) ELSESY,     OFSY,       DOSY,
-        TOSY,       DOWNTOSY,
-(*54B*) EXTERNSY,  BREAKSY, CONTSY, DEFAULTSY,
+(*52B*) EXTERNSY,  BREAKSY, CONTSY, DEFAULTSY,
                  ASSNOP, NOSY
 );
 %
@@ -157,7 +156,7 @@ insn = (
 (*047*) UTC,   WTC,   VTM,   UTM,   UZA,   U1A,   UJ,    VJM
 );
 %
-setofsys = set of ident .. downtosy;
+setofsys = set of ident .. dosy;
 %
 operator = (
     SHLEFT,     SHRIGHT,
@@ -5568,7 +5567,7 @@ label
     15031;
 var
     finalExpr, leftExpr: eptr;
-    l4var3z: operator;
+    oper: operator;
     argKind: kind;
     match: boolean;
 {
@@ -5599,7 +5598,7 @@ var
         }
     };
     while (SY = ADDOP) do {
-        l4var3z := charClass;
+        oper := charClass;
         inSymbol;
         leftExpr := curExpr;
         term;
@@ -5612,29 +5611,29 @@ var
         } else {
             new(finalExpr);
             with finalExpr@ do {
-                if (l4var3z = OROP) then {
+                if (oper = OROP) then {
                     if match and ((arg1Type = booleanType) or
                                   (arg1Type = integerType)) then {
                        typ := booleanType;
-                       op := l4var3z
+                       op := oper
                     } else goto 15031;
                 } else  {
-                   if (l4var3z = SETOR) or (l4var3z = SETSUB) then {
-                       op := l4var3z;
+                   if (oper = SETOR) or (oper = SETSUB) then {
+                       op := oper;
                        typ := arg2Type;
                    } else  if (match) then {
-                   if (arg1Type = realType) then {
-                            op := l4var3z;
+                        if (arg1Type = realType) then {
+                            op := oper;
                             typ := realType;
                         } else if (baseType = integerType) then {
-                            op := iAddOpMap[l4var3z];
+                            op := iAddOpMap[oper];
                             typ := integerType;
                         } else {
                             goto 15031
                         }
                     } else if areTypesCompatible(leftExpr) then {
                         finalExpr@.typ := realType;
-                        finalExpr@.op := l4var3z;
+                        finalExpr@.op := oper;
                     } else
                         goto 15031
                 };
@@ -5711,88 +5710,46 @@ var
     }
 
 }; (* expression *)
+procedure assignStatement(doLHS: boolean); forward;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure forStatement;
 var
-    idxType: tptr;
-    idxVar, initExpr, finalExpr: eptr;
-    plusOne, addOrSub, toIdxUpdate, toLoop: integer;
-    nonDefInit: boolean;
+   toLoop, leave : integer;
+   loopExpr      : eptr;
 {
     inSymbol;
-    disableNorm;
-    curExpr := NIL;
-    if (SY = IDENT) then {
-        if (hashTravPtr <> NIL) and (hashTravPtr@.cl = VARID) then {
-            parseLval;
-            if (curExpr@.op <> GETVAR) then
-                error(errNoSimpleVarForLoop);
-        } else
-            error(errNoSimpleVarForLoop);
-    } else {
-        errAndSkip(errNoIdent, skipToSet + [BECOMES, DOSY, TOSY, DOWNTOSY]);
+    checkSymAndRead(LPAREN);
+    if (SY <> SEMICOLON) then {
+        assignStatement(true); (* eventually: expression *)
+        formOperator(gen7);
     };
-    if (curExpr = NIL) then
-        curExpr := uVarPtr;
-    idxVar := curExpr;
-    idxType := idxVar@.typ;
-    if not (idxType@.k IN [kindScalar, kindRange]) then
-        error(25); (* errExprNotOfADiscreteType *)
-    if typeCheck(integerType, idxType) then
-        plusOne := KATX+PLUS1
-    else
-        plusOne := KATX+E1;
-    if (SY = BECOMES) then {
-        expression;
-        nonDefInit := true;
-    } else {
-        nonDefInit := false;
-    };
-    initExpr := curExpr;
-    addOrSub := insnTemp[ADD];
-    if not typeCheck(idxType, initExpr@.typ) then
-        error(31); (* errIncompatibleTypesOfLoopIndexAndExpr *)
-(todownto)
-    if (SY = TOSY) then
-        exit todownto
-    else if (SY = DOWNTOSY) then
-        addOrSub := insnTemp[SUB]
-    else {
-        error(70); (* errNeitherToNorDownto *)
-    };
-    expression;
-    if not typeCheck(idxType, curExpr@.typ) then
-        error(31); (* errIncompatibleTypesOfLoopIndexAndExpr *)
-    formOperator(gen0);
-    finalExpr := curExpr;
-    if (nonDefInit) then {
-        curExpr := initExpr;
-        formOperator(LOAD);
-    } else {
-        form1Insn(insnTemp[XTA] + plusOne);
-    };
-    toIdxUpdate := 0;
-    disableNorm;
-    formJump(toIdxUpdate);
+    checkSymAndRead(SEMICOLON);
     padToLeft;
     toLoop := moduleOffset;
-    checkSymAndRead(DOSY);
+    if (SY <> SEMICOLON) then {
+        readNext := false;
+        expression;
+        jumpTarget := 0;
+        formOperator(BRANCH);
+        leave := jumpTarget;
+    };
+    checkSymAndRead(SEMICOLON);
+    loopExpr := NIL;
+    if (SY <> RPAREN) then {
+        assignStatement(true); (* eventually: expression *)
+        loopExpr := curExpr;
+    };
+    checkSymAndRead(RPAREN);
     statement;
-    disableNorm;
-    curExpr := idxVar;
-    formOperator(LOAD);
-    form1Insn(addOrSub + plusOne);
-    P0715(0, toIdxUpdate);
-    formOperator(STORE);
-    curExpr := finalExpr;
-    if (addOrSub = insnTemp[SUB]) then
-        curVal.i := addOrSub
-    else
-        curVal.i := insnTemp[RSUB];
-
-    formOperator(FORMOP);
-    form1Insn(insnTemp[UZA] + toLoop);
+    if (loopExpr <> NIL) then {
+        curExpr := loopExpr;
+        formOperator(gen7);
+    };
+    formJump(toLoop);
+    padToLeft;
+    if (loopExpr <> NIL) then
+        P0715(0, leave);
 }; (* forStatement *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6095,7 +6052,7 @@ function max(a, b: integer): integer;
 }; (* caseStatement *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure assignStatement(doLHS: boolean);
+procedure assignStatement;
 label
     16332;
 var
@@ -8445,8 +8402,6 @@ procedure initOptions;
         45546345C               (*"    ELSE"*),
         5746C                   (*"      OF"*),
         4457C                   (*"      DO"*),
-        6457C                   (*"      TO"*),
-        445767566457C           (*"  DOWNTO"*),
         457064456256C           (*"  EXTERN"*),
         4262454153C             (*"   BREAK"*),
         4357566451566545C       (*"CONTINUE"*),
