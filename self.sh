@@ -1,33 +1,29 @@
 #!/bin/sh
 cat << EOF > tmp$$
-ШИФР 419900ЗС5^
-ЛЕН 41(1234)42(2148)67(1234-WR)^
-EEB1A3
-*NAME self
-*      pascal runtime library
-*tapes:420440
+*NAME work
+*disc:1/local
+*file:pascom,42
+*file:work,41
+*file:self,67,w
+*system
+*     *pascom and pasmitxt
 *libra:42
-*     taking the compiled work.p2c module
-*tapes:410100
+*     taking the work compiler module
 *libra:41
-*call yesmemory
-*     system
 *call *pascom
 EOF
 # Compiling the compiler expressed in the syntax currently supported
 # by the base compiler, by itself.
 sed 's/^$/ /;s/{/<:/g;s/}/:>/g' < work.p2c >> tmp$$
 cat << EOF >> tmp$$
-*copy:20,270000,670200
-*to perso:670200
+*copy:20,270000,670000
+*to perso:670000
 *end file
-\`\`\`\`\`\`
-ЕКОНЕЦ
 EOF
-if [ "$1" = "-d" ]; then ln -f tmp$$ self.b6 ; fi
+if [ "$1" = "-d" ]; then ln -f tmp$$ self.dub ; fi
 ulimit -t 3
 rm -f self.o
-length=`dispak -l tmp$$ | tee self.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
+length=`dubna tmp$$ | tee self.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))
 grep -q 'LINES STRUCTURE 1' self.lst
 if [ $? -ne 0 ]; then
@@ -35,6 +31,6 @@ echo '[1;31mFAILURE[22;39m'
 exit 1
 fi
 echo Module length is $length zones
-besmtool dump 1234 --start=0202 --length=$length --to-file=self.o
+dd bs=6k skip=2 count=$length < self.bin > self.o
 dtran -d self.o > self.asm
 rm -f tmp$$
