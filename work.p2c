@@ -393,7 +393,7 @@ var
     int92z, int93z, int94z: int;
     prevOpcode: int;
     charEncoding: int;
-    int97z: int;
+    errLine: int;
     atEOL: int;
     checkTypes: int;
     isDefined, putLeft, readNext: int;
@@ -556,7 +556,7 @@ var
         write(' ');
         if (errno in [17, 22])
             if (errno == 17)
-                write(int97z:0);
+                write(errLine:0);
             else
                 write(stmtName);
     }
@@ -7514,7 +7514,7 @@ void exitScope(var arg: array [0..127] of irptr);
                 if (l2var15z@.id != curToken.i) {
                     l2var15z  =  l2var15z@.next;
                 } else {
-                    int97z  =  l2var15z@.line;
+                    errLine  =  l2var15z@.line;
                     error(17); /* errLblAlreadyDefinedInLine */
                     goto 22420;
                 }

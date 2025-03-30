@@ -392,7 +392,7 @@ var
    int92z, int93z, int94z: integer;
    prevOpcode: integer;
    charEncoding: integer;
-   int97z: integer;
+   errLine: integer;
    atEOL: boolean;
    checkTypes: boolean;
    isDefined, putLeft, readNext: boolean;
@@ -505,12 +505,12 @@ procedure programme(var l2arg1z: integer; l2idr2z: irptr);
 label 22420, 22421, 23301;
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
-    isPredefined, l2bool8z, inTypeDef: boolean;
+    isPredefined, done, inTypeDef: boolean;
     l2var10z: eptr;
     l2int11z: integer;
     l2var12z: word;
     l2typ13z, l2typ14z: tptr;
-    l2var15z, l2var16z: @numLabel;
+    labIter, labFence: @numLabel;
     strLabList: @strLabel;
 %
     l2int18z, ii, localSize, l2int21z, jj: integer;
@@ -557,7 +557,7 @@ var
         write(' ');
         if errno in [17, 22] then
             if errno = 17 then
-                write(int97z:0)
+                write(errLine:0)
             else
                 write(stmtName);
     };
@@ -4957,7 +4957,7 @@ var
     l3var6z               : idclass;
     curOffset             : word;
     startLine             : integer;
-    ifWhlTarget, elseJump : word;
+    ifWhlTarget, elseJump : integer;
     whileExpr             : eptr;
     l3idr12z              : irptr;
 %
@@ -6151,7 +6151,7 @@ procedure ifWhileStatement;
     else {
         jumpTarget := 0;
         formOperator(BRANCH);
-        ifWhlTarget.i := jumpTarget;
+        ifWhlTarget := jumpTarget;
     };
     statement;
 }; (* ifWhileStatement *)
@@ -6872,32 +6872,31 @@ procedure setStrLab(forGoto: boolean);
             disableNorm;
             l3bool5z := true;
             padToLeft;
-            while numLabPtr <> l2var16z do { with numLabPtr@ do
+            (loop) if numLabPtr <> labFence then with numLabPtr@ do {
                 if id <> curToken then {
                     numLabPtr := next;
-                } else {
-                    l3bool5z := false;
-                    if (defined) then {
-                        curVal.i := line;
-                        error(17); (* errLblAlreadyDefinedInLine *);
-                    } else {
-                        numLabPtr@.line := lineCnt;
-                        numLabPtr@.defined := true;
-                        padToLeft;
-                        if numLabPtr@.offset = 0 then {
-                            (* empty *)
-                        } else if (numLabPtr@.offset >= 74000B) then {
-                            curVal.i := (moduleOffset - 40000B);
-                            symTab[numLabPtr@.offset] := [24,29] +
-                                                         curVal.m * O77777;
-                        } else {
-                            P0715(0, numLabPtr@.offset);
-                        };
-                        numLabPtr@.offset := moduleOffset;
-                    };
-                    numLabPtr := l2var16z;
+                    goto loop;
                 };
-            }; (* while 20346 *)
+                l3bool5z := false;
+                if (defined) then {
+                    curVal.i := line;
+                    error(17); (* errLblAlreadyDefinedInLine *);
+                } else {
+                    numLabPtr@.line := lineCnt;
+                    numLabPtr@.defined := true;
+                    padToLeft;
+                    if numLabPtr@.offset = 0 then {
+                        (* empty *)
+                    } else if (numLabPtr@.offset >= 74000B) then {
+                        curVal.i := (moduleOffset - 40000B);
+                        symTab[numLabPtr@.offset] := [24,29] +
+                                                     curVal.m * O77777;
+                    } else {
+                        P0715(0, numLabPtr@.offset);
+                    };
+                    numLabPtr@.offset := moduleOffset;
+                };
+            };
             if (l3bool5z) then
                 error(16); (* errLblNotDefinedInBlock *);
             inSymbol;
@@ -7006,20 +7005,20 @@ procedure setStrLab(forGoto: boolean);
         } else  if (SY = IFSY) then {
             ifWhileStatement;
             if (SY = ELSESY) then {
-                elseJump.i := 0;
-                formJump(elseJump.i);
-                P0715(0, ifWhlTarget.i);
+                elseJump := 0;
+                formJump(elseJump);
+                P0715(0, ifWhlTarget);
                 curOffset.i := arithMode;
                 arithMode := 1;
                 inSymbol;
                 statement;
-                P0715(0, elseJump.i);
+                P0715(0, elseJump);
                 if (curOffset.i <> arithMode) then {
                     arithMode := 2;
                     disableNorm;
                 }
             } else {
-                P0715(0, ifWhlTarget.i);
+                P0715(0, ifWhlTarget);
             }
         } else  if (SY = WHILESY) then {
             set146z := [];
@@ -7031,7 +7030,7 @@ procedure setStrLab(forGoto: boolean);
             ifWhileStatement;
             disableNorm;
             form1Insn(insnTemp[UJ] + curOffset.i);
-            P0715(0, ifWhlTarget.i);
+            P0715(0, ifWhlTarget);
             strLabList := strLabList@.next; (* removing continue *)
             P0715(0, strLabList@.exitTarget); (* assigning target for break *)
             strLabList := strLabList@.next; (* removing break *)
@@ -7171,16 +7170,16 @@ var
     repeat
         statement;
         if (curProcNesting = 1) then
-            l2bool8z := SY = PERIOD
+            done := SY = PERIOD
         else
-            l2bool8z := (SY IN blockBegSys);
-        if not l2bool8z then
+            done := (SY IN blockBegSys);
+        if not done then
            if (curProcNesting = 1) then
                requiredSymErr(PERIOD)
            else {
                errAndSkip(errBadSymbol, skipToSet);
            }
-    until l2bool8z;
+    until done;
     l2idr2z@.flags := (set145z * [0:15]) + (l2idr2z@.flags - l3var7z.m);
     lineNesting := l3var2z.i - 1;
     if (exitTarget <> 0) then
@@ -7691,7 +7690,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
     l2int11z := 0;
     strLabList := NIL;
     lineNesting := lineNesting + 1;
-    l2var16z := numLabList;
+    labFence := numLabList;
     repeat
     if (SY = LABELSY) then {
 
@@ -7701,18 +7700,18 @@ procedure exitScope(var arg: array [0..127] of irptr);
                 requiredSymErr(INTCONST);
                 goto 22421;
             };
-            l2var15z := numLabList;
-            while (l2var15z <> l2var16z) do {
-                if (l2var15z@.id <> curToken) then {
-                    l2var15z := l2var15z@.next;
+            labIter := numLabList;
+            while (labIter <> labFence) do {
+                if (labIter@.id <> curToken) then {
+                    labIter := labIter@.next;
                 } else {
-                    int97z := l2var15z@.line;
+                    errLine := labIter@.line;
                     error(17); (* errLblAlreadyDefinedInLine *)
                     goto 22420;
                 }
             };
-            new(l2var15z);
-            with l2var15z@ do {
+            new(labIter);
+            with labIter@ do {
                 id := curToken;
                 frame := curFrameRegTemplate;
                 offset := 0;
@@ -7720,7 +7719,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
                 defined := false;
                 next := numLabList;
             };
-            numLabList := l2var15z;
+            numLabList := labIter;
 22420:      inSymbol;
 22421:      if not (SY IN [COMMA,SEMICOLON]) then
                 errAndSkip(1, skipToSet + [COMMA,SEMICOLON]);
@@ -7844,12 +7843,12 @@ procedure exitScope(var arg: array [0..127] of irptr);
                 error(errNoIdent);
             if not (SY IN [COMMA,COLON]) then
                 errAndSkip(1, skipToSet + [IDENT,COMMA]);
-            l2bool8z := SY <> COMMA;
-            if not l2bool8z then {
+            done := SY <> COMMA;
+            if not done then {
                 int93z := 0;
                 inSymbol;
             };
-            (* 22663 -> 22620 *) until l2bool8z;
+            (* 22663 -> 22620 *) until done;
             checkSymAndRead(COLON);
             parseTypeRef(l2typ13z, skipToSet + [IDENT,SEMICOLON]);
             jj := l2typ13z@.size;
@@ -7857,15 +7856,15 @@ procedure exitScope(var arg: array [0..127] of irptr);
                 curIdRec := list;
                 typ := l2typ13z;
                 list := NIL;
-                l2bool8z := true;
+                done := true;
                 if (curProcNesting = 1) then {
                     curExternFile := externFileList;
                     l2var12z := id;
                     curVal.i := jj;
                     toAlloc := curVal.m * halfWord + [24,27,28,29];
-                    while l2bool8z and (curExternFile <> NIL) do {
+                    while done and (curExternFile <> NIL) do {
                         if (curExternFile@.id = l2var12z) then {
-                            l2bool8z := false;
+                            done := false;
                             if (curExternFile@.line = 0) then {
                                 curVal.i := curExternFile@.offset;
                                 workidr@.value := allocExtSymbol(toAlloc);
@@ -7876,7 +7875,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
                         }
                     }
                 };
-                if (l2bool8z) then {
+                if (done) then {
                     workidr@.value := localSize;
                     if (PASINFOR.listMode = 3) then {
                         write('VARIABLE ':25);
@@ -7926,7 +7925,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
     };
     outputObjFile;
     while (SY = VOIDSY) or (SY = FUNCSY) do {
-        l2bool8z := SY = VOIDSY;
+        done := SY = VOIDSY;
         if (curFrameRegTemplate = 7) then {
             error(81); (* errProcNestingTooDeep *)
         };
@@ -7941,7 +7940,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
                 if (cl = ROUTINEID) and
                    (list = NIL) and
                    (preDefLink <> NIL) and
-                   ((typ = NIL) = l2bool8z) then {
+                   ((typ = NIL) = done) then {
                     isPredefined := true;
                 } else {
                     isPredefined := false;
@@ -7970,7 +7969,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
                     flags := [0:15];
                 pos := 0;
                 curFrameRegTemplate := curFrameRegTemplate + frameRegTemplate;
-                if l2bool8z then
+                if done then
                     l2int18z := 3
                 else
                     l2int18z := 4;
@@ -7983,7 +7982,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
                 errAndSkip(errBadSymbol, skipToSet + [LPAREN,SEMICOLON,COLON]);
             if (SY = LPAREN) then
                 parseParameters;
-            if not l2bool8z then {
+            if not done then {
                 if (SY <> COLON) then
                     errAndSkip(106 (*:*), skipToSet + [SEMICOLON])
                 else {
@@ -8077,14 +8076,14 @@ procedure exitScope(var arg: array [0..127] of irptr);
         writeLN;
     };
     defineRoutine;
-    while (numLabList <> l2var16z) do {
+    while (numLabList <> labFence) do {
         if not (numLabList@.defined) then {
             write(' ', numLabList@.id.i:0, ':');
-            l2bool8z := false;
+            done := false;
         };
         numLabList := numLabList@.next;
     };
-    if not l2bool8z then {
+    if not done then {
         printTextWord(l2idr2z@.id);
         error(90); (* errLblDefinitionInBlock *)
     };
