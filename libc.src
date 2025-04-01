@@ -1,0 +1,11 @@
+*assem
+ c/shr:,name,
+ ,sti,14
+ 14,asn,64
+ 13,uj,
+ c/shl:,entry,
+ 1,aex,14b . mantissa
+ ,sti,14
+ 14,asn,65
+ 13,uj,
+ ,end,

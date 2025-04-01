@@ -3748,12 +3748,14 @@ var i    : integer; ret: bitset;
                     goto 7760
                 };
                 opfSHIFT: {
-                    if (not arg2Const) then error(200);
-                    prepLoad;
-                    if (curOP = SHRIGHT) then
-                        addToInsnList(ASN64+arg2Val.i)
-                    else
-                        addToInsnList(ASN64-arg2Val.i)
+                    if (not arg2Const) then genHelper
+                    else {
+                        prepLoad;
+                        if (curOP = SHRIGHT) then
+                            addToInsnList(ASN64+arg2Val.i)
+                         else
+                            addToInsnList(ASN64-arg2Val.i)
+                    }
                 }
                 end; (* case 10122 *)
 10122:          insnList@.next@.mode := l3int3z;
@@ -8146,8 +8148,8 @@ var
     opToInsn[badop31] := 24; (* P/RI *)
     opToInsn[MKRANGE] := 61; (* P/PI *)
     opToInsn[SETSUB] := insnTemp[AAX];
-    opToInsn[SHLEFT] := insnTemp[ASN];
-    opToInsn[SHRIGHT] := insnTemp[ASN];
+    opToInsn[SHLEFT] := 98;
+    opToInsn[SHRIGHT] := 99;
     opFlags[AMPERS] := opfAND;
     opFlags[IDIVOP] := opfDIV;
     opFlags[OROP] := opfOR;
@@ -8564,7 +8566,9 @@ procedure initOptions;
         6017565600000000C      (*"P/NN    "*),
         6017634300000000C      (*"P/SC    "*),
         6017444400000000C      (*"P/DD    "*),
-        6017624500000000C      (*"P/RE    "*);
+        6017624500000000C      (*"P/RE    "*),
+        4317635054000000C      (*"C/SHL   "*),
+        4317635062000000C      (*"C/SHR   "*);
     systemProcNames :=
 (*0*)   606564C                (*"     PUT"*),
         474564C                (*"     GET"*),

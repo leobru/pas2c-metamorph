@@ -3,6 +3,7 @@ cat << EOF > tmp$$
 *NAME work
 *disc:1/local
 *file:pascom,42
+*file:libc,43
 *file:work,41
 *file:self,67,w
 *system
@@ -10,6 +11,7 @@ cat << EOF > tmp$$
 *libra:42
 *     taking the work compiler module
 *libra:41
+*libra:43
 *call *pascom
 EOF
 # Compiling the compiler expressed in the syntax currently supported

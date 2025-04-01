@@ -5,6 +5,7 @@ cat << EOF > tmp$$
 *NAME test
 *disc:1/local
 *file:pascom,42
+*file:libc,43
 *file:base,41
 *     runtime library
 *libra:42
@@ -23,6 +24,7 @@ cat << EOF >> tmp$$
 *r:1
 *ll
 *ee
+*libra:43
 *execute
 EOF
 if [ "$2" != "" ]; then
