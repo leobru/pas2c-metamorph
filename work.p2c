@@ -2447,7 +2447,7 @@ var
     } /* with */
     with insnList@ do {
         ilm  =  il2;
-        regsused  =  regsused | [0];
+        regsused  =  regsused | E48;
     }
 } /* prepLoad */
 //
@@ -2820,7 +2820,7 @@ var
     insnList@.next@.mode  =  0;
     saved@.next@.next  =  insnList@.next2;
     insnList@.next2  =  saved@.next2;
-    insnList@.regsused  =  insnList@.regsused | [0];
+    insnList@.regsused  =  insnList@.regsused | E48;
 } /* tryFlip */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2982,7 +2982,7 @@ var
             if (l5var25z) {
                 l5var4z  =  curVal.i - l5var7z;
                 l5var5z  =  insnCopy.typ@.perword;
-                insnCopy.regsused  =  insnCopy.regsused | [0];
+                insnCopy.regsused  =  insnCopy.regsused | E48;
                 insnCopy.ilf6  =  l5var4z / l5var5z + insnCopy.ilf6;
                 l5var6z  =  (l5var5z-1-l5var4z % l5var5z) *
                            insnCopy.typ@.pcksize;
@@ -3370,7 +3370,7 @@ void traceEntry(isEntry: int);
     }
     if (not l5bool7z) {
         insnList@.typ  =  l5idr5z@.typ;
-        insnList@.regsused  =  insnList@.regsused | [0];
+        insnList@.regsused  =  insnList@.regsused | E48;
         insnList@.ilm  =  il2;
         set146z  =  set146z ~ l5var12z;
     }
@@ -3541,16 +3541,6 @@ var
     }
 } /* genComparison */
 //
-function shift(val:int; amt:int):int;
-var i, ret: int;
-{
-    ret = 0U;
-    for (i = 0; i < 48; i=i+1)
-        if ((i-amt) in val)
-            ret = ret | [i];
-    shift = ret;
-}
-//
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* genFullExpr */;
     if (exprToGen == NIL)
@@ -3594,8 +3584,8 @@ var i, ret: int;
                 INTPLUS:    arg1Val.i  =  arg1Val.i + arg2Val.i;
                 INTMINUS:   arg1Val.i  =  arg1Val.i - arg2Val.i;
                 SETOR:      arg1Val.i  =  arg1Val.i | arg2Val.i;
-                SHLEFT:     arg1Val.i  =  shift(arg1Val.i, -arg2Val.i);
-                SHRIGHT:    arg1Val.i  =  shift(arg1Val.i, arg2Val.i);
+                SHLEFT:     arg1Val.i  =  arg1Val.i << arg2Val.i;
+                SHRIGHT:    arg1Val.i  =  arg1Val.i >> arg2Val.i;
                 SETSUB:
                     goto 10075;
                 NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP,
@@ -3751,7 +3741,7 @@ var i, ret: int;
                         }
                         insnList@.width  =  curIdRec@.width;
                         insnList@.st  =  st1;
-                        insnList@.regsused  =  insnList@.regsused | [0];
+                        insnList@.regsused  =  insnList@.regsused | E48;
                     }
                 }
             } else if (curOP == GETELT)
@@ -3862,7 +3852,7 @@ var i, ret: int;
                     }
                     with insnList@ do {
                         ilm  =  il2;
-                        regsused  =  regsused | [0];
+                        regsused  =  regsused | E48;
                     }
                 } else {
                     prepLoad();
@@ -4618,7 +4608,7 @@ var
                 } else {
                     size  =  span * base@.size;
                     curVal.i  =  base@.size;
-                    curVal.i  =  curVal.i & [7:47] | [0];
+                    curVal.i  =  curVal.i & [7:47] | E48;
                     if (range@.base != intType)
                         curVal.i  =  curVal.i | [1, 3];
                     l3typ26z@.perword  =  KMUL+ I8 + getFCSToffset();
@@ -4729,7 +4719,7 @@ var
                     if (l3var5z == kindPtr) {
                         l3typ1z  =  l3typ1z@.base;
                         l3var5z  =  l3typ1z@.k;
-                        l3var3z  =  [0];
+                        l3var3z  =  E48;
                     }
                     if (l3typ1z == realType)
                         curVal.i  =  0;

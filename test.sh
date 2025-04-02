@@ -1,22 +1,23 @@
 #!/bin/sh
 # Compiling a small test program with the base compiler
 # disassembling and running
+rm -f tmp.bin
+sed 's/{/<:/g;s/}/:>/g' < $1 > tmp.utxt
 cat << EOF > tmp$$
 *NAME test
 *disc:1/local
 *file:pascom,42
 *file:libc,43
+*file:tmp,44
 *file:base,41
+*libra:22
 *     runtime library
 *libra:42
 *     taking the base compiler module
 *libra:41
+*call pashelp
+P 2 0 1000440000B .
 *call *pascom
-EOF
-# Compiling a test case expressed in the syntax currently supported
-# by the base compiler.
-sed 's/{/<:/g;s/}/:>/g' < $1 >> tmp$$
-cat << EOF >> tmp$$
 *libra:23
 *call dtran(program)
 *call setftn:one,long
