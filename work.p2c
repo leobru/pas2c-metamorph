@@ -618,9 +618,9 @@ var span: tptr;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void addToHashTab(arg: irptr);
 {
-    curVal.i  =  arg@.id & hashMask;
+    curVal.i  =  arg->id & hashMask;
     mapai(curval.a, curval.i);
-    arg@.next  =  symHash[curval.i];
+    arg->next  =  symHash[curval.i];
     symHash[curval.i]  =  arg;
 } /* addToHashTab */
 //
@@ -711,7 +711,7 @@ function getObjBufIdxPlus: int;
 } /* getObjBufIdxPlus */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formJump(var arg: int);
+void formJump(arg: @int);
 var
     pos: int;
     isLeft: int;
@@ -719,10 +719,10 @@ var
     if (prevOpcode != insnTemp[UJ]) {
         pos  =  getObjBufIdxPlus();
         isLeft  =  putLeft;
-        form1Insn(jumpType + arg);
+        form1Insn(jumpType + arg@);
         if (putLeft == isLeft)
             pos  =  pos - 1;
-        arg  =  pos;
+        arg@  =  pos;
     }
 } /* formJump */
 //
@@ -1095,24 +1095,26 @@ var
     c: char;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void readOptVal(var res: int; limit: int);
+function readOptVal(limit: int): int;
+var t:int;
 {
     nextCH();
-    res  =  0;
+    t  =  0;
     while (('9' >= CH) && (CH >= '0')) {
-        res  =  10 * res + ord(CH) - ord('0');
+        t  =  10 * t + ord(CH) - ord('0');
         nextCH();
         badOpt  =  false;
     }
-    if (limit < res)  badOpt  =  true;
+    if (limit < t)  badOpt  =  true;
+    readOptVal = t;
 } /* readOptVal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void readOptFlag(var res: int);
+void readOptFlag(res: @int);
 {
     nextCH();
     if ((CH == '-') || (CH == '+')) {
-        res  =  CH == '+';
+        res@  =  CH == '+';
         badOpt  =  false;
     }
     nextCH();
@@ -1127,27 +1129,27 @@ void readOptFlag(var res: int);
         badOpt  =  true;
         switch (CH) {
         'D': {
-            readOptVal(curVal.i, 15);
+            curVal.i = readOptVal(15);
             optSflags  =  optSflags & [0..40] | curVal.i & [41..47];
         }
-        'Y': readOptFlag(allowCompat);
-        'E': readOptFlag(declExternal);
+        'Y': readOptFlag(ref(allowCompat));
+        'E': readOptFlag(ref(declExternal));
         'S': {
-            readOptVal(curVal.i, 9);
+            curVal.i = readOptVal(9);
             if (curVal.i == 3)  lineCnt  =  1;
             else if (curVal.i in [4..9])
                 optSflags  =  optSflags | [curVal.i - 3];
         }
-        'F': readOptFlag(checkFortran);
-        'L': readOptVal(PASINFOR.listMode, 3);
-        'P': readOptFlag(doPMD);
-        'T': readOptFlag(checkBounds);
-        'A': readOptVal(charEncoding, 3);
-        'C': readOptFlag(checkTypes);
-        'R': readOptFlag(fuzzReals);
-        'M': readOptFlag(fixMult);
-        'B': readOptVal(fileBufSize, 4);
-        'K': readOptVal(heapSize, 23);
+        'F': readOptFlag(ref(checkFortran));
+        'L': PASINFOR.listMode = readOptVal(3);
+        'P': readOptFlag(ref(doPMD));
+        'T': readOptFlag(ref(checkBounds));
+        'A': charEncoding = readOptVal(3);
+        'C': readOptFlag(ref(checkTypes));
+        'R': readOptFlag(ref(fuzzReals));
+        'M': readOptFlag(ref(fixMult));
+        'B': fileBufSize = readOptVal(4);
+        'K': heapSize = readOptVal(23);
         }
         if (badOpt)
             error(54); /* errErrorInPseudoComment */
@@ -1214,12 +1216,12 @@ void readOptFlag(var res: int);
                 curIdent  =  curToken.i;
                 keywordHashPtr  =  kwordHash[bucket];
                 while (keywordHashPtr != NIL) {
-                    if (keywordHashPtr@.w == curToken.i) {
-                        SY  =  keywordHashPtr@.sym;
-                        charClass  =  keywordHashPtr@.op;
+                    if (keywordHashPtr->w == curToken.i) {
+                        SY  =  keywordHashPtr->sym;
+                        charClass  =  keywordHashPtr->op;
                         exit lexer;
                     }
-                    keywordHashPtr  =  keywordHashPtr@.next;
+                    keywordHashPtr  =  keywordHashPtr->next;
                 }
                 isDefined  =  false;
                 SY  =  IDENT;
@@ -1227,10 +1229,10 @@ void readOptFlag(var res: int);
                 0: {
                     hashTravPtr  =  symHash[bucket];
                     while (hashTravPtr != NIL) {
-                        if (hashTravPtr@.offset == curFrameRegTemplate)
+                        if (hashTravPtr->offset == curFrameRegTemplate)
                         {
-                            if (hashTravPtr@.id != curIdent)
-                                hashTravPtr  =  hashTravPtr@.next;
+                            if (hashTravPtr->id != curIdent)
+                                hashTravPtr  =  hashTravPtr->next;
                             else {
                                 isDefined  =  true;
                                 exit lexer;
@@ -1242,8 +1244,8 @@ void readOptFlag(var res: int);
                 1: {
 2:                  hashTravPtr  =  symHash[bucket];
                     while (hashTravPtr != NIL) {
-                        if (hashTravPtr@.id != curIdent)
-                            hashTravPtr  =  hashTravPtr@.next;
+                        if (hashTravPtr->id != curIdent)
+                            hashTravPtr  =  hashTravPtr->next;
                         else
                             exit lexer;
                     }
@@ -1255,15 +1257,15 @@ void readOptFlag(var res: int);
                     l3var135z  =  typeHash[bucket];
                     if (l3var135z != NIL) {
                         while (expr62z != NIL) {
-                            val  =  expr62z@.typ2@.size;
+                            val  =  expr62z->typ2->size;
                             hashTravPtr  =  l3var135z;
                             while (hashTravPtr != NIL) {
-                                if ((hashTravPtr@.id == curIdent)
-                                && (hashTravPtr@.value == val))
+                                if ((hashTravPtr->id == curIdent)
+                                && (hashTravPtr->value == val))
                                     exit lexer;
-                                hashTravPtr  =  hashTravPtr@.next;
+                                hashTravPtr  =  hashTravPtr->next;
                             }
-                            expr62z  =  expr62z@.expr1;
+                            expr62z  =  expr62z->expr1;
                         }
                     }
                     goto 2;
@@ -1555,6 +1557,9 @@ void readOptFlag(var res: int);
                     nextCH();
                     if (CH == '|') nextCH();
                     else charClass = SETOR;
+                } else if ((charClass == MINUSOP) && (PASINPUT@ == '>')) {
+                    SY = ARROW; nextCH();
+                    CH = '.';
                 } else
                     nextCH();
             }
@@ -1698,10 +1703,10 @@ var
         switch (SY) {
         IDENT: {
             if ((hashTravPtr == NIL) ||
-               (hashTravPtr@.cl != ENUMID))
+               (hashTravPtr->cl != ENUMID))
                 goto 99;
-            litType  =  hashTravPtr@.typ;
-            litValue  =  hashTravPtr@.value;
+            litType  =  hashTravPtr->typ;
+            litValue  =  hashTravPtr->value;
         }
         INTCONST:
             litType  =  intType;
@@ -1722,7 +1727,7 @@ var
     l3var3z, l3var4z: irptr;
 {
     if (l3arg1z == NIL) {
-        curVal.i  =  l3arg2z@.id & hashMask;
+        curVal.i  =  l3arg2z->id & hashMask;
         mapAI(curVal.a, l3var2z);
         l3var1z  =  true;
         l3arg1z  =  symHash[l3var2z];
@@ -1732,29 +1737,29 @@ var
     if (l3arg1z == l3arg2z) {
         if (l3var1z) {
             symHash[l3var2z]  =
-                symHash[l3var2z]@.next;
+                symHash[l3var2z]->next;
         } else {
-            l3arg1z  =  l3arg2z@.next;
+            l3arg1z  =  l3arg2z->next;
         }
     } else {
         l3var3z  =  l3arg1z;
         while (l3var3z != l3arg2z) {
             l3var4z  =  l3var3z;
             if (l3var3z != NIL) {
-                l3var3z  =  l3var3z@.next;
+                l3var3z  =  l3var3z->next;
             } else {
                 exit;
             }
         }
-        l3var4z@.next  =  l3arg2z@.next;
+        l3var4z->next  =  l3arg2z->next;
     }
 } /* P2672 */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function isFileType(typtr: tptr): int;
 {
-    isFileType  =  (typtr@.k == kindFile) ||
-        (typtr@.k == kindStruct) && typtr@.flag;
+    isFileType  =  (typtr->k == kindFile) ||
+        (typtr->k == kindStruct) && typtr->flag;
 } /* isFileType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1763,11 +1768,11 @@ function knownInType(var rec: irptr): int;
     if (typelist != NIL) {
         rec  =  typelist;
         while (rec != NIL) {
-            if (rec@.id == curIdent) {
+            if (rec->id == curIdent) {
                 knownInType  =  true;
                 exit;
             }
-            rec  =  rec@.next;
+            rec  =  rec->next;
         }
     }
     knownInType  =  false;
@@ -1812,16 +1817,16 @@ var
     if (l4var1z) {
         checkRecord  =  l4arg1z == l4arg2z;
     } else {
-        checkRecord  =  typeCheck(l4arg1z@.base, l4arg2z@.base) &&
-                 checkRecord(l4arg1z@.next, l4arg2z@.next);
+        checkRecord  =  typeCheck(l4arg1z->base, l4arg2z->base) &&
+                 checkRecord(l4arg1z->next, l4arg2z->next);
     }
 } /* checkRecord */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* typeCheck */
     rangeMismatch  =  false;
-    if (type1@.k == kindRange) {
-        baseType  =  type1@.base;
+    if (type1->k == kindRange) {
+        baseType  =  type1->base;
     } else {
         baseType  =  type1;
     }
@@ -1830,20 +1835,20 @@ var
     else
         with type1@ do {
             kind1  =  k;
-            kind2  =  type2@.k;
+            kind2  =  type2->k;
             if (kind1 == kind2) {
                 switch (kind1) {
                 kindReal:
                     /* empty */;
                 kindScalar: {
-(chain)             if (type1@.numen == type2@.numen) {
-                        enums1  =  type1@.enums;
-                        enums2  =  type2@.enums;
+(chain)             if (type1->numen == type2->numen) {
+                        enums1  =  type1->enums;
+                        enums2  =  type2->enums;
                         while ((enums1 != NIL) && (enums2 != NIL)) {
-                            if (enums1@.id != enums2@.id)
+                            if (enums1->id != enums2->id)
                                 exit chain;
-                            enums1  =  enums1@.list;
-                            enums2  =  enums2@.list;
+                            enums1  =  enums1->list;
+                            enums2  =  enums2->list;
                         }
                         if ((enums1 == NIL) && (enums2 == NIL))
                             goto 1;
@@ -1852,18 +1857,18 @@ var
                        goto 1;
                 }
                 kindRange: {
-                    baseMatch  =  (type1@.base == type2@.base);
-                    baseType  =  type1@.base;
-                    rangeMismatch  =  (type1@.left != type2@.left) ||
-                                (type1@.right != type2@.right);
+                    baseMatch  =  (type1->base == type2->base);
+                    baseType  =  type1->base;
+                    rangeMismatch  =  (type1->left != type2->left) ||
+                                (type1->right != type2->right);
                     typeCheck  =  baseMatch;
                     exit;
                 }
                 kindPtr: {
                     if ((type1 == pointerType) || (type2 == pointerType))
                         goto 1;
-                    basetyp1  =  type1@.base;
-                    basetyp2  =  type2@.base;
+                    basetyp1  =  type1->base;
+                    basetyp2  =  type2->base;
                     if (chain != NIL) {
                         link  =  chain;
                         while (link != NIL) with link@ do {
@@ -1884,27 +1889,27 @@ var
                     }
                 }
                 kindArray: {
-                    with type1@.range@ do
+                    with type1->range@ do
                         span1  =  right - left;
-                    with type2@.range@ do
+                    with type2->range@ do
                         span2  =  right - left;
-                    if (typeCheck(type1@.base, type2@.base) &&
+                    if (typeCheck(type1->base, type2->base) &&
                        (span1 == span2) &&
-                       (type1@.pck == type2@.pck) &&
+                       (type1->pck == type2->pck) &&
                        !rangeMismatch) {
-                        if (type1@.pck) {
-                            if (type1@.pcksize == type2@.pcksize)
+                        if (type1->pck) {
+                            if (type1->pcksize == type2->pcksize)
                                 goto 1;
                         } else
                             goto 1;
                     }
                 }
                 kindFile: {
-                    if (typeCheck(type1@.base, type2@.base))
+                    if (typeCheck(type1->base, type2->base))
                         goto 1;
                 }
                 kindStruct: {
-                    if (checkRecord(type1@.first, type2@.first))
+                    if (checkRecord(type1->first, type2->first))
                         goto 1;
                 }
                 } /* switch */
@@ -1912,10 +1917,10 @@ var
                 if (kind1 == kindRange) {
                     rangeMismatch  =  true;
                     baseType  =  type2;
-                    if (type1@.base == type2)
+                    if (type1->base == type2)
                         goto 1;
                 } else if ((kind2 == kindRange) &&
-                          (type1 == type2@.base))
+                          (type1 == type2->base))
                     goto 1;
             }
             typeCheck  =  false;
@@ -1928,12 +1933,12 @@ var
     l3var1z: int;
     l3var2z: irptr;
 {
-    l3var2z  =  l3arg1z@.argList;
+    l3var2z  =  l3arg1z->argList;
     l3var1z  =  0;
     if (l3var2z != NIL)
         while (l3var2z != l3arg1z) {
             l3var1z  =  l3var1z + 1;
-            l3var2z  =  l3var2z@.list;
+            l3var2z  =  l3var2z->list;
         }
     F3307  =  l3var1z;
 } /* F3307 */
@@ -2004,14 +2009,14 @@ function F3413: int;
 {
     l4inl7z  =  l4inl6z;
     while (l4inl7z != NIL) {
-        if (l4inl7z@.mode == curInsn) {
+        if (l4inl7z->mode == curInsn) {
             F3413  =  true;
-            while (l4inl7z@.code == macro) {
-                l4inl7z  =  ptr(l4inl7z@.offset);
+            while (l4inl7z->code == macro) {
+                l4inl7z  =  ptr(l4inl7z->offset);
             }
             exit;
         } else {
-            l4inl7z  =  l4inl7z@.next;
+            l4inl7z  =  l4inl7z->next;
         }
     }
     F3413  =  false;
@@ -2022,10 +2027,10 @@ void addJumpInsn(opcode: int);
 {
     if (!F3413()) {
         new(l4inl7z);
-        l4inl7z@.next  =  l4inl6z;
-        l4inl7z@.mode  =  curInsn;
-        l4inl7z@.code  =  0;
-        l4inl7z@.offset  =  0;
+        l4inl7z->next  =  l4inl6z;
+        l4inl7z->mode  =  curInsn;
+        l4inl7z->code  =  0;
+        l4inl7z->offset  =  0;
         l4inl6z  =  l4inl7z;
     }
     addInsnToBuf(macro + opcode + ord(l4inl7z));
@@ -2035,18 +2040,18 @@ void addJumpInsn(opcode: int);
 { /* genOneOp */
     if (insnList == NIL)
          exit;
-    set145z  =  set145z | insnList@.regsused;
-    l4oi212z  =  insnList@.next2;
+    set145z  =  set145z | insnList->regsused;
+    l4oi212z  =  insnList->next2;
     l4var9z  =  0370007;
     insnBufIdx  =  1;
     if (l4oi212z == NIL)
         exit;
     l4inl6z  =  NIL;
     while (l4oi212z != NIL) {
-        tempInsn  =  l4oi212z@.code;
+        tempInsn  =  l4oi212z->code;
         l4var4z  =  tempInsn -  macro;
-        curInsn  =  l4oi212z@.offset;
-        switch (l4oi212z@.mode) {
+        curInsn  =  l4oi212z->offset;
+        switch (l4oi212z->mode) {
          0: ;
          1: if (arithMode != 1) {
                 addInsnToBuf(0370007);
@@ -2059,7 +2064,7 @@ void addJumpInsn(opcode: int);
             }
          4: arithMode  =  2;
         } /* switch */
-        l4oi212z  =  l4oi212z@.next;
+        l4oi212z  =  l4oi212z->next;
         if (l4var4z >= 0) {
             switch (l4var4z) {
             mcCARD: add2InsnsToBuf(KACX, KAEX+ZERO);
@@ -2101,9 +2106,9 @@ void addJumpInsn(opcode: int);
             mcPUSH:
 (blk)       {
                 if (l4oi212z != NIL) {
-                    tempInsn  =  l4oi212z@.code;
+                    tempInsn  =  l4oi212z->code;
                     if (tempInsn & [21:23, 28:35] == [32]) {
-                        l4oi212z@.code  =
+                        l4oi212z->code  =
                             tempInsn - insnTemp[XTA] + insnTemp[XTS];
                         exit blk;
                     }
@@ -2257,7 +2262,7 @@ void addJumpInsn(opcode: int);
             if (curInsn != 0) {
                 if (not F3413())
                     error(211);
-                P0715(0, l4inl7z@.code);
+                P0715(0, l4inl7z->code);
             }
             l4var213z  =  not l4var213z;
             P3363();
@@ -2266,15 +2271,15 @@ void addJumpInsn(opcode: int);
         }
         if (curInsn >= 2*macro) {
             l4inl7z  =  ptr(curInsn - (2*macro));
-            P0715(0, l4inl7z@.code);
-            l4inl7z@.offset  =  moduleOffset;
+            P0715(0, l4inl7z->code);
+            l4inl7z->offset  =  moduleOffset;
         } else {
             curInsn  =  curInsn - macro;
             curVal.i  =  curInsn & [0, 1, 3, 28:32];
             jumpType  =  curVal.i;
             curVal.i  =  [0, 1, 3, 33:47] & curInsn;
             l4inl7z  =  ptr(curVal.i);
-            formJump(l4inl7z@.code);
+            formJump(ref(l4inl7z->code));
             jumpType  =  insnTemp[UJ];
             exit iter;
         }
@@ -2306,7 +2311,7 @@ var elt: oiptr;
         if (next == NIL)
             next2  =  elt;
         else
-            next@.next  =  elt;
+            next->next  =  elt;
         next  =  elt;
     }
 } /* addToInsnList */
@@ -2315,7 +2320,7 @@ var elt: oiptr;
 void addInsnAndOffset(insn, l4arg2z: int);
 {
     addToInsnList(insn);
-    insnlist@.next@.offset  =  l4arg2z;
+    insnlist->next->offset  =  l4arg2z;
 } /* addInsnAndOffset */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2325,15 +2330,15 @@ var
 {
     new(elt);
     with elt@ do {
-        next  =  insnList@.next2;
+        next  =  insnList->next2;
         mode  =  0;
         code  =  insn;
         offset  =  0;
     }
-    if (insnList@.next2 == NIL) {
-        insnList@.next  =  elt;
+    if (insnList->next2 == NIL) {
+        insnList->next  =  elt;
     }
-    insnList@.next2  =  elt;
+    insnList->next2  =  elt;
 } /* addxToInsnList */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2347,27 +2352,27 @@ var
     l4st6z: state;
     l4bool7z, l4bool8z, l4bool9z: int;
 {
-    l4typ4z  =  insnList@.typ;
+    l4typ4z  =  insnList->typ;
     with insnList@ do {
         switch (ilm) {
         ilCONST: {
             curVal.i  =  ilf5;
-            if (l4typ4z@.size == 1)
+            if (l4typ4z->size == 1)
                 curVal.i  =  getFCSToffset();
             addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
         }
         il1: {
-            helper  =  insnList@.ilf7;
-            l4int2z  =  insnList@.ilf5;
-            l4int3z  =  insnList@.ilf6;
+            helper  =  insnList->ilf7;
+            l4int2z  =  insnList->ilf5;
+            l4int3z  =  insnList->ilf6;
             if (15 < helper) {
                 /* empty */
             } else {
                 if (helper == 15) { /* P/CP */
                     addToInsnList(macro + mcACC2ADDR);
                 } else {
-                    helper  =  indexreg[insnList@.ilf7];
-                    if ((l4int2z == 0) && (insnList@.st == st0)) {
+                    helper  =  indexreg[insnList->ilf7];
+                    if ((l4int2z == 0) && (insnList->st == st0)) {
                         addInsnAndOffset(helper + curInsnTemplate,
                                          l4int3z);
                         goto 4602;
@@ -2376,11 +2381,11 @@ var
                     }
                 }
             }
-            l4st6z  =  insnList@.st;
+            l4st6z  =  insnList->st;
             if (l4st6z == st0) {
                 addInsnAndOffset(l4int2z + curInsnTemplate, l4int3z);
             } else {
-                l4var5z  =  l4typ4z@.k;
+                l4var5z  =  l4typ4z->k;
                 if ((l4var5z < kindArray) ||
                    (l4var5z == kindStruct) && (s6 in optSflags)) {
                     l4bool7z  =  true;
@@ -2395,8 +2400,8 @@ var
                        (l4int2z != 0))
                         addInsnAndOffset(l4int2z + insnTemp[XTA],
                                          l4int3z);
-                    l4int3z  =  insnList@.shift;
-                    l4int2z  =  insnList@.width;
+                    l4int3z  =  insnList->shift;
+                    l4int2z  =  insnList->width;
                     l4bool9z  =  true;
                     helper  =  l4int3z + l4int2z;
                     if (l4bool7z) {
@@ -2427,20 +2432,20 @@ var
                     else
                         helper  =  56; /* P/RR */
                     addToInsnList(getHelperProc(helper));
-                    insnList@.next@.mode  =  1;
+                    insnList->next->mode  =  1;
                 }
             }
             goto 4545;
         }
         il2: {
 4545:       if (forValue && (l4typ4z == boolType) &&
-               (16 in insnList@.regsused))
+               (16 in insnList->regsused))
                 addToInsnList(KAEX+E1);
         }
         il3: {
             if (forValue)
                 addInsnAndOffset(macro+mcCOND2INT,
-                    ord(16 in insnList@.regsused)*010000 + insnList@.ilf5);
+                    ord(16 in insnList->regsused)*010000 + insnList->ilf5);
         }
         } /* switch */
 4602:
@@ -2469,7 +2474,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void getOffset;
 {
-      l4var6z = insnList@.ilf6 % 32768;
+      l4var6z = insnList->ilf6 % 32768;
 } /* getOffset */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2482,7 +2487,7 @@ void getOffset;
         regsused  =  regsused | [reg];
         if (ilm == ilCONST) {
             curVal.i  =  ilf5;
-            if (typ@.size == 1)
+            if (typ->size == 1)
                 curVal.i  =  addCurValToFCST();
             l4var6z  =  curVal.i;
             l4var5z  =  074001;
@@ -2502,13 +2507,13 @@ void getOffset;
             }
         } else if (l4int2z == 17) {
             getOffset();
-            l4var4z  =  insnList@.ilf6;
-            l4var5z  =  insnList@.next@.code - insnTemp[UTC];
+            l4var4z  =  insnList->ilf6;
+            l4var5z  =  insnList->next->code - insnTemp[UTC];
             if (l4var4z != 0) {
                 l4var1z  =  macro * l4var5z + l4var4z;
                 l4var5z  =  allocSymtab(l4var1z & 0777777777777U);
             }
-            insnList@.next@.code  =  regField + l4var5z + opCode;
+            insnList->next->code  =  regField + l4var5z + opCode;
         } else if (l4int2z == 16) {
             getOffset();
             if (l4var4z != 0)
@@ -2549,26 +2554,26 @@ var
     } else {
         addToInsnList(indexreg[l4int1z] + insnTemp[UTC]);
     }
-    l4bool4z  =  0 in insnList@.regsused;
-    l4st6z  =  insnList@.st;
+    l4bool4z  =  0 in insnList->regsused;
+    l4st6z  =  insnList->st;
     if ((l4st6z != st0) || l4bool4z)
         addxToInsnList(macro + mcPUSH);
     if (l4st6z == st0) {
         if (l4bool4z) {
-            addInsnAndOffset(insnList@.ilf5 + insnTemp[UTC],
-                             insnList@.ilf6);
+            addInsnAndOffset(insnList->ilf5 + insnTemp[UTC],
+                             insnList->ilf6);
             addToInsnList(macro+mcPOP2ADDR);
         } else {
-            addInsnAndOffset(insnList@.ilf5, insnList@.ilf6);
+            addInsnAndOffset(insnList->ilf5, insnList->ilf6);
         }
     } else {
-        l4var7z  =  insnList@.typ@.k;
-        l4int1z  =  insnList@.typ@.bits;
+        l4var7z  =  insnList->typ->k;
+        l4int1z  =  insnList->typ->bits;
         l4bool5z  =  (l4var7z < kindArray) ||
                      (l4var7z == kindStruct) && ((E48 >> S6) & optSflags);
         if (l4st6z == st1) {
-            l4int2z  =  insnList@.shift;
-            l4int3z  =  l4int2z + insnList@.width;
+            l4int2z  =  insnList->shift;
+            l4int3z  =  l4int2z + insnList->width;
             if (l4bool5z) {
                 if (l4int2z != 0)
                     addxToInsnList(ASN64 - l4int2z);
@@ -2576,20 +2581,20 @@ var
                 if (l4int3z != 48)
                     addxToInsnList(ASN64 + 48 - l4int3z);
             }
-            addInsnAndOffset(insnTemp[UTC] + insnList@.ilf5,
-                             insnList@.ilf6);
+            addInsnAndOffset(insnTemp[UTC] + insnList->ilf5,
+                             insnList->ilf6);
             curVal.i  =  [0..47] ~ [(48-l4int3z)..(47 -l4int2z)];
             addInsnAndOffset(macro+mcPCKSTORE, getFCSToffset());
         } else {
             if (not l4bool5z) {
-                l4int2z  =  (insnList@.width - l4int1z);
+                l4int2z  =  (insnList->width - l4int1z);
                 if (l4int2z != 0)
                     addxToInsnList(ASN64 - l4int2z);
                 addxToInsnList(insnTemp[YTA]);
                 addxToInsnList(ASN64 - l4int1z);
             }
             addToInsnList(getHelperProc(77)); /* "P/STAR" */
-            insnList@.next@.mode  =  1;
+            insnList->next->mode  =  1;
         }
     }
 } /* prepStore */
@@ -2600,10 +2605,10 @@ void P5117(op: operator);
     addInsnAndOffset(curFrameRegTemplate, localSize);
     new(curExpr);
     with curExpr@ do
-        typ  =  insnList@.typ;
+        typ  =  insnList->typ;
     genOneOp();
-    curExpr@.op  =  op;
-    curExpr@.num1  =  localSize;
+    curExpr->op  =  op;
+    curExpr->num1  =  localSize;
     localSize  =  localSize + 1;
     if (l2int21z < localSize)
         l2int21z  =  localSize;
@@ -2616,9 +2621,9 @@ var
     cur: oiptr;
 {
     cnt  =  0;
-    cur  =  insnList@.next2;
+    cur  =  insnList->next2;
     while (cur != NIL) {
-        cur  =  cur@.next;
+        cur  =  cur->next;
         cnt  =  cnt + 1;
     }
     insnCount  =  cnt;
@@ -2639,11 +2644,11 @@ var
 void P5155;
 {
     prepLoad();
-    insnList@.ilm  =  il1;
-    insnList@.st  =  st0;
-    insnList@.ilf6  =  0;
-    insnList@.ilf5  =  0;
-    insnList@.ilf7  =  18;
+    insnList->ilm  =  il1;
+    insnList->st  =  st0;
+    insnList->ilf6  =  0;
+    insnList->ilf5  =  0;
+    insnList->ilf7  =  18;
 } /* P5155 */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2656,18 +2661,18 @@ var
     doPtrCheck  =  checkBounds && not (NoPtrCheck in optSflags)
                && (curOP == DEREF);
     if (not doPtrCheck && (
-        (insnList@.st == st0) ||
-        (insnList@.st == st1) &&
-        (insnList@.shift == 0)))
+        (insnList->st == st0) ||
+        (insnList->st == st1) &&
+        (insnList->shift == 0)))
      {
-        l5var1z  =  insnList@.ilf7;
-        l5var2z  =  insnList@.ilf6;
+        l5var1z  =  insnList->ilf7;
+        l5var2z  =  insnList->ilf6;
         if ((l5var1z == 18) || (l5var1z == 16)) {
-5220:       addInsnAndOffset((insnList@.ilf5 + insnTemp[WTC]), l5var2z);
+5220:       addInsnAndOffset((insnList->ilf5 + insnTemp[WTC]), l5var2z);
         } else {
             if (l5var1z == 17) {
                 if (l5var2z == 0) {
-                    insnList@.next@.code  =  insnList@.next@.code +
+                    insnList->next->code  =  insnList->next->code +
                                                 insnTemp[XTA];
                 } else
                     goto 5220;
@@ -2684,13 +2689,13 @@ var
         if (doPtrCheck) {
             addToInsnList(KVTM+I14 + lineCnt);
             addToInsnList(getHelperProc(7)); /* "P/CA"*/
-            insnList@.next@.mode  =  1;
+            insnList->next->mode  =  1;
         }
         addToInsnList(macro + mcACC2ADDR);
     }
-    insnList@.ilf6  =  0;
-    insnList@.ilf5  =  0;
-    insnList@.ilf7  =  16;
+    insnList->ilf6  =  0;
+    insnList->ilf5  =  0;
+    insnList->ilf7  =  16;
 } /* genDeref */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2701,9 +2706,9 @@ void genHelper;
     insnList  =  otherIns;
     prepLoad();
     addToInsnList(getHelperProc(nextInsn));
-    insnList@.regsused  =  insnList@.regsused | saved@.regsused | [11:14];
-    saved@.next@.next  =  insnList@.next2;
-    insnList@.next2  =  saved@.next2;
+    insnList->regsused  =  insnList->regsused | saved->regsused | [11:14];
+    saved->next->next  =  insnList->next2;
+    insnList->next2  =  saved->next2;
 } /* genHelper */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2712,7 +2717,7 @@ var
     l5var1z: int;
     l5var2z: @insnltyp;
 {
-    l5var1z  =  12 in otherIns@.regsused;
+    l5var1z  =  12 in otherIns->regsused;
     setAddrTo(12);
     if (l5var1z) {
         addToInsnList(KITA+12);
@@ -2725,9 +2730,9 @@ var
         addToInsnList(macro + mcPOP);
         addToInsnList(KATI+12);
     }
-    l5var2z@.regsused  =  insnList@.regsused | l5var2z@.regsused;
-    l5var2z@.next@.next  =  insnList@.next2;
-    l5var2z@.next  =  insnList@.next;
+    l5var2z->regsused  =  insnList->regsused | l5var2z->regsused;
+    l5var2z->next->next  =  insnList->next2;
+    l5var2z->next  =  insnList->next;
     insnList  =  l5var2z;
 } /* prepMultiWord */
 //
@@ -2737,17 +2742,17 @@ var
     l5var1z: int;
     l5var2z, l5var3z, l5var4z: int;
 {
-    l5var1z  =  l5arg1z@.checker;
+    l5var1z  =  l5arg1z->checker;
     if (l5var1z == 0) {
-        curVal.i  =  l5arg1z@.left;
-        l5var4z  =  l5arg1z@.right;
-        if (l5arg1z@.base != intType) {
+        curVal.i  =  l5arg1z->left;
+        l5var4z  =  l5arg1z->right;
+        if (l5arg1z->base != intType) {
             curVal.i  =  curVal.i & [7:47];
             l5var4z  =  l5var4z & [7:47];
         }
         prevOpcode  =  0;
         formAndAlign(KUJ+5 + moduleOffset);
-        l5arg1z@.checker  =  moduleOffset;
+        l5arg1z->checker  =  moduleOffset;
         l5var1z  =  moduleOffset;
         P0715(1, l5var4z);
         formAndAlign(KUJ+I13);
@@ -2755,16 +2760,16 @@ var
     prepLoad();
     addToInsnList(KVTM+I14 + lineCnt);
     addToInsnList(KVJM+I13 + l5var1z);
-    insnList@.next@.mode  =  1;
+    insnList->next->mode  =  1;
 } /* genCheckBounds */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void negateCond;
 {
-    if (insnList@.ilm == ilCONST) {
-        insnList@.ilf5  =  not insnList@.ilf5;
+    if (insnList->ilm == ilCONST) {
+        insnList->ilf5  =  not insnList->ilf5;
     } else {
-        insnList@.regsused  =  insnList@.regsused ^ [16];
+        insnList->regsused  =  insnList->regsused ^ [16];
     }
 } /* negateCond */
 //
@@ -2776,9 +2781,9 @@ var
     l5var1z: int;
     l5var2z: @insnltyp;
 {
-    if (not (0 in otherIns@.regsused)) {
+    if (not (0 in otherIns->regsused)) {
         l5var1z  =  0;
-    } else if (not (0 in insnList@.regsused)) {
+    } else if (not (0 in insnList->regsused)) {
         l5var1z  =  (commutes|0) + 1;
     } else {
         l5var1z  =  3;
@@ -2817,10 +2822,10 @@ var
         insnList  =  l5var2z;
     }
     } /* switch */
-    insnList@.next@.mode  =  0;
-    saved@.next@.next  =  insnList@.next2;
-    insnList@.next2  =  saved@.next2;
-    insnList@.regsused  =  insnList@.regsused | E48;
+    insnList->next->mode  =  0;
+    saved->next->next  =  insnList->next2;
+    insnList->next2  =  saved->next2;
+    insnList->regsused  =  insnList->regsused | E48;
 } /* tryFlip */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2838,25 +2843,25 @@ var
         if (not arg2Val.i)
             insnList  =  otherIns;
     } else {
-        l5var1z  =  16 in insnList@.regsused;
-        l5var2z  =  16 in otherIns@.regsused;
+        l5var1z  =  16 in insnList->regsused;
+        l5var2z  =  16 in otherIns->regsused;
         l5var5z  =  int94z;
         int94z  =  int94z + 1;
         forValue  =  false;
         l5var6z  =  (l5var1z|0) + macro;
         l5var7z  =  (l5var2z|0) + macro;
-        if (insnList@.ilm == il3) {
-            l5var3z  =  insnList@.ilf5;
+        if (insnList->ilm == il3) {
+            l5var3z  =  insnList->ilf5;
         } else {
             l5var3z  =  0;
             prepLoad();
         }
-        if (otherIns@.ilm == il3) {
-            l5var4z  =  otherIns@.ilf5;
+        if (otherIns->ilm == il3) {
+            l5var4z  =  otherIns->ilf5;
         } else {
             l5var4z  =  0;
         }
-        l5var9z  =  (insnList@.regsused | otherIns@.regsused);
+        l5var9z  =  (insnList->regsused | otherIns->regsused);
         if (l5var3z == 0) {
             if (l5var4z == 0) {
                 addInsnAndOffset(l5var6z, l5var5z);
@@ -2923,11 +2928,11 @@ var
                 }
             }
         }
-        insnList@.regsused  =  l5var9z ~ [16];
-        l5ins8z@.next@.next  =  insnList@.next2;
-        insnList@.next2  =  l5ins8z@.next2;
-        insnList@.ilm  =  il3;
-        insnList@.ilf5  =  l5var5z;
+        insnList->regsused  =  l5var9z ~ [16];
+        l5ins8z->next->next  =  insnList->next2;
+        insnList->next2  =  l5ins8z->next2;
+        insnList->ilm  =  il3;
+        insnList->ilf5  =  l5var5z;
         forValue  =  true;
     }
 } /* genBoolAnd */
@@ -2951,11 +2956,11 @@ var
 { /* genGetElt */
     dimCnt  =  0;
     l5var29z  =  exprToGen;
-    while (l5var29z@.op == GETELT) {
-        genFullExpr(l5var29z@.expr2);
+    while (l5var29z->op == GETELT) {
+        genFullExpr(l5var29z->expr2);
         dimCnt  =  dimCnt + 1;
         getEltInsns[dimCnt]  =  insnList;
-        l5var29z  =  l5var29z@.expr1;
+        l5var29z  =  l5var29z->expr1;
     }
     genFullExpr(l5var29z);
     l5ins21z  =  insnList;
@@ -2963,58 +2968,58 @@ var
     copyPtr  =  ref(insnCopy);
     l5var22z  =  freeRegs;
     for (curDim = 1; curDim <= dimCnt; curDim=curDim+1)
-       l5var22z  =  l5var22z ~ getEltInsns[curDim]@.regsused;
+       l5var22z  =  l5var22z ~ getEltInsns[curDim]->regsused;
     for (curDim = dimCnt; curDim >= 1; curDim=curDim-1) {
-        l5var26z  =  insnCopy.typ@.base;
-        l5var27z  =  insnCopy.typ@.range;
-        l5var25z  =  insnCopy.typ@.pck;
-        l5var7z  =  l5var27z@.left;
-        l5var8z  =  l5var26z@.size;
+        l5var26z  =  insnCopy.typ->base;
+        l5var27z  =  insnCopy.typ->range;
+        l5var25z  =  insnCopy.typ->pck;
+        l5var7z  =  l5var27z->left;
+        l5var8z  =  l5var26z->size;
         if (not l5var25z)
             insnCopy.ilf6  =  insnCopy.ilf6 - l5var8z * l5var7z;
         insnList  =  getEltInsns[curDim];
-        l5ilm28z  =  insnList@.ilm;
+        l5ilm28z  =  insnList->ilm;
         if (l5ilm28z == ilCONST) {
-            curVal.i  =  insnList@.ilf5 | intZero;
+            curVal.i  =  insnList->ilf5 | intZero;
             if ((curVal.i < l5var7z) ||
-               (l5var27z@.right < curVal.i))
+               (l5var27z->right < curVal.i))
                 error(29); /* errIndexOutOfBounds */
             if (l5var25z) {
                 l5var4z  =  curVal.i - l5var7z;
-                l5var5z  =  insnCopy.typ@.perword;
+                l5var5z  =  insnCopy.typ->perword;
                 insnCopy.regsused  =  insnCopy.regsused | E48;
                 insnCopy.ilf6  =  l5var4z / l5var5z + insnCopy.ilf6;
                 l5var6z  =  (l5var5z-1-l5var4z % l5var5z) *
-                           insnCopy.typ@.pcksize;
+                           insnCopy.typ->pcksize;
                 switch (insnCopy.st) {
                 st0: insnCopy.shift  =  l5var6z;
                 st1: insnCopy.shift  =  insnCopy.shift + l5var6z +
-                                           insnCopy.typ@.bits - 48;
+                                           insnCopy.typ->bits - 48;
                 st2: error(errUsingVarAfterIndexingPackedArray);
                 } /* switch */
-                insnCopy.width  =  insnCopy.typ@.pcksize;
+                insnCopy.width  =  insnCopy.typ->pcksize;
                 insnCopy.st  =  st1;
             }  else {
-                insnCopy.ilf6  =  curVal.i  * l5var26z@.size +
+                insnCopy.ilf6  =  curVal.i  * l5var26z->size +
                                   insnCopy.ilf6;
             }
         } else {
 /*
             if (checkBounds) {
-                l5var24z  =  typeCheck(l5var27z, insnList@.typ);
+                l5var24z  =  typeCheck(l5var27z, insnList->typ);
                 if (rangeMismatch)
                     genCheckBounds(l5var27z);
             }
 */
             if (l5var8z != 1) {
                 prepLoad();
-                if (l5var27z@.base == intType) {
+                if (l5var27z->base == intType) {
                     l5var4z  =  KYTA+64;
                 } else {
                     l5var4z  =  KYTA+64-40;
                 }
-                addToInsnList(insnCopy.typ@.perword);
-                insnList@.next@.mode  =  1;
+                addToInsnList(insnCopy.typ->perword);
+                insnList->next->mode  =  1;
                 if (l5var7z >= 0)
                     addToInsnList(l5var4z);
                 else
@@ -3022,12 +3027,12 @@ var
            }
            if ((l5ilm28z == il3) ||
               (l5ilm28z == il1) &&
-              (insnList@.st != st0))
+              (insnList->st != st0))
                prepLoad();
-           l5var23z  =  insnCopy.regsused | insnList@.regsused;
+           l5var23z  =  insnCopy.regsused | insnList->regsused;
            if (not l5var25z) {
                if (insnCopy.ilf7 == 18) {
-                    if (insnList@.ilm == il2) {
+                    if (insnList->ilm == il2) {
                         insnCopy.ilf7  =  15;
                     } else {
                         insnCopy.ilf7  =  16;
@@ -3035,8 +3040,8 @@ var
                         prepLoad();
                         curInsnTemplate  =  insnTemp[XTA];
                     }
-                    insnCopy.next  =  insnList@.next;
-                    insnCopy.next2  =  insnList@.next2;
+                    insnCopy.next  =  insnList->next;
+                    insnCopy.next2  =  insnList->next2;
                 } else {
                     if (insnCopy.ilf7 >= 15) {
                         l5var1z  =   minel(l5var22z);
@@ -3059,14 +3064,14 @@ var
                     } else {
                             l5var1z  =  insnCopy.ilf7;
                     }
-                    if (l5var1z IN insnList@.regsused) {
+                    if (l5var1z IN insnList->regsused) {
                          push();
-                         insnList@.next@.next  =  insnCopy.next2;
-                         insnCopy.next2  =  insnList@.next2;
+                         insnList->next->next  =  insnCopy.next2;
+                         insnCopy.next2  =  insnList->next2;
                          insnList  =  copyPtr;
                          addInsnAndOffset(macro+mcADDSTK2REG, l5var1z);
                     } else {
-                         if (insnList@.ilm == il2) {
+                         if (insnList->ilm == il2) {
                              addInsnAndOffset(macro+mcADDACC2REG, l5var1z);
                          } else {
                              curInsnTemplate  =  insnTemp[WTC];
@@ -3074,8 +3079,8 @@ var
                              curInsnTemplate  =  insnTemp[XTA];
                              addToInsnList(indexreg[l5var1z] + insnTemp[UTM]);
                          }
-                         insnCopy.next@.next  =  insnList@.next2;
-                         insnCopy.next  =  insnList@.next;
+                         insnCopy.next->next  =  insnList->next2;
+                         insnCopy.next  =  insnList->next;
                      }
                 }
            } else {
@@ -3083,10 +3088,10 @@ var
                     prepLoad();
                     if (l5var7z != 0) {
                         curVal.i  =  0 - l5var7z;
-                        if (not typeCheck(insnList@.typ, intType))
+                        if (not typeCheck(insnList->typ, intType))
                             curVal.i  =  curVal.i ~ intZero;
                         addToInsnList(KADD+I8 + getFCSToffset());
-                        insnList@.next@.mode  =  1;
+                        insnList->next->mode  =  1;
                     }
                     l5var24z  =  0 in insnCopy.regsused;
                     if (l5var24z)
@@ -3100,7 +3105,7 @@ var
                     insnCopy.st  =  st2;
                     insnCopy.ilf6  =  0;
                     insnCopy.ilf5  =  0;
-                    insnCopy.width  =  insnCopy.typ@.pcksize;
+                    insnCopy.width  =  insnCopy.typ->pcksize;
                     curVal.i  =  insnCopy.width;
                     if (curVal.i == 24)
                         curVal.i  =  7;
@@ -3109,8 +3114,8 @@ var
                         helperNames[76] | curVal.i)+(KVTM+I11));
                     insnCopy.ilf7  =  16;
                     insnCopy.shift  =  0;
-                    saved@.next@.next  =  insnCopy.next2;
-                    insnCopy.next2  =  saved@.next2;
+                    saved->next->next  =  insnCopy.next2;
+                    insnCopy.next2  =  saved->next2;
                 } else {
                     error(errUsingVarAfterIndexingPackedArray);
                 }
@@ -3138,17 +3143,17 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function allocGlobalObject(l6arg1z: irptr): int;
 {
-    if (l6arg1z@.pos == 0) {
-        if (l6arg1z@.flags & [20, 21] != 0U) {
-            curVal.i  =  l6arg1z@.id;
+    if (l6arg1z->pos == 0) {
+        if (l6arg1z->flags & [20, 21] != 0U) {
+            curVal.i  =  l6arg1z->id;
             curVal.i  =  makeNameWithStars();
-            l6arg1z@.pos  =  allocExtSymbol(extSymMask);
+            l6arg1z->pos  =  allocExtSymbol(extSymMask);
         } else {
-            l6arg1z@.pos  =  symTabPos;
+            l6arg1z->pos  =  symTabPos;
             putToSymTab(0U);
         }
     }
-    allocGlobalObject  =  l6arg1z@.pos;
+    allocGlobalObject  =  l6arg1z->pos;
 } /* allocGlobalObject */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3156,7 +3161,7 @@ void traceEntry(isEntry: int);
 {
     if (not (debugEntry in optSflags))
         exit;
-    curVal.i  =  l5idr5z@.id;
+    curVal.i  =  l5idr5z->id;
     addToInsnList(KVTM+I10 + addCurValToFCST());
     if (isEntry)
         addToInsnList(KVTM+I11 + lineCnt);
@@ -3164,29 +3169,29 @@ void traceEntry(isEntry: int);
 } /* traceEntry */
 //
 { /* genEntry */
-    l5exp1z  =  exprToGen@.expr1;
-    l5idr5z  =  exprToGen@.id2;
-    l5bool7z  =  (l5idr5z@.typ == NIL);
-    l5bool9z  =  (l5idr5z@.list == NIL);
+    l5exp1z  =  exprToGen->expr1;
+    l5idr5z  =  exprToGen->id2;
+    l5bool7z  =  (l5idr5z->typ == NIL);
+    l5bool9z  =  (l5idr5z->list == NIL);
     if (l5bool7z)
         l5var13z  =  3;
     else
         l5var13z  =  4;
-    l5var12z  =  l5idr5z@.flags;
+    l5var12z  =  l5idr5z->flags;
     l5bool10z  =  (21 in l5var12z);
     l5bool11z  =  (24 in l5var12z);
     if (l5bool9z) {
         l5var14z  =  F3307(l5idr5z);
-        l5idr6z  =  l5idr5z@.argList;
+        l5idr6z  =  l5idr5z->argList;
     } else {
         l5var13z  =  l5var13z + 2;
     }
     new(insnList);
-    insnList@.next2  =  NIL;
-    insnList@.next  =  NIL;
-    insnList@.typ  =  l5idr5z@.typ;
-    insnList@.regsused  =  (l5idr5z@.flags | [7:15]) & [0:8, 10:15];
-    insnList@.ilm  =  il2;
+    insnList->next2  =  NIL;
+    insnList->next  =  NIL;
+    insnList->typ  =  l5idr5z->typ;
+    insnList->regsused  =  (l5idr5z->flags | [7:15]) & [0:8, 10:15];
+    insnList->ilm  =  il2;
     if (l5bool10z) {
         l5bool8z  =  not l5bool7z;
         if (checkFortran) {
@@ -3202,38 +3207,38 @@ void traceEntry(isEntry: int);
     l5var14z  =  0;
 (loop)
     while (l5exp1z != NIL) {
-        l5exp2z  =  l5exp1z@.expr2;
-        l5exp1z  =  l5exp1z@.expr1;
-        l5op21z  =  l5exp2z@.op;
+        l5exp2z  =  l5exp1z->expr2;
+        l5exp1z  =  l5exp1z->expr1;
+        l5op21z  =  l5exp2z->op;
         l5var14z  =  l5var14z + 1;
         l5inl20z  =  insnList;
         if ((l5op21z == PCALL) || (l5op21z == FCALL)) {
-            l5idr4z  =  l5exp2z@.id2;
+            l5idr4z  =  l5exp2z->id2;
             new(insnList);
-            insnList@.next2  =  NIL;
-            insnList@.next  =  NIL;
-            insnList@.regsused  =  0U;
-            set145z  =  set145z | l5idr4z@.flags;
-            if (l5idr4z@.list != NIL) {
-                addToInsnList(l5idr4z@.offset + insnTemp[XTA] +
-                              l5idr4z@.value);
+            insnList->next2  =  NIL;
+            insnList->next  =  NIL;
+            insnList->regsused  =  0U;
+            set145z  =  set145z | l5idr4z->flags;
+            if (l5idr4z->list != NIL) {
+                addToInsnList(l5idr4z->offset + insnTemp[XTA] +
+                              l5idr4z->value);
                 if (l5bool10z)
                     addToInsnList(getHelperProc(19)); /* "P/EA" */
             } else
 (a)         {
-                if (l5idr4z@.value == 0) {
-                    if ((l5bool10z) && (21 in l5idr4z@.flags)) {
+                if (l5idr4z->value == 0) {
+                    if ((l5bool10z) && (21 in l5idr4z->flags)) {
                         addToInsnList(allocGlobalObject(l5idr4z) +
                                       (KVTM+I14));
                         addToInsnList(KITA+14);
                         exit a;
                     } else {
                         l5var16z  =  0;
-                        formJump(l5var16z);
+                        formJump(ref(l5var16z));
                         padToLeft();
-                        l5idr4z@.value  =  moduleOffset;
-                        l5idr3z  =  l5idr4z@.argList;
-                        l5var15z  =  ord(l5idr4z@.typ != NIL);
+                        l5idr4z->value  =  moduleOffset;
+                        l5idr3z  =  l5idr4z->argList;
+                        l5var15z  =  ord(l5idr4z->typ != NIL);
                         l5var17z  =  F3307(l5idr4z);
                         form3Insn(KVTM+I10+ 4+moduleOffset,
                                   KVTM+I9 + l5var15z,
@@ -3250,20 +3255,20 @@ void traceEntry(isEntry: int);
                             allocGlobalObject(l5idr4z) + KUJ);
                         if (l5idr3z != NIL) {
                             do {
-                                l5idc22z  =  l5idr3z@.cl;
+                                l5idc22z  =  l5idr3z->cl;
                                 if ((l5idc22z == ROUTINEID) &&
-                                   (l5idr3z@.typ != NIL))
+                                   (l5idr3z->typ != NIL))
                                     l5idc22z  =  ENUMID;
                                 form2Insn(0, ord(l5idc22z));
-                                l5idr3z  =  l5idr3z@.list;
+                                l5idr3z  =  l5idr3z->list;
                             } while (l5idr4z != l5idr3z);
                         }
                         storeObjWord(0U);
                         P0715(0, l5var16z);
                     }
                 }
-                addToInsnList(KVTM+I14 + l5idr4z@.value);
-                if (21 in l5idr4z@.flags)
+                addToInsnList(KVTM+I14 + l5idr4z->value);
+                if (21 in l5idr4z->flags)
                     addToInsnList(KITA+14);
                 else
                     addToInsnList(getHelperProc(64)); /* "P/PB" */
@@ -3274,19 +3279,19 @@ void traceEntry(isEntry: int);
                 l5idc22z  =  ENUMID;
         } else {
             genFullExpr(l5exp2z);
-            if (insnList@.ilm == il1)
+            if (insnList->ilm == il1)
                 l5idc22z  =  FORMALID;
             else
                 l5idc22z  =  VARID;
         }
         if (not (not l5bool9z || (l5idc22z != FORMALID) ||
-               (l5idr6z@.cl != VARID)))
+               (l5idr6z->cl != VARID)))
             l5idc22z  =  VARID;
 (loop)      if ((l5idc22z == FORMALID) || (l5bool11z)) {
             setAddrTo(14);
             addToInsnList(KITA+14);
         } else if (l5idc22z == VARID) {
-            if (insnList@.typ@.size != 1) {
+            if (insnList->typ->size != 1) {
                 l5idc22z  =  FORMALID;
                 goto loop;
             } else {
@@ -3296,29 +3301,29 @@ void traceEntry(isEntry: int);
         if (not l5bool8z)
             addxToInsnList(macro + mcPUSH);
         l5bool8z  =  false;
-        if (l5inl20z@.next != NIL) {
-            l5inl20z@.next@.next  =  insnList@.next2;
-            insnList@.next2  =  l5inl20z@.next2;
+        if (l5inl20z->next != NIL) {
+            l5inl20z->next->next  =  insnList->next2;
+            insnList->next2  =  l5inl20z->next2;
         }
-        insnList@.regsused  =  insnList@.regsused | l5inl20z@.regsused;
+        insnList->regsused  =  insnList->regsused | l5inl20z->regsused;
         if (not l5bool9z) {
             curVal.cl  =  l5idc22z;
             addToInsnList(KXTS+I8 + getFCSToffset());
         }
         if (l5bool9z && not l5bool11z)
-            l5idr6z  =  l5idr6z@.list;
+            l5idr6z  =  l5idr6z->list;
     } /* while -> 7061 */
     traceEntry(true);
     if (l5bool10z) {
         addToInsnList(KNTR+2);
-        insnList@.next@.mode  =  4;
+        insnList->next->mode  =  4;
     }
     if (l5bool9z) {
         addToInsnList(allocGlobalObject(l5idr5z) + (KVJM+I13));
-        if (20 in l5idr5z@.flags) {
+        if (20 in l5idr5z->flags) {
             l5var17z  =  1;
         } else {
-            l5var17z  =  l5idr5z@.offset / 04000000;
+            l5var17z  =  l5idr5z->offset / 04000000;
         }
     } else {
         l5var15z  =  0;
@@ -3330,11 +3335,11 @@ void traceEntry(isEntry: int);
         }
         addInsnAndOffset(macro+16 + l5var15z,
                          getValueOrAllocSymtab(l5var17z));
-        addToInsnList(l5idr5z@.offset + insnTemp[UTC] + l5idr5z@.value);
+        addToInsnList(l5idr5z->offset + insnTemp[UTC] + l5idr5z->value);
         addToInsnList(macro+18);
         l5var17z  =  1;
     }
-    insnList@.next@.mode  =  2;
+    insnList->next->mode  =  2;
     if (curProcNesting != l5var17z) {
         if (not l5bool10z) {
             if (l5var17z + 1 == curProcNesting) {
@@ -3363,15 +3368,15 @@ void traceEntry(isEntry: int);
             addToInsnList(KNTR+7);
         else
             addToInsnList(getHelperProc(93));    /* "P/FM" */
-        insnList@.next@.mode  =  2;
+        insnList->next->mode  =  2;
     } else {
         if (not l5bool7z)
             addToInsnList(KXTA+SP + l5var13z - 1);
     }
     if (not l5bool7z) {
-        insnList@.typ  =  l5idr5z@.typ;
-        insnList@.regsused  =  insnList@.regsused | E48;
-        insnList@.ilm  =  il2;
+        insnList->typ  =  l5idr5z->typ;
+        insnList->regsused  =  insnList->regsused | E48;
+        insnList->ilm  =  il2;
         set146z  =  set146z ~ l5var12z;
     }
 } /* genEntry */
@@ -3380,19 +3385,19 @@ void traceEntry(isEntry: int);
 void startInsnList(l5arg1z: ilmode);
 {
     new(insnList);
-    insnList@.next  =  NIL;
-    insnList@.next2  =  NIL;
-    insnList@.typ  =  exprToGen@.typ;
-    insnList@.regsused  =  0U;
-    insnList@.ilm  =  l5arg1z;
+    insnList->next  =  NIL;
+    insnList->next2  =  NIL;
+    insnList->typ  =  exprToGen->typ;
+    insnList->regsused  =  0U;
+    insnList->ilm  =  l5arg1z;
     if (l5arg1z == ilCONST) {
-        insnList@.ilf5  =  exprToGen@.num1;
-        insnList@.ilf7  =  exprToGen@.num2;
+        insnList->ilf5  =  exprToGen->num1;
+        insnList->ilf7  =  exprToGen->num2;
     } else {
-        insnList@.st  =  st0;
-        insnList@.ilf7  =  18;
-        insnList@.ilf5  =  curFrameRegTemplate;
-        insnList@.ilf6  =  exprToGen@.num1;
+        insnList->st  =  st0;
+        insnList->ilf7  =  18;
+        insnList->ilf5  =  curFrameRegTemplate;
+        insnList->ilf6  =  exprToGen->num1;
     }
 } /* startInsnList */
 //
@@ -3401,7 +3406,7 @@ void genCopy;
 var
     size: int;
 {
-    size  =  insnList@.typ@.size;
+    size  =  insnList->typ->size;
     if (size == 1) {
         saved  =  insnList;
         insnList  =  otherIns;
@@ -3446,18 +3451,18 @@ var
     if (l3int3z == 6) {     /* IN */
         if (arg1Const) {
             if (arg2Const) {
-                insnList@.ilf5  =  (arg1Val.i IN arg2Val.i);
+                insnList->ilf5  =  (arg1Val.i IN arg2Val.i);
             } else {
                 l5set2z  =  [arg1Val.i];
                 if (l5set2z == 0U) {
-                    insnList@.ilf5  =  false;
+                    insnList->ilf5  =  false;
                 } else {
                     insnList  =  otherIns;
                     prepLoad();
                     curVal.i  =  l5set2z;
                     addToInsnList(KAAX+I8 + getFCSToffset());
-                    insnList@.ilf5  =  0;
-                    insnList@.ilm  =  il3;
+                    insnList->ilf5  =  0;
+                    insnList->ilm  =  il3;
                 }
             }
         } else {
@@ -3466,14 +3471,14 @@ var
             otherIns  =  saved;
             nextInsn  =  66;      /* P/IN */
             genHelper();
-            insnList@.ilm  =  il2;
+            insnList->ilm  =  il2;
         }
     } else {
         if (negate)
             l3int3z  =  l3int3z - 1;
-        l2typ13z  =  insnList@.typ;
-        curVarKind  =  l2typ13z@.k;
-        size  =  l2typ13z@.size;
+        l2typ13z  =  insnList->typ;
+        curVarKind  =  l2typ13z->k;
+        size  =  l2typ13z->size;
         if (l2typ13z == realType) {
             if (fuzzReals)
                 work  =  0;
@@ -3488,18 +3493,18 @@ var
             prepMultiWord();
             addInsnAndOffset(KVTM+I11, 1 - size);
             addToInsnList(getHelperProc(89 + l3int3z)); /* P/EQ */
-            insnList@.ilm  =  il2;
+            insnList->ilm  =  il2;
             negate  =  not negate;
         } else if (l3int3z == 0) {
             if (work == 0) {
                 nextInsn  =  15;         /* P/CP */
 7475:           genHelper();
-                insnList@.ilm  =  il2;
+                insnList->ilm  =  il2;
             } else {
                 nextInsn  =  insnTemp[AEX];
                 tryFlip(true);
-7504:           insnList@.ilm  =  il3;
-                insnList@.ilf5  =  0;
+7504:           insnList->ilm  =  il3;
+                insnList->ilf5  =  0;
             }
         } else {
             switch (work) {
@@ -3511,10 +3516,10 @@ var
                 mode  =  3;
 7514:           nextInsn  =  insnTemp[SUB];
                 tryFlip(false);
-                insnList@.next@.mode  =  mode;
+                insnList->next->mode  =  mode;
                 if (mode == 3) {
                     addToInsnList(KNTR+023);
-                    insnList@.next@.mode  =  2;
+                    insnList->next->mode  =  2;
                 }
                 goto 7504;
             }
@@ -3535,7 +3540,7 @@ var
             }
             } /* switch */
         }
-        insnList@.regsused  =  insnList@.regsused ~ [16];
+        insnList->regsused  =  insnList->regsused ~ [16];
         if (negate)
              negateCond();
     }
@@ -3546,23 +3551,23 @@ var
     if (exprToGen == NIL)
         exit;
 7567:
-    curOP  =  exprToGen@.op;
+    curOP  =  exprToGen->op;
     if (curOP < GETELT) {
-        genFullExpr(exprToGen@.expr2);
+        genFullExpr(exprToGen->expr2);
         otherIns  =  insnList;
         if (curOP == ASSIGNOP)
             l3bool13z  =  false;
-        genFullExpr(exprToGen@.expr1);
+        genFullExpr(exprToGen->expr1);
         if (curOP == ASSIGNOP)
             l3bool13z  =  true;
-        if (insnList@.ilm == ilCONST) {
+        if (insnList->ilm == ilCONST) {
             arg1Const  =  true;
-            arg1Val.i  =  insnList@.ilf5;
+            arg1Val.i  =  insnList->ilf5;
         } else
             arg1Const  =  false;
-        if (otherIns@.ilm == ilCONST) {
+        if (otherIns->ilm == ilCONST) {
             arg2Const  =  true;
-            arg2Val.i  =  otherIns@.ilf5;
+            arg2Val.i  =  otherIns->ilf5;
         } else
             arg2Const  =  false;
         if (curOP IN [NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP]) {
@@ -3592,7 +3597,7 @@ var
                 badop27, badop30, badop31, MKRANGE, ASSIGNOP:
                     error(200);
                 } /* switch 7750 */
-                insnList@.ilf5  =  arg1Val.i;
+                insnList->ilf5  =  arg1Val.i;
             } else {
                 l3int3z  =  opToMode[curOP];
                 flags  =  opFlags[curOP];
@@ -3631,7 +3636,7 @@ var
                         } else {
                             addToInsnList(macro + mcPUSH);
                             genConstDiv();
-                            insnList@.next@.mode  =  1;
+                            insnList->next->mode  =  1;
                             curVal.i  =  arg2Val.i ~ [1, 3];
                             addToInsnList(KMUL+I8 + getFCSToffset());
                             addToInsnList(KYTA+64);
@@ -3651,17 +3656,17 @@ var
                 }
                 opfMULMSK: {
                     if (arg1Const) {
-                        insnList@.ilf5  =  arg1Val.i ^ [1, 3];
+                        insnList->ilf5  =  arg1Val.i ^ [1, 3];
                     } else {
                         if (arg2Const) {
-                            otherIns@.ilf5  =  arg2Val.i ^ [1, 3];
+                            otherIns->ilf5  =  arg2Val.i ^ [1, 3];
                         } else {
                             prepLoad();
                             addToInsnList(KAEX+MULTMASK);
                         }
                     }
                     tryFlip(true);
-                    insnList@.next@.mode  =  1;
+                    insnList->next->mode  =  1;
                     if (fixMult)
                         addToInsnList(macro + mcMULTI);
                     else
@@ -3687,67 +3692,67 @@ var
                     goto 7760
                 }
                 } /* switch 10122 */
-10122:          insnList@.next@.mode  =  l3int3z;
+10122:          insnList->next->mode  =  l3int3z;
             }
         }
     } else {
         if (FILEPTR >= curOP) {
             if (curOP == GETVAR) {
                 new(insnList);
-                curIdRec  =  exprToGen@.id1;
+                curIdRec  =  exprToGen->id1;
                 with insnList@ do {
                     next  =  NIL;
                     next2  =  NIL;
                     regsused  =  0U;
                     ilm  =  il1;
-                    ilf5  =  curIdRec@.offset;
-                    ilf6  =  curIdRec@.high;
+                    ilf5  =  curIdRec->offset;
+                    ilf6  =  curIdRec->high;
                     st  =  st0;
                     ilf7  =  18;
                 }
-                if (curIdRec@.cl == FORMALID) {
+                if (curIdRec->cl == FORMALID) {
                     genDeref();
-                } else if (curIdRec@.cl == ROUTINEID) {
-                    insnList@.ilf6  =  3;
-                    insnList@.ilf5  =  (insnList@.ilf5 + frameRegTemplate);
-                } else if (insnList@.ilf6 >= 074000) {
-                    addToInsnList(insnTemp[UTC] + insnList@.ilf6);
-                    insnList@.ilf6  =  0;
-                    insnList@.ilf7  =  17;
-                    insnList@.ilf5  =  0;
+                } else if (curIdRec->cl == ROUTINEID) {
+                    insnList->ilf6  =  3;
+                    insnList->ilf5  =  (insnList->ilf5 + frameRegTemplate);
+                } else if (insnList->ilf6 >= 074000) {
+                    addToInsnList(insnTemp[UTC] + insnList->ilf6);
+                    insnList->ilf6  =  0;
+                    insnList->ilf7  =  17;
+                    insnList->ilf5  =  0;
                 }
             } else if (curOP == GETFIELD) {
-                genFullExpr(exprToGen@.expr1);
-                curIdRec  =  exprToGen@.id2;
+                genFullExpr(exprToGen->expr1);
+                curIdRec  =  exprToGen->id2;
                 with insnList@ do {
-                    ilf6  =  ilf6 + curIdRec@.offset;
-                    if (curIdRec@.pckfield) {
+                    ilf6  =  ilf6 + curIdRec->offset;
+                    if (curIdRec->pckfield) {
                         switch (st) {
                         st0:
-                            shift  =  curIdRec@.shift;
+                            shift  =  curIdRec->shift;
                         st1: {
-                            shift  =  shift + curIdRec@.shift;
+                            shift  =  shift + curIdRec->shift;
                             if (not (S6 IN optSflags))
                                 shift  =  shift +
-                                           curIdRec@.uptype@.bits - 48;
+                                           curIdRec->uptype->bits - 48;
                         }
                         st2:
                             if (not l3bool13z)
                                 error(errUsingVarAfterIndexingPackedArray);
                             else {
                                 P5155();
-                                insnList@.shift  =  curIdRec@.shift;
+                                insnList->shift  =  curIdRec->shift;
                             }
                         }
-                        insnList@.width  =  curIdRec@.width;
-                        insnList@.st  =  st1;
-                        insnList@.regsused  =  insnList@.regsused | E48;
+                        insnList->width  =  curIdRec->width;
+                        insnList->st  =  st1;
+                        insnList->regsused  =  insnList->regsused | E48;
                     }
                 }
             } else if (curOP == GETELT)
                 genGetElt();
             else if ((curOP == DEREF) || (curOP == FILEPTR)) {
-                genFullExpr(exprToGen@.expr1);
+                genFullExpr(exprToGen->expr1);
                 genDeref();
             } else
             if (curOP == op36) {
@@ -3762,13 +3767,13 @@ var
         } else if (curOP == ALNUM)
             genEntry();
         else if (curOP IN [BOUNDS..RNEGOP]) {
-            genFullExpr(exprToGen@.expr1);
-            if (insnList@.ilm == ilCONST) {
-                arg1Val.i  =  insnList@.ilf5;
+            genFullExpr(exprToGen->expr1);
+            if (insnList->ilm == ilCONST) {
+                arg1Val.i  =  insnList->ilf5;
                 switch (curOP) {
                 BOUNDS: {
                     arg2Val.i  =  [0,1,3] | arg1Val.i;
-                    with exprToGen@.typ2@ do {
+                    with exprToGen->typ2@ do {
                         if ((arg2Val.i < left) ||
                            (right < arg2Val.i))
                             error(errNeedOtherTypesOfOperands);
@@ -3779,7 +3784,7 @@ var
                 RNEGOP: arg1Val.r  =  -arg1Val.r;
                 INEGOP: arg1Val.i  =  -arg1Val.i;
                 } /* switch 10345 */
-                insnList@.ilf5  =  arg1Val.i;
+                insnList->ilf5  =  arg1Val.i;
             } else if (curOP == NOTOP) {
                 negateCond();
             } else {
@@ -3787,7 +3792,7 @@ var
                 if (curOP == BOUNDS) {
 /*
                     if (checkBounds)
-                        genCheckBounds(exprToGen@.typ2);
+                        genCheckBounds(exprToGen->typ2);
 */
                 } else if (curOP == TOREAL) {
                     addToInsnList(insnTemp[AVX]);
@@ -3803,18 +3808,18 @@ var
                 }
             }
         } else if (curOP == STANDPROC) {
-            genFullExpr(exprToGen@.expr1);
-            work  =  exprToGen@.num2;
+            genFullExpr(exprToGen->expr1);
+            work  =  exprToGen->num2;
             if (100 < work) {
                 prepLoad();
                 addToInsnList(getHelperProc(work - 100));
             } else {
-                if (insnList@.ilm == ilCONST) {
+                if (insnList->ilm == ilCONST) {
                     arg1Const  =  true;
-                    arg1Val.i  =  insnList@.ilf5;
+                    arg1Val.i  =  insnList->ilf5;
                 } else
                     arg1Const  =  false;
-                arg2Const  =  (insnList@.typ == realType);
+                arg2Const  =  (insnList->typ == realType);
                 if (arg1Const) {
                     switch (work) {
                     fnSQRT:  arg1Val.r  =  sqrt(arg1Val.r);
@@ -3841,8 +3846,8 @@ var
                     fnEOLN:
                         error(201);
                     }
-                    insnList@.ilf5  =  arg1Val.i;
-                } else if ((work >= fnEOF) && (fnEOLN >= work)) {
+                    insnList->ilf5  =  arg1Val.i;
+                } else if (work IN [fnEOF, fnREF, fnEOLN]) {
                     if (work == fnREF) {
                         setAddrTo(14);
                         addToInsnList(KITA+14);
@@ -3875,11 +3880,11 @@ var
             }
         } else {
             if (curOP == NOOP) {
-                curVal.tp  =  exprToGen@.typ;
+                curVal.tp  =  exprToGen->typ;
                 if (curVal.i IN set146z) {
                     new(insnList);
                     with insnList@ do {
-                        typ  =  exprToGen@.expr2@.typ;
+                        typ  =  exprToGen->expr2->typ;
                         next  =  NIL;
                         next2  =  ;
                         regsused  =  0U;
@@ -3891,8 +3896,8 @@ var
                     }
                 } else {
                     curVal.i  =  14;
-                    exprToGen@.typ  =  curVal.tp;
-                    exprToGen  =  exprToGen@.expr2;
+                    exprToGen->typ  =  curVal.tp;
+                    exprToGen  =  exprToGen->expr2;
                     goto 7567;
                 }
                 exit;
@@ -3901,7 +3906,7 @@ var
             }
         }
     }
-    insnList@.typ  =  exprToGen@.typ;
+    insnList->typ  =  exprToGen->typ;
 } /* genFullExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3917,11 +3922,11 @@ var l4exf1z: @extfilerec;
     }
     form2Insn(KITS+13, KATX+SP);
     while (curExpr != NIL) {
-        l4exf1z  =  ptr(ord(curExpr@.typ));
-        l4var3z  =  curExpr@.id2;
-        l4int4z  =  l4var3z@.value;
-        l4var2z  =  l4var3z@.typ@.base;
-        l4int5z  =  l4var3z@.typ@.elsize;
+        l4exf1z  =  ptr(ord(curExpr->typ));
+        l4var3z  =  curExpr->id2;
+        l4int4z  =  l4var3z->value;
+        l4var2z  =  l4var3z->typ->base;
+        l4int5z  =  l4var3z->typ->elsize;
         if (l4int4z < 074000) {
             form1Insn(getValueOrAllocSymtab(l4int4z) +
                       insnTemp[UTC] + I7);
@@ -3929,22 +3934,22 @@ var l4exf1z: @extfilerec;
         }
         form3Insn(KVTM+I12 + l4int4z, KVTM+I10 + fileBufSize,
                   KVTM+I9 + l4int5z);
-        form1Insn(KVTM+I11 + l4var2z@.size);
+        form1Insn(KVTM+I11 + l4var2z->size);
         if (l4exf1z == NIL) {
             form1Insn(insnTemp[XTA]);
         } else {
-            curVal.i  =  l4exf1z@.location;
+            curVal.i  =  l4exf1z->location;
             if (curVal.i == 512)
-                curVal.i  =  l4exf1z@.offset;
+                curVal.i  =  l4exf1z->offset;
             form1Insn(KXTA+I8 + getFCSToffset());
         }
         formAndAlign(getHelperProc(69)); /*"P/CO"*/
-        curVal.i  =  l4var3z@.id;
+        curVal.i  =  l4var3z->id;
         form2Insn(KXTA+I8+getFCSToffset(), KATX+I12+26);
         if ((l4int5z != 0) &&
            typeCheck(l4var2z, intType))
             form2Insn(KXTA+ZERO, KATX+I12+25);
-        curExpr  =  curExpr@.expr1;
+        curExpr  =  curExpr->expr1;
     }
     form1Insn(getHelperProc(70)/*"P/IT"*/ + (-I13-0100000));
     padToLeft();
@@ -3963,9 +3968,9 @@ var l4exf1z: @extfilerec;
         with insnList@ do {
             l3int3z  =  insnCount();
             new(l3var5z);
-            l3var5z@.expr1  =  expr63z;
+            l3var5z->expr1  =  expr63z;
             expr63z  =  l3var5z;
-            l3var5z@.op  =  NOOP;
+            l3var5z->op  =  NOOP;
             switch (st) {
             st0: {
                 if (l3int3z == 0) {
@@ -3991,17 +3996,17 @@ var l4exf1z: @extfilerec;
                     set146z  =  set146z | l3var11z;
                 }
                 curVal.i  =  l3int2z;
-                l3var5z@.typ  =  curVal.tp;
+                l3var5z->typ  =  curVal.tp;
             }
             st1: {
                 curVal.i  =  14;
-                l3var5z@.typ  =  curVal.tp;
+                l3var5z->typ  =  curVal.tp;
             }
             st2:
                 error(errVarTooComplex);
             } /* switch */
         } /* with */
-        l3var5z@.expr2  =  curExpr;
+        l3var5z->expr2  =  curExpr;
     } /* SETREG */
     gen0: {
         prepLoad();
@@ -4018,7 +4023,7 @@ var l4exf1z: @extfilerec;
         curInsnTemplate  =  insnTemp[XTA];
     }
     SETREG9: {
-        if (insnList@.st != st0)
+        if (insnList->st != st0)
             error(errVarTooComplex);
         setAddrTo(9);
         genOneOp();
@@ -4027,7 +4032,7 @@ var l4exf1z: @extfilerec;
         l3int1z  =  curVal.i;
         genFullExpr(curExpr);
         prepLoad();
-        if ((E48 >> 9) & insnList@.regsused)
+        if ((E48 >> 9) & insnList->regsused)
             error(errVarTooComplex);
         genOneOp();
         form1Insn(KATX+I9 + l3int1z);
@@ -4072,19 +4077,19 @@ var l4exf1z: @extfilerec;
                     jumpTarget  =  0;
                 } else {
                     if (noTarget) {
-                        formJump(jumpTarget);
+                        formJump(ref(jumpTarget));
                     } else {
                         form1Insn(insnTemp[UJ] + jumpTarget);
                     }
                 }
             } else {
-                l3var8z  =  (16 in insnList@.regsused);
-                if ((insnList@.ilm == il3) &&
-                   (insnList@.ilf5 != 0)) {
+                l3var8z  =  (16 in insnList->regsused);
+                if ((insnList->ilm == il3) &&
+                   (insnList->ilf5 != 0)) {
                     genOneOp();
                     if (l3var8z) {
                         if (noTarget)
-                            formJump(l3int3z);
+                            formJump(ref(l3int3z));
                         else
                             form1Insn(insnTemp[UJ] + l3int3z);
                         P0715(0, jumpTarget);
@@ -4097,7 +4102,7 @@ var l4exf1z: @extfilerec;
                         }
                     }
                 } else {
-                    if (insnList@.ilm == il1) {
+                    if (insnList->ilm == il1) {
                         forValue  =  false;
                         prepLoad();
                         forValue  =  true;
@@ -4109,7 +4114,7 @@ var l4exf1z: @extfilerec;
                         nextInsn  =  insnTemp[UZA];
                     if (noTarget) {
                         jumpType  =  nextInsn;
-                        formJump(l3int3z);
+                        formJump(ref(l3int3z));
                         jumpType  =  insnTemp[UJ];
                         jumpTarget  =  l3int3z;
                     } else {
@@ -4120,24 +4125,24 @@ var l4exf1z: @extfilerec;
         } /* BRANCH */
     PCKUNPCK: {
         l3var5z  =  curExpr;
-        curExpr  =  curExpr@.expr1;
+        curExpr  =  curExpr->expr1;
         formOperator(gen11);
-        genFullExpr(l3var5z@.expr2);
-        if ((E48 >> 11) & insnList@.regsused)
+        genFullExpr(l3var5z->expr2);
+        if ((E48 >> 11) & insnList->regsused)
             error(44); /* errIncorrectUsageOfStandProcOrFunc */
         setAddrTo(12);
         genOneOp();
-        arg1Type  =  l3var5z@.expr2@.typ;
-        with arg1Type@.range@ do
+        arg1Type  =  l3var5z->expr2->typ;
+        with arg1Type->range@ do
             l3int3z  =  right - left + 1;
         form2Insn((KVTM+I14) + l3int3z,
-                  (KVTM+I10+64) - arg1Type@.pcksize);
-        l3int3z  =  ord(l3var5z@.typ);
-        l3int1z  =  arg1Type@.perword;
+                  (KVTM+I10+64) - arg1Type->pcksize);
+        l3int3z  =  ord(l3var5z->typ);
+        l3int1z  =  arg1Type->perword;
         if (l3int3z == 72)           /* P/KC */
             l3int1z  =  1 - l3int1z;
         form1Insn(getValueOrAllocSymtab(l3int1z) + (KVTM+I9));
-        if (typeCheck(curExpr@.typ, intType)) {
+        if (typeCheck(curExpr->typ, intType)) {
             l3int1z  =  KXTA+ZERO;
         } else {
             l3int1z  =  insnTemp[XTA];
@@ -4149,9 +4154,9 @@ var l4exf1z: @extfilerec;
         with insnList@ do {
             if (ilm != ilCONST)
                 error(errNoConstant);
-            if (insnList@.typ@.size != 1)
+            if (insnList->typ->size != 1)
                 error(errConstOfOtherTypeNeeded);
-            curVal.i  =  insnList@.ilf5;
+            curVal.i  =  insnList->ilf5;
         }
     }
     } /* switch */
@@ -4217,34 +4222,34 @@ var
     l5var6z: @pair;
 {
     parseTypeRef(selType, skipTarget | [SWITCHSY]);
-    if (curType@.ptr2 == NIL) {
-        curType@.ptr2  =  curField;
+    if (curType->ptr2 == NIL) {
+        curType->ptr2  =  curField;
     } else {
-        l3idr31z@.list  =  curField;
+        l3idr31z->list  =  curField;
     }
     cond  =  isFileType(selType);
     if ((not isOuterDecl) && cond)
         error(errTypeMustNotBeFile);
-    curType@.flag  =  cond || curType@.flag;
+    curType->flag  =  cond || curType->flag;
     l3idr31z  =  curEnum;
     do {
-        curField@.typ  =  selType;
+        curField->typ  =  selType;
         if (isPacked) {
-            l5var1z  =  selType@.bits;
-            curField@.width  =  l5var1z;
+            l5var1z  =  selType->bits;
+            curField->width  =  l5var1z;
             if (l5var1z != 48) {
                 for (pairIdx = 1;
                      pairIdx <= cases.count; pairIdx=pairIdx+1)
 11523:          {
                     l5var6z  =  ref(cases.pairs[pairIdx]);
-                    if (l5var6z@.first >= l5var1z) {
-                        curField@.shift  =  48 - l5var6z@.first;
-                        curField@.offset  =  l5var6z@.second;
+                    if (l5var6z->first >= l5var1z) {
+                        curField->shift  =  48 - l5var6z->first;
+                        curField->offset  =  l5var6z->second;
                         if (not (S6 IN optSflags))
-                            curField@.shift  =  48 - curField@.width -
-                                                  curField@.shift;
-                        l5var6z@.first  =  l5var6z@.first - l5var1z;
-                        if (l5var6z@.first == 0) {
+                            curField->shift  =  48 - curField->width -
+                                                  curField->shift;
+                        l5var6z->first  =  l5var6z->first - l5var1z;
+                        if (l5var6z->first == 0) {
                             cases.pairs[pairIdx]  =
                                 cases.pairs[cases.count];
                             cases.count  =  cases.count - 1;
@@ -4270,27 +4275,27 @@ var
                 goto 11523;
             }
         }
-        curField@.pckfield  =  false;
-        curField@.offset  =  cases.size;
-        cases.size  =  cases.size + selType@.size;
+        curField->pckfield  =  false;
+        curField->offset  =  cases.size;
+        cases.size  =  cases.size + selType->size;
 11622:
         if (PASINFOR.listMode == 3) {
             write(' ':16);
-            if (curField@.pckfield)
+            if (curField->pckfield)
                 write('PACKED');
             write(' FIELD ');
-            printTextWord(curField@.id);
-            write('.OFFSET=', curField@.offset:5 oct, 'B');
-            if (curField@.pckfield) {
-                write('.<<=SHIFT=', curField@.shift:2,
-                      '. WIDTH=', curField@.width:2, ' BITS');
+            printTextWord(curField->id);
+            write('.OFFSET=', curField->offset:5 oct, 'B');
+            if (curField->pckfield) {
+                write('.<<=SHIFT=', curField->shift:2,
+                      '. WIDTH=', curField->width:2, ' BITS');
             } else {
-                write('.WORDS=', selType@.size:0);
+                write('.WORDS=', selType->size:0);
             }
             writeLN;
         }
         cond  =  (curField == curEnum);
-        curField  =  curField@.list;
+        curField  =  curField->list;
     } while (not cond);
 } /* packFields */
 //
@@ -4313,7 +4318,7 @@ var
                 if (l4var6z == NIL) {
                     curField  =  curEnum;
                 } else {
-                    l4var6z@.list  =  curEnum;
+                    l4var6z->list  =  curEnum;
                 }
                 l4var6z  =  curEnum;
                 int93z  =  3;
@@ -4358,14 +4363,14 @@ var
             } else {
                 curEnum  =  symHash[l4var9z];
                 while (curEnum != NIL) {
-                    if (curEnum@.id != l4var8z) {
-                        curEnum  =  curEnum@.next;
+                    if (curEnum->id != l4var8z) {
+                        curEnum  =  curEnum->next;
                     } else {
-                        if (curEnum@.cl != TYPEID) {
+                        if (curEnum->cl != TYPEID) {
                             error(errNotAType);
                             selType  =  intType;
                         } else {
-                            selType  =  curEnum@.typ;
+                            selType  =  curEnum->typ;
                         }
                         exit identif;
                     }
@@ -4373,8 +4378,8 @@ var
                 error(errNotDefined);
             }
         }
-        if (selType@.k == kindRange)
-            selType  =  selType@.base;
+        if (selType->k == kindRange)
+            selType  =  selType->base;
         checkSymAndRead(OFSY);
         cases1  =  cases;
         cases2  =  cases;
@@ -4393,7 +4398,7 @@ var
                 if (l4var3z == NIL) {
                     tempType  =  l4var5z;
                 } else {
-                    l4var3z@.r6  =  l4var5z;
+                    l4var3z->r6  =  l4var5z;
                 }
                 l4var3z  =  l4var5z;
                 inSymbol();
@@ -4402,13 +4407,13 @@ var
                     inSymbol();
             } while (not cond);
             if (l4typ1z == NIL) {
-                if (curType@.base == NIL) {
-                    curType@.base  =  tempType;
+                if (curType->base == NIL) {
+                    curType->base  =  tempType;
                 } else {
-                    rectype@.first  =  tempType;
+                    rectype->first  =  tempType;
                 }
             } else {
-                l4typ1z@.next  =  tempType;
+                l4typ1z->next  =  tempType;
             }
             l4typ1z  =  tempType;
             checkSymAndRead(COLON);
@@ -4428,9 +4433,9 @@ var
         } while (not cond);
         cases  =  cases2;
     }
-    rectype@.size  =  cases.size;
+    rectype->size  =  cases.size;
     if (isPacked && (cases.size == 1) && (cases.count == 1)) {
-        rectype@.bits  =  48 - cases.pairs[1].first;
+        rectype->bits  =  48 - cases.pairs[1].first;
     }
     checkSymAndRead(ENDSY);
 } /* parseRecordDecl*/
@@ -4456,9 +4461,9 @@ var
             symHash[bucket]  =  curEnum;
             span  =  span + 1;
             if (curField == NIL) {
-                curType@.enums  =  curEnum;
+                curType->enums  =  curEnum;
             } else {
-                curField@.list  =  curEnum;
+                curField->list  =  curEnum;
             }
             curField  =  curEnum;
             inSymbol();
@@ -4487,7 +4492,7 @@ var
             if (hashTravPtr == NIL) {
                 if (inTypeDef) {
                     if (knownInType(curEnum)) {
-                        curType  =  curEnum@.typ;
+                        curType  =  curEnum->typ;
                     } else {
                         definePtrType(intType);
                     }
@@ -4496,7 +4501,7 @@ var
                     curType  =  pointerType;
                 }
             } else {
-                if (hashTravPtr@.cl != TYPEID) {
+                if (hashTravPtr->cl != TYPEID) {
                     goto 12366
                 }
                 new(curType = 4);
@@ -4504,23 +4509,23 @@ var
                     size  =  1;
                     bits  =  15;
                     k  =  kindPtr;
-                    base  =  hashTravPtr@.typ;
+                    base  =  hashTravPtr->typ;
                 }
             }
             inSymbol();
         }
     } else if (SY == IDENT) {
         if (hashTravPtr != NIL) {
-            if (hashTravPtr@.cl == TYPEID) {
-                curType  =  hashTravPtr@.typ;
+            if (hashTravPtr->cl == TYPEID) {
+                curType  =  hashTravPtr->typ;
             } else {
                 goto 12760;
             }
         } else {
             if (inTypeDef) {
                 if (knownInType(curEnum)) {
-                    curType  =  curEnum@.typ;
-                    curType@.base  =  boolType;
+                    curType  =  curEnum->typ;
+                    curType->base  =  boolType;
                 } else {
                     definePtrType(boolType);
                 }
@@ -4557,7 +4562,7 @@ var
             checkSymAndRead(LBRACK);
             tempType  =  NIL;
 12476:      parseTypeRef(nestedType, skipTarget | [OFSY]);
-            if (nestedType@.k != kindRange)
+            if (nestedType->k != kindRange)
                 error(8); /* errNotAnIndexType */
             new(l3typ26z, kindArray);
             with l3typ26z@ do {
@@ -4569,7 +4574,7 @@ var
             if (tempType == NIL)
                 curType  =  l3typ26z;
             else
-                tempType@.base  =  l3typ26z;
+                tempType->base  =  l3typ26z;
             tempType  =  l3typ26z;
             if (SY == COMMA) {
                 inSymbol();
@@ -4578,13 +4583,13 @@ var
             checkSymAndRead(RBRACK);
             checkSymAndRead(OFSY);
             parseTypeRef(nestedType, skipTarget);
-            l3typ26z@.base  =  nestedType;
+            l3typ26z->base  =  nestedType;
             if (isFileType(nestedType))
                 error(errTypeMustNotBeFile);
             do with l3typ26z@, ptr2@ do {
                 span  =  high - low + 1;
                 tempType  =  ptr(size);
-                l3int22z  =  base@.bits;
+                l3int22z  =  base->bits;
                 if (24 < l3int22z)
                     isPacked  =  false;
                 bits  =  48;
@@ -4606,14 +4611,14 @@ var
                     if (size == 1)
                         bits  =  l3int22z;
                 } else {
-                    size  =  span * base@.size;
-                    curVal.i  =  base@.size;
+                    size  =  span * base->size;
+                    curVal.i  =  base->size;
                     curVal.i  =  curVal.i & [7:47] | E48;
-                    if (range@.base != intType)
+                    if (range->base != intType)
                         curVal.i  =  curVal.i | [1, 3];
-                    l3typ26z@.perword  =  KMUL+ I8 + getFCSToffset();
+                    l3typ26z->perword  =  KMUL+ I8 + getFCSToffset();
                 }
-                l3typ26z@.pck  =  isPacked;
+                l3typ26z->pck  =  isPacked;
                 isPacked  =  false;
                 cond  =  (curType == l3typ26z);
                 l3typ26z  =  tempType;
@@ -4625,7 +4630,7 @@ var
             if (isFileType(nestedType))
                 error(errTypeMustNotBeFile);
             if (isPacked) {
-                l3int22z  =  nestedType@.bits;
+                l3int22z  =  nestedType->bits;
                 if (24 < l3int22z)
                     isPacked  =  false;
             }
@@ -4651,7 +4656,7 @@ var
                 }
                 parseLiteral(curType, rightBound, true);
                 if ((curType == tempType) &&
-                   (curType@.k == kindScalar)) {
+                   (curType->k == kindScalar)) {
                     defineRange(curType, leftBound, rightBound);
                     inSymbol();
                     goto 13020;
@@ -4672,12 +4677,12 @@ void dumpEnumNames(l3arg1z: tptr);
 var
     l3var1z: irptr;
 {
-    if (l3arg1z@.start == 0) {
-        l3arg1z@.start  =  FcstCnt;
-        l3var1z  =  l3arg1z@.enums;
+    if (l3arg1z->start == 0) {
+        l3arg1z->start  =  FcstCnt;
+        l3var1z  =  l3arg1z->enums;
         while (l3var1z != NIL) {
-            curVal.i  =  l3var1z@.id;
-            l3var1z  =  l3var1z@.list;
+            curVal.i  =  l3var1z->id;
+            l3var1z  =  l3var1z->list;
             toFCST();
         }
     }
@@ -4698,7 +4703,7 @@ var
             optSflags  =  optSflags | [S3];
             curVal.i  =  074001;
             P0715(2, 34); /*"P/DS"*/
-            curVal.i  =  l2idr2z@.id;
+            curVal.i  =  l2idr2z->id;
             toFCST();
             curVal.i  =  lineCnt;
             toFCST();
@@ -4707,18 +4712,18 @@ var
             curIdRec  =  symHash[jj];
             while ((curIdRec != NIL) &&
                   (l2idr2z < curIdRec)) with curIdRec@ do {
-                l3var2z  =  typ@.size;
+                l3var2z  =  typ->size;
                 if ((cl IN [VARID, FORMALID]) &&
                   (value < 074000)) {
                     curVal.i  =  id;
                     if (l3var4z)
                         toFCST();
                     l3typ1z  =  typ;
-                    l3var5z  =  l3typ1z@.k;
+                    l3var5z  =  l3typ1z->k;
                     l3var3z  =  0U;
                     if (l3var5z == kindPtr) {
-                        l3typ1z  =  l3typ1z@.base;
-                        l3var5z  =  l3typ1z@.k;
+                        l3typ1z  =  l3typ1z->base;
+                        l3var5z  =  l3typ1z->k;
                         l3var3z  =  E48;
                     }
                     if (l3typ1z == realType)
@@ -4731,19 +4736,19 @@ var
                         curVal.i  =  0400000;
                     else if (l3var5z == kindScalar) {
                         dumpEnumNames(l3typ1z);
-                        curVal.i  =  01000000 * l3typ1z@.start + 0300000;
+                        curVal.i  =  01000000 * l3typ1z->start + 0300000;
                     } else if (l3var5z == kindFile)
                         curVal.i  =  0600000;
                     else {
                         curVal.i  =  0500000;
                     }
-                    curVal.i  =  curVal.i + curIdRec@.value;
+                    curVal.i  =  curVal.i + curIdRec->value;
                     l3var2z  =  l3var2z << 33;
                     curVal.i  =  curVal.i & [15:47] | l3var2z | l3var3z;
                     if (l3var4z)
                         toFCST();
                 }
-                curIdRec  =  curIdRec@.next;
+                curIdRec  =  curIdRec->next;
             }
         }
         curVal.i  =  0U;
@@ -4769,7 +4774,7 @@ var
         prevErrPos  =  0;
         write('IDENT ');
         printTextWord(l2var12z);
-        write(' IN LINE ', curIdRec@.offset:0);
+        write(' IN LINE ', curIdRec->offset:0);
     }
     2: {
         padToLeft();
@@ -4784,14 +4789,14 @@ var
         l3arg1z  =  F3307(l2idr2z);
         if (l3var3z) {
             if (41 >= entryPtCnt) {
-                curVal.i  =  l2idr2z@.id;
+                curVal.i  =  l2idr2z->id;
                 entryPtTable[entryPtCnt]  =  makeNameWithStars();
                 entryPtTable[entryPtCnt+1]  =  [1] | frame ~ [0, 3];
                 entryPtCnt  =  entryPtCnt + 2;
             } else
                 error(87); /* errTooManyEntryProcs */
         }
-        if (l2idr2z@.typ == NIL) {
+        if (l2idr2z->typ == NIL) {
             frame  =  3;
         } else {
             frame  =  4;
@@ -4882,33 +4887,33 @@ var
     l4typ3z: tptr;
     l4var4z: kind;
 {
-    if (hashTravPtr@.cl == FIELDID) {
+    if (hashTravPtr->cl == FIELDID) {
         curExpr  =  expr62z;
         goto 13530;
     } else {
         new(curExpr);
         with curExpr@ do {
-            typ  =  hashTravPtr@.typ;
+            typ  =  hashTravPtr->typ;
             op  =  GETVAR;
             id1  =  hashTravPtr;
         }
 13462:  inSymbol();
-        l4typ3z  =  curExpr@.typ;
-        l4var4z  =  l4typ3z@.k;
+        l4typ3z  =  curExpr->typ;
+        l4var4z  =  l4typ3z->k;
         if (SY == ARROW) {
             new(l4exp1z);
             with l4exp1z@ do {
                 expr1  =  curExpr;
                 if (l4var4z == kindPtr) {
-                    typ  =  l4typ3z@.base;
+                    typ  =  l4typ3z->base;
                     op  =  DEREF;
                 } else if (l4var4z == kindFile) {
-                    typ  =  l4typ3z@.base;
+                    typ  =  l4typ3z->base;
                     op  =  FILEPTR;
                 } else {
                     stmtName  =  '  ^   ';
                     error(errWrongVarTypeBefore);
-                    l4exp1z@.typ  =  l4typ3z;
+                    l4exp1z->typ  =  l4typ3z;
                 }
             }
             curExpr  =  l4exp1z;
@@ -4922,7 +4927,7 @@ var
                 } else 13530: {
                     new(l4exp1z);
                     with l4exp1z@ do {
-                        typ  =  hashTravPtr@.typ;
+                        typ  =  hashTravPtr->typ;
                         op  =  GETFIELD;
                         expr1  =  curExpr;
                         id2  =  hashTravPtr;
@@ -4938,15 +4943,15 @@ var
             do {
                 l4exp1z  =  curExpr;
                 expression();
-                l4typ3z  =  l4exp1z@.typ;
-                if (l4typ3z@.k != kindArray) {
+                l4typ3z  =  l4exp1z->typ;
+                if (l4typ3z->k != kindArray) {
                     error(errWrongVarTypeBefore);
                 } else {
-                    if (not typeCheck(l4typ3z@.range, curExpr@.typ))
+                    if (not typeCheck(l4typ3z->range, curExpr->typ))
                         error(66 /*errOtherIndexTypeNeeded */);
                     new(l4exp2z);
                     with l4exp2z@ do {
-                        typ  =  l4typ3z@.base;
+                        typ  =  l4typ3z->base;
                         expr1  =  l4exp1z;
                         expr2  =  curExpr;
                         op  =  GETELT;
@@ -5014,14 +5019,14 @@ var
     argList  =  callExpr;
     bool48z  =  true;
     with callExpr@ do {
-        typ  =  subroutine@.typ;
+        typ  =  subroutine->typ;
         op  =  ALNUM;
         id2  =  subroutine;
         id1  =  NIL;
     }
     if (SY == LPAREN) {
         if (noArgs) {
-            curFormal  =  subroutine@.argList;
+            curFormal  =  subroutine->argList;
             if (curFormal == NIL) {
                 inSymbol();
                 if (SY != RPAREN) {
@@ -5040,24 +5045,24 @@ var
             }
             bool47z  =  true;
             expression();
-            actualOp  =  curExpr@.op;
+            actualOp  =  curExpr->op;
 (a)         if (noArgs) {
-                formClass  =  curFormal@.cl;
+                formClass  =  curFormal->cl;
                 if (actualOp == PCALL) {
                     if ((formClass != ROUTINEID) ||
-                       (curFormal@.typ != NIL)) {
+                       (curFormal->typ != NIL)) {
 13736:                  error(39); /*errIncompatibleArgumentKinds*/
                         exit a;
                     }
                 } else {
                     if (actualOp == FCALL) {
                         if (formClass == ROUTINEID) {
-                            if (curFormal@.typ == NIL)
+                            if (curFormal->typ == NIL)
                                 goto 13736
-                        } else if ((curExpr@.id2@.argList == NIL) &&
+                        } else if ((curExpr->id2->argList == NIL) &&
                            (formClass == VARID)) {
-                            curExpr@.op  =  ALNUM;
-                            curExpr@.expr1  =  NIL;
+                            curExpr->op  =  ALNUM;
+                            curExpr->expr1  =  NIL;
                         } else
                             goto 13736;
                     } else if (actualOp IN lvalOpSet) {
@@ -5069,9 +5074,9 @@ var
                             goto 13736;
                     }
                 }
-                arg1Type  =  curExpr@.typ;
+                arg1Type  =  curExpr->typ;
                 if (arg1Type != NIL) {
-                    if (!typeCheck(arg1Type, curFormal@.typ))
+                    if (!typeCheck(arg1Type, curFormal->typ))
                         error(40); /*errIncompatibleArgumentTypes*/
                 }
             }
@@ -5081,10 +5086,10 @@ var
                 expr1  =  NIL;
                 expr2  =  curExpr;
             }
-            argList@.expr1  =  curActual;
+            argList->expr1  =  curActual;
             argList  =  curActual;
             if (noArgs)
-                curFormal  =  curFormal@.list;
+                curFormal  =  curFormal->list;
         } while (SY == COMMA);
         if ((SY != RPAREN) ||
            noArgs && (curFormal != subroutine))
@@ -5092,7 +5097,7 @@ var
         else
             inSymbol();
     } else {
-//        if (noArgs && (subroutine@.argList != NIL))
+//        if (noArgs && (subroutine->argList != NIL))
             error(42); /*errNoArgList*/
     }
     curExpr  =  callExpr;
@@ -5121,7 +5126,7 @@ var
     asBitset: int;
     stProcNo, checkMode: int;
 {
-    curVal.i  =  routine@.low;
+    curVal.i  =  routine->low;
     stProcNo  =  curVal.i;
     if (SY != LPAREN) {
         requiredSymErr(LPAREN);
@@ -5130,14 +5135,14 @@ var
     expression();
     if (((stProcNo >= fnEOF) &&
        (fnEOLN >= stProcNo)) &&
-       not (curExpr@.op IN [GETELT..FILEPTR])) {
+       not (curExpr->op IN [GETELT..FILEPTR])) {
         error(27); /* errExpressionWhereVariableExpected */
         exit;
     }
-    arg1Type  =  curExpr@.typ;
-    if (arg1Type@.k == kindRange)
-        arg1Type  =  arg1Type@.base;
-    argKind  =  arg1Type@.k;
+    arg1Type  =  curExpr->typ;
+    if (arg1Type->k == kindRange)
+        arg1Type  =  arg1Type->base;
+    argKind  =  arg1Type->k;
     if (arg1Type == realType)
         checkMode  =  chkREAL;
     else if (arg1Type == intType)
@@ -5166,21 +5171,21 @@ var
             (stProcNo == fnREF))))
         error(errNeedOtherTypesOfOperands);
     if (asBitset & [fnABS, fnSUCC, fnPRED] == 0U) {
-        arg1Type  =  routine@.typ;
+        arg1Type  =  routine->typ;
     } else if ((checkMode == chkINT) && (stProcNo == fnABS)) {
         stProcNo  =  fnABSI;
     }
     new(l4exp6z);
-    l4exp6z@.op  =  STANDPROC;
-    l4exp6z@.expr1  =  curExpr;
-    l4exp6z@.num2  =  stProcNo;
+    l4exp6z->op  =  STANDPROC;
+    l4exp6z->expr1  =  curExpr;
+    l4exp6z->num2  =  stProcNo;
     if (stProcNo == fn24) {
         if (SY != COMMA) {
             requiredSymErr(COMMA);
             goto 8888;
         }
         expression();
-        l5var2z  =  curExpr@.typ;
+        l5var2z  =  curExpr->typ;
         l5op1z  =  badop27;
         if ((l5var2z != realType) &&
             not typeCheck(l5var2z, intType))
@@ -5189,11 +5194,11 @@ var
             l5op1z  =  badop30;
         else if (checkMode == chkREAL)
             l5op1z  =  badop31;
-        l4exp6z@.expr2  =  curExpr;
-        l4exp6z@.op  =  l5op1z;
+        l4exp6z->expr2  =  curExpr;
+        l4exp6z->op  =  l5op1z;
     }
     curExpr  =  l4exp6z;
-    curExpr@.typ  =  arg1Type;
+    curExpr->typ  =  arg1Type;
     checkSymAndRead(RPAREN);
 } /* stdCall */
 //
@@ -5208,7 +5213,7 @@ var
                 error(errNotDefined);
                 curExpr  =  uVarPtr;
             } else
-                switch (hashTravPtr@.cl) {
+                switch (hashTravPtr->cl) {
                 TYPEID: {
                     error(23); /* errTypeIdInsteadOfVar */
                     curExpr  =  uVarPtr;
@@ -5216,9 +5221,9 @@ var
                 ENUMID: {
                     new(curExpr);
                     with curExpr@ do {
-                        typ  =  hashTravPtr@.typ;
+                        typ  =  hashTravPtr->typ;
                         op  =  GETENUM;
-                        num1  =  hashTravPtr@.value;
+                        num1  =  hashTravPtr->value;
                         num2  =  0;
                     }
                     inSymbol();
@@ -5226,14 +5231,14 @@ var
                 ROUTINEID: {
                     routine  =  hashTravPtr;
                     inSymbol();
-                    if (routine@.offset == 0) {
-                        if ((routine@.typ != NIL) &&
+                    if (routine->offset == 0) {
+                        if ((routine->typ != NIL) &&
                            (SY == LPAREN)) {
                             stdCall();
                             exit;
                         }
                         error(44); /* errIncorrectUsageOfStandProcOrFunc */
-                    } else if (routine@.typ == NIL) {
+                    } else if (routine->typ == NIL) {
                         if (l4var2z) {
                             l4op10z  =  PCALL;
                         } else {
@@ -5257,7 +5262,7 @@ var
                         goto 8888;
                     }
                     with curExpr@ do {
-                        typ  =  routine@.typ;
+                        typ  =  routine->typ;
                         op  =  l4op10z;
                         expr1  =  NIL;
                         id2  =  routine;
@@ -5273,9 +5278,9 @@ var
         }
         INTCONST, REALCONST, CHARCONST, LTSY: {
             new(curExpr);
-            parseLiteral(curExpr@.typ, curExpr@.num1, false);
-            curExpr@.num2  =  ord(numFormat);
-            curExpr@.op  =  GETENUM;
+            parseLiteral(curExpr->typ, curExpr->num1, false);
+            curExpr->num2  =  ord(numFormat);
+            curExpr->op  =  GETENUM;
             inSymbol();
         }
         NOTSY: {
@@ -5283,17 +5288,17 @@ var
             factor();
             l4exp6z  =  curExpr;
             new(curExpr);
-            curExpr@.typ  =  boolType;
-            if (l4exp6z@.typ == boolType) with curExpr@ do {
+            curExpr->typ  =  boolType;
+            if (l4exp6z->typ == boolType) with curExpr@ do {
                 op  =  NOTOP;
                 expr1  =  l4exp6z;
-            } else if (l4exp6z@.typ == intType) {
+            } else if (l4exp6z->typ == intType) {
                 with curExpr@ do {
                     op  =  EQOP;
                     expr1  =  l4exp6z;
                     new(expr2);
                 }
-                curExpr@.expr2@ = [intType, GETENUM, 0U];
+                curExpr->expr2@ = [intType, GETENUM, 0U];
             } else
                 error(errNeedOtherTypesOfOperands);
         }
@@ -5309,23 +5314,23 @@ var
                     l4exp6z  =  curExpr;
                     expression();
                     if (l4var12z) {
-                        l4typ11z  =  curExpr@.typ;
-                        if (not (l4typ11z@.k IN [kindScalar, kindRange]))
+                        l4typ11z  =  curExpr->typ;
+                        if (not (l4typ11z->k IN [kindScalar, kindRange]))
                             error(23); /* errTypeIdInsteadOfVar */
                     } else {
-                        if (not typeCheck(l4typ11z, curExpr@.typ))
+                        if (not typeCheck(l4typ11z, curExpr->typ))
                             error(24); /*errIncompatibleExprsInSetCtor*/
                     }
                     l4var12z  =  false;
                     l4exp5z  =  curExpr;
                     if (SY == COLON) {
                         expression();
-                        if (not typeCheck(l4typ11z, curExpr@.typ))
+                        if (not typeCheck(l4typ11z, curExpr->typ))
                             error(24); /*errIncompatibleExprsInSetCtor*/
-                        if ((l4exp5z@.op == GETENUM) &&
-                           (curExpr@.op == GETENUM)) {
-                            l4var4z  =  l4exp5z@.num1;
-                            l4var3z  =  curExpr@.num1;
+                        if ((l4exp5z->op == GETENUM) &&
+                           (curExpr->op == GETENUM)) {
+                            l4var4z  =  l4exp5z->num1;
+                            l4var3z  =  curExpr->num1;
                             l4var4z  =  l4var4z ~ intZero;
                             l4var3z  =  l4var3z ~ intZero;
                             l4var1z  =  l4var1z | [l4var4z..l4var3z];
@@ -5341,8 +5346,8 @@ var
                         }
                         l4exp5z  =  l4var7z;
                    } else {
-                        if (l4exp5z@.op == GETENUM) {
-                            l4var4z  =  l4exp5z@.num1;
+                        if (l4exp5z->op == GETENUM) {
+                            l4var4z  =  l4exp5z->num1;
                             l4var4z  =  l4var4z ~ intZero;
                             l4var1z  =  l4var1z | [l4var4z];
                             curExpr  =  l4exp6z;
@@ -5396,8 +5401,8 @@ var
         inSymbol();
         leftArg  =  curExpr;
         factor();
-        arg1Type  =  curExpr@.typ;
-        arg2Type  =  leftArg@.typ;
+        arg1Type  =  curExpr->typ;
+        arg2Type  =  leftArg->typ;
         match  =  typeCheck(arg1Type, arg2Type);
         if ((not match) &&
            (RDIVOP < curOp))
@@ -5467,7 +5472,7 @@ var
     term();
 (minus)
     if (match) {
-        arg1Type  =  curExpr@.typ;
+        arg1Type  =  curExpr->typ;
         new(l4var2z);
         with l4var2z@ do {
             typ  =  arg1Type;
@@ -5475,8 +5480,8 @@ var
             if (arg1Type == realType) {
                 op  =  RNEGOP;
             } else if (typeCheck(arg1Type, intType)) {
-                l4var2z@.op  =  INEGOP;
-                l4var2z@.typ  =  intType;
+                l4var2z->op  =  INEGOP;
+                l4var2z->typ  =  intType;
             } else {
                 error(69); /* errUnaryMinusNeedRealOrInt */
                 exit minus;
@@ -5489,10 +5494,10 @@ var
         inSymbol();
         l4var2z  =  curExpr;
         term();
-        arg1Type  =  curExpr@.typ;
-        arg2Type  =  l4var2z@.typ;
+        arg1Type  =  curExpr->typ;
+        arg2Type  =  l4var2z->typ;
         match  =  typeCheck(arg1Type, arg2Type);
-        argKind  =  arg2Type@.k;
+        argKind  =  arg2Type->k;
         if (kindArray <= argKind) {
 15031:      error(errNeedOtherTypesOfOperands);
         } else {
@@ -5519,13 +5524,13 @@ var
                             goto 15031
                         }
                     } else if (areTypesCompatible(l4var2z)) {
-                        l4var1z@.typ  =  realType;
-                        l4var1z@.op  =  oper;
+                        l4var1z->typ  =  realType;
+                        l4var1z->op  =  oper;
                     } else
                         goto 15031;
                 }
-                l4var1z@.expr1  =  l4var2z;
-                l4var1z@.expr2  =  curExpr;
+                l4var1z->expr1  =  l4var2z;
+                l4var1z->expr2  =  curExpr;
                 curExpr  =  l4var1z;
             }
         }
@@ -5559,19 +5564,19 @@ var
         inSymbol();
         l4var3z  =  curExpr;
         simpleExpression();
-        arg1Type  =  curExpr@.typ;
-        arg2Type  =  l4var3z@.typ;
+        arg1Type  =  curExpr->typ;
+        arg2Type  =  l4var3z->typ;
         if (typeCheck(arg1Type, arg2Type)) {
             if (
-               (arg1Type@.k == kindFile) ||
-               (arg1Type@.size != 1) &&
+               (arg1Type->k == kindFile) ||
+               (arg1Type->size != 1) &&
                (oper >= LTOP) &&
                not isCharArray(arg1Type))
                 error(errNeedOtherTypesOfOperands);
         } else {
             if (not areTypesCompatible(l4var3z) &&
                ((arg1Type != intType) ||
-               not (arg2Type@.k IN [kindScalar, kindRange]) ||
+               not (arg2Type->k IN [kindScalar, kindRange]) ||
                (oper != INOP))) {
                 error(errNeedOtherTypesOfOperands);
             }
@@ -5632,7 +5637,7 @@ var
         curExpr = loopExpr;
         formOperator(gen7);
     }
-    formJump(toLoop);
+    formJump(ref(toLoop));
     if (leave != 0) {
         padToLeft();
         P0715(0, leave);
@@ -5653,9 +5658,9 @@ var
     do {
         inSymbol();
         if ((hashTravPtr != NIL) &&
-           (hashTravPtr@.cl >= VARID)) {
+           (hashTravPtr->cl >= VARID)) {
             parseLval();
-            if (curExpr@.typ@.k == kindStruct) {
+            if (curExpr->typ->k == kindStruct) {
                 formOperator(SETREG);
                 l4var3z  =  (l4var3z | [curVal.i]) & set148z;
             } else {
@@ -5698,16 +5703,16 @@ var
                             if (isGoto) {
                                 form1Insn(insnTemp[UJ] + offset);
                             } else {
-                                formJump(curLab@.exitTarget);
+                                formJump(ref(curLab->exitTarget));
                             }
                         } else {
                             form1Insn(getValueOrAllocSymtab(ii) +
                                       (KVTM+I13));
                             if (isGoto) {
-                                form1Insn(KVTM+I10 + curLab@.offset);
+                                form1Insn(KVTM+I10 + curLab->offset);
                             } else {
                                 jumpType  =  KVTM+I10;
-                                formJump(curLab@.exitTarget);
+                                formJump(ref(curLab->exitTarget));
                                 jumpType  =  insnTemp[UJ];
                             }
                             form1Insn(getHelperProc(60) +
@@ -5716,7 +5721,7 @@ var
                         exit;
                     }
                 }
-                curLab  =  curLab@.next;
+                curLab  =  curLab->next;
             }
         }
         if (not isGoto && (SY != IDENT)) {
@@ -5724,7 +5729,7 @@ var
                 form1Insn(getValueOrAllocSymtab(ii) + (KVTM+I13));
                 form1Insn(getHelperProc(60)); /* P/ZAM */
             }
-            formJump(exitTarget);
+            formJump(ref(exitTarget));
         } else {
             error(errNotDefined);
         }
@@ -5768,10 +5773,10 @@ function max(a, b: int): int;
 { /* caseStatement */
     startLine  =  lineCnt;
     parentExpression();
-    exprtype  =  curExpr@.typ;
+    exprtype  =  curExpr->typ;
     otherSeen  =  false;
     if ((exprtype == alfaType) ||
-       (exprtype@.k IN [kindScalar, kindRange]))
+       (exprtype->k IN [kindScalar, kindRange]))
         formOperator(LOAD);
     else
         error(25); /* errExprNotOfADiscreteType */
@@ -5779,7 +5784,7 @@ function max(a, b: int): int;
     l4var17z  =  0;
     endOfStmt  =  0;
     allClauses  =  NIL;
-    formJump(l4var17z);
+    formJump(ref(l4var17z));
     checkSymAndRead(BEGINSY);
     firstType  =  NIL;
     goodMode  =  true;
@@ -5803,26 +5808,26 @@ function max(a, b: int): int;
                             error(errConstOfOtherTypeNeeded);
                     }
                     new(clause);
-                    clause@.value.i  =  itemvalue;
-                    clause@.offset  =  moduleOffset;
+                    clause->value.i  =  itemvalue;
+                    clause->offset  =  moduleOffset;
                     curClause  =  allClauses;
 (loop)              while (curClause != NIL) {
-                        if (itemvalue == curClause@.value.i) {
+                        if (itemvalue == curClause->value.i) {
                             error(73); /* errCaseLabelsIdentical */
                             exit loop;
-                        } else if (itemvalue < curClause@.value.i) {
+                        } else if (itemvalue < curClause->value.i) {
                             exit loop;
                         } else {
                             unused  =  curClause;
-                            curClause  =  curClause@.next;
+                            curClause  =  curClause->next;
                         }
                     }
                     if (curClause == allClauses) {
-                        clause@.next  =  allClauses;
+                        clause->next  =  allClauses;
                         allClauses  =  clause;
                     } else {
-                        clause@.next  =  curClause;
-                        unused@.next  =  clause;
+                        clause->next  =  curClause;
+                        unused->next  =  clause;
                     }
                     inSymbol();
                 }
@@ -5833,7 +5838,7 @@ function max(a, b: int): int;
             checkSymAndRead(COLON);
             statement();
             goodMode  =  goodMode && (arithMode == 1);
-            formJump(endOfStmt);
+            formJump(ref(endOfStmt));
         }
         itemsEnded  =  (SY == ENDSY);
         if (SY == SEMICOLON)
@@ -5852,28 +5857,28 @@ function max(a, b: int): int;
     padToLeft();
     isIntCase  =  typeCheck(exprtype, intType);
     if (allClauses != NIL) {
-        expected  =  allClauses@.value;
+        expected  =  allClauses->value;
         minValue  =  expected;
         curClause  =  allClauses;
         while (curClause != NIL) {
-            if ((expected == curClause@.value) &&
-               (exprtype@.k == kindScalar)) {
+            if ((expected == curClause->value) &&
+               (exprtype->k == kindScalar)) {
                 maxValue  =  expected;
                 if (isIntCase) {
                     expected.i  =  expected.i + 1;
                 } else {
                     expected.c  =  succ(expected.c);
                 }
-                curClause  =  curClause@.next;
+                curClause  =  curClause->next;
             } else {
                 itemSpan  =  34000;
                 P0715(0, l4var17z);
-                if (firstType@.k == kindRange) {
-                    itemSpan  =  max(abs(firstType@.left),
-                                    abs(firstType@.right));
+                if (firstType->k == kindRange) {
+                    itemSpan  =  max(abs(firstType->left),
+                                    abs(firstType->right));
                 } else {
-                    if (firstType@.k == kindScalar)
-                        itemSpan  =  firstType@.numen;
+                    if (firstType->k == kindScalar)
+                        itemSpan  =  firstType->numen;
                 }
                 itemsEnded  =  (itemSpan < 32000);
                 if (itemsEnded) {
@@ -5884,19 +5889,19 @@ function max(a, b: int): int;
                 minValue.i  =  (minValue.i - minValue.i); /* WTF? */
                 while (allClauses != NIL) {
                     if (itemsEnded) {
-                        curVal.i  =  minValue.i - allClauses@.value.i;
+                        curVal.i  =  minValue.i - allClauses->value.i;
                         curVal.i  =  curVal.i | intZero;
                         form1Insn(getValueOrAllocSymtab(curVal.i) +
                                   (KUTM+I14));
-                        form1Insn(KVZM+I14 + allClauses@.offset);
-                        minValue  =  allClauses@.value;
+                        form1Insn(KVZM+I14 + allClauses->offset);
+                        minValue  =  allClauses->value;
                     } else {
                         form1Insn(KXTA+SP+1);
-                        curVal  =  allClauses@.value;
+                        curVal  =  allClauses->value;
                         form2Insn(KAEX + I8 + getFCSToffset(),
-                                  insnTemp[UZA] + allClauses@.offset);
+                                  insnTemp[UZA] + allClauses->offset);
                     }
-                    allClauses  =  allClauses@.next;
+                    allClauses  =  allClauses->next;
                 }
                 if (otherSeen)
                     form1Insn(insnTemp[UJ] + otherOffset);
@@ -5905,7 +5910,7 @@ function max(a, b: int): int;
         } /* while 16142 */
         if (not otherSeen) {
             otherOffset  =  moduleOffset;
-            formJump(endOfStmt);
+            formJump(ref(endOfStmt));
         }
         P0715(0, l4var17z);
         curVal  =  minValue;
@@ -5920,8 +5925,8 @@ function max(a, b: int): int;
         form1Insn(KUJ+I14 + curVal.i);
         while (allClauses != NIL) {
             padToLeft();
-            form1Insn(insnTemp[UJ] + allClauses@.offset);
-            allClauses  =  allClauses@.next;
+            form1Insn(insnTemp[UJ] + allClauses->offset);
+            allClauses  =  allClauses->next;
         }
         16211:
         P0715(0, endOfStmt);
@@ -5944,7 +5949,7 @@ var
     else {
         new(curExpr);
         with curExpr@ do {
-            typ  =  hashTravPtr@.typ;
+            typ  =  hashTravPtr->typ;
             op  =  GETVAR;
             id1  =  hashTravPtr;
         }
@@ -5952,8 +5957,8 @@ var
     }
     checkSymAndRead(BECOMES);
     readNext  =  false;
-    targType  =  curExpr@.typ;
-    if ((targType@.k == kindStruct) &&
+    targType  =  curExpr->typ;
+    if ((targType->k == kindStruct) &&
        (SY == LBRACK)) {
         formOperator(SETREG9);
         indCnt  =  0;
@@ -5983,12 +5988,12 @@ var
     } else {
         lhsExpr  =  curExpr;
         expression();
-        srcType  =  curExpr@.typ;
+        srcType  =  curExpr->typ;
         if (typeCheck(targType, srcType)) {
-            if (srcType@.k == kindFile)
+            if (srcType->k == kindFile)
                 error(75); /*errCannotAssignFiles*/
             else {
-                if (rangeMismatch && (targType@.k == kindRange)) {
+                if (rangeMismatch && (targType->k == kindRange)) {
                     new(assnExpr);
                     with assnExpr@ do {
                         typ  =  srcType;
@@ -6022,7 +6027,7 @@ void ifWhileStatement;
 {
     disableNorm();
     parentExpression();
-    if ((curExpr@.typ != boolType) && (curExpr@.typ != intType))
+    if ((curExpr->typ != boolType) && (curExpr->typ != intType))
         error(errBooleanNeeded);
     else {
         jumpTarget  =  0;
@@ -6111,7 +6116,7 @@ function allocDataRef(l6arg1z: int): int;
                 curExpr  =  uVarPtr;
                 inSymbol();
             } else {
-                if (hashTravPtr@.cl == VARID) {
+                if (hashTravPtr->cl == VARID) {
                     parseLval();
                 } else goto 16545;
             }
@@ -6164,7 +6169,7 @@ function allocDataRef(l6arg1z: int): int;
         error(errBadSymbol);
     reset(F);
     while (not eof(F)) {
-        write(FCST, F@.b);
+        write(FCST, F->b);
         get(F);
     }
     int92z  =  FcstCnt - dsize;
@@ -6175,7 +6180,7 @@ function allocDataRef(l6arg1z: int): int;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void standProc;
 label
-    17753;
+    17753, 44;
 var
     l4typ1z, l4typ2z, l4typ3z: tptr;
     l4var4z, l4var5z: eptr;
@@ -6192,10 +6197,10 @@ var
 void verifyType(t: tptr);
 {
     if ((hashTravPtr != NIL) &&
-       (hashTravPtr@.cl >= VARID)) {
+       (hashTravPtr->cl >= VARID)) {
         parseLval();
         if ((t != NIL) &&
-           not typeCheck(t, curExpr@.typ))
+           not typeCheck(t, curExpr->typ))
             error(errNeedOtherTypesOfOperands);
     } else {
         error(errNotDefined);
@@ -6207,41 +6212,41 @@ void verifyType(t: tptr);
 void startReadOrWrite(isWrite: int);
 {
     expression();
-    l4typ3z  =  curExpr@.typ;
+    l4typ3z  =  curExpr->typ;
     l4exp7z  =  curExpr;
-    if ((not isWrite) && (not (curExpr@.op IN lvalOpSet)))
+    if ((not isWrite) && (not (curExpr->op IN lvalOpSet)))
         error(27); /* errExpressionWhereVariableExpected */
     if (workExpr == NIL) {
-        if (l4typ3z@.k == kindFile) {
+        if (l4typ3z->k == kindFile) {
             workExpr  =  curExpr;
         } else {
             new(workExpr);
-            workExpr@.typ  =  textType;
-            workExpr@.op  =  GETVAR;
+            workExpr->typ  =  textType;
+            workExpr->op  =  GETVAR;
             if (isWrite) {
-                workExpr@.id1  =  outputFile;
+                workExpr->id1  =  outputFile;
             } else {
                 if (inputFile != NIL)
-                    workExpr@.id1  =  inputFile;
+                    workExpr->id1  =  inputFile;
                 else {
                     error(37); /* errInputMissingInProgramHeader */
                 }
             }
         }
-        arg2Type  =  workExpr@.typ;
-        l4var13z  =  typeCheck(arg2Type@.base, charType);
+        arg2Type  =  workExpr->typ;
+        l4var13z  =  typeCheck(arg2Type->base, charType);
         l4bool12z  =  true;
         new(l4exp8z);
-        l4exp8z@.typ  =  arg2Type@.base;
-        l4exp8z@.op  =  FILEPTR;
-        l4exp8z@.expr1  =  workExpr;
+        l4exp8z->typ  =  arg2Type->base;
+        l4exp8z->op  =  FILEPTR;
+        l4exp8z->expr1  =  workExpr;
         new(l4exp6z);
-        l4exp6z@.typ  =  l4exp8z@.typ;
-        l4exp6z@.op  =  ASSIGNOP;
+        l4exp6z->typ  =  l4exp8z->typ;
+        l4exp6z->op  =  ASSIGNOP;
         if (isWrite)
-            l4exp6z@.expr1  =  l4exp8z;
+            l4exp6z->expr1  =  l4exp8z;
         else
-            l4exp6z@.expr2  =  l4exp8z;
+            l4exp6z->expr2  =  l4exp8z;
     }
 } /* startReadOrWrite */
 //
@@ -6249,7 +6254,7 @@ void startReadOrWrite(isWrite: int);
 void parseWidthSpecifier(var l5arg1z: eptr);
 {
     expression();
-    if (not typeCheck(intType, curExpr@.typ)) {
+    if (not typeCheck(intType, curExpr->typ)) {
         error(14); /* errExprIsNotInt */
         curExpr  =  uVarPtr;
     }
@@ -6273,15 +6278,15 @@ void P17037;
 {
     set145z  =  set145z ~ [12];
     if ((helperNo != 49) &&             /* P/RDC */
-       not typeCheck(l4exp8z@.typ, l4exp7z@.typ))
+       not typeCheck(l4exp8z->typ, l4exp7z->typ))
         error(34); /* errTypeIsNotAFileElementType */
     else {
         if (helperNo == 29) {       /* P/PF */
-            l4exp6z@.expr2  =  l4exp7z;
+            l4exp6z->expr2  =  l4exp7z;
         } else {
             if (helperNo == 49)
                 helperNo  =  30;         /* P/GF */
-            l4exp6z@.expr1  =  l4exp7z;
+            l4exp6z->expr1  =  l4exp7z;
         }
         curExpr  =  l4exp6z;
         formOperator(gen7);
@@ -6295,9 +6300,9 @@ var
     l5typ1z: tptr;
 {
     set145z  =  set145z ~ [12];
-    if (l4typ3z@.k == kindRange)
-        l4typ3z  =  l4typ3z@.base;
-    curVarKind  =  l4typ3z@.k;
+    if (l4typ3z->k == kindRange)
+        l4typ3z  =  l4typ3z->base;
+    curVarKind  =  l4typ3z->k;
     helperNo  =  36;                   /* P/WI */
     if (l4typ3z == intType)
         defWidth  =  10;
@@ -6312,15 +6317,15 @@ var
         dumpEnumNames(l4typ3z);
         defWidth  =  8;
     } else if (isCharArray(l4typ3z)) {
-        l5typ1z  =  ref(l4typ3z@.range@);
-        defWidth  =  l5typ1z@.right - l5typ1z@.left + 1;
-        if (not (l4typ3z@.pck))
+        l5typ1z  =  ref(l4typ3z->range@);
+        defWidth  =  l5typ1z->right - l5typ1z->left + 1;
+        if (not (l4typ3z->pck))
             helperNo  =  81;            /* P/WA */
         else if (6 >= defWidth)
             helperNo  =  39;            /* P/A6 */
         else
             helperNo  =  40;           /* P/A7 */
-    } else if (l4typ3z@.size == 1) {
+    } else if (l4typ3z->size == 1) {
         helperNo  =  42;               /* P/WO */
         defWidth  =  17;
     } else {
@@ -6353,7 +6358,7 @@ void writeProc;
                     if (curToken.i == litOct) {
                         helperNo  =  42; /* P/WO */
                         defWidth  =  17;
-                        if (l4typ3z@.size != 1)
+                        if (l4typ3z->size != 1)
                             error(34); /* errTypeIsNotAFileElementType */
                         inSymbol();
                     }
@@ -6400,7 +6405,7 @@ void writeProc;
                     form1Insn(KVTM+I10 + defWidth);
                 else {
                     if (helperNo == 41)  /* P/WX */
-                        form1Insn(KVTM+I11 + l4typ3z@.start);
+                        form1Insn(KVTM+I11 + l4typ3z->start);
                 }
                 callHelperWithArg();
             }
@@ -6471,15 +6476,15 @@ void checkArrayArg;
 {
     verifyType(NIL);
     workExpr  =  curExpr;
-    l4typ1z  =  curExpr@.typ;
-    if ((l4typ1z@.pck) ||
-       (l4typ1z@.k != kindArray))
+    l4typ1z  =  curExpr->typ;
+    if ((l4typ1z->pck) ||
+       (l4typ1z->k != kindArray))
         error(errNeedOtherTypesOfOperands);
     checkSymAndRead(COMMA);
     readNext  =  false;
     expression();
     l4exp8z  =  curExpr;
-    if (not typeCheck(l4typ1z@.range, l4exp8z@.typ))
+    if (not typeCheck(l4typ1z->range, l4exp8z->typ))
         error(errNeedOtherTypesOfOperands);
 } /* checkArrayArg */
 //
@@ -6489,26 +6494,26 @@ var
     t: tptr;
 {
     new(l4exp7z);
-    l4exp7z@.typ  =  l4typ1z@.base;
-    l4exp7z@.op  =  GETELT;
-    l4exp7z@.expr1  =  workExpr;
-    l4exp7z@.expr2  =  l4exp8z;
-    t  =  ref(l4exp6z@.typ@);
-    if ((t@.k != kindArray) ||
-       not t@.pck ||
-       not typeCheck(t@.base, l4typ1z@.base) ||
-       not typeCheck(l4typ1z@.range, t@.range))
+    l4exp7z->typ  =  l4typ1z->base;
+    l4exp7z->op  =  GETELT;
+    l4exp7z->expr1  =  workExpr;
+    l4exp7z->expr2  =  l4exp8z;
+    t  =  ref(l4exp6z->typ@);
+    if ((t->k != kindArray) ||
+       not t->pck ||
+       not typeCheck(t->base, l4typ1z->base) ||
+       not typeCheck(l4typ1z->range, t->range))
         error(errNeedOtherTypesOfOperands);
     new(curExpr);
-    curExpr@.typ  =  ptr(procNo + 50);
-    curExpr@.expr1  =  l4exp7z;
-    curExpr@.expr2  =  l4exp6z;
+    curExpr->typ  =  ptr(procNo + 50);
+    curExpr->expr1  =  l4exp7z;
+    curExpr->expr2  =  l4exp6z;
     formOperator(PCKUNPCK);
 } /* doPackUnpack */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* standProc */
-    curVal.i  =  l3idr12z@.low;
+    curVal.i  =  l3idr12z->low;
     procNo  =  curVal.i;
     l4bool10z  =  (SY == LPAREN);
     l4var14z  =  moduleOffset;
@@ -6517,11 +6522,11 @@ var
         error(45); /* errNoOpenParenForStandProc */
     if (procNo IN [0,1,2,3,4,5,8,9]) {
         inSymbol();
-        if (hashTravPtr@.cl < VARID)
+        if (hashTravPtr->cl < VARID)
             error(46); /* errNoVarForStandProc */
         parseLval();
-        arg1Type  =  curExpr@.typ;
-        curVarKind  =  arg1Type@.k;
+        arg1Type  =  curExpr->typ;
+        curVarKind  =  arg1Type->k;
     }
     if (procNo < 7)
         jumpTarget  =  getHelperProc(29 + procNo); /* P/PF */
@@ -6532,7 +6537,7 @@ var
         if ((procNo == 3) && (SY == COMMA)) { // reset with file location
             formOperator(gen8);
             expression();
-            if (not typeCheck(intType, curExpr@.typ))
+            if (not typeCheck(intType, curExpr->typ))
                 error(14); /* errExprIsNotInt */
             formOperator(LOAD);
             formAndAlign(getHelperProc(97)); /*"P/RE"*/
@@ -6547,17 +6552,21 @@ var
         workExpr  =  curExpr;
         if (procNo == 5)
             formOperator(SETREG9);
-        l2typ13z  =  arg1Type@.base;
-        ii  =  l2typ13z@.size;
+        l2typ13z  =  arg1Type->base;
+        ii  =  l2typ13z->size;
         if (charClass == EQOP) {
             expression();
-            if (not typeCheck(intType, curExpr@.typ))
+            if (not typeCheck(intType, curExpr->typ))
                 error(14); /* errExprIsNotInt */
-            formOperator(LOAD);
-            form1Insn(KATI+14);
+            if (curExpr->op == GETENUM) {
+                ii = curExpr->num1; goto 44;
+            } else {
+                formOperator(LOAD);
+                form1Insn(KATI+14);
+            }
         } else {
-            if (arg1Type@.base@.k == kindStruct) {
-                l4typ1z  =  l2typ13z@.base;
+            if (arg1Type->base->k == kindStruct) {
+                l4typ1z  =  l2typ13z->base;
 (loop)          while ((SY == COMMA) && (l4typ1z != NIL)) {
                     inSymbol();
                     parseLiteral(l4typ2z, curVal.i, true);
@@ -6568,18 +6577,18 @@ var
 (loop2)                 while (l4typ1z != NIL) {
                             l4typ2z  =  l4typ1z;
                             while (l4typ2z != NIL) {
-                                if (l4typ2z@.sel == curVal.i) {
-                                    ii  =  l4typ1z@.size;
+                                if (l4typ2z->sel == curVal.i) {
+                                    ii  =  l4typ1z->size;
                                     exit loop2;
                                 }
-                                l4typ2z  =  l4typ2z@.r6;
+                                l4typ2z  =  l4typ2z->r6;
                             }
-                            l4typ1z  =  l4typ1z@.next;
+                            l4typ1z  =  l4typ1z->next;
                         }
                     }
                 }
             }
-            form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
+44:         form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
         }
         formAndAlign(jumpTarget);
         if (procNo == 4) {
@@ -6638,7 +6647,7 @@ var
                 error(1); /* errCommaOrSemicolonNeeded */
             inSymbol();
         } else {
-            formJump(exitTarget);
+            formJump(ref(exitTarget));
         }
         if (not l4bool10z)
             exit;
@@ -6660,7 +6669,7 @@ var
         l4typ1z  =  alfaType;
         l4typ2z  =  intType;
         expression();
-        if (not typeCheck(curExpr@.typ, l4typ1z))
+        if (not typeCheck(curExpr->typ, l4typ1z))
             error(errNeedOtherTypesOfOperands);
         checkSymAndRead(COMMA);
         formOperator(LOAD);
@@ -6730,19 +6739,19 @@ var
                         curVal.i  =  line;
                         error(17); /* errLblAlreadyDefinedInLine */;
                     } else {
-                        l3var2z@.line  =  lineCnt;
-                        l3var2z@.defined  =  true;
+                        l3var2z->line  =  lineCnt;
+                        l3var2z->defined  =  true;
                         padToLeft();
-                        if (l3var2z@.offset == 0) {
+                        if (l3var2z->offset == 0) {
                             /* empty */
-                        } else if (l3var2z@.offset >= 074000) {
+                        } else if (l3var2z->offset >= 074000) {
                             curVal.i  =  (moduleOffset - 040000);
-                            symTab[l3var2z@.offset]  =  [24,29] |
+                            symTab[l3var2z->offset]  =  [24,29] |
                                                          curVal.i & 077777U;
                         } else {
-                            P0715(0, l3var2z@.offset);
+                            P0715(0, l3var2z->offset);
                         }
-                        l3var2z@.offset  =  moduleOffset;
+                        l3var2z->offset  =  moduleOffset;
                     }
                     l3var2z  =  l2var16z;
                 }
@@ -6758,15 +6767,15 @@ var
 (ident)
         if (SY == IDENT) {
             if (hashTravPtr != NIL) {
-                l3var6z  =  hashTravPtr@.cl;
+                l3var6z  =  hashTravPtr->cl;
                 if (l3var6z >= VARID) {
                     assignStatement(true);
                 } else {
                     if (l3var6z == ROUTINEID) {
-                        if (hashTravPtr@.typ == NIL) {
+                        if (hashTravPtr->typ == NIL) {
                             l3idr12z  =  hashTravPtr;
                             inSymbol();
-                            if (l3idr12z@.offset == 0) {
+                            if (l3idr12z->offset == 0) {
                                 standProc();
                                 checkSymAndRead(SEMICOLON);
                                 exit ident;
@@ -6806,8 +6815,8 @@ var
             inSymbol();
             checkSymAndRead(RPAREN);
             statement();
-            P0715(0, l3var3z@.exitTarget);
-            strLabList  =  strLabList@.next;
+            P0715(0, l3var3z->exitTarget);
+            strLabList  =  strLabList->next;
         } else if (SY == BEGINSY) {
             inSymbol();
             while (SY != ENDSY) {
@@ -6833,7 +6842,7 @@ var
                         if (offset >= 040000) {
                             form1Insn(insnTemp[UJ] + offset);
                         } else {
-                            formJump(offset);
+                            formJump(ref(offset));
                         }
                     } else {
                         if (offset == 0) {
@@ -6853,7 +6862,7 @@ var
             ifWhileStatement();
             if (SY == ELSESY) {
                 elseJump  =  0;
-                formJump(elseJump);
+                formJump(ref(elseJump));
                 P0715(0, ifWhlTarget);
                 curOffset  =  arithMode;
                 arithMode  =  1;
@@ -6892,7 +6901,7 @@ var
             }
             disableNorm();
             parentExpression();
-            if ((curExpr@.typ != boolType) && (curExpr@.typ != intType)) {
+            if ((curExpr->typ != boolType) && (curExpr->typ != intType)) {
                 error(errBooleanNeeded);
             } else {
                 jumpTarget  =  curOffset;
@@ -6946,7 +6955,7 @@ var
     objBufIdx  =  0;
     objBuffer[objBufIdx]  =  0U;
     curInsnTemplate  =  insnTemp[XTA];
-    bool48z  =  ((E48 >> 22) & l2idr2z@.flags) >> 25;
+    bool48z  =  ((E48 >> 22) & l2idr2z->flags) >> 25;
     lineStartOffset  =  moduleOffset;
     l3var1z  =  ;
     int92z  =  2;
@@ -6963,23 +6972,23 @@ var
     l2int21z  =  localSize;
     if (SY != BEGINSY)
         requiredSymErr(BEGINSY);
-    if ((E48 >> 23) & l2idr2z@.flags) {
-        l3idr5z  =  l2idr2z@.argList;
+    if ((E48 >> 23) & l2idr2z->flags) {
+        l3idr5z  =  l2idr2z->argList;
         l3int4z  =  3;
-        if (l2idr2z@.typ != NIL)
+        if (l2idr2z->typ != NIL)
         l3int4z  =  4;
         while (l3idr5z != l2idr2z) {
-            if (l3idr5z@.cl == VARID) {
-                l3var2z  =  l3idr5z@.typ@.size;
+            if (l3idr5z->cl == VARID) {
+                l3var2z  =  l3idr5z->typ->size;
                 if (l3var2z != 1) {
                     form3Insn(KVTM+I14 + l3int4z,
                               KVTM+I12 + l3var2z,
-                              KVTM+I11 + l3idr5z@.value);
+                              KVTM+I11 + l3idr5z->value);
                     formAndAlign(getHelperProc(73)); /* "P/LNGPAR" */
                 }
             }
             l3int4z  =  l3int4z + 1;
-            l3idr5z  =  l3idr5z@.list;
+            l3idr5z  =  l3idr5z->list;
         }
     }
     if (checkBounds || not (NoStackCheck IN optSflags))
@@ -6998,7 +7007,7 @@ var
                errAndSkip(errBadSymbol, skipToSet);
         }
     } while (not l2bool8z);
-    l2idr2z@.flags  =  (set145z & [0:15]) | (l2idr2z@.flags ~ l3var7z);
+    l2idr2z->flags  =  (set145z & [0:15]) | (l2idr2z->flags ~ l3var7z);
     lineNesting  =  l3var2z - 1;
     if (exitTarget != 0)
         P0715(0, exitTarget);
@@ -7011,7 +7020,7 @@ var
             objBuffer[0]  =  [0,1,3:5];
             putLeft  =  true;
         } else {
-            l2idr2z@.pos  =  l3var1z;
+            l2idr2z->pos  =  l3var1z;
             if ((E48 >> 13) & set145z) {
                 curVal.i  =  minel([1:15] ~ set145z);
                 objBuffer[1]  =  objBuffer[1] | [0,1,3,6,9] | (curVal.i << 24);
@@ -7031,7 +7040,7 @@ var
             if ((E48 >> S3) & optSflags)
                 formAndAlign(getHelperProc(78)); /* "P/PMDSET" */
             form1Insn(insnTemp[UJ] + l3var1z);
-            curVal.i  =  l2idr2z@.pos - 040000;
+            curVal.i  =  l2idr2z->pos - 040000;
             symTab[074002]  =  [24,29] | (curVal.i & halfWord);
         }
         curVal.i  =  l2int21z;
@@ -7209,7 +7218,7 @@ void regSysProc(l4arg1z: int);
     regSysProc('     PTR');
     l3var11z  =  30;
     l3var11z  =  l3var11z & halfWord | [24,27,28,29];
-    new(programObj, 12);
+    new(programObj = 12);
     l3var3z  = '*OUTPUT*';
     l3var4z  =  ' *INPUT*';
     test1(EXTERNSY, (skipToSet | [IDENT,LPAREN]));
@@ -7228,12 +7237,12 @@ void regSysProc(l4arg1z: int);
     /*10 24 74001 00 30 74002*/
     write(_CHILD_,04247400103074002U);
     moduleOffset  =  040001;
-    programObj@.argList  =  NIL;
-    programObj@.flags  =  0U;
+    programObj->argList  =  NIL;
+    programObj->flags  =  0U;
     objBufIdx  =  0;
     temptype  =  intType;
     defineRange(temptype, 1, 6);
-    alfaType@.range  =  temptype;
+    alfaType->range  =  temptype;
     int93z  =  0;
     outputObjFile();
     outputFile  =  NIL;
@@ -7250,7 +7259,7 @@ void regSysProc(l4arg1z: int);
     }
     curVal.i  =  '*OUTPUT*';
     /*=A2 done with TEXT constants */
-    l3var7z@.value  =  allocExtSymbol(l3var11z);
+    l3var7z->value  =  allocExtSymbol(l3var11z);
     addToHashTab(l3var7z);
     l3var5z  =  1;
     while (SY == IDENT) {
@@ -7267,7 +7276,7 @@ void regSysProc(l4arg1z: int);
                 list  =  NIL;
             }
             curVal.i  =  l3var1z;
-            inputFile@.value  =  allocExtSymbol(l3var11z);
+            inputFile->value  =  allocExtSymbol(l3var11z);
             addToHashTab(inputFile);
             l3var8z  =  lineCnt;
         } else if (curIdent == l3var3z) {
@@ -7276,11 +7285,11 @@ void regSysProc(l4arg1z: int);
         }
         curExternFile  =  externFileList;
         while (curExternFile != NIL) {
-            if (curExternFile@.id == curIdent) {
+            if (curExternFile->id == curIdent) {
                 curExternFile  =  NIL;
                 error(errIdentAlreadyDefined);
             } else {
-                curExternFile  =  curExternFile@.next;
+                curExternFile  =  curExternFile->next;
             }
         }
         new(curExternFile);
@@ -7322,7 +7331,7 @@ void regSysProc(l4arg1z: int);
         } else {
             l3var6z  =  512;
         }
-        curExternFile@.location  =  l3var6z;
+        curExternFile->location  =  l3var6z;
         if (SY == COMMA)
             inSymbol();
     }
@@ -7416,9 +7425,9 @@ var
             symHash[bucket]  =  l3var1z;
             l2int18z  =  l2int18z + 1;
             if (l3var2z == NIL)
-                curIdRec@.argList  =  l3var1z;
+                curIdRec->argList  =  l3var1z;
             else
-                l3var2z@.list  =  l3var1z;
+                l3var2z->list  =  l3var1z;
             l3var2z  =  l3var1z;
             if (l3var3z == NIL)
                 l3var3z  =  l3var1z;
@@ -7437,8 +7446,8 @@ var
             if (l3sym7z != VARSY) {
                 if (isFileType(expType))
                 error(5); /*errSimpleTypeReq */
-                else if (expType@.size != 1)
-                     l3var5z  =  l3var6z * expType@.size + l3var5z;
+                else if (expType->size != 1)
+                     l3var5z  =  l3var6z * expType->size + l3var5z;
             }
             if (l3var3z != NIL)
                 while (l3var3z != curIdRec) with l3var3z@ do {
@@ -7454,19 +7463,19 @@ var
         }
     }
     if (l3var5z != 0) {
-        curIdRec@.flags  =  (curIdRec@.flags | [23]);
+        curIdRec->flags  =  (curIdRec->flags | [23]);
         l3var6z  =  l2int18z;
         l2int18z  =  l2int18z + l3var5z;
-        l3var2z  =  curIdRec@.argList;
+        l3var2z  =  curIdRec->argList;
         while (l3var2z != curIdRec) {
-            if (l3var2z@.cl == VARID) {
-                l3var5z  =  l3var2z@.typ@.size;
+            if (l3var2z->cl == VARID) {
+                l3var5z  =  l3var2z->typ->size;
                 if (l3var5z != 1) {
-                    l3var2z@.value  =  l3var6z;
+                    l3var2z->value  =  l3var6z;
                     l3var6z  =  l3var6z + l3var5z;
                 }
             }
-            l3var2z  =  l3var2z@.list;
+            l3var2z  =  l3var2z->list;
         }
     }
     checkSymAndRead (RPAREN);
@@ -7479,7 +7488,7 @@ void exitScope(var arg: array [0..127] of irptr);
         workidr  =  arg[ii];
         while ((workidr != NIL) &&
               (workidr >= scopeBound))
-            workidr  =  workidr@.next;
+            workidr  =  workidr->next;
         arg[ii]  =  workidr;
     }
 } /* exitScope */
@@ -7509,10 +7518,10 @@ void exitScope(var arg: array [0..127] of irptr);
             }
             l2var15z  =  numLabList;
             while (l2var15z != l2var16z) {
-                if (l2var15z@.id != curToken.i) {
-                    l2var15z  =  l2var15z@.next;
+                if (l2var15z->id != curToken.i) {
+                    l2var15z  =  l2var15z->next;
                 } else {
-                    errLine  =  l2var15z@.line;
+                    errLine  =  l2var15z->line;
                     error(17); /* errLblAlreadyDefinedInLine */
                     goto 22420;
                 }
@@ -7550,10 +7559,10 @@ void exitScope(var arg: array [0..127] of irptr);
                 inSymbol();
             with workidr@ do
                 parseLiteral(typ, high, true);
-            if (workidr@.typ == NIL) {
+            if (workidr->typ == NIL) {
                 error(errNoConstant);
-                workidr@.typ  =  intType;
-                workidr@.value  =  1;
+                workidr->typ  =  intType;
+                workidr->value  =  1;
             } else
                 inSymbol();
             if (SY == SEMICOLON) {
@@ -7585,16 +7594,16 @@ void exitScope(var arg: array [0..127] of irptr);
             parseTypeRef(l2typ13z, skipToSet | [SEMICOLON]);
             curIdent  =  l2var12z;
             if (knownInType(curIdRec)) {
-                l2typ14z  =  curIdRec@.typ;
-                if (l2typ14z@.base == boolType) {
-                    if (l2typ13z@.k != kindPtr) {
+                l2typ14z  =  curIdRec->typ;
+                if (l2typ14z->base == boolType) {
+                    if (l2typ13z->k != kindPtr) {
                         parseDecls(1);
                         error(78); /* errPredefinedAsPointer */
                     }
-                    l2typ14z@.base  =  l2typ13z@.base;
+                    l2typ14z->base  =  l2typ13z->base;
                 } else {
-                    l2typ14z@.base  =  l2typ13z;
-                    curIdRec@.typ  =  l2typ13z;
+                    l2typ14z->base  =  l2typ13z;
+                    curIdRec->typ  =  l2typ13z;
                 }
                 P2672(typelist, curIdRec);
             } else {
@@ -7606,17 +7615,17 @@ void exitScope(var arg: array [0..127] of irptr);
                     cl  =  TYPEID;
                 }
             }
-            curIdRec@.next  =  symHash[ii];
+            curIdRec->next  =  symHash[ii];
             symHash[ii]  =  curIdRec;
             int93z  =  0;
             checkSymAndRead(SEMICOLON);
         }
         while (typelist != NIL) {
-            l2var12z  =  typelist@.id;
+            l2var12z  =  typelist->id;
             curIdRec  =  typelist;
             parseDecls(1);
             error(79); /* errNotFullyDefined */
-            typelist  =  typelist@.next;
+            typelist  =  typelist->next;
         }
     }
     inTypeDef  =  false;
@@ -7642,7 +7651,7 @@ void exitScope(var arg: array [0..127] of irptr);
                 if (workidr == NIL)
                     workidr  =  curIdRec;
                 else
-                    l2var4z@.list  =  curIdRec;
+                    l2var4z->list  =  curIdRec;
                 l2var4z  =  curIdRec;
             } else
                 error(errNoIdent);
@@ -7656,7 +7665,7 @@ void exitScope(var arg: array [0..127] of irptr);
             } while (not l2bool8z);
             checkSymAndRead(COLON);
             parseTypeRef(l2typ13z, skipToSet | [IDENT,SEMICOLON]);
-            jj  =  l2typ13z@.size;
+            jj  =  l2typ13z->size;
             while (workidr != NIL) with workidr@ do {
                 curIdRec  =  list;
                 typ  =  l2typ13z;
@@ -7668,23 +7677,23 @@ void exitScope(var arg: array [0..127] of irptr);
                     curVal.i  =  jj;
                     toAlloc  =  curVal.i & halfWord | [24,27,28,29];
                     while (l2bool8z && (curExternFile != NIL)) {
-                        if (curExternFile@.id == l2var12z) {
+                        if (curExternFile->id == l2var12z) {
                             l2bool8z  =  false;
-                            if (curExternFile@.line == 0) {
-                                curVal.i  =  curExternFile@.offset;
-                                workidr@.value  =  allocExtSymbol(toAlloc);
-                                curExternFile@.line  =  lineCnt;
+                            if (curExternFile->line == 0) {
+                                curVal.i  =  curExternFile->offset;
+                                workidr->value  =  allocExtSymbol(toAlloc);
+                                curExternFile->line  =  lineCnt;
                             }
                         } else {
-                            curExternFile  =  curExternFile@.next;
+                            curExternFile  =  curExternFile->next;
                         }
                     }
                 }
                 if (l2bool8z) {
-                    workidr@.value  =  localSize;
+                    workidr->value  =  localSize;
                     if (PASINFOR.listMode == 3) {
                         write('VARIABLE ':25);
-                        printTextWord(workidr@.id);
+                        printTextWord(workidr->id);
                         writeln(' OFFSET (', curProcNesting:0, ') ',
                                 localSize:5 oct, 'B. WORDS=',
                                 jj:5 oct, 'B');
@@ -7720,12 +7729,12 @@ void exitScope(var arg: array [0..127] of irptr);
     if (curProcNesting == 1) {
         curExternFile  =  externFileList;
         while (curExternFile != NIL) {
-            if (curExternFile@.line == 0) {
+            if (curExternFile->line == 0) {
                 error(80); /* errUndefinedExternFile */
-                printTextWord(curExternFile@.id);
+                printTextWord(curExternFile->id);
                 writeLN;
             }
-            curExternFile  =  curExternFile@.next;
+            curExternFile  =  curExternFile->next;
         }
     }
     outputObjFile();
@@ -7792,8 +7801,8 @@ void exitScope(var arg: array [0..127] of irptr);
                     errAndSkip(106 /*:*/, skipToSet | [SEMICOLON]);
                 else {
                     inSymbol();
-                    parseTypeRef(curIdRec@.typ, skipToSet | [SEMICOLON]);
-                    if (curIdRec@.typ@.size != 1)
+                    parseTypeRef(curIdRec->typ, skipToSet | [SEMICOLON]);
+                    if (curIdRec->typ->size != 1)
                         error(errTypeMustNotBeFile);
                 }
             }
@@ -7808,17 +7817,17 @@ void exitScope(var arg: array [0..127] of irptr);
                     curIdRec  =  preDefHead;
                     while (hashTravPtr != curIdRec) {
                         workidr  =  curIdRec;
-                        curIdRec  =  curIdRec@.preDefLink;
+                        curIdRec  =  curIdRec->preDefLink;
                     }
-                    workidr@.preDefLink  =  hashTravPtr@.preDefLink;
+                    workidr->preDefLink  =  hashTravPtr->preDefLink;
                 }
             }
-            hashTravPtr@.preDefLink  =  NIL;
-            curIdRec  =  hashTravPtr@.argList;
+            hashTravPtr->preDefLink  =  NIL;
+            curIdRec  =  hashTravPtr->argList;
             if (curIdRec != NIL) {
                 while (curIdRec != hashTravPtr) {
                     addToHashTab(curIdRec);
-                    curIdRec  =  curIdRec@.list;
+                    curIdRec  =  curIdRec->list;
                 }
             }
             curIdRec  =  hashTravPtr;
@@ -7842,7 +7851,7 @@ void exitScope(var arg: array [0..127] of irptr);
             } else {
                 curVal.i  =  [21];
             }
-            curIdRec@.flags  =  curIdRec@.flags | curVal.i;
+            curIdRec->flags  =  curIdRec->flags | curVal.i;
         } else {
             do {
                 setup(scopeBound);
@@ -7857,12 +7866,12 @@ void exitScope(var arg: array [0..127] of irptr);
         }
         inSymbol();
         checkSymAndRead(SEMICOLON);
-23301:  workidr  =  curIdRec@.argList;
+23301:  workidr  =  curIdRec->argList;
         if (workidr != NIL) {
             while (workidr != curIdRec) {
                 scopeBound  =  NIL;
                 P2672(scopeBound, workidr);
-                workidr  =  workidr@.list;
+                workidr  =  workidr->list;
             }
         }
         curFrameRegTemplate  =  curFrameRegTemplate - indexreg[1];
@@ -7875,21 +7884,21 @@ void exitScope(var arg: array [0..127] of irptr);
     if (preDefHead != ptr(0)) {
         error(85); /* errNotFullyDefinedVoids */
         while (preDefHead != ptr(0)) {
-            printTextWord(preDefHead@.id);
-            preDefHead  =  preDefHead@.preDefLink;
+            printTextWord(preDefHead->id);
+            preDefHead  =  preDefHead->preDefLink;
         }
         writeLN;
     }
     defineRoutine();
     while (numLabList != l2var16z) {
-        if (not (numLabList@.defined)) {
-            write(' ', numLabList@.id:0, ':');
+        if (not (numLabList->defined)) {
+            write(' ', numLabList->id:0, ':');
             l2bool8z  =  false;
         }
-        numLabList  =  numLabList@.next;
+        numLabList  =  numLabList->next;
     }
     if (not l2bool8z) {
-        printTextWord(l2idr2z@.id);
+        printTextWord(l2idr2z->id);
         error(90); /* errLblDefinitionInBlock */
     }
     l2arg1z  =  l2int21z;

@@ -1594,6 +1594,8 @@ procedure readOptFlag(var res: boolean);
                     nextCH;
                     if CH = '|' then nextCH
                     else charClass := SETOR;
+                } else if (charClass = MINUSOP) and (PASINPUT@ = '>') then {
+                    SY := ARROW; nextCH; CH := '.';
                 } else
                     nextCH;
             };
@@ -3919,7 +3921,7 @@ var i    : integer; ret: bitset;
                     end;
                     insnList@.ilf5 := arg1Val;
                 } else
-                if (work >= fnEOF) and (fnEOLN >= work) then {
+                if (work IN [fnEOF, fnREF, fnEOLN]) then {
                     if (work = fnREF) then {
                         setAddrTo(14);
                         addToInsnList(KITA+14);
@@ -6169,39 +6171,39 @@ type
         end;
 var
     dsize, setcount: integer;
-    l4var3z, l4var4z: word;
+    l4var3z, length: integer;
     repCount: integer;
     boundary: eptr;
     l4var7z, l4var8z, l4var9z: word;
     F: file of DATAREC;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure P16432(l5arg1z: integer);
+procedure P16432(count: integer);
 var
-    l5var1z: DATAREC;
+    rec: DATAREC;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function allocDataRef(l6arg1z: integer): integer;
+function allocDataRef(value: integer): integer;
 {
-    if (l6arg1z >= 2048) then {
-        curVal.i := l6arg1z;
+    if (value >= 2048) then {
+        curVal.i := value;
         allocDataRef := allocSymtab((curVal.m + [24]) * halfWord);
     } else {
-        allocDataRef := l6arg1z;
+        allocDataRef := value;
     }
 }; (* allocDataRef *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* P16432 *)
-    l5var1z.a[0] := allocDataRef(l4var4z.i);
-    if (FcstCnt = l4var3z.i) then {
+    rec.a[0] := allocDataRef(length);
+    if (FcstCnt = l4var3z) then {
         curVal := l4var8z;
         curVal.i := addCurValToFCST;
     } else {
-        curVal := l4var3z;
+        curVal.i := l4var3z;
     };
-    l5var1z.a[1] := allocSymtab([12,23] + curVal.m * halfWord);
-    l5var1z.a[2] := allocDataRef(l5arg1z);
+    rec.a[1] := allocSymtab([12,23] + curVal.m * halfWord);
+    rec.a[2] := allocDataRef(count);
     if (l4var9z.i = 0) then {
         curVal := l4var7z;
         besm(ASN64+24);
@@ -6209,13 +6211,13 @@ function allocDataRef(l6arg1z: integer): integer;
     } else {
         curVal.i := allocSymtab(l4var7z.m + l4var9z.m * halfWord);
     };
-    l5var1z.a[3] := curVal.i;
-    l4var9z.i := l5arg1z * l4var4z.i + l4var9z.i;
-    F@ := l5var1z;
+    rec.a[3] := curVal.i;
+    l4var9z.i := count * length + l4var9z.i;
+    F@ := rec;
     put(F);
     setcount := setcount + 1;
-    l4var4z.i := 0;
-    l4var3z.i := FcstCnt;
+    length := 0;
+    l4var3z := FcstCnt;
 }; (* P16432 *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6249,8 +6251,8 @@ function allocDataRef(l6arg1z: integer): integer;
         if (objBufIdx <> 1) then
             error(errVarTooComplex);
         l4var7z.m := (leftInsn * [12..23]);
-        l4var3z.i := FcstCnt;
-        l4var4z.i := 0;
+        l4var3z := FcstCnt;
+        length := 0;
         l4var9z.i := 0;
         repeat
             expression;
@@ -6267,17 +6269,17 @@ function allocDataRef(l6arg1z: integer): integer;
             } else
                 repCount := 1;
             if (repCount <> 1) then {
-                if (l4var4z.i <> 0) then
+                if (length <> 0) then
                     P16432(1);
-                l4var4z.i := 1;
+                length := 1;
                 P16432(repCount);
             } else {
-                l4var4z.i := l4var4z.i + 1;
+                length := length + 1;
                 if (SY = COMMA) then {
                     curVal := l4var8z;
                     toFCST;
                 } else {
-                    if (l4var4z.i <> 1) then {
+                    if (length <> 1) then {
                         curVal := l4var8z;
                         toFCST;
                     };
@@ -6303,7 +6305,7 @@ function allocDataRef(l6arg1z: integer): integer;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure standProc;
 label
-    17753;
+    17753, 44;
 var
     l4typ1z, l4typ2z, l4typ3z: tptr;
     firstWidth, secondWidth: eptr;
@@ -6686,8 +6688,12 @@ var
             expression;
             if not typeCheck(integerType, curExpr@.typ) then
                 error(14); (* errExprIsNotInteger *)
-            formOperator(LOAD);
-            form1Insn(KATI+14);
+            if (curExpr@.op = GETENUM) then {
+                ii := curExpr@.num1; goto 44;
+            } else {
+                formOperator(LOAD);
+                form1Insn(KATI+14);
+            }
         } else {
             if (arg1Type@.base@.k = kindStruct) then {
                 l4typ1z := l2typ13z@.base;
@@ -6714,7 +6720,7 @@ var
                     }
                 }
             };
-            form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
+44:         form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
         };
         formAndAlign(jumpTarget);
         if (procNo = 4) then {
@@ -8477,9 +8483,9 @@ procedure initOptions;
         6017250000000000C      (*"P/5     "*),
         6017260000000000C      (*"P/6     "*),
         6017434100000000C      (*"P/CA    "*),
-        6017455700000000C      (*"P/EO    "*),
+        6017455700000000C      (*"P/EO    "*), (* fnEOF - 6 *)
         6017636300000000C      (*"P/SS    "*),
-(*10*)  6017455400000000C      (*"P/EL    "*),
+(*10*)  6017455400000000C      (*"P/EL    "*), (* fnEOLN - 6 *)
         6017554400000000C      (*"P/MD    "*),
         6017555100000000C      (*"P/MI    "*),
         6017604100000000C      (*"P/PA    "*),
