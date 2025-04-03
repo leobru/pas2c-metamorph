@@ -10,7 +10,7 @@ const
     fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnODD  = 9;
     fnORD   = 10; fnCHR  = 11; fnSUCC = 12; fnPRED  = 13; fnEOF  = 14;
     fnREF   = 15; fnEOLN = 16; (*   17   *) fnROUND = 18; fnCARD = 19;
-    fnMINEL = 20; fnPTR  = 21; fnABSI = 22; (*   23   *)  fn24 = 24;
+    fnMINEL = 20; fnPTR  = 21; fnABSI = 22;
 %
     S3 = 0;
     S4 = 1;
@@ -3663,7 +3663,7 @@ var i    : integer; ret: bitset;
                 SETSUB:
                     goto 10075;
                 NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP,
-                badop27, badop30, badop31, MKRANGE, ASSIGNOP:
+                MKRANGE, ASSIGNOP:
                     error(200);
                 end;
                 insnList@.ilf5 := arg1Val;
@@ -5281,24 +5281,6 @@ var
     newExpr@.op := STANDPROC;
     newExpr@.expr1 := curExpr;
     newExpr@.num2 := stProcNo;
-    if stProcNo = fn24 then {
-        if SY <> COMMA then {
-            requiredSymErr(COMMA);
-            goto 8888;
-        };
-        expression;
-        l5var2z := curExpr@.typ;
-        l5op1z := badop27;
-        if (l5var2z <> realType) and
-            not typeCheck(l5var2z, integerType) then
-            error(errNeedOtherTypesOfOperands);
-        if (l5var2z = realType) then
-            l5op1z := badop30
-        else if (checkMode = chkREAL) then
-            l5op1z := badop31;
-        newExpr@.expr2 := curExpr;
-        newExpr@.op := l5op1z;
-    };
     curExpr := newExpr;
     curExpr@.typ := arg1Type;
     checkSymAndRead(RPAREN);
@@ -5483,6 +5465,19 @@ var
             }
         };
         end; (* case *)
+    } else if (charClass = SETAND) then {
+        inSymbol;
+        factor;
+        if not (curExpr@.op IN lvalOpSet) then
+            error(27); (* errExpressionWhereVariableExpected *)
+        newExpr := curExpr;
+        new(curExpr);
+        with curExpr@ do {
+            typ := pointerType;
+            op  :=  STANDPROC;
+            expr1  :=  newExpr;
+            num2  :=  fnREF;
+        }
     } else {
         error(errBadSymbol);
         goto 8888;
@@ -6446,7 +6441,7 @@ var
         dumpEnumNames(l4typ3z);
         defWidth := 8;
     } else if (isCharArray(l4typ3z)) then {
-        l5typ1z := ref(l4typ3z@.range@);
+        l5typ1z := l4typ3z@.range;
         defWidth := l5typ1z@.right - l5typ1z@.left + 1;
         if not (l4typ3z@.pck) then
             helperNo := 81            (* P/WA *)
@@ -6627,7 +6622,7 @@ var
     l4exp7z@.op := GETELT;
     l4exp7z@.expr1 := workExpr;
     l4exp7z@.expr2 := l4exp8z;
-    t := ref(l4exp6z@.typ@);
+    t := l4exp6z@.typ;
     if (t@.k <> kindArray) or
        not t@.pck or
        not typeCheck(t@.base, l4typ1z@.base) or
@@ -8129,10 +8124,8 @@ var
             opToMode[l3var2z] := 3;
         } else if (l3var2z IN [IDIVOP, IMODOP]) then {
             opToMode[l3var2z] := 2;
-        } else if (l3var2z IN [IMULOP, INTPLUS, INTMINUS, badop27]) then {
+        } else if (l3var2z IN [IMULOP, INTPLUS, INTMINUS]) then {
             opToMode[l3var2z] := 1;
-        } else if (l3var2z IN [badop30,badop31]) then {
-            opToMode[l3var2z] := 4;
         } else {
             opToMode[l3var2z] := 0;
         }
@@ -8149,9 +8142,6 @@ var
     opToInsn[SETOR] := insnTemp[AOX];
     opToInsn[INTPLUS] := insnTemp[ADD];
     opToInsn[INTMINUS] := insnTemp[SUB];
-    opToInsn[badop27] := 22; (* P/II unused, undefined *)
-    opToInsn[badop30] := 23; (* P/RR *)
-    opToInsn[badop31] := 24; (* P/RI *)
     opToInsn[MKRANGE] := 61; (* P/PI *)
     opToInsn[SETSUB] := insnTemp[AAX];
     opToInsn[SHLEFT] := 98;
@@ -8161,9 +8151,6 @@ var
     opFlags[OROP] := opfOR;
     opFlags[IMULOP] := opfMULMSK;
     opFlags[IMODOP] := opfMOD;
-    opFlags[badop27] := opfHELP;
-    opFlags[badop30] := opfHELP;
-    opFlags[badop31] := opfHELP;
     opFlags[MKRANGE] := opfHELP;
     opFlags[ASSIGNOP] := opfASSN;
     opFlags[SETSUB] := opfINV;
