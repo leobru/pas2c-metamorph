@@ -6545,57 +6545,6 @@ procedure writeProc;
 }; (* writeProc *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure readProc;
-label
-    17346, 17362;
-{
-    workExpr := NIL;
-    l4var13z.b := true;
-    oldOffset := moduleOffset;
-    repeat {
-        startReadOrWrite(false);
-        if (l4exp7z <> workExpr) then {
-            if not (l4var13z.b) then {
-                helperNo := 30;         (* P/GF *)
-17346:
-                P17037;
-           } else {
-                checkElementForReadWrite;
-                if (helperNo = 38) then {       (* P/WC *)
-                    helperNo := 49;             (* P/RDC *)
-                    goto 17346;
-                };
-                if (helperNo = 39) or           (* A6,A7 *)
-                   (helperNo = 40) then {
-                    helperNo := 51;             (* P/RA7 *)
-17362:
-                    curExpr := l4exp7z;
-                    formOperator(SETREG9);
-                    form1Insn(KVTM+I10 + defWidth);
-                    callHelperWithArg;
-                } else {
-                    if (helperNo = 81) then {   (* P/WA *)
-                        helperNo := 90;         (* P/RA *)
-                        goto 17362;
-                    };
-                    helperNo := helperNo + 11;
-                    callHelperWithArg;
-                    curExpr := l4exp7z;
-                    formOperator(STORE);
-                }
-            }
-        }
-    } until (SY <> COMMA);
-    set145z := set145z + [12];
-    if (procNo = 13) then {
-        helperNo := 53;                 (* P/RL *)
-        callHelperWithArg;
-    };
-    if (oldOffset = moduleOffset) then
-        error(36); (* errTooFewArguments *)
-}; (* readProc *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure checkArrayArg;
 {
     verifyType(NIL);
@@ -6751,17 +6700,6 @@ var
             writeProc;
         } else {
             formAndAlign(getHelperProc(54)); (*"P/WOLN"*)
-            exit
-        }
-    };
-    12: { (* read *)
-        readProc;
-    };
-    13: { (* readln *)
-        if (SY = LPAREN) then {
-            readProc;
-        } else {
-            formAndAlign(getHelperProc(55)); (*"P/RILN"*)
             exit
         }
     };
@@ -8575,8 +8513,8 @@ procedure initOptions;
         625754546560C          (*"  ROLLUP"*),
 (*10*)  6762516445C            (*"   WRITE"*),
         67625164455456C        (*" WRITELN"*),
-        62454144C              (*"    READ"*),
-        624541445456C          (*"  READLN"*),
+        0C                     (*"    READ"*),
+        0C                     (*"  READLN"*),
         45705164C              (*"    EXIT"*),
         4445426547C            (*"   DEBUG"*),
         42456355C              (*"    BESM"*),

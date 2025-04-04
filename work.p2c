@@ -279,7 +279,7 @@ charmap   = packed array ['\000'..'\176'] of char;
 textmap   = packed array ['\052'..'\177'] of '\000'..'\077';
 //
 four = array [1..4] of int;
-entries   = array [1..42] of int;
+entries   = array [0..41] of int;
 //
 expr = struct {
     typ:       tptr;
@@ -607,25 +607,105 @@ void addToHashTab(arg: irptr);
     symHash[curval.i]  =  arg;
 } /* addToHashTab */
 //
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-//              PROGRAMME                 %
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void programme(l2arg1z: @int; l2idr2z: irptr);
-label 22420, 22421, 23301;
-var
-    preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
-    isPredefined, l2bool8z, inTypeDef: int;
-    l2var10z: eptr;
-    l2int11z: int;
-    l2var12z: int;
-    l2typ13z, l2typ14z: tptr;
-    l2var15z, l2var16z: @numLabel;
-    strLabList: @strLabel;
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void toFCST;
+{
+    write(FCST, curVal.i);
+    FcstCnt  =  FcstCnt + 1;
+} /* toFCST */
 //
-    l2int18z, ii, localSize, l2int21z, jj: int;
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function addCurValToFCST: int;
+var
+    low, high, mid: int;
+{
+    low  =  1;
+    if (FcstCountTo500 == 0) {
+        addCurValToFCST  =  FcstCnt;
+        FcstCountTo500  =  1;
+        constVals[1]  =  curVal.a;
+        constNums[1]  =  FcstCnt;
+        toFCST();
+    } else {
+        high  =  FcstCountTo500;
+        do {
+            mid  =  (low + high) / 2;
+            if (curVal.a == constVals[mid]) {
+                addCurValToFCST  =  constNums[mid];
+                exit;
+            }
+            if (curval.a < constVals[mid])
+                high  =  mid - 1;
+            else
+                low  =  mid + 1;
+        } while (high >= low);
+        addCurValToFCST  =  FcstCnt;
+        if (FcstCountTo500 != 500) {
+            if (curval.a < constVals[mid])
+                high  =  mid;
+            else
+                high  =  mid + 1;
+            for (mid  =  FcstCountTo500; mid >= high; mid=mid-1) {
+                low  =  mid + 1;
+                constVals[low]  =  constVals[mid];
+                constNums[low]  =  constNums[mid];
+            }
+            FcstCountTo500  =  FcstCountTo500 + 1;
+            constVals[high]  =  curVal.a;
+            constNums[high]  =  FcstCnt;
+        }
+        toFCST();
+    }
+} /* addCurValToFCST */
 //
 void error(errno: int);
     forward;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void endOfLine;
+var
+    err, errPos, prevPos, listMode,
+    startPos, lastErr: int;
+{
+    listMode  =  pasinfor.listMode;
+    if ((listMode != 0) || (errsInLine != 0))
+    {
+        write(' ', (lineStartOffset + PASINFOR.startOffset):5 oct,
+              lineCnt:5, lineNesting:3, commentModeCH);
+        startPos  =  13;
+        do
+            linePos  =  linePos-1;
+        while ((lineBuf[linePos]  == ' ') && (linePos >= 0));
+        for (err = 0; err <= linePos; err=err+1) {
+            _output_@ = lineBuf[err];
+            put(_output_);
+        }
+        writeln;
+        if (errsInLine != 0) {
+            write('*****':startPos, ' ':errMap[0], '0');
+            lastErr  =  errsInLine - 1;
+            for (err = 1; err <= lastErr; err=err+1) {
+                errPos  =  errMap[err];
+                prevPos  =  errMap[err-1];
+                if (errPos != prevPos) {
+                    if (prevPos + 1 != errPos)
+                        write(' ':(errPos-prevPos-1));
+                    write(chr(err + 48));
+                }
+            }
+            writeln;
+            errsInLine  =  0;
+            prevErrPos  =  0;
+        }
+    }
+    lineStartOffset  =  moduleOffset;
+    linePos  =  -1;
+    lineCnt  =  lineCnt + 1;
+    if (eof(pasinput)) {
+        error(errEOFEncountered);
+        goto 9999;
+    }
+} /* endOfLine */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              storeObjWord              %
@@ -743,6 +823,13 @@ void formAndAlign(arg: int);
 } /* formAndAlign */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function isCharArray(arg: tptr): int;
+{
+    with arg@ do
+        isCharArray  =  (k == kindArray) && (base == charType);
+} /* isCharArray */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void putToSymTab(arg: int);
 {
     symTab[symTabPos]  =  arg;
@@ -786,57 +873,6 @@ function getHelperProc(l3arg1z: int): int;
     }
     getHelperProc  =  helperMap[l3arg1z] + (KVJM+I13);
 } /*getHelperProc */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void toFCST;
-{
-    write(FCST, curVal.i);
-    FcstCnt  =  FcstCnt + 1;
-} /* toFCST */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function addCurValToFCST: int;
-var
-    low, high, mid: int;
-{
-    low  =  1;
-    if (FcstCountTo500 == 0) {
-        addCurValToFCST  =  FcstCnt;
-        FcstCountTo500  =  1;
-        constVals[1]  =  curVal.a;
-        constNums[1]  =  FcstCnt;
-        toFCST();
-    } else {
-        high  =  FcstCountTo500;
-        do {
-            mid  =  (low + high) / 2;
-            if (curVal.a == constVals[mid]) {
-                addCurValToFCST  =  constNums[mid];
-                exit;
-            }
-            if (curval.a < constVals[mid])
-                high  =  mid - 1;
-            else
-                low  =  mid + 1;
-        } while (high >= low);
-        addCurValToFCST  =  FcstCnt;
-        if (FcstCountTo500 != 500) {
-            if (curval.a < constVals[mid])
-                high  =  mid;
-            else
-                high  =  mid + 1;
-            for (mid  =  FcstCountTo500; mid >= high; mid=mid-1) {
-                low  =  mid + 1;
-                constVals[low]  =  constVals[mid];
-                constNums[low]  =  constNums[mid];
-            }
-            FcstCountTo500  =  FcstCountTo500 + 1;
-            constVals[high]  =  curVal.a;
-            constNums[high]  =  FcstCnt;
-        }
-        toFCST();
-    }
-} /* addCurValToFCST */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function allocSymtab(arg: int): int;
@@ -997,56 +1033,11 @@ var
 } /* P0715 */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void endOfLine;
-var
-    err, errPos, prevPos, listMode,
-    startPos, lastErr: int;
-{
-    listMode  =  pasinfor.listMode;
-    if ((listMode != 0) || (errsInLine != 0))
-    {
-        write(' ', (lineStartOffset + PASINFOR.startOffset):5 oct,
-              lineCnt:5, lineNesting:3, commentModeCH);
-        startPos  =  13;
-        do
-            linePos  =  linePos-1;
-        while ((lineBuf[linePos]  == ' ') && (linePos >= 0));
-        for (err = 0; err <= linePos; err=err+1) {
-            _output_@ = lineBuf[err];
-            put(_output_);
-        }
-        writeln;
-        if (errsInLine != 0) {
-            write('*****':startPos, ' ':errMap[0], '0');
-            lastErr  =  errsInLine - 1;
-            for (err = 1; err <= lastErr; err=err+1) {
-                errPos  =  errMap[err];
-                prevPos  =  errMap[err-1];
-                if (errPos != prevPos) {
-                    if (prevPos + 1 != errPos)
-                        write(' ':(errPos-prevPos-1));
-                    write(chr(err + 48));
-                }
-            }
-            writeln;
-            errsInLine  =  0;
-            prevErrPos  =  0;
-        }
-    }
-    lineStartOffset  =  moduleOffset;
-    linePos  =  -1;
-    lineCnt  =  lineCnt + 1;
-    if (eof(pasinput)) {
-        error(errEOFEncountered);
-        goto 9999;
-    }
-} /* endOfLine */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void requiredSymErr(sym: symbol);
 {
-    if (linePos != prevErrPos)
+    if (linePos != prevErrPos) {
         error(ord(sym) + 88);
+    }
 } /* requiredSymErr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1059,22 +1050,6 @@ void readToPos80;
     }
     endOfLine();
 } /* readToPos80 */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void inSymbol;
-label
-    1473, 1, 2, 2175, 2233, 2320;
-var
-    localBuf: array [0..130] of char;
-    tokenLen, tokenIdx: int;
-    expSign: int;
-    l3var135z: irptr;
-    expMultiple, expValue: real;
-    curChar: char;
-    numstr: array [0..16] of word;
-    expLiteral, expMagnitude: int;
-    val: int;
-    chord: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void nextCH;
@@ -1151,8 +1126,9 @@ void readOptFlag(res: @int);
         'B': fileBufSize = readOptVal(4);
         'K': heapSize = readOptVal(23);
         }
-        if (badOpt)
+        if (badOpt) {
             error(54); /* errErrorInPseudoComment */
+        }
         } while (CH == ',');
     }
     do {
@@ -1170,6 +1146,22 @@ void readOptFlag(res: @int);
 } /* parseComment */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void inSymbol;
+label
+    1473, 1, 2, 2175, 2233, 2320;
+var
+    localBuf: array [0..130] of char;
+    tokenLen, tokenIdx: int;
+    expSign: int;
+    l3var135z: irptr;
+    expMultiple, expValue: real;
+    curChar: char;
+    numstr: array [0..16] of word;
+    expLiteral, expMagnitude: int;
+    val: int;
+    chord: int;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* inSymbol */
         if (dataCheck) {
             error(errEOFEncountered);
@@ -1182,7 +1174,7 @@ void readOptFlag(res: @int);
         if (CH > '\200') {
             lineBuf[linePos]  =  ' ';
             chord  =  ord(CH);
-            for (jj  =  130; jj <= chord; jj=jj+1) {
+            for (tokenIdx  =  130; tokenIdx <= chord; tokenIdx=tokenIdx+1) {
                 linePos  =  linePos + 1;
                 lineBuf[linePos]  =  ' ';
             }
@@ -1310,8 +1302,9 @@ void readOptFlag(res: @int);
                     curToken.c  =  chr(0);
                     for (tokenIdx = 0;
                          tokenIdx <= tokenLen; tokenIdx=tokenIdx+1) {
-                        if (7 < numstr[tokenIdx].i)
+                        if (7 < numstr[tokenIdx].i) {
                             error(20); /* errDigitGreaterThan7 */
+                        }
                         curToken.i = (curToken.i << 3) |
                             numstr[tokenIdx].i & [45..47];
                     }
@@ -1350,9 +1343,9 @@ void readOptFlag(res: @int);
                     }
                     curToken.r  =  curToken.i;
                     SY  =  REALCONST;
-                    if (charSym[CH] != INTCONST)
+                    if (charSym[CH] != INTCONST) {
                         error(56); /* errNeedMantissaAfterDecimal */
-                    else
+                    } else
                         do {
                             curToken.r  =  10.0*curToken.r + ord(CH)-48;
                             expMagnitude  =  expMagnitude-1;
@@ -1373,9 +1366,9 @@ void readOptFlag(res: @int);
                         nextCH();
                     }
                     expLiteral  =  0;
-                    if (charSym[CH] != INTCONST)
+                    if (charSym[CH] != INTCONST) {
                         error(57); /* errNeedExponentAfterE */
-                    else
+                    } else
                         do {
                             expLiteral  =  10 * expLiteral + ord(CH) - 48;
                             nextCH();
@@ -1430,14 +1423,14 @@ void readOptFlag(res: @int);
                             for (tokenLen = 1;
                                  tokenLen <= 3; tokenLen=tokenLen+1) {
                                 nextCH();
-                                if ('7' < CH)
-                                    error(
-                                        errFirstDigitInCharLiteralGreaterThan3
-                                    );
+                                if ('7' < CH) {
+                                  error(errFirstDigitInCharLiteralGreaterThan3);
+                                }
                                 expLiteral  =  8*expLiteral + ord(CH) - 48;
                             }
-                            if (255 < expLiteral)
+                            if (255 < expLiteral) {
                                 error(errFirstDigitInCharLiteralGreaterThan3);
+                            }
                             localBuf[tokenIdx]  =  chr(expLiteral);
                         } else
 2233:                       with PASINFOR do {
@@ -1607,9 +1600,6 @@ void readOptFlag(res: @int);
 } /* inSymbol */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void error;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void skipToEnd;
 var
     sym: symbol;
@@ -1626,7 +1616,10 @@ var
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* error */
+void error;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{
     errors  =  true;
     bool110z  = ;
     if (((linePos != prevErrPos) && (9 >= errsInLine))
@@ -1766,6 +1759,66 @@ function isFileType(typtr: tptr): int;
 } /* isFileType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void checkSymAndRead(sym: symbol);
+{
+    if (SY != sym)
+        requiredSymErr(sym);
+    else
+        inSymbol();
+} /* checkSymAndRead */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function argCount(p: irptr): int;
+var
+    i: int;
+    it: irptr;
+{
+    it  =  p->argList;
+    i  =  0;
+    if (it != NIL)
+        while (it != p) {
+            i  =  i + 1;
+            it  =  it->list;
+        }
+    argCount  =  i;
+} /* argCount */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function makeNameWithStars: int;
+{
+    while (curVal.i & [0..5] == 0U) {
+        curVal.i  =  curVal.i << 6;
+    }
+    makeNameWithStars  =  curVal.i;
+} /* makeNameWithStars */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void P3363(arg:int);
+{
+    if (arg)
+        form1Insn(insnTemp[XTA]);
+    else
+        form1Insn(KXTA+E1);
+} /* P3363 */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+//              PROGRAMME                 %
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void programme(retSizePtr: @int; l2idr2z: irptr);
+label 22420, 22421, 23301;
+var
+    preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
+    isPredefined, l2bool8z, inTypeDef: int;
+    l2var10z: eptr;
+    l2int11z: int;
+    l2var12z: int;
+    l2typ13z, l2typ14z: tptr;
+    l2var15z, l2var16z: @numLabel;
+    strLabList: @strLabel;
+//
+    l2int18z, ii, localSize, sizeCount, jj: int;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function knownInType(rec: @irptr): int;
 var it: irptr;
 {
@@ -1778,15 +1831,6 @@ var it: irptr;
     }
     knownInType  =  false;
 } /* knownInType */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void checkSymAndRead(sym: symbol);
-{
-    if (SY != sym)
-        requiredSymErr(sym);
-    else
-        inSymbol();
-} /* checkSymAndRead */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function typeCheck(type1, type2: tptr): int;
@@ -1810,16 +1854,16 @@ void allocWithTypeCheck;
 } /* allocWithTypeCheck */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function checkRecord(l4arg1z, l4arg2z: tptr): int;
+function checkRecord(t1, t2: tptr): int;
 var
-    l4var1z: int;
+    done: int;
 {
-    l4var1z  =  (l4arg1z == NIL) || (l4arg2z == NIL);
-    if (l4var1z) {
-        checkRecord  =  l4arg1z == l4arg2z;
+    done  =  (t1 == NIL) || (t2 == NIL);
+    if (done) {
+        checkRecord  =  t1 == t2;
     } else {
-        checkRecord  =  typeCheck(l4arg1z->base, l4arg2z->base) &&
-                 checkRecord(l4arg1z->next, l4arg2z->next);
+        checkRecord  =  typeCheck(t1->base, t2->base) &&
+                 checkRecord(t1->next, t2->next);
     }
 } /* checkRecord */
 //
@@ -1929,31 +1973,6 @@ var
 } /* typeCheck */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function F3307(l3arg1z: irptr): int;
-var
-    l3var1z: int;
-    l3var2z: irptr;
-{
-    l3var2z  =  l3arg1z->argList;
-    l3var1z  =  0;
-    if (l3var2z != NIL)
-        while (l3var2z != l3arg1z) {
-            l3var1z  =  l3var1z + 1;
-            l3var2z  =  l3var2z->list;
-        }
-    F3307  =  l3var1z;
-} /* F3307 */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function makeNameWithStars: int;
-{
-    while (curVal.i & [0..5] == 0U) {
-        curVal.i  =  curVal.i << 6;
-    }
-    makeNameWithStars  =  curVal.i;
-} /* makeNameWithStars */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void formOperator(l3arg1z: opgen);
 var
     l3int1z, l3int2z, l3int3z: int;
@@ -1980,15 +1999,6 @@ var
     tempInsn: int;
     l4oi212z: oiptr;
     l4var213z: int;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void P3363;
-{
-    if (l4var213z)
-        form1Insn(insnTemp[XTA]);
-    else
-        form1Insn(KXTA+E1);
-} /* P3363 */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void  addInsnToBuf(insn: int);
@@ -2257,7 +2267,7 @@ void addJumpInsn(opcode: int);
             }
             if (curInsn == 0)
                 form1Insn(insnTemp[UZA] + moduleOffset + 2);
-            P3363();
+            P3363(l4var213z);
             form1Insn(insnTemp[UJ] + 2 + moduleOffset);
             padToLeft();
             if (curInsn != 0) {
@@ -2265,8 +2275,7 @@ void addJumpInsn(opcode: int);
                     error(211);
                 P0715(0, l4inl7z->code);
             }
-            l4var213z  =  not l4var213z;
-            P3363();
+            P3363(not l4var213z);
             padToLeft();
             exit iter;
         }
@@ -2611,8 +2620,8 @@ void P5117(op: operator);
     curExpr->op  =  op;
     curExpr->num1  =  localSize;
     localSize  =  localSize + 1;
-    if (l2int21z < localSize)
-        l2int21z  =  localSize;
+    if (sizeCount < localSize)
+        sizeCount  =  localSize;
 } /* P5117 */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3130,19 +3139,19 @@ var
 } /* genGetElt */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function allocGlobalObject(l6arg1z: irptr): int;
+function allocGlobalObject(arg: irptr): int;
 {
-    if (l6arg1z->pos == 0) {
-        if (l6arg1z->flags & [20, 21] != 0U) {
-            curVal.i  =  l6arg1z->id;
+    if (arg->pos == 0) {
+        if (arg->flags & [20, 21] != 0U) {
+            curVal.i  =  arg->id;
             curVal.i  =  makeNameWithStars();
-            l6arg1z->pos  =  allocExtSymbol(extSymMask);
+            arg->pos  =  allocExtSymbol(extSymMask);
         } else {
-            l6arg1z->pos  =  symTabPos;
+            arg->pos  =  symTabPos;
             putToSymTab(0U);
         }
     }
-    allocGlobalObject  =  l6arg1z->pos;
+    allocGlobalObject  =  arg->pos;
 } /* allocGlobalObject */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3182,7 +3191,7 @@ void traceEntry(isEntry: int);
     l5bool10z  =  (21 in l5var12z);
     l5bool11z  =  (24 in l5var12z);
     if (l5bool9z) {
-        l5var14z  =  F3307(l5idr5z);
+        l5var14z  =  argCount(l5idr5z);
         l5idr6z  =  l5idr5z->argList;
     } else {
         l5var13z  =  l5var13z + 2;
@@ -3240,7 +3249,7 @@ void traceEntry(isEntry: int);
                         l5idr4z->value  =  moduleOffset;
                         l5idr3z  =  l5idr4z->argList;
                         l5var15z  =  ord(l5idr4z->typ != NIL);
-                        l5var17z  =  F3307(l5idr4z);
+                        l5var17z  =  argCount(l5idr4z);
                         form3Insn(KVTM+I10+ 4+moduleOffset,
                                   KVTM+I9 + l5var15z,
                                   KVTM+I8 + 074001);
@@ -4165,7 +4174,7 @@ var l4exf1z: @extfilerec;
 } /* formOperator */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseTypeRef(newtype: @tptr; skipTarget: setofsys);
+function parseTypeRef(skipTarget: setofsys): tptr;
 label
     12247, 12366, 12476, 12760, 13020;
 type
@@ -4223,7 +4232,7 @@ var
     l5var1z, pairIdx, l5var3z, l5var4z, l5var5z: int;
     l5var6z: @pair;
 {
-    parseTypeRef(&selType, skipTarget | [SWITCHSY]);
+    selType = parseTypeRef(skipTarget | [SWITCHSY]);
     if (curType->ptr2 == NIL) {
         curType->ptr2  =  curField;
     } else {
@@ -4563,7 +4572,7 @@ var
             inSymbol();
             checkSymAndRead(LBRACK);
             tempType  =  NIL;
-12476:      parseTypeRef(&nestedType, skipTarget | [OFSY]);
+12476:      nestedType = parseTypeRef(skipTarget | [OFSY]);
             if (nestedType->k != kindRange)
                 error(8); /* errNotAnIndexType */
             new(l3typ26z, kindArray);
@@ -4584,7 +4593,7 @@ var
             }
             checkSymAndRead(RBRACK);
             checkSymAndRead(OFSY);
-            parseTypeRef(&nestedType, skipTarget);
+            nestedType = parseTypeRef(skipTarget);
             l3typ26z->base  =  nestedType;
             if (isFileType(nestedType))
                 error(errTypeMustNotBeFile);
@@ -4628,7 +4637,7 @@ var
         } else if (SY == FILESY) {
             inSymbol();
             checkSymAndRead(OFSY);
-            parseTypeRef(&nestedType, skipTarget);
+            nestedType = parseTypeRef(skipTarget);
             if (isFileType(nestedType))
                 error(errTypeMustNotBeFile);
             if (isPacked) {
@@ -4671,7 +4680,7 @@ var
 13020:
     if (errors)
         skip(skipToSet | [RPAREN, RBRACK, SEMICOLON, OFSY]);
-    newtype@  =  curType;
+    parseTypeRef  =  curType;
 } /* parseTypeRef */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4788,9 +4797,9 @@ var
                 symTab[l3arg1z]  =  [24, 29] | frame & halfWord;
             pos  =  moduleOffset;
         }
-        l3arg1z  =  F3307(l2idr2z);
+        l3arg1z  =  argCount(l2idr2z);
         if (l3var3z) {
-            if (41 >= entryPtCnt) {
+            if (entryPtCnt <= 40) {
                 curVal.i  =  l2idr2z->id;
                 entryPtTable[entryPtCnt]  =  makeNameWithStars();
                 entryPtTable[entryPtCnt+1]  =  [1] | frame ~ [0, 3];
@@ -4868,13 +4877,6 @@ var
     ifWhlTarget, elseJump: int;
     whileExpr: eptr;
     l3idr12z: irptr;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function isCharArray(arg: tptr): int;
-{
-    with arg@ do
-        isCharArray  =  (k == kindArray) && (base == charType);
-} /* isCharArray */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void expression;
@@ -5119,8 +5121,6 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void stdCall;
-const chkREAL = 0;  chkINT    = 1;  chkCHAR = 2;    chkSCALAR = 3;
-      chkPTR  = 4;  chkFILE   = 5;  chkSET  = 6;    chkOTHER  = 7;
 var
     l5op1z: operator;
     l5var2z: tptr;
@@ -5128,16 +5128,13 @@ var
     asBitset: int;
     stProcNo, checkMode: int;
 {
-    curVal.i  =  routine->low;
-    stProcNo  =  curVal.i;
+    stProcNo  =  routine->low;
     if (SY != LPAREN) {
         requiredSymErr(LPAREN);
         goto 8888;
     }
     expression();
-    if (((stProcNo >= fnEOF) &&
-       (fnEOLN >= stProcNo)) &&
-       not (curExpr->op IN lvalOpSet)) {
+    if ((stProcNo IN [fnEOF..fnEOLN]) && not (curExpr->op IN lvalOpSet)) {
         error(27); /* errExpressionWhereVariableExpected */
         exit;
     }
@@ -5146,35 +5143,22 @@ var
         arg1Type  =  arg1Type->base;
     argKind  =  arg1Type->k;
     if (arg1Type == realType)
-        checkMode  =  chkREAL;
+        checkMode  =  [fnSQRT:fnTRUNC, fnROUND];
     else if (arg1Type == intType)
-        checkMode  =  chkINT;
-    else if (arg1Type == charType)
-        checkMode  =  chkCHAR;
-    else if (argKind == kindScalar)
-        checkMode  =  chkSCALAR;
-    else if (argKind == kindPtr)
-        checkMode  =  chkPTR;
+        checkMode  =  [fnSQRT:fnABS,fnODD,fnCHR,fnCARD,fnMINEL,fnPTR];
+    else if ((arg1Type == charType) || (argKind == kindScalar) || (argKind == kindPtr))
+        checkMode  =  [fnORD, fnSUCC, fnPRED];
     else if (argKind == kindFile)
-        checkMode  =  chkFILE;
+        checkMode  =  [fnEOF, fnEOLN];
     else {
-        checkMode  =  chkOTHER;
+        checkMode  =  0U;
     }
     asBitset  =  [stProcNo];
-    if (not ((checkMode == chkREAL) &&
-            (asBitset & [fnSQRT:fnTRUNC, fnREF, fnROUND] != 0U)
-           || ((checkMode == chkINT) &&
-         (asBitset&[fnSQRT:fnABS,fnODD,fnCHR,fnCARD,fnMINEL,fnREF,fnPTR] != 0U))
-           || ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) &&
-            (asBitset & [fnORD, fnSUCC, fnPRED, fnREF] != 0U))
-           || ((checkMode == chkFILE) &&
-            (asBitset & [fnEOF, fnREF, fnEOLN] != 0U))
-           || ((checkMode == chkOTHER) &&
-            (stProcNo == fnREF))))
+    if ((asBitset & checkMode) == 0U)
         error(errNeedOtherTypesOfOperands);
     if (asBitset & [fnABS, fnSUCC, fnPRED] == 0U) {
         arg1Type  =  routine->typ;
-    } else if ((checkMode == chkINT) && (stProcNo == fnABS)) {
+    } else if ((arg1Type == intType) && (stProcNo == fnABS)) {
         stProcNo  =  fnABSI;
     }
     new(newExpr);
@@ -6418,57 +6402,6 @@ void writeProc;
 } /* writeProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void readProc;
-label
-    17346, 17362;
-{
-    workExpr  =  NIL;
-    l4var13z  =  true;
-    l4var14z  =  moduleOffset;
-    do {
-        startReadOrWrite(false);
-        if (l4exp7z != workExpr) {
-            if (not l4var13z) {
-                helperNo  =  30;         /* P/GF */
-17346:
-                P17037();
-           } else {
-                checkElementForReadWrite();
-                if (helperNo == 38) {       /* P/WC */
-                    helperNo  =  49;             /* P/RDC */
-                    goto 17346;
-                }
-                if ((helperNo == 39) ||           /* A6,A7 */
-                   (helperNo == 40)) {
-                    helperNo  =  51;             /* P/RA7 */
-17362:
-                    curExpr  =  l4exp7z;
-                    formOperator(SETREG9);
-                    form1Insn(KVTM+I10 + defWidth);
-                    callHelperWithArg();
-                } else {
-                    if (helperNo == 81) {   /* P/WA */
-                        helperNo  =  90;         /* P/RA */
-                        goto 17362;
-                    }
-                    helperNo  =  helperNo + 11;
-                    callHelperWithArg();
-                    curExpr  =  l4exp7z;
-                    formOperator(STORE);
-                }
-            }
-        }
-    } while (SY == COMMA);
-    set145z  =  set145z | [12];
-    if (procNo == 13) {
-        helperNo  =  53;                 /* P/RL */
-        callHelperWithArg();
-    }
-    if (l4var14z == moduleOffset)
-        error(36); /* errTooFewArguments */
-} /* readProc */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void checkArrayArg;
 {
     verifyType(NIL);
@@ -6621,17 +6554,6 @@ var
             writeProc();
         } else {
             formAndAlign(getHelperProc(54)); /*"P/WOLN"*/
-            exit;
-        }
-    }
-    12: { /* read */
-        readProc();
-    }
-    13: { /* readln */
-        if (SY == LPAREN) {
-            readProc();
-        } else {
-            formAndAlign(getHelperProc(55)); /*"P/RILN"*/
             exit;
         }
     }
@@ -6966,7 +6888,7 @@ var
     set145z  =  [1:15] ~ freeRegs;
     if (curProcNesting != 1)
         parseDecls(2);
-    l2int21z  =  localSize;
+    sizeCount  =  localSize;
     if (SY != BEGINSY)
         requiredSymErr(BEGINSY);
     if ((E48 >> 23) & l2idr2z->flags) {
@@ -7008,7 +6930,7 @@ var
     lineNesting  =  l3var2z - 1;
     if (exitTarget != 0)
         P0715(0, exitTarget);
-    if (not bool48z && not doPMD && (l2int21z == 3) &&
+    if (not bool48z && not doPMD && (sizeCount == 3) &&
        (curProcNesting != 1) && (set145z & [1:15] != [1:15])) {
         objBuffer[0]  =  0037000702200000U; // NTR 7; UTC
         with l2idr2z@ do
@@ -7040,7 +6962,7 @@ var
             curVal.i  =  l2idr2z->pos - 040000;
             symTab[074002]  =  [24,29] | (curVal.i & halfWord);
         }
-        curVal.i  =  l2int21z;
+        curVal.i  =  sizeCount;
         if (curProcNesting != 1) {
             l3var7z  =  (curVal.i - 2) << 24;
             objBuffer[savedObjIdx]  =
@@ -7051,7 +6973,7 @@ var
 } /* defineRoutine */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void initScalars;
+void mainProgram;
 var
     l3var1z, l3var3z, l3var4z, l3var5z, l3var6z: int;
     l3var7z: irptr;
@@ -7085,7 +7007,7 @@ void regSysProc(l4arg1z: int);
 } /* registerSysProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* initScalars */
+{ /* mainProgram */
     new(boolType, kindScalar);
     with boolType@ do {
         size  =  1;
@@ -7224,11 +7146,11 @@ void regSysProc(l4arg1z: int);
         pos  =  0;
         symTab[074000]  =  makeNameWithStars();
     }
-    entryPtTable[1]  =  symTab[074000];
-    entryPtTable[3]  = 'PROGRAM ';
-    entryPtTable[2]  =  1;
-    entryPtTable[4]  =  1;
-    entryPtCnt  =  5;
+    entryPtTable[0]  =  symTab[074000];
+    entryPtTable[1]  =  1;
+    entryPtTable[2]  = 'PROGRAM ';
+    entryPtTable[3]  =  1;
+    entryPtCnt  =  4;
     /*10 24 74001 00 30 74002*/
     write(_CHILD_,04247400103074002U);
     moduleOffset  =  040001;
@@ -7349,7 +7271,7 @@ void regSysProc(l4arg1z: int);
     curVal.i  =  l3var6z;
     symTab[074003]  =  (helperNames[25] | [24,27,28,29]) |
                         (curVal.i & halfWord);
-} /* initScalars */
+} /* mainProgram */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void makeExtFile;
@@ -7433,7 +7355,7 @@ var
         } while (not noComma);
         if (l3sym7z != VOIDSY) {
             checkSymAndRead(COLON);
-            parseTypeRef(&expType, (skipToSet | [IDENT,RPAREN]));
+            expType = parseTypeRef(skipToSet | [IDENT,RPAREN]);
             if (l3sym7z != VARSY) {
                 if (isFileType(expType))
                 error(5); /*errSimpleTypeReq */
@@ -7487,10 +7409,10 @@ void exitScope(arg: @hashArray);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //
 { /* programme */
-    localSize  =  l2arg1z@;
+    localSize  =  retSizePtr@;
     if (localSize == 0) {
         inSymbol();
-        initScalars();
+        mainProgram();
         exit;
     }
     preDefHead  =  ptr(0);
@@ -7582,7 +7504,7 @@ void exitScope(arg: @hashArray);
                 error(errBadSymbol);
             else
                 inSymbol();
-            parseTypeRef(&l2typ13z, skipToSet | [SEMICOLON]);
+            l2typ13z = parseTypeRef(skipToSet | [SEMICOLON]);
             curIdent  =  l2var12z;
             if (knownInType(&curIdRec)) {
                 l2typ14z  =  curIdRec->typ;
@@ -7655,7 +7577,7 @@ void exitScope(arg: @hashArray);
             }
             } while (not l2bool8z);
             checkSymAndRead(COLON);
-            parseTypeRef(&l2typ13z, skipToSet | [IDENT,SEMICOLON]);
+            l2typ13z = parseTypeRef(skipToSet | [IDENT,SEMICOLON]);
             jj  =  l2typ13z->size;
             while (workidr != NIL) with workidr@ do {
                 curIdRec  =  list;
@@ -7792,7 +7714,7 @@ void exitScope(arg: @hashArray);
                     errAndSkip(106 /*:*/, skipToSet | [SEMICOLON]);
                 else {
                     inSymbol();
-                    parseTypeRef(&curIdRec->typ, skipToSet | [SEMICOLON]);
+                    curIdRec->typ = parseTypeRef(skipToSet | [SEMICOLON]);
                     if (curIdRec->typ->size != 1)
                         error(errTypeMustNotBeFile);
                 }
@@ -7891,7 +7813,7 @@ void exitScope(arg: @hashArray);
         printTextWord(l2idr2z->id);
         error(90); /* errLblDefinitionInBlock */
     }
-    l2arg1z@  =  l2int21z;
+    retSizePtr@  =  sizeCount;
 } /* programme */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -8137,12 +8059,9 @@ void initOptions;
 { /* main */
     if (PASINFOR.listMode != 0)
         writeln(boilerplate);
-        writeln(' xxx 1');
     initOptions();
-        writeln(' xxx 2');
     curInsnTemplate  =  0;
     initTables();
-        writeln(' xxx 3');
     programme(&curInsnTemplate, hashTravPtr);
     if (errors) {
 9999:   writeln(' IN ', (lineCnt-1):0, ' LINES ',
@@ -8295,15 +8214,15 @@ void initOptions;
         'P/6A    ',
         'P/7A    ',
         'P/WL    ',
-        'P/RDI   ',
+        'P/RDI   ',  // unused from here
         'P/RDR   ',
         'P/RDC   ',
 /*50*/  'P/RA6   ',
         'P/RA7   ',
         'P/RX   u',
-        'P/RL    ',
+        'P/RL    ',  // to here
         'P/WOLN  ',
-        'P/RILN  ',
+        'P/RILN  ',  // unused
         'P/RR    ',
         'P/CE    ',
         'P/TR    ',
@@ -8361,8 +8280,8 @@ void initOptions;
         '  ROLLUP',
 /*10*/  '   WRITE',
         ' WRITELN',
-        '    READ',
-        '  READLN',
+        '        ',  // was READ
+        '        ',  // was READLN
         '    EXIT',
         '   DEBUG',
         '    BESM',
