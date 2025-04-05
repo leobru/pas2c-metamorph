@@ -658,8 +658,7 @@ var
     }
 } /* addCurValToFCST */
 //
-void error(errno: int);
-    forward;
+void error(errno: int);  forward;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void endOfLine;
@@ -4879,8 +4878,7 @@ var
     l3idr12z: irptr;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void expression;
-    forward;
+void expression; forward;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseLval;
@@ -7886,17 +7884,15 @@ var
 void regKeywords;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regResWord(l4arg1z: int);
+void regResWord(keyword: int);
 var
     kw: @kword;
-    l4var2z: int;
 {
-    curVal.i  =  l4arg1z & hashMask;
+    curVal.i  =  keyword & hashMask;
     mapai(curVal.a, curVal.i);
-    l4var2z  =  l4arg1z;
     new(kw);
     with kw@ do {
-        w  =  l4var2z;
+        w  =  keyword;
         sym  =  SY;
         op  =  charClass;
         next  =  kwordHash[curVal.i];
@@ -7939,17 +7935,11 @@ var
 } /* initArrays */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void initSets;
-{
-    skipToSet  =  blockBegSys | statBegSys ~ [SWITCHSY];
-    bigSkipSet  =  skipToSet | statEndSys;
-} /* initSets */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* initTables */
     initArrays();
     initInsnTemplates();
-    initSets();
+    skipToSet  =  blockBegSys | statBegSys ~ [SWITCHSY];
+    bigSkipSet  =  skipToSet | statEndSys;
     unpack(pasinfor.a3@, iso2text, '\052'); /* '*' */
     iso2text['_'] = iso2text['*'];
     rewrite(_CHILD_);
