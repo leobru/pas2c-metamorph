@@ -169,7 +169,7 @@ operator = (
     badop31,    MKRANGE,    ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
     FILEPTR,    op44,       ALNUM,      PCALL,      FCALL,
-    BOUNDS,     TOREAL,     NOTOP,      INEGOP,     RNEGOP,
+    TOREAL,     NOTOP,      INEGOP,     RNEGOP,
     STANDPROC,  NOOP
 );
 %
@@ -281,7 +281,7 @@ expr = record
     MUL:        (typ:    tptr;
                  op:     operator;
                  expr1, expr2: eptr);
-    BOUNDS:     (d4, d5: word;
+    GETFIELD:   (d4, d5: word;
                  typ1, typ2: tptr);
     NOTOP:      (d6, d7: word;
                  id1, id2: irptr);
@@ -3838,19 +3838,11 @@ var i    : integer; ret: bitset;
         } else
         if (curOP = ALNUM) then
             genEntry
-        else if (curOP IN [BOUNDS..RNEGOP]) then {
+        else if (curOP IN [TOREAL..RNEGOP]) then {
             genFullExpr(exprToGen@.expr1);
             if (insnList@.ilm = ilCONST) then {
                 arg1Val := insnList@.ilf5;
                 case curOP of
-                BOUNDS: {
-                    arg2Val.m := [0,1,3] + arg1Val.m;
-                    with exprToGen@.typ2@ do {
-                        if (arg2Val.i < left) or
-                           (right < arg2Val.i) then
-                            error(errNeedOtherTypesOfOperands)
-                    }
-                };
                 TOREAL: arg1Val.r := arg1Val.i;
                 NOTOP:  arg1Val.b := not arg1Val.b;
                 RNEGOP: arg1Val.r := -arg1Val.r;
@@ -3862,11 +3854,7 @@ var i    : integer; ret: bitset;
                 negateCond;
             } else {
                 prepLoad;
-                if (curOP = BOUNDS) then {
-(*                    if (checkBounds) then
-                        genCheckBounds(exprToGen@.typ2);
-*)
-                } else if (curOP = TOREAL) then {
+                if (curOP = TOREAL) then {
                     addToInsnList(insnTemp[AVX]);
                     l3int3z := 3;
                     goto 10122;
@@ -4035,7 +4023,7 @@ procedure dump(expr : eptr; indent: integer);
     };
     writeln(' ':indent, expr@.op oct, ' ', expr@.op);
     indent := indent + 1;
-if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC,BOUNDS]) then {
+if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
        dump(expr@.expr1, indent);
        if not (expr@.op in
 [INEGOP,RNEGOP,TOREAL,DEREF,FILEPTR,NOTOP,GETFIELD,SHLEFT,SHRIGHT]) then
@@ -6110,16 +6098,6 @@ var
             if (srcType@.k = kindFile) then
                 error(75) (*errCannotAssignFiles*)
             else {
-                if rangeMismatch and (targType@.k = kindRange) then {
-                    new(assnExpr);
-                    with assnExpr@ do {
-                        typ := srcType;
-                        op := BOUNDS;
-                        expr1 := curExpr;
-                        typ2 := targType;
-                    };
-                    curExpr := assnExpr;
-                };
 16332:          new(assnExpr);
                 with assnExpr@ do {
                     typ := targType;

@@ -181,7 +181,7 @@ operator = enum {
     badop31,    MKRANGE,    ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
     FILEPTR,    op44,       ALNUM,      PCALL,      FCALL,
-    BOUNDS,     TOREAL,     NOTOP,      INEGOP,     RNEGOP,
+    TOREAL,     NOTOP,      INEGOP,     RNEGOP,
     STANDPROC,  NOOP
 };
 //
@@ -286,7 +286,7 @@ expr = struct {
     op:        operator;
     switch operator of
     MUL:        {expr1, expr2: eptr};
-    BOUNDS:     {typ1, typ2: tptr};
+    GETFIELD:   {typ1, typ2: tptr};
     NOTOP:      {id1, id2: irptr};
     STANDPROC:  {num1, num2: int};
 };
@@ -2745,33 +2745,6 @@ var
     insnList  =  l5var2z;
 } /* prepMultiWord */
 //
-/*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genCheckBounds(l5arg1z: tptr);
-var
-    l5var1z: int;
-    l5var2z, l5var3z, l5var4z: int;
-{
-    l5var1z  =  l5arg1z->checker;
-    if (l5var1z == 0) {
-        curVal.i  =  l5arg1z->left;
-        l5var4z  =  l5arg1z->right;
-        if (l5arg1z->base != intType) {
-            curVal.i  =  curVal.i & [7:47];
-            l5var4z  =  l5var4z & [7:47];
-        }
-        prevOpcode  =  0;
-        formAndAlign(KUJ+5 + moduleOffset);
-        l5arg1z->checker  =  moduleOffset;
-        l5var1z  =  moduleOffset;
-        P0715(1, l5var4z);
-        formAndAlign(KUJ+I13);
-    }
-    prepLoad();
-    addToInsnList(KVTM+I14 + lineCnt);
-    addToInsnList(KVJM+I13 + l5var1z);
-    insnList->next->mode  =  1;
-} /* genCheckBounds */
-//
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void negateCond;
 {
@@ -3013,13 +2986,6 @@ var
                                   insnCopy.ilf6;
             }
         } else {
-/*
-            if (checkBounds) {
-                l5var24z  =  typeCheck(l5var27z, insnList->typ);
-                if (rangeMismatch)
-                    genCheckBounds(l5var27z);
-            }
-*/
             if (l5var8z != 1) {
                 prepLoad();
                 if (l5var27z->base == intType) {
@@ -3776,19 +3742,11 @@ var
                 startInsnList(ilCONST);
         } else if (curOP == ALNUM)
             genEntry();
-        else if (curOP IN [BOUNDS..RNEGOP]) {
+        else if (curOP IN [TOREAL..RNEGOP]) {
             genFullExpr(exprToGen->expr1);
             if (insnList->ilm == ilCONST) {
                 arg1Val.i  =  insnList->ilf5;
                 switch (curOP) {
-                BOUNDS: {
-                    arg2Val.i  =  [0,1,3] | arg1Val.i;
-                    with exprToGen->typ2@ do {
-                        if ((arg2Val.i < left) ||
-                           (right < arg2Val.i))
-                            error(errNeedOtherTypesOfOperands);
-                    }
-                }
                 TOREAL: arg1Val.r  =  arg1Val.i;
                 NOTOP:  arg1Val.i  =  not arg1Val.i;
                 RNEGOP: arg1Val.r  =  -arg1Val.r;
@@ -3799,12 +3757,7 @@ var
                 negateCond();
             } else {
                 prepLoad();
-                if (curOP == BOUNDS) {
-/*
-                    if (checkBounds)
-                        genCheckBounds(exprToGen->typ2);
-*/
-                } else if (curOP == TOREAL) {
+                if (curOP == TOREAL) {
                     addToInsnList(insnTemp[AVX]);
                     l3int3z  =  3;
                     goto 10122;
@@ -5972,16 +5925,6 @@ var
             if (srcType->k == kindFile)
                 error(75); /*errCannotAssignFiles*/
             else {
-                if (rangeMismatch && (targType->k == kindRange)) {
-                    new(assnExpr);
-                    with assnExpr@ do {
-                        typ  =  srcType;
-                        op  =  BOUNDS;
-                        expr1  =  curExpr;
-                        typ2  =  targType;
-                    }
-                    curExpr  =  assnExpr;
-                }
 16332:          new(assnExpr);
                 with assnExpr@ do {
                     typ  =  targType;
