@@ -2,7 +2,6 @@
 cat << EOF > tmp$$
 *NAME base
 *disc:1/local
-*file:pascom,41
 *file:base,67,w
 *NO LIST
 *pascal
@@ -11,15 +10,19 @@ EOF
 # using the existing system compiler
 sed 's/{/_(/g;s/}/_)/g' < base.pas >> tmp$$
 cat << EOF >> tmp$$
+*     Overwriting the old state of the object area
 *copy:20,270000,670000
+*     Writing the new binary object to base.bin
 *to perso:670000
 *end file
 EOF
+# The compilation must finish within 3 seconds
 ulimit -t 3
 rm -f base.o
 if [ "$1" = "-d" ]; then ln -f tmp$$ base.dub ; fi
 length=`dubna tmp$$ | tee base.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))
+# The compilation must contain the source stats
 grep -q 'LINES STRUCTURE 1' base.lst
 if [ $? -ne 0 ]; then
 echo '[1;31mFAILURE[22;39m'

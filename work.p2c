@@ -1,4 +1,4 @@
-/*=p-,t-,s8,y+,k9,l1*/
+/*=l1,p-,t-,s8,y+,k9,l1*/
 extern _output_, _child_, pasinput, pasinfor, paseofcd;
 //
 label 9999;
@@ -17,10 +17,6 @@ const
     S6 = 3;
     NoPtrCheck = 4;
     NoStackCheck = 5;
-//
-    DebugCode  = 45;
-    DebugPrint = 46;
-    DebugEntry = 47;
 //
     ASN64 = 0360100;
 //
@@ -403,7 +399,6 @@ var
     rangeMismatch: int;
     doPMD: int;
     checkBounds: int;
-    fuzzReals: int;
     fixMult: int;
     bool110z: int;
     allowCompat: int;
@@ -1120,7 +1115,6 @@ void readOptFlag(res: @int);
         'T': readOptFlag(&checkBounds);
         'A': charEncoding = readOptVal(3);
         'C': readOptFlag(&checkTypes);
-        'R': readOptFlag(&fuzzReals);
         'M': readOptFlag(&fixMult);
         'B': fileBufSize = readOptVal(4);
         'K': heapSize = readOptVal(23);
@@ -3131,18 +3125,6 @@ var
     l5inl20z: @insnltyp;
     l5op21z: operator; l5idc22z: idclass;
 //
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void traceEntry(isEntry: int);
-{
-    if (not (debugEntry in optSflags))
-        exit;
-    curVal.i  =  l5idr5z->id;
-    addToInsnList(KVTM+I10 + addCurValToFCST());
-    if (isEntry)
-        addToInsnList(KVTM+I11 + lineCnt);
-    addToInsnList(getHelperProc((isEntry | 0) * 22 + 57)); /* P/C(E|I) */
-} /* traceEntry */
-//
 { /* genEntry */
     l5exp1z  =  exprToGen->expr1;
     l5idr5z  =  exprToGen->id2;
@@ -3288,7 +3270,6 @@ void traceEntry(isEntry: int);
         if (l5bool9z && not l5bool11z)
             l5idr6z  =  l5idr6z->list;
     } /* while -> 7061 */
-    traceEntry(true);
     if (l5bool10z) {
         addToInsnList(KNTR+2);
         insnList->next->mode  =  4;
@@ -3337,7 +3318,6 @@ void traceEntry(isEntry: int);
         addToInsnList(KVTM+040074001);
     }
     set145z  =  (set145z | l5var12z) & [1:15];
-    traceEntry(false);
     if (l5bool10z) {
         if (not checkFortran)
             addToInsnList(KNTR+7);
@@ -3455,10 +3435,7 @@ var
         curVarKind  =  l2typ13z->k;
         size  =  l2typ13z->size;
         if (l2typ13z == realType) {
-            if (fuzzReals)
-                work  =  0;
-            else
-                work  =  1;
+            work  =  1;
         } else if (curVarKind IN [kindScalar, kindRange])
             work  =  3;
         else {
@@ -3785,13 +3762,6 @@ var
                 arg2Const  =  (insnList->typ == realType);
                 if (arg1Const) {
                     switch (work) {
-                    fnSQRT:  arg1Val.r  =  sqrt(arg1Val.r);
-                    fnSIN:   arg1Val.r  =  sin(arg1Val.r);
-                    fnCOS:   arg1Val.r  =  cos(arg1Val.r);
-                    fnATAN:  arg1Val.r  =  arctan(arg1Val.r);
-                    fnASIN:  arg1Val.r  =  arcsin(arg1Val.r);
-                    fnLN:    arg1Val.r  =  ln(arg1Val.r);
-                    fnEXP:   arg1Val.r  =  exp(arg1Val.r);
                     fnABS:   arg1Val.r  =  abs(arg1Val.r);
                     fnTRUNC: arg1Val.i  =  trunc(arg1Val.r);
                     fnODD:   arg1Val.i  =  odd(arg1Val.i);
@@ -6512,14 +6482,6 @@ var
         if (not l4bool10z)
             exit;
     }
-    15: { /* debug */
-        if (debugPrint IN optSflags) {
-            procNo  =  11;
-            goto 17753;
-        }
-        while (SY != RPAREN)
-            inSymbol();
-    }
     16: { /* besm */
         expression();
         formOperator(LITINSN);
@@ -7975,7 +7937,6 @@ void initOptions;
     doPMD  =  not (42 in curVal.i);
     checkTypes  =  true;
     fixMult  =  true;
-    fuzzReals  =  true;
     checkBounds  =  not (44 in curVal.i);
     declExternal  =  false;
     errors  =  false;
@@ -8216,7 +8177,7 @@ void initOptions;
         '        ',  // was READ
         '        ',  // was READLN
         '    EXIT',
-        '   DEBUG',
+        '        ',  // was DEBUG
         '    BESM',
         '        ',  // was MAPIA, unused
         '   MAPAI',

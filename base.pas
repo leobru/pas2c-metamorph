@@ -19,10 +19,6 @@ const
     NoPtrCheck = 4;
     NoStackCheck = 5;
 %
-    DebugCode  = 45;
-    DebugPrint = 46;
-    DebugEntry = 47;
-%
     ASN64 = 360100B;
 %
     errBooleanNeeded = 0;
@@ -401,7 +397,6 @@ var
    rangeMismatch: boolean;
    doPMD: boolean;
    checkBounds: boolean;
-   fuzzReals: boolean;
    fixMult: boolean;
    bool110z: boolean;
    allowCompat: boolean;
@@ -1180,7 +1175,6 @@ procedure readOptFlag(var res: boolean);
         'T': readOptFlag(checkBounds);
         'A': readOptVal(charEncoding, 3);
         'C': readOptFlag(checkTypes);
-        'R': readOptFlag(fuzzReals);
         'M': readOptFlag(fixMult);
         'B': readOptVal(fileBufSize, 4);
         'K': readOptVal(heapSize, 23);
@@ -1974,7 +1968,7 @@ var
 }; (* typeCheck *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function F3307(l3arg1z: irptr): integer;
+function argCount(l3arg1z: irptr): integer;
 var
     l3var1z: integer;
     l3var2z: irptr;
@@ -1986,8 +1980,8 @@ var
             l3var1z := l3var1z + 1;
             l3var2z := l3var2z@.list;
         };
-    F3307 := l3var1z;
-}; (* F3307 *)
+    argCount := l3var1z;
+}; (* argCount *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function makeNameWithStars: bitset;
@@ -2789,33 +2783,6 @@ var
 }; (* prepMultiWord *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-(*procedure genCheckBounds(l5arg1z: tptr);
-var
-    l5var1z: integer;
-    l5var2z, l5var3z, l5var4z: word;
-{
-    l5var1z := l5arg1z@.checker;
-    if (l5var1z = 0) then {
-        curVal.i := l5arg1z@.left;
-        l5var4z.i := l5arg1z@.right;
-        if (l5arg1z@.base <> integerType) then {
-            curVal.m := curVal.m * [7:47];
-            l5var4z.m := l5var4z.m * [7:47];
-        };
-        prevOpcode := 0;
-        formAndAlign(KUJ+5 + moduleOffset);
-        l5arg1z@.checker := moduleOffset;
-        l5var1z := moduleOffset;
-        P0715(1, l5var4z.i);
-        formAndAlign(KUJ+I13);
-    };
-    prepLoad;
-    addToInsnList(KVTM+I14 + lineCnt);
-    addToInsnList(KVJM+I13 + l5var1z);
-    insnList@.next@.mode := 1;
-}; (* genCheckBounds *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure negateCond;
 {
     if (insnList@.ilm = ilCONST) then {
@@ -3063,12 +3030,6 @@ function myminel(l6arg1z: bitset): integer;
                                   insnCopy.ilf6;
             }
         } else { (* 6123*)
-(*            if (checkBounds) then {
-                l5var24z := typeCheck(l5var27z, insnList@.typ);
-                if (rangeMismatch) then
-                    genCheckBounds(l5var27z);
-            };
-*)
             if (l5var8z <> 1) then {
                 prepLoad;
                 if (l5var27z@.base = integerType) then {
@@ -3214,18 +3175,6 @@ function allocGlobalObject(l6arg1z: irptr): integer;
     allocGlobalObject := l6arg1z@.pos;
 }; (* allocGlobalObject *)
 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure traceEntry(isEntry: boolean);
-{
-    if not (debugEntry in optSflags.m) then
-        exit;
-    curVal := l5idr5z@.id;
-    addToInsnList(KVTM+I10 + addCurValToFCST);
-    if (isEntry) then
-        addToInsnList(KVTM+I11 + lineCnt);
-    addToInsnList(getHelperProc(ord(isEntry) * 22 + 57)); (* P/C(E|I) *)
-}; (* traceEntry *)
-%
 { (* genEntry *)
     l5exp1z := exprToGen@.expr1;
     l5idr5z := exprToGen@.id2;
@@ -3237,7 +3186,7 @@ procedure traceEntry(isEntry: boolean);
     l5bool10z := (21 in l5var12z.m);
     l5bool11z := (24 in l5var12z.m);
     if (l5bool9z) then {
-        l5var14z.i := F3307(l5idr5z);
+        l5var14z.i := argCount(l5idr5z);
         l5idr6z := l5idr5z@.argList;
     } else {
         l5var13z.i := l5var13z.i + 2;
@@ -3295,7 +3244,7 @@ procedure traceEntry(isEntry: boolean);
                         l5idr4z@.value := moduleOffset;
                         l5idr3z := l5idr4z@.argList;
                         l5var15z := ord(l5idr4z@.typ <> NIL);
-                        l5var17z.i := F3307(l5idr4z);
+                        l5var17z.i := argCount(l5idr4z);
                         form3Insn(KVTM+I10+ 4+moduleOffset,
                                   KVTM+I9 + l5var15z,
                                   KVTM+I8 + 74001B);
@@ -3369,7 +3318,6 @@ procedure traceEntry(isEntry: boolean);
         if l5bool9z and not l5bool11z then
             l5idr6z := l5idr6z@.list;
     }; (* while -> 7061 *)
-    traceEntry(true);
     if l5bool10z then {
         addToInsnList(KNTR+2);
         insnList@.next@.mode := 4;
@@ -3422,7 +3370,6 @@ procedure traceEntry(isEntry: boolean);
         addToInsnList(KVTM+40074001B);
     };
     set145z := (set145z + l5var12z.m) * [1:15];
-    traceEntry(false);
     if l5bool10z then {
         if (not checkFortran) then
             addToInsnList(KNTR+7)
@@ -3541,10 +3488,7 @@ var
         curVarKind := l2typ13z@.k;
         size := l2typ13z@.size;
         if (l2typ13z = realType) then {
-            if (fuzzReals) then
-                work := 0
-            else
-                work := 1;
+            work := 1;
         } else if (curVarKind IN [kindScalar, kindRange]) then
             work := 3
         else {
@@ -3883,13 +3827,6 @@ var i    : integer; ret: bitset;
                 arg2Const := (insnList@.typ = realType);
                 if (arg1Const) then {
                     case work of
-                    fnSQRT:  arg1Val.r := sqrt(arg1Val.r);
-                    fnSIN:   arg1Val.r := sin(arg1Val.r);
-                    fnCOS:   arg1Val.r := cos(arg1Val.r);
-                    fnATAN:  arg1Val.r := arctan(arg1Val.r);
-                    fnASIN:  arg1Val.r := arcsin(arg1Val.r);
-                    fnLN:    arg1Val.r := ln(arg1Val.r);
-                    fnEXP:   arg1Val.r := exp(arg1Val.r);
                     fnABS:   arg1Val.r := abs(arg1Val.r);
                     fnTRUNC: arg1Val.i := trunc(arg1Val.r);
                     fnODD:   arg1Val.b := odd(arg1Val.i);
@@ -4863,8 +4800,6 @@ var
         write(' IN LINE ', curIdRec@.offset:0);
     };
     2: {
-        with l2idr2z@ do
-            ; (* useless *)
         padToLeft;
         l3var3z := 22 IN l2idr2z@.flags;
         l3arg1z := l2idr2z@.pos;
@@ -4872,7 +4807,7 @@ var
         if (l3arg1z <> 0) then
             symTab[l3arg1z] := [24, 29] + frame.m * halfWord;
         l2idr2z@.pos := moduleOffset;
-        l3arg1z := F3307(l2idr2z);
+        l3arg1z := argCount(l2idr2z);
         if l3var3z then {
             if (41 >= entryPtCnt) then {
                 curVal := l2idr2z@.id;
@@ -6695,14 +6630,6 @@ var
         if not (l4bool10z) then
             exit
     };
-    15: { (* debug *)
-        if (debugPrint IN optSflags.m) then {
-            procNo := 11;
-            goto 17753;
-        };
-        while (SY <> RPAREN) do
-            inSymbol;
-    };
     16: { (* besm *)
         expression;
         formOperator(LITINSN);
@@ -8245,7 +8172,6 @@ procedure initOptions;
     doPMD := not (42 in curVal.m);
     checkTypes := true;
     fixMult := true;
-    fuzzReals := true;
     checkBounds := not (44 in curVal.m);
     declExternal := false;
     errors := false;
@@ -8494,7 +8420,7 @@ procedure initOptions;
         0C                     (*"    READ"*),
         0C                     (*"  READLN"*),
         45705164C              (*"    EXIT"*),
-        4445426547C            (*"   DEBUG"*),
+        0C                     (*"   DEBUG"*),
         42456355C              (*"    BESM"*),
         0C                     (*"   MAPIA"*),
         5541604151C            (*"   MAPAI"*),
