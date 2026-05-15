@@ -48,7 +48,6 @@ const
     mcMULTI = 7;
     mcADDSTK2REG = 8;
     mcADDACC2REG = 9;
-    mcODD = 10;
     mcROUND = 11;
     mcMINEL = 15;
     mcPOP2ADDR = 19;
@@ -1329,7 +1328,7 @@ procedure readOptFlag(var res: boolean);
                     nextCH;
                 until charSym[CH] <> INTCONST;
 (octdec)        {
-                    if numstr[1].i = 0 then {
+                    if (numstr[1].i = 0) and (CH <> '.') then {
                         numFormat := OCTAL;
                         if CH = 'U' then {
                             numFormat := FULLWORD;
@@ -2167,9 +2166,6 @@ procedure addJumpInsn(opcode: integer);
             mcADDSTK2REG:  add2InsnsToBuf(KWTC+SP, KUTM+
                                indexreg[curInsn.i]);
             mcADDACC2REG:  add2InsnsToBuf(KATI+14, KJADDM+I14 + curInsn.i);
-            mcODD: {
-                add2InsnsToBuf(KAAX+E1, KAEX+ZERO);
-            };
             mcROUND: {
                 addInsnToBuf(KADD+REAL05);                (* round *)
                 add2InsnsToBuf(KNTR+7, KADD+ZERO)
@@ -3829,7 +3825,6 @@ var i    : integer; ret: bitset;
                     case work of
                     fnABS:   arg1Val.r := abs(arg1Val.r);
                     fnTRUNC: arg1Val.i := trunc(arg1Val.r);
-                    fnODD:   arg1Val.b := odd(arg1Val.i);
                     fnORD:   arg1Val.i := ord(arg1Val.c);
                     fnCHR:   arg1Val.c := chr(arg1Val.i);
                     fnSUCC:  arg1Val.c := succ(arg1Val.c);
@@ -7223,7 +7218,7 @@ procedure regSysProc(l4arg1z: integer);
     regSysProc(414263C(*"     ABS"*));
     temptype := integerType;
     regSysProc(6462655643C(*"   TRUNC"*));
-    regSysProc(574444C(*"     ODD"*));
+    regSysProc(0C(* was ODD, unused*));
     regSysProc(576244C(*"     ORD"*));
     temptype := charType;
     regSysProc(435062C(*"     CHR"*));
@@ -7232,7 +7227,7 @@ procedure regSysProc(l4arg1z: integer);
     temptype := integerType;
     regSysProc(455746C(*"     EOF"*));
     temptype := pointerType;
-    regSysProc(624546C(*"     REF"*));
+    regSysProc(0C(*was REF, unused*));
     temptype := integerType;
     regSysProc(45575456C(*"    EOLN"*));
     regSysProc(0C); (* was SQR, unused *)

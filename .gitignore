@@ -8,6 +8,7 @@
 
 # Temporaries
 tmp*
+*.utxt
 
 # Listings
 *.lst

@@ -48,7 +48,6 @@ const
     mcMULTI = 7;
     mcADDSTK2REG = 8;
     mcADDACC2REG = 9;
-    mcODD = 10;
     mcROUND = 11;
     mcMINEL = 15;
     mcPOP2ADDR = 19;
@@ -463,7 +462,7 @@ var
     helperMap: array [1..99] of int;
     helperNames: array [1..99] of int;
 //
-    symTab: array [074000..075500] of int;
+    symTab: array [074000 .. 075500] of int;
     systemProcNames: array [0..22] of int;
     resWordName: array [0..26] of int;
     longSymCnt: int;
@@ -1282,7 +1281,7 @@ var
                     nextCH();
                 } while (charSym[CH] == INTCONST);
 (octdec)        {
-                    if (numstr[0].i == 0) {
+                    if ((numstr[0].i == 0) && (CH != '.')) {
                         numFormat  =  OCTAL;
                         if (CH == 'U') {
                             numFormat = FULLWORD;
@@ -1381,7 +1380,7 @@ var
                         error(58); /* errExponentGreaterThan18 */
                     }
                     do {
-                        if (odd(expMagnitude))
+                        if (expMagnitude & 1U)
                             expValue  =  expValue * expMultiple;
                         expMagnitude  =  expMagnitude / 2;
                         if (expMagnitude != 0)
@@ -2126,9 +2125,6 @@ void addJumpInsn(opcode: int);
             mcADDSTK2REG:  add2InsnsToBuf(KWTC+SP, KUTM+
                                indexreg[curInsn]);
             mcADDACC2REG:  add2InsnsToBuf(KATI+14, KJADDM+I14 + curInsn);
-            mcODD: {
-                add2InsnsToBuf(KAAX+E1, KAEX+ZERO);
-            }
             mcROUND: {
                 addInsnToBuf(KADD+REAL05);                /* round */
                 add2InsnsToBuf(KNTR+7, KADD+ZERO);
@@ -3402,7 +3398,7 @@ var
     mode, size: int;
 {
     l3int3z  =  ord(curOP) - ord(NEOP);
-    negate  =  odd(l3int3z);
+    negate  =  l3int3z & 1U;
     if (l3int3z == 6) {     /* IN */
         if (arg1Const) {
             if (arg2Const) {
@@ -3764,7 +3760,6 @@ var
                     switch (work) {
                     fnABS:   arg1Val.r  =  abs(arg1Val.r);
                     fnTRUNC: arg1Val.i  =  trunc(arg1Val.r);
-                    fnODD:   arg1Val.i  =  odd(arg1Val.i);
                     fnORD:   arg1Val.i  =  ord(arg1Val.c);
                     fnCHR:   arg1Val.c  =  chr(arg1Val.i);
                     fnSUCC:  arg1Val.c  =  succ(arg1Val.c);
@@ -7020,7 +7015,7 @@ void regSysProc(l4arg1z: int);
     regSysProc('     ABS');
     temptype  =  intType;
     regSysProc('   TRUNC');
-    regSysProc('     ODD');
+    regSysProc('wasodd  ');
     regSysProc('     ORD');
     temptype  =  charType;
     regSysProc('     CHR');
@@ -7050,9 +7045,9 @@ void regSysProc(l4arg1z: int);
         symTab[074000]  =  makeNameWithStars();
     }
     entryPtTable[0]  =  symTab[074000];
-    entryPtTable[1]  =  1;
+    entryPtTable[1]  =  [1];
     entryPtTable[2]  = 'PROGRAM ';
-    entryPtTable[3]  =  1;
+    entryPtTable[3]  =  [1];
     entryPtCnt  =  4;
     /*10 24 74001 00 30 74002*/
     write(_CHILD_,04247400103074002U);
