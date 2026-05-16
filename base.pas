@@ -422,7 +422,7 @@ var
    curVal: word;
    O77777: bitset;
    intZero: bitset;
-   unused138z, extSymMask: bitset;
+   extSymMask: bitset;
    halfWord: bitset;
    leftInsn: bitset;
    hashMask: word;
@@ -953,8 +953,7 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function getValueOrAllocSymtab(value: integer): integer;
 {
-    curVal.i := value;
-    curVal.i := curVal.i MOD 32768;
+    curVal.i := value MOD 32768;
     if (40000B >= curVal.i) then
         getValueOrAllocSymtab := curVal.i
     else
@@ -2968,12 +2967,6 @@ var
     getEltInsns: array [1..10] of @insnltyp;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function myminel(l6arg1z: bitset): integer;
-{
-    myminel := minel(l6arg1z);
-}; (* myminel *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* genGetElt *)
     dimCnt := 0;
     l5var29z := exprToGen;
@@ -3059,9 +3052,9 @@ function myminel(l6arg1z: bitset): integer;
                     insnCopy.next2 := insnList@.next2;
                 } else {
                     if (insnCopy.ilf7 >= 15) then {
-                        l5var1z :=  myminel(l5var22z.m);
+                        l5var1z :=  minel(l5var22z.m);
                         if (0 >= l5var1z) then {
-                            l5var1z := myminel(set147z - insnCopy.regsused);
+                            l5var1z := minel(set147z - insnCopy.regsused);
                             if (0 >= l5var1z) then
                                 l5var1z := 9;
                         };
@@ -3703,7 +3696,7 @@ var i    : integer; ret: bitset;
             }
         }
     } else {
-        if (FILEPTR >= curOP) then {
+        if (curOP <= FILEPTR) then {
             if (curOP = GETVAR) then {
                 new(insnList);
                 curIdRec := exprToGen@.id1;
@@ -3774,8 +3767,7 @@ var i    : integer; ret: bitset;
             } else
             if (curOP = GETENUM) then
                 startInsnList(ilCONST)
-        } else
-        if (curOP = ALNUM) then
+        } else if (curOP = ALNUM) then
             genEntry
         else if (curOP IN [TOREAL..BITNEGOP]) then {
             genFullExpr(exprToGen@.expr1);
@@ -3811,8 +3803,7 @@ var i    : integer; ret: bitset;
                     goto 10122;
                 }
             }
-        } else
-        if (curOP = STANDPROC) then {
+        } else if (curOP = STANDPROC) then {
             genFullExpr(exprToGen@.expr1);
             work := exprToGen@.num2;
             if (100 < work) then {
@@ -6167,7 +6158,7 @@ function allocDataRef(value: integer): integer;
         formOperator(SETREG9);
         if (objBufIdx <> 1) then
             error(errVarTooComplex);
-        l4var7z.m := (leftInsn * [12..23]);
+        l4var7z.m := leftInsn * [12..23];
         l4var3z := FcstCnt;
         length := 0;
         l4var9z.i := 0;
@@ -7089,7 +7080,7 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure initScalars;
 var
-    l3var1z, l3var3z, l3var4z: word;
+    l3var1z, outName, inName: word;
     l3var5z, l3var6z: integer;
     l3var7z: irptr;
     l3var8z, l3var9z: integer;
@@ -7120,6 +7111,62 @@ procedure regSysProc(l4arg1z: integer);
     l3var9z := l3var9z + 1;
     addToHashTab(curIdRec);
 }; (* registerSysProc *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure defExtern;
+var l : integer;
+{
+    l := 0;
+    curVal := curIdent;
+    l3var1z.m := makeNameWithStars;
+    if (curIdent = inName) then {
+        new(inputFile, 12);
+        with inputFile@ do {
+            id := curIdent;
+            offset := 0;
+            typ := textType;
+            cl := VARID;
+            list := NIL;
+        };
+        curVal := l3var1z;
+        inputFile@.value := allocExtSymbol(l3var11z.m);
+        addToHashTab(inputFile);
+        l := lineCnt;
+    } else if (curIdent = outName) then {
+        outputFile := l3var7z;
+        l := lineCnt;
+    };
+    curExternFile := externFileList;
+    while (curExternFile <> NIL) do {
+        if (curExternFile@.id = curIdent) then {
+            curExternFile := NIL;
+            error(errIdentAlreadyDefined);
+        } else {
+            curExternFile := curExternFile@.next;
+        };
+    };
+    new(curExternFile);
+    with curExternFile@ do {
+        id := curIdent;
+        next := externFileList;
+        line := l;
+        offset := l3var1z.i;
+    };
+    if l <> 0 then {
+        if (curIdent = outName) then {
+            fileForOutput := curExternFile;
+        } else {
+            fileForInput := curExternFile;
+        }
+    };
+    externFileList := curExternFile;
+    l3var6z := l3var5z;
+    l3var5z := l3var5z + 1;
+    inSymbol;
+    l3var6z := 512;
+    curExternFile@.location := l3var6z;
+};
+
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* initScalars *)
@@ -7253,11 +7300,8 @@ procedure regSysProc(l4arg1z: integer);
     l3var11z.i := 30;
     l3var11z.m := l3var11z.m * halfWord + [24,27,28,29];
     new(programObj, 12);
-    curVal.i := 1257656460656412C(*"*OUTPUT*"*);
-    l3var3z := curVal;
-    curVal.i := 12515660656412C(*" *INPUT*"*);
-    l3var4z := curVal;
-    test1(EXTERNSY, (skipToSet + [IDENT,SEMICOLON]));
+    outName.i := 1257656460656412C(*"*OUTPUT*"*);
+    inName.i := 12515660656412C(*" *INPUT*"*);
     symTabPos := 74004B;
     with programObj@ do {
             curVal.i := 6041634357556054C; (* PASCOMPL *)
@@ -7287,7 +7331,7 @@ procedure regSysProc(l4arg1z: integer);
     new(l3var7z, 12);
     lineStartOffset := moduleOffset;
     with l3var7z@ do {
-        id := l3var3z;
+        id := outName;
         offset := 0;
         typ := textType;
         cl := VARID;
@@ -7297,83 +7341,18 @@ procedure regSysProc(l4arg1z: integer);
     l3var7z@.value := allocExtSymbol(l3var11z.m);
     addToHashTab(l3var7z);
     l3var5z := 1;
-    while SY = IDENT do {
-        l3var8z := 0;
-        curVal := curIdent;
-        l3var1z.m := makeNameWithStars;
-        if (curIdent = l3var4z) then {
-            new(inputFile, 12);
-            with inputFile@ do {
-                id := curIdent;
-                offset := 0;
-                typ := textType;
-                cl := VARID;
-                list := NIL;
-            };
-            curVal := l3var1z;
-            inputFile@.value := allocExtSymbol(l3var11z.m);
-            addToHashTab(inputFile);
-            l3var8z := lineCnt;
-        } else if (curIdent = l3var3z) then {
-            outputFile := l3var7z;
-            l3var8z := lineCnt;
-        };
-        curExternFile := externFileList;
-        while (curExternFile <> NIL) do {
-            if (curExternFile@.id = curIdent) then {
-                curExternFile := NIL;
-                error(errIdentAlreadyDefined);
-            } else {
-                curExternFile := curExternFile@.next;
-            };
-        };
-        new(curExternFile);
-        with curExternFile@ do {
-            id := curIdent;
-            next := externFileList;
-            line := l3var8z;
-            offset := l3var1z.i;
-        };
-        if l3var8z <> 0 then {
-            if (curIdent = l3var3z) then {
-                fileForOutput := curExternFile;
-            } else {
-                fileForInput := curExternFile;
-            }
-        };
-        externFileList := curExternFile;
-        l3var6z := l3var5z;
-        l3var5z := l3var5z + 1;
+    while SY = EXTERNSY do {
         inSymbol;
-        if (charClass = MUL) then {
-            l3var6z := l3var6z + 64;
-            inSymbol;
+        while SY = IDENT do {
+            defExtern;
+            if (SY = COMMA) then
+                inSymbol;
         };
-        if (SY = INTCONST) then {
-            l3var6z := 1000B * curToken.i + l3var6z;
-            if (numFormat = DECIMAL) and
-               (1 < curToken.i) and
-               (curToken.i < 127) then {
-                l3var6z := l3var6z + 128;
-            } else if (numFormat = OCTAL) and
-                      (1000000B < curToken.i) and
-                      (curToken.i < 1743671743B) then {
-                l3var6z := l3var6z + 256;
-            } else {
-                error(76); (* errWrongNumberForExternalFile *)
-            };
-            inSymbol;
-        } else {
-            l3var6z := 512;
-        };
-        curExternFile@.location := l3var6z;
-        if (SY = COMMA) then
-            inSymbol;
-    };
-    checkSymAndRead(SEMICOLON);
+        checkSymAndRead(SEMICOLON);
+    }; (* while SY = EXTERNSY *)
     if (outputFile = NIL) then {
-        error(77); (* errNoOutput *)
         outputFile := l3var7z;
+        fileForOutput := ;
     };
     l3var6z := 40;
     repeat
@@ -8221,7 +8200,6 @@ procedure initOptions;
                     GOTOSY];
     O77777 := [33:47];
     intZero := 0;
-    unused138z := (63000000C);
     extSymMask := (43000000C);
     halfWord := [24:47];
     hashMask := 203407C;

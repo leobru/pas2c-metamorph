@@ -128,6 +128,8 @@ const
     litForward  =  ' FORWARD';
     litFortran  =  ' FORTRAN';
     litOct  =  '     OCT';
+    litOutput  =  '*OUTPUT*';
+    litInput  =  ' *INPUT*';
     /*=A2*/
     FALSE  =  0U;
     TRUE  =  1U;
@@ -6027,7 +6029,7 @@ var
         formOperator(SETREG9);
         if (objBufIdx != 0)
             error(errVarTooComplex);
-        l4var7z  =  leftInsn & [12,13,14,15,16,17,18,19,20,21,22,23];
+        l4var7z  =  leftInsn & (07777U << 24);
         l4var3z  =  FcstCnt;
         l4var4z  =  0;
         l4var9z  =  0;
@@ -6887,7 +6889,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void mainProgram;
 var
-    l3var1z, l3var3z, l3var4z, l3var5z, l3var6z: int;
+    l3var1z, l3var5z, l3var6z: int;
     l3var7z: irptr;
     l3var8z, l3var9z: int;
     temptype: tptr;
@@ -6917,6 +6919,57 @@ void regSysProc(l4arg1z: int);
     l3var9z  =  l3var9z + 1;
     addToHashTab(curIdRec);
 } /* registerSysProc */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void defExtern;
+{
+    l3var8z  =  0;
+    l3var11z  =  30U | [24,27,28,29];
+    curVal.i  =  curIdent;
+    l3var1z  =  makeNameWithStars();
+    if (curIdent == litInput) {
+        new(inputFile, 12);
+        with inputFile@ do {
+            id  =  curIdent;
+            offset  =  0;
+            typ  =  textType;
+            cl  =  VARID;
+            list  =  NIL;
+        }
+        curVal.i  =  l3var1z;
+        inputFile->value  =  allocExtSymbol(l3var11z);
+        addToHashTab(inputFile);
+        l3var8z  =  lineCnt;
+    } else if (curIdent == litOutput) {
+        outputFile  =  l3var7z;
+        l3var8z  =  lineCnt;
+    }
+    curExternFile  =  externFileList;
+    while (curExternFile != NIL) {
+        if (curExternFile->id == curIdent) {
+            curExternFile  =  NIL;
+            error(errIdentAlreadyDefined);
+        } else {
+            curExternFile  =  curExternFile->next;
+        }
+    }
+    new(curExternFile);
+    with curExternFile@ do {
+        id  =  curIdent;
+        next  =  externFileList;
+        line  =  l3var8z;
+        offset  =  l3var1z;
+    }
+    if (l3var8z != 0) {
+        if (curIdent == litOutput) {
+            fileForOutput  =  curExternFile;
+        } else {
+            fileForInput  =  curExternFile;
+        }
+    }
+    externFileList  =  curExternFile;
+    curExternFile->location  =  512;
+}
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* mainProgram */
@@ -7048,8 +7101,6 @@ void regSysProc(l4arg1z: int);
     l3var11z  =  30;
     l3var11z  =  l3var11z & halfWord | [24,27,28,29];
     new(programObj = 12);
-    l3var3z  = '*OUTPUT*';
-    l3var4z  =  ' *INPUT*';
     test1(EXTERNSY, (skipToSet | [IDENT,LPAREN]));
     symTabPos  =  074004;
     with programObj@ do {
@@ -7063,6 +7114,7 @@ void regSysProc(l4arg1z: int);
     entryPtTable[2]  = 'PROGRAM ';
     entryPtTable[3]  =  [1];
     entryPtCnt  =  4;
+    /*=A2 done with TEXT constants */
     /*10 24 74001 00 30 74002*/
     write(_CHILD_,04247400103074002U);
     moduleOffset  =  040001;
@@ -7078,87 +7130,19 @@ void regSysProc(l4arg1z: int);
     new(l3var7z, 12);
     lineStartOffset  =  moduleOffset;
     with l3var7z@ do {
-        id  =  l3var3z;
+        id  =  litOutput;
         offset  =  0;
         typ  =  textType;
         cl  =  VARID;
         list  =  NIL;
     }
-    curVal.i  =  '*OUTPUT*';
-    /*=A2 done with TEXT constants */
+    curVal.i  =  litOutput;
     l3var7z->value  =  allocExtSymbol(l3var11z);
     addToHashTab(l3var7z);
     l3var5z  =  1;
     while (SY == IDENT) {
-        l3var8z  =  0;
-        curVal.i  =  curIdent;
-        l3var1z  =  makeNameWithStars();
-        if (curIdent == l3var4z) {
-            new(inputFile, 12);
-            with inputFile@ do {
-                id  =  curIdent;
-                offset  =  0;
-                typ  =  textType;
-                cl  =  VARID;
-                list  =  NIL;
-            }
-            curVal.i  =  l3var1z;
-            inputFile->value  =  allocExtSymbol(l3var11z);
-            addToHashTab(inputFile);
-            l3var8z  =  lineCnt;
-        } else if (curIdent == l3var3z) {
-            outputFile  =  l3var7z;
-            l3var8z  =  lineCnt;
-        }
-        curExternFile  =  externFileList;
-        while (curExternFile != NIL) {
-            if (curExternFile->id == curIdent) {
-                curExternFile  =  NIL;
-                error(errIdentAlreadyDefined);
-            } else {
-                curExternFile  =  curExternFile->next;
-            }
-        }
-        new(curExternFile);
-        with curExternFile@ do {
-            id  =  curIdent;
-            next  =  externFileList;
-            line  =  l3var8z;
-            offset  =  l3var1z;
-        }
-        if (l3var8z != 0) {
-            if (curIdent == l3var3z) {
-                fileForOutput  =  curExternFile;
-            } else {
-                fileForInput  =  curExternFile;
-            }
-        }
-        externFileList  =  curExternFile;
-        l3var6z  =  l3var5z;
-        l3var5z  =  l3var5z + 1;
+        defExtern();
         inSymbol();
-        if (charClass == MUL) {
-            l3var6z  =  l3var6z + 64;
-            inSymbol();
-        }
-        if (SY == INTCONST) {
-            l3var6z  =  01000 * curToken.i + l3var6z;
-            if ((numFormat == DECIMAL) &&
-               (1 < curToken.i) &&
-               (curToken.i < 127)) {
-                l3var6z  =  l3var6z + 128;
-            } else if ((numFormat == OCTAL) &&
-                      (01000000 < curToken.i) &&
-                      (curToken.i < 01743671743)) {
-                l3var6z  =  l3var6z + 256;
-            } else {
-                error(76); /* errWrongNumberForExternalFile */
-            }
-            inSymbol();
-        } else {
-            l3var6z  =  512;
-        }
-        curExternFile->location  =  l3var6z;
         if (SY == COMMA)
             inSymbol();
     }
@@ -7284,11 +7268,11 @@ var
             int93z  =  0;
             inSymbol();
             if (not (SY IN (skipToSet | [IDENT,VARSY,FUNCSY,VOIDSY])))
-                errAndSkip(errBadSymbol, (skipToSet | [IDENT,RPAREN]));
+                errAndSkip(errBadSymbol, skipToSet | [IDENT,RPAREN]);
         }
     }
     if (l3var5z != 0) {
-        curIdRec->flags  =  (curIdRec->flags | [23]);
+        curIdRec->flags  =  curIdRec->flags | [23];
         l3var6z  =  l2int18z;
         l2int18z  =  l2int18z + l3var5z;
         l3var2z  =  curIdRec->argList;
