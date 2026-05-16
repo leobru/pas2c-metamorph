@@ -13,5 +13,8 @@ libc.bin: libc.src
 base.o: base.pas
 	./base.sh
 
+pascom.bin: build-pascom.dub
+	dubna build-pascom.dub
+
 clean:
-	rm -f *.o tmp* *.lst *.asm
+	rm -f *.o tmp* *.lst *.asm *.bin *.utxt

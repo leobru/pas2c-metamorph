@@ -1,11 +1,7 @@
-*name make pascal
+*name make pascom
 *disc:1/local
-*file:input,40
 *file:pascom,67,w
-*call setftn:one,long
 *no list
-*pascal
-*read:40
 *assem
  *РАSСОМ :  , NАМЕ,        .DТRАN  /01.06.84/
  FLGЕХ*  :  , LС  ,1
@@ -108,7 +104,14 @@
  *0054В  :  , LОG ,2
  *0055В  :  , LОG ,52
             , ЕND ,
-*library:22
+ PASDIV:,NAME,
+ ,NTR,3
+ ,UTC,=:4
+ ,A+X,
+ 1,ARX,10B
+ 15,ATX,3
+ 13,UJ,
+ ,END,
 `77761 PASMITXT 1
 `6041635551647064
 `2000000000000000
@@ -602,8 +605,5 @@
 `0064504556120000
 `6062574762415512
 `6041635551647064
-*call overlay:67
- /montran(pascal*)
- pascal*
-*end record
+*to perso:670000
 *end file
