@@ -176,7 +176,7 @@ operator = enum {
     badop31,    MKRANGE,    ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
     FILEPTR,    op44,       ALNUM,      PCALL,      FCALL,
-    TOREAL,     NOTOP,      INEGOP,     RNEGOP,
+    TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
     STANDPROC,  NOOP
 };
 //
@@ -2292,7 +2292,7 @@ void addJumpInsn(opcode: int);
             } else
                 l4inl6z  =  next;
     }
-    set146z  =  set146z ~ set145z;
+    set146z  =  set146z & (~ set145z);
 } /* genOneOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2582,7 +2582,7 @@ var
             }
             addInsnAndOffset(insnTemp[UTC] + insnList->ilf5,
                              insnList->ilf6);
-            curVal.i  =  [0..47] ~ [(48-l4int3z)..(47 -l4int2z)];
+            curVal.i  =  ~ [(48-l4int3z)..(47 -l4int2z)];
             addInsnAndOffset(macro+mcPCKSTORE, getFCSToffset());
         } else {
             if (not l4bool5z) {
@@ -2900,7 +2900,7 @@ var
                 }
             }
         }
-        insnList->regsused  =  l5var9z ~ [16];
+        insnList->regsused  =  l5var9z & (~[16]);
         l5ins8z->next->next  =  insnList->next2;
         insnList->next2  =  l5ins8z->next2;
         insnList->ilm  =  il3;
@@ -2940,7 +2940,7 @@ var
     copyPtr  =  &insnCopy;
     l5var22z  =  freeRegs;
     for (curDim = 1; curDim <= dimCnt; curDim=curDim+1)
-       l5var22z  =  l5var22z ~ getEltInsns[curDim]->regsused;
+       l5var22z  =  l5var22z & (~ getEltInsns[curDim]->regsused);
     for (curDim = dimCnt; curDim >= 1; curDim=curDim-1) {
         l5var26z  =  insnCopy.typ->base;
         l5var27z  =  insnCopy.typ->range;
@@ -3011,7 +3011,7 @@ var
                     if (insnCopy.ilf7 >= 15) {
                         l5var1z  =   minel(l5var22z);
                         if (0 >= l5var1z) {
-                            l5var1z  =  minel(freeRegs ~ insnCopy.regsused);
+                            l5var1z  =  minel(freeRegs & (~ insnCopy.regsused));
                             if (0 >= l5var1z)
                                 l5var1z  =  9;
                         }
@@ -3054,7 +3054,7 @@ var
                     if (l5var7z != 0) {
                         curVal.i  =  0 - l5var7z;
                         if (not typeCheck(insnList->typ, intType))
-                            curVal.i  =  curVal.i ~ intZero;
+                            curVal.i  =  curVal.i & (~intZero);
                         addToInsnList(KADD+I8 + getFCSToffset());
                         insnList->next->mode  =  1;
                     }
@@ -3328,7 +3328,7 @@ var
         insnList->typ  =  l5idr5z->typ;
         insnList->regsused  =  insnList->regsused | E48;
         insnList->ilm  =  il2;
-        set146z  =  set146z ~ l5var12z;
+        set146z  =  set146z & (~l5var12z);
     }
 } /* genEntry */
 //
@@ -3488,7 +3488,7 @@ var
             }
             } /* switch */
         }
-        insnList->regsused  =  insnList->regsused ~ [16];
+        insnList->regsused  =  insnList->regsused & (~[16]);
         if (negate)
              negateCond();
     }
@@ -3539,8 +3539,7 @@ var
                 SETOR:      arg1Val.i  =  arg1Val.i | arg2Val.i;
                 SHLEFT:     arg1Val.i  =  arg1Val.i << arg2Val.i;
                 SHRIGHT:    arg1Val.i  =  arg1Val.i >> arg2Val.i;
-                SETSUB:
-                    goto 10075;
+//                SETSUB:     arg1Val.i  =  arg1Val.i ~ arg2Val.i;
                 NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP,
                 MKRANGE, ASSIGNOP:
                     error(200);
@@ -3578,14 +3577,14 @@ var
                     if (arg2Const) {
                         prepLoad();
                         if (card(arg2Val.i) == 4) {
-                            curVal.i = intZero|[minel(arg2Val.i~intZero)+1..47];
+                            curVal.i = intZero|[minel(arg2Val.i & (~intZero))+1..47];
                             addToInsnList(KAAX+I8 +getFCSToffset());
                             l3int3z  =  0;
                         } else {
                             addToInsnList(macro + mcPUSH);
                             genConstDiv();
                             insnList->next->mode  =  1;
-                            curVal.i  =  arg2Val.i ~ [1, 3];
+                            curVal.i  =  arg2Val.i & (~[1, 3]);
                             addToInsnList(KMUL+I8 + getFCSToffset());
                             addToInsnList(KYTA+64);
                             addToInsnList(KRSUB+SP);
@@ -3715,7 +3714,7 @@ var
                 startInsnList(ilCONST);
         } else if (curOP == ALNUM)
             genEntry();
-        else if (curOP IN [TOREAL..RNEGOP]) {
+        else if (curOP IN [TOREAL..BITNEGOP]) {
             genFullExpr(exprToGen->expr1);
             if (insnList->ilm == ilCONST) {
                 arg1Val.i  =  insnList->ilf5;
@@ -3724,6 +3723,7 @@ var
                 NOTOP:  arg1Val.i  =  not arg1Val.i;
                 RNEGOP: arg1Val.r  =  -arg1Val.r;
                 INEGOP: arg1Val.i  =  -arg1Val.i;
+                BITNEGOP: arg1Val.i = ~arg1Val.i;
                 } /* switch 10345 */
                 insnList->ilf5  =  arg1Val.i;
             } else if (curOP == NOTOP) {
@@ -3734,7 +3734,11 @@ var
                     addToInsnList(insnTemp[AVX]);
                     l3int3z  =  3;
                     goto 10122;
-                } else {
+                } else if (curOP == BITNEGOP) {
+                    addToInsnList(KAEX+ALLONES);
+                    l3int3z = 1;
+                    goto 10122;
+                 } else {
                     addToInsnList(KAVX+MINUS1);
                     if (curOP == RNEGOP)
                         l3int3z  =  3;
@@ -3918,9 +3922,9 @@ var l4exf1z: @extfilerec;
                         setAddrTo(l3int2z);
                         genOneOp();
                     }
-                    l3var11z  =  [l3int2z] ~ [14];
-                    set145z  =  set145z ~ l3var11z;
-                    freeRegs  =  freeRegs ~ l3var11z;
+                    l3var11z  =  [l3int2z] & (~[14]);
+                    set145z  =  set145z & (~l3var11z);
+                    freeRegs  =  freeRegs & (~l3var11z);
                     set146z  =  set146z | l3var11z;
                 }
                 curVal.i  =  l3int2z;
@@ -4719,7 +4723,7 @@ var
             if (entryPtCnt <= 40) {
                 curVal.i  =  l2idr2z->id;
                 entryPtTable[entryPtCnt]  =  makeNameWithStars();
-                entryPtTable[entryPtCnt+1]  =  [1] | frame ~ [0, 3];
+                entryPtTable[entryPtCnt+1]  =  [1] | frame & (~[0, 3]);
                 entryPtCnt  =  entryPtCnt + 2;
             } else
                 error(87); /* errTooManyEntryProcs */
@@ -4932,7 +4936,7 @@ var
 {
     with subroutine@ do {
         if (typ != NIL)
-            set146z  =  set146z ~ flags;
+            set146z  =  set146z & (~flags);
         noArgs  =  (list == NIL) && not (24 in flags);
     }
     new(callExpr);
@@ -5215,8 +5219,8 @@ var
                            (curExpr->op == GETENUM)) {
                             l4var4z  =  l4exp5z->num1;
                             l4var3z  =  curExpr->num1;
-                            l4var4z  =  l4var4z ~ intZero;
-                            l4var3z  =  l4var3z ~ intZero;
+                            l4var4z  =  l4var4z & (~intZero);
+                            l4var3z  =  l4var3z & (~intZero);
                             l4var1z  =  l4var1z | [l4var4z..l4var3z];
                             curExpr  =  newExpr;
                             goto 14567;
@@ -5232,7 +5236,7 @@ var
                    } else {
                         if (l4exp5z->op == GETENUM) {
                             l4var4z  =  l4exp5z->num1;
-                            l4var4z  =  l4var4z ~ intZero;
+                            l4var4z  =  l4var4z & (~intZero);
                             l4var1z  =  l4var1z | [l4var4z];
                             curExpr  =  newExpr;
                             goto 14567;
@@ -5360,20 +5364,21 @@ var
     argKind: kind;
     match: int;
 {
-    match  =  false;
-    if (charClass IN [PLUSOP, MINUSOP]) {
-        if (charClass == MINUSOP)
-            match  =  true;
+    oper  =  NOOP;
+    if (charClass IN [PLUSOP, MINUSOP, SETSUB]) {
+        if (charClass != PLUSOP)
+            oper  =  charClass;
         inSymbol();
     }
     term();
 (minus)
-    if (match) {
+    if (oper != NOOP) {
         arg1Type  =  curExpr->typ;
         new(l4var2z);
         with l4var2z@ do {
             typ  =  arg1Type;
             expr1  =  curExpr;
+            if (oper == MINUSOP) {
             if (arg1Type == realType) {
                 op  =  RNEGOP;
             } else if (typeCheck(arg1Type, intType)) {
@@ -5382,6 +5387,15 @@ var
             } else {
                 error(69); /* errUnaryMinusNeedRealOrInt */
                 exit minus;
+            }
+            } else if (oper == SETSUB) {
+                if (typeCheck(arg1Type, intType)) {
+                l4var2z->op  =  BITNEGOP;
+                l4var2z->typ  =  intType;
+            } else {
+                error(62); /* errIntegerNeeded */
+                exit minus;
+            }
             }
             curExpr  =  l4var2z;
         }
@@ -6163,7 +6177,7 @@ void callHelperWithArg;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void P17037;
 {
-    set145z  =  set145z ~ [12];
+    set145z  =  set145z & (~[12]);
     if ((helperNo != 49) &&             /* P/RDC */
        not typeCheck(l4exp8z->typ, l4exp7z->typ))
         error(34); /* errTypeIsNotAFileElementType */
@@ -6186,7 +6200,7 @@ void checkElementForReadWrite;
 var
     l5typ1z: tptr;
 {
-    set145z  =  set145z ~ [12];
+    set145z  =  set145z & (~[12]);
     if (l4typ3z->k == kindRange)
         l4typ3z  =  l4typ3z->base;
     curVarKind  =  l4typ3z->k;
@@ -6780,10 +6794,10 @@ var
     arithMode  =  1;
     set146z  =  0U;
     freeRegs  =  [curProcNesting+1..6];
-    set148z  =  freeRegs ~ [minel(freeRegs)];
+    set148z  =  freeRegs & (~[minel(freeRegs)]);
     l3var7z  =  freeRegs;
     exitTarget  =  0;
-    set145z  =  [1:15] ~ freeRegs;
+    set145z  =  [1:15] & (~freeRegs);
     if (curProcNesting != 1)
         parseDecls(2);
     sizeCount  =  localSize;
@@ -6824,7 +6838,7 @@ var
                errAndSkip(errBadSymbol, skipToSet);
         }
     } while (not l2bool8z);
-    l2idr2z->flags  =  (set145z & [0:15]) | (l2idr2z->flags ~ l3var7z);
+    l2idr2z->flags  =  (set145z & [0:15]) | (l2idr2z->flags & (~l3var7z));
     lineNesting  =  l3var2z - 1;
     if (exitTarget != 0)
         P0715(0, exitTarget);
@@ -6839,7 +6853,7 @@ var
         } else {
             l2idr2z->pos  =  l3var1z;
             if ((E48 >> 13) & set145z) {
-                curVal.i  =  minel([1:15] ~ set145z);
+                curVal.i  =  minel([1:15] & (~set145z));
                 objBuffer[1]  =  objBuffer[1] | [0,1,3,6,9] | (curVal.i << 24);
             } else {
                 curVal.i  =  13;
@@ -7838,7 +7852,7 @@ var
 { /* initTables */
     initArrays();
     initInsnTemplates();
-    skipToSet  =  blockBegSys | statBegSys ~ [SWITCHSY];
+    skipToSet  =  blockBegSys | statBegSys & (~[SWITCHSY]);
     bigSkipSet  =  skipToSet | statEndSys;
     unpack(pasinfor.a3@, iso2text, '\052'); /* '*' */
     iso2text['_'] = iso2text['*'];
@@ -7877,7 +7891,7 @@ var
     sizes[8]  =  ptr(int92z);
     sizes[9]  =  ptr(int93z);
     curVal.i  =  moduleOffset - 040000;
-    symTab[074001]  =  [24,29] | curVal.i ~ intZero;
+    symTab[074001]  =  [24,29] | curVal.i & (~intZero);
     reset(FCST);
     while (not eof(FCST)) {
         write(_CHILD_, FCST@);

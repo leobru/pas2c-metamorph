@@ -164,7 +164,7 @@ operator = (
     badop31,    MKRANGE,    ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
     FILEPTR,    op44,       ALNUM,      PCALL,      FCALL,
-    TOREAL,     NOTOP,      INEGOP,     RNEGOP,
+    TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
     STANDPROC,  NOOP
 );
 %
@@ -3600,8 +3600,7 @@ var i    : integer; ret: bitset;
                 SETOR:      arg1Val.m := arg1Val.m + arg2Val.m;
                 SHLEFT:     arg1Val.m := shift(arg1Val.m, -arg2Val.i);
                 SHRIGHT:    arg1Val.m := shift(arg1Val.m, arg2Val.i);
-                SETSUB:
-                    goto 10075;
+                SETSUB:     arg1Val.m := arg1Val.m - arg2Val.m;
                 NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP,
                 MKRANGE, ASSIGNOP:
                     error(200);
@@ -3778,7 +3777,7 @@ var i    : integer; ret: bitset;
         } else
         if (curOP = ALNUM) then
             genEntry
-        else if (curOP IN [TOREAL..RNEGOP]) then {
+        else if (curOP IN [TOREAL..BITNEGOP]) then {
             genFullExpr(exprToGen@.expr1);
             if (insnList@.ilm = ilCONST) then {
                 arg1Val := insnList@.ilf5;
@@ -3787,6 +3786,7 @@ var i    : integer; ret: bitset;
                 NOTOP:  arg1Val.b := not arg1Val.b;
                 RNEGOP: arg1Val.r := -arg1Val.r;
                 INEGOP: arg1Val.i := -arg1Val.i;
+                BITNEGOP: arg1Val.m := [0..47] - arg1Val.m
                 end; (* case 10345 *)
                 insnList@.ilf5 := arg1Val;
             } else
@@ -3797,6 +3797,10 @@ var i    : integer; ret: bitset;
                 if (curOP = TOREAL) then {
                     addToInsnList(insnTemp[AVX]);
                     l3int3z := 3;
+                    goto 10122;
+                } else if (curOP = BITNEGOP) then {
+                    addToInsnList(KAEX+ALLONES);
+                    l3int3z := 1;
                     goto 10122;
                 } else {
                     addToInsnList(KAVX+MINUS1);
@@ -3958,7 +3962,7 @@ procedure dump(expr : eptr; indent: integer);
 if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
        dump(expr@.expr1, indent);
        if not (expr@.op in
-[INEGOP,RNEGOP,TOREAL,DEREF,FILEPTR,NOTOP,GETFIELD,SHLEFT,SHRIGHT]) then
+[INEGOP..BITNEGOP,TOREAL,DEREF,FILEPTR,NOTOP,GETFIELD,SHLEFT,SHRIGHT]) then
            dump(expr@.expr2, indent);
     }
 };
@@ -5487,21 +5491,22 @@ var
     argKind: kind;
     match: boolean;
 {
-    match := false;
-    if (charClass IN [PLUSOP, MINUSOP]) then {
-        if (charClass = MINUSOP) then
-            match := true;
+    oper := NOOP;
+    if (charClass IN [PLUSOP, MINUSOP, SETSUB]) then {
+        if (charClass <> PLUSOP) then
+            oper := charClass;
         inSymbol;
     };
     term;
 (minus)
-    if (match) then {
+    if (oper <> NOOP) then {
         arg1Type := curExpr@.typ;
         new(leftExpr);
         with leftExpr@ do {
             typ := arg1Type;
             expr1 := curExpr;
-            if (arg1Type = realType) then {
+            if oper = MINUSOP then {
+            if arg1Type = realType then {
                 op := RNEGOP;
             } else if typeCheck(arg1Type, integerType) then {
                 leftExpr@.op := INEGOP;
@@ -5509,6 +5514,15 @@ var
             } else {
                 error(69); (* errUnaryMinusNeedRealOrInteger *)
                 exit minus
+            };
+            } else if oper = SETSUB then {
+                if typeCheck(arg1Type, integerType) then {
+                leftExpr@.op := BITNEGOP;
+                leftExpr@.typ := integerType;
+            } else {
+                error(62); (* errIntegerNeeded *)
+                exit minus
+            };
             };
             curExpr := leftExpr;
         }
@@ -5947,9 +5961,9 @@ function max(a, b: integer): integer;
         curVal := minValue;
         P0715(-(insnTemp[U1A]+otherOffset), maxValue.i);
         curVal := minValue;
-        curVal.m := (curVal.m + intZero);
+        curVal.m := curVal.m + intZero;
         form1Insn(KATI+14);
-        curVal.i := ((moduleOffset + (1)) - curVal.i);
+        curVal.i := moduleOffset + 1 - curVal.i;
         if (curVal.i < 40000B) then {
             curVal.i := (curVal.i - 40000B);
             curVal.i := allocSymtab([24, 29] +
