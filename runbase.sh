@@ -4,6 +4,7 @@ cat << EOF > tmp$$
 *disc:1/local
 *file:pascom,42
 *file:base,41
+*file:libc,43
 *file:tmpsrc,44
 *     *pascom and pasmitxt
 *libra:42
@@ -23,6 +24,7 @@ cat << EOF >> tmp$$
 real:17
 *assem
 *read:1
+*libra:43
 *execute
 *end file
 EOF

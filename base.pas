@@ -18,6 +18,7 @@ const
     S6 = 3;
     NoPtrCheck = 4;
     NoStackCheck = 5;
+    S9 = 6;
 %
     ASN64 = 360100B;
 %
@@ -63,6 +64,7 @@ const
     BITS15 =    4000022B;
     REAL05 =    4000023B;
     ALLONES =   4000024B;
+    E48 =       4000025B;
     HEAPPTR =   4000027B;
 
     KATX =      0000000B;
@@ -457,8 +459,8 @@ var
    charSym: array ['_000'..'_177'] of symbol;
    symHash: array [0..127] of irptr;
    typeHash: array [0..127] of irptr;
-   helperMap: array [1..99] of integer;
-   helperNames: array [1..99] of bitset;
+   helperMap: array [1..102] of integer;
+   helperNames: array [1..102] of bitset;
 %
    symTab:array [74000B..75500B] of bitset;
    systemProcNames: array [0..22] of integer;
@@ -1161,7 +1163,11 @@ procedure readOptFlag(var res: boolean);
             readOptVal(curVal.i, 9);
             if curVal.i = 3 then lineCnt := 1
             else if curVal.i in [4..9] then
-                optSflags.m := optSflags.m + [curVal.i - 3]
+                optSflags.m := optSflags.m + [curVal.i - 3];
+             if s9 IN optSflags.m then {
+                opToInsn[IDIVOP] := 101; (* C/DI *)
+                opToInsn[IMODOP] := 102; (* C/MD *)
+             }
         };
         'F': readOptFlag(checkFortran);
         'L': readOptVal(PASINFOR.listMode, 3);
@@ -1432,7 +1438,8 @@ procedure readOptFlag(var res: boolean);
                         curToken.r := curToken.r / expValue
                     else
                         curToken.r := curToken.r * expValue;
-                };
+                } else if s9 in optSflags.m then
+                    curToken.m := curToken.m - intZero;
                 exit lexer
             }; (* INTCONST *) (*=m+*)
             CHARCONST: {
@@ -2105,7 +2112,9 @@ procedure addJumpInsn(opcode: integer);
         if l4var4z >= 0 then {
             case l4var4z of
             mcCARD: {
-                add2InsnsToBuf(KACX, KAEX+ZERO);
+                addInsnToBuf(KACX);
+                if not (s9 in optSflags.m) then
+                    addInsnToBuf(KAEX+ZERO);
             };
             21: goto 3556;
             0:  addJumpInsn(insnTemp[UZA]);
@@ -2168,7 +2177,10 @@ procedure addJumpInsn(opcode: integer);
             14: add2InsnsToBuf(indexreg[curInsn.i] + KVTM,
                                KITA + curInsn.i);
             mcMINEL: {
-                add2InsnsToBuf(KANX+ZERO, KSUB+PLUS1);   (* minel *)
+                if s9 IN optSflags.m then
+                    add2InsnsToBuf(KANX, KSUB+E1)
+                else
+                    add2InsnsToBuf(KANX+ZERO, KSUB+PLUS1);   (* minel *)
             };
             16: add2InsnsToBuf(insnTemp[XTA], KATX+SP + curInsn.i);
             17: {
@@ -2424,7 +2436,8 @@ var
                 if (l4var5z < kindArray) or
                    (l4var5z = kindStruct) and (s6 in optSflags.m) then {
                     l4bool7z := true;
-                    l4bool8z := typeCheck(l4typ4z, integerType);
+                    l4bool8z := not (s9 in optSflags.m) and
+                                typeCheck(l4typ4z, integerType);
                 } else {
                     l4bool7z := false;
                     l4bool8z := false;
@@ -3426,6 +3439,7 @@ procedure genConstDiv;
     function PASDIV(r: real): word;
         external;
 {
+    arg2Val.m := arg2Val.m + intZero;
     curVal := PASDIV(1.0/arg2Val.i);
     addToInsnList(KMUL+I8 + getFCSToffset);
 }; (* genConstDiv *)
@@ -3653,14 +3667,15 @@ var i    : integer; ret: bitset;
                 };
                 opfMULMSK: {
                     if (arg1Const) then {
-                        insnList@.ilf5.m := arg1Val.m MOD [1, 3];
+                        insnList@.ilf5.m := arg1Val.m + [0] - [1, 3];
+                    } else if (arg2Const) then {
+                        otherIns@.ilf5.m := arg2Val.m + [0] - [1, 3];
                     } else {
-                        if (arg2Const) then {
-                            otherIns@.ilf5.m := arg2Val.m MOD [1, 3];
-                        } else {
-                            prepLoad;
+                        prepLoad;
+                        if s9 in optSflags.m then
+                            addToInsnList(KAEX+E48)
+                        else
                             addToInsnList(KAEX+MULTMASK);
-                        }
                     };
                     tryFlip(true);
                     insnList@.next@.mode := 1;
@@ -3681,10 +3696,12 @@ var i    : integer; ret: bitset;
                     if (not arg2Const) then genHelper
                     else {
                         prepLoad;
-                        if (curOP = SHRIGHT) then
+                        arg2Val.m := arg2Val.m + intZero;
+                        if (curOP = SHRIGHT) then {
                             addToInsnList(ASN64+arg2Val.i)
-                         else
+                         } else {
                             addToInsnList(ASN64-arg2Val.i)
+                         }
                     }
                 }
                 end; (* case 10122 *)
@@ -4144,7 +4161,8 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
         if (l3int3z = 72) then          (* P/KC *)
             l3int1z := 1 - l3int1z;
         form1Insn(getValueOrAllocSymtab(l3int1z) + (KVTM+I9));
-        if typeCheck(curExpr@.vt.typ, integerType) then {
+        if not (s9 IN optSflags.m) and
+           typeCheck(curExpr@.vt.typ, integerType) then {
             l3int1z := KXTA+ZERO;
         } else {
             l3int1z := insnTemp[XTA];
@@ -6337,7 +6355,10 @@ var
     if (l4typ3z@.k = kindRange) then
         l4typ3z := l4typ3z@.base;
     curVarKind := l4typ3z@.k;
-    helperNo := 36;                   (* P/WI *)
+    if (s9 IN optSflags.m) then
+        helperNo := 100               (* C/WI *)
+    else
+        helperNo := 36;               (* P/WI *)
     if (l4typ3z = integerType) then
         defWidth := 10
     else if (l4typ3z = realType) then {
@@ -6364,7 +6385,7 @@ var
         defWidth := 17;
     } else {
         error(34); (* errTypeIsNotAFileElementType *)
-    }
+    };
 }; (* checkElementForReadWrite *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6388,14 +6409,12 @@ procedure writeProc;
                     secondWidth := parseWidthSpecifier;
                     if (helperNo <> 37) then    (* P/WR *)
                         error(35); (* errSecondSpecifierForWriteOnlyForReal *)
-                } else {
-                    if (curToken = litOct) then {
-                        helperNo := 42; (* P/WO *)
-                        defWidth := 17;
-                        if (l4typ3z@.size <> 1) then
-                            error(34); (* errTypeIsNotAFileElementType *)
-                        inSymbol;
-                    }
+                } else if (curToken = litOct) then {
+                    helperNo := 42; (* P/WO *)
+                    defWidth := 17;
+                    if (l4typ3z@.size <> 1) then
+                        error(34); (* errTypeIsNotAFileElementType *)
+                    inSymbol;
                 };
                 noWidth := false;
                 if (firstWidth = NIL) and
@@ -6543,7 +6562,8 @@ var
             if not typeCheck(integerType, curExpr@.vt.typ) then
                 error(14); (* errExprIsNotInteger *)
             if (curExpr@.op = GETENUM) then {
-                ii := curExpr@.num1; goto 44;
+                curExpr@.lit.m := curExpr@.lit.m + intZero;
+                ii := curExpr@.lit.i; goto 44;
             } else {
                 formOperator(LOAD);
                 form1Insn(KATI+14);
@@ -6643,7 +6663,9 @@ var
         if (procNo = 17) then {
             form3Insn(ASN64-33, KAUX+BITS15, KAEX+ASCII0);
         } else {
-            form3Insn(KAPX+BITS15, ASN64+33, KAEX+ZERO);
+            form2Insn(KAPX+BITS15, ASN64+33);
+            if not (s9 in optSflags.m) then
+               form1Insn(KAEX+ZERO);
         };
         verifyType(l4typ2z);
         formOperator(STORE);
@@ -8047,7 +8069,7 @@ var
         for jdx to l3var2z.i do
             frameRestore[idx][jdx] := 0;
     };
-    for idx to 99 do
+    for idx to 102 do
         helperMap[idx] := 0;
 }; (* initArrays *)
 %
@@ -8388,7 +8410,10 @@ procedure initOptions;
         6017444400000000C      (*"P/DD    "*),
         6017624500000000C      (*"P/RE    "*),
         4317635054000000C      (*"C/SHL   "*),
-        4317635062000000C      (*"C/SHR   "*);
+        4317635062000000C      (*"C/SHR   "*),
+(*100*) 4317675100000000C      (*"C/WI    "*),
+        4317445100000000C      (*"C/DI    "*),
+        4317554400000000C      (*"C/MD    "*);
     systemProcNames :=
 (*0*)   606564C                (*"     PUT"*),
         474564C                (*"     GET"*),

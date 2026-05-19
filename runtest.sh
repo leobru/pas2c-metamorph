@@ -3,6 +3,7 @@ cat << EOF > tmp$$
 *NAME work
 *disc:1/local
 *file:pascom,42
+*file:libc,43
 *file:base,41
 *file:tmpsrc,44
 *     *pascom and pasmitxt
@@ -19,6 +20,7 @@ echo '                                                                          
 cat << EOF >> tmp$$
 *copy:0,000000,000000
 *no load list
+*libra:43
 *execute
 *end file
 EOF

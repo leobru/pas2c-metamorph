@@ -1,0 +1,29 @@
+/*=p-,t-,s8,s9,y+,m+,l0*/
+extern _output_;
+//
+var a, b, c: int;
+{
+    a = 10;
+    b = 3;
+    c = a + b;
+    writeln(' 10 + 3 = ', c:0);
+    c = a - b;
+    writeln(' 10 - 3 = ', c:0);
+    c = a * b;
+    writeln(' 10 * 3 = ', c:0);
+    c = -a * b;
+    writeln(' -10 * 3 = ', c:0);
+    c = a * (-b);
+    writeln(' 10 * -3 = ', c:0);
+    c = a / b;
+    writeln(' 10 / 3 = ', c:0);
+    c = a % b;
+    writeln(' 10 % 3 = ', c:0);
+    c = a << 10; 
+    writeln(' 10 << 10 = ', c:0);
+    for (b = 1; b <= 10; b = b+1) {
+        c = a << b;
+        writeln(' 10 << ', b:0, ' = ', c:0);
+    }
+}
+.
