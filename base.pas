@@ -199,6 +199,7 @@ word = record case integer of
     2: (b: boolean);
     3: (a: alfa);
     4: (t: packed array[0..7] of '_000' .. '_077');
+    5: (typ: tptr);
     7: (c: char);
     8: (cl: idclass);
     13: (m: bitset)
@@ -269,19 +270,14 @@ four = array [1..4] of integer;
 entries   = array [1..42] of bitset;
 %
 expr = record
+    vt : word;
+    op : operator;
     case operator of (* arbitrary so far *)
-    NOOP:       (val:    word;
-                 d3:     word;
-                 d1, d2: word);
-    MUL:        (typ:    tptr;
-                 op:     operator;
-                 expr1, expr2: eptr);
-    GETFIELD:   (d4, d5: word;
-                 typ1, typ2: tptr);
-    NOTOP:      (d6, d7: word;
-                 id1, id2: irptr);
-    STANDPROC:  (d8, d9: word;
-                 num1, num2: integer);
+    NOOP:       (lit: word);
+    MUL:        (expr1, expr2: eptr);
+    GETFIELD:   (typ1, typ2: tptr);
+    NOTOP:      (id1, id2: irptr);
+    STANDPROC:  (num1, num2: integer);
 end;
 %
 kword = record
@@ -2645,7 +2641,7 @@ procedure P5117(op: operator);
     addInsnAndOffset(curFrameRegTemplate, localSize);
     new(curExpr);
     with curExpr@ do
-        typ := insnList@.typ;
+        vt.typ := insnList@.typ;
     genOneOp;
     curExpr@.op := op;
     curExpr@.num1 := localSize;
@@ -3384,7 +3380,7 @@ procedure startInsnList(l5arg1z: ilmode);
     new(insnList);
     insnList@.next := NIL;
     insnList@.next2 := NIL;
-    insnList@.typ := exprToGen@.typ;
+    insnList@.typ := exprToGen@.vt.typ;
     insnList@.regsused := [];
     insnList@.ilm := l5arg1z;
     if (l5arg1z = ilCONST) then {
@@ -3869,11 +3865,11 @@ var i    : integer; ret: bitset;
             }
         } else {
             if (curOP = NOOP) then {
-                curVal := exprToGen@.val;
+                curVal := exprToGen@.vt;
                 if (curVal.i IN set146z) then {
                     new(insnList);
                     with insnList@ do {
-                        typ := exprToGen@.expr2@.typ;
+                        typ := exprToGen@.expr2@.vt.typ;
                         next := NIL;
                         next2 := ;
                         regsused := [];
@@ -3885,7 +3881,7 @@ var i    : integer; ret: bitset;
                     }
                 } else {
                     curVal.i := 14;
-                    exprToGen@.val := curVal;
+                    exprToGen@.vt := curVal;
                     exprToGen := exprToGen@.expr2;
                     goto 7567;
                 };
@@ -3895,7 +3891,7 @@ var i    : integer; ret: bitset;
             }
         };
     };
-    insnList@.typ := exprToGen@.typ;
+    insnList@.typ := exprToGen@.vt.typ;
 }; (* genFullExpr *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3911,7 +3907,7 @@ var l4exf1z: @extfilerec;
     };
     form2Insn(KITS+13, KATX+SP);
     while (curExpr <> NIL) do {
-        l4exf1z := ptr(ord(curExpr@.typ));
+        l4exf1z := ptr(ord(curExpr@.vt.typ));
         l4var3z := curExpr@.id2;
         l4int4z := l4var3z@.value;
         l4var2z := l4var3z@.typ@.base;
@@ -4002,11 +3998,11 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                     set146z := set146z + l3var11z.m;
                 };
                 curVal.i := l3int2z;
-                l3var5z@.val := curVal;
+                l3var5z@.vt := curVal;
             };
             st1: {
                 curVal.i := 14;
-                l3var5z@.val := curVal;
+                l3var5z@.vt := curVal;
             };
             st2:
                 error(errVarTooComplex);
@@ -4138,17 +4134,17 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
             error(44); (* errIncorrectUsageOfStandProcOrFunc *)
         setAddrTo(12);
         genOneOp;
-        arg1Type := l3var5z@.expr2@.typ;
+        arg1Type := l3var5z@.expr2@.vt.typ;
         with arg1Type@.range@ do
             l3int3z := right - left + 1;
         form2Insn((KVTM+I14) + l3int3z,
                   (KVTM+I10+64) - arg1Type@.pcksize);
-        l3int3z := ord(l3var5z@.typ);
+        l3int3z := ord(l3var5z@.vt.typ);
         l3int1z := arg1Type@.perword;
         if (l3int3z = 72) then          (* P/KC *)
             l3int1z := 1 - l3int1z;
         form1Insn(getValueOrAllocSymtab(l3int1z) + (KVTM+I9));
-        if typeCheck(curExpr@.typ, integerType) then {
+        if typeCheck(curExpr@.vt.typ, integerType) then {
             l3int1z := KXTA+ZERO;
         } else {
             l3int1z := insnTemp[XTA];
@@ -4904,27 +4900,27 @@ var
     } else {
         new(curExpr);
         with curExpr@ do {
-            typ := hashTravPtr@.typ;
+            vt.typ := hashTravPtr@.typ;
             op := GETVAR;
             id1 := hashTravPtr;
         };
 13462:  inSymbol;
-        l4typ3z := curExpr@.typ;
+        l4typ3z := curExpr@.vt.typ;
         l4var4z := l4typ3z@.k;
         if (SY = ARROW) then {
             new(l4exp1z);
             with l4exp1z@ do {
                 expr1 := curExpr;
                 if (l4var4z = kindPtr) then {
-                    typ := l4typ3z@.base;
+                    vt.typ := l4typ3z@.base;
                     op := DEREF;
                 } else if (l4var4z = kindFile) then {
-                    typ := l4typ3z@.base;
+                    vt.typ := l4typ3z@.base;
                     op := FILEPTR;
                 } else {
                     stmtName := '  ^   ';
                     error(errWrongVarTypeBefore);
-                    l4exp1z@.typ := l4typ3z;
+                    l4exp1z@.vt.typ := l4typ3z;
                 }
             };
             curExpr := l4exp1z;
@@ -4938,7 +4934,7 @@ var
                 } else 13530: {
                     new(l4exp1z);
                     with l4exp1z@ do {
-                        typ := hashTravPtr@.typ;
+                        vt.typ := hashTravPtr@.typ;
                         op := GETFIELD;
                         expr1 := curExpr;
                         id2 := hashTravPtr;
@@ -4954,15 +4950,15 @@ var
             repeat
                 l4exp1z := curExpr;
                 expression;
-                l4typ3z := l4exp1z@.typ;
+                l4typ3z := l4exp1z@.vt.typ;
                 if (l4typ3z@.k <> kindArray) then {
                     error(errWrongVarTypeBefore);
                 } else {
-                    if (not typeCheck(l4typ3z@.range, curExpr@.typ)) then
+                    if (not typeCheck(l4typ3z@.range, curExpr@.vt.typ)) then
                         error(66 (*errOtherIndexTypeNeeded *));
                     new(l4exp2z);
                     with l4exp2z@ do {
-                        typ := l4typ3z@.base;
+                        vt.typ := l4typ3z@.base;
                         expr1 := l4exp1z;
                         expr2 := curExpr;
                         op := GETELT;
@@ -4986,7 +4982,7 @@ var
 {
     new(cast);
     with cast@ do {
-        typ := realType;
+        vt.typ := realType;
         op := TOREAL;
         expr1 := value;
         value := cast;
@@ -5030,7 +5026,7 @@ var
     argList := callExpr;
     bool48z := true;
     with callExpr@ do {
-        typ := subroutine@.typ;
+        vt.typ := subroutine@.typ;
         op := ALNUM;
         id2 := subroutine;
         id1 := NIL;
@@ -5087,7 +5083,7 @@ var
                             goto 13736;
                     }
                 };
-                arg1Type := curExpr@.typ;
+                arg1Type := curExpr@.vt.typ;
                 if (arg1Type <> NIL) then {
                     if not typeCheck(arg1Type, curFormal@.typ) then
                         error(40); (*errIncompatibleArgumentTypes*)
@@ -5095,7 +5091,7 @@ var
             };
             new(curActual);
             with curActual@ do {
-                typ := NIL;
+                vt.typ := NIL;
                 expr1 := NIL;
                 expr2 := curExpr;
             };
@@ -5154,7 +5150,7 @@ var
         error(27); (* errExpressionWhereVariableExpected *)
         exit;
     };
-    arg1Type := curExpr@.typ;
+    arg1Type := curExpr@.vt.typ;
     if (arg1Type@.k = kindRange) then
         arg1Type := arg1Type@.base;
     argKind := arg1Type@.k;
@@ -5195,7 +5191,7 @@ var
     newExpr@.expr1 := curExpr;
     newExpr@.num2 := stProcNo;
     curExpr := newExpr;
-    curExpr@.typ := arg1Type;
+    curExpr@.vt.typ := arg1Type;
     checkSymAndRead(RPAREN);
 
 }; (* stdCall *)
@@ -5219,7 +5215,7 @@ var
                 ENUMID: {
                     new(curExpr);
                     with curExpr@ do {
-                        typ := hashTravPtr@.typ;
+                        vt.typ := hashTravPtr@.typ;
                         op := GETENUM;
                         num1 := hashTravPtr@.value;
                         num2 := 0;
@@ -5260,7 +5256,7 @@ var
                         goto 8888;
                     };
                     with curExpr@ do {
-                        typ := routine@.typ;
+                        vt.typ := routine@.typ;
                         op := newOp;
                         expr1 := NIL;
                         id2 := routine;
@@ -5276,7 +5272,7 @@ var
         };
         INTCONST, REALCONST, CHARCONST, LTSY: {
             new(curExpr);
-            parseLiteral(curExpr@.typ, curExpr@.d1, false);
+            parseLiteral(curExpr@.vt.typ, curExpr@.lit, false);
             curExpr@.num2 := ord(numFormat);
             curExpr@.op := GETENUM;
             inSymbol;
@@ -5286,11 +5282,11 @@ var
             factor;
             newExpr := curExpr;
             new(curExpr);
-            curexpr@.typ := booleanType;
-            if (newExpr@.typ = booleanType) then with curExpr@ do {
+            curexpr@.vt.typ := booleanType;
+            if (newExpr@.vt.typ = booleanType) then with curExpr@ do {
                 op := NOTOP;
                 expr1 := newExpr;
-            } else if (newExpr@.typ = integerType) then {
+            } else if (newExpr@.vt.typ = integerType) then {
                 with curExpr@ do {
                     op := EQOP;
                     expr1 := newExpr;
@@ -5312,18 +5308,18 @@ var
                     newExpr := curExpr;
                     expression;
                     if (l4var12z) then {
-                        l4typ11z := curExpr@.typ;
+                        l4typ11z := curExpr@.vt.typ;
                         if not (l4typ11z@.k IN [kindScalar, kindRange]) then
                             error(23); (* errTypeIdInsteadOfVar *)
                     } else {
-                        if not typeCheck(l4typ11z, curExpr@.typ) then
+                        if not typeCheck(l4typ11z, curExpr@.vt.typ) then
                             error(24); (*errIncompatibleExprsInSetCtor*)
                     };
                     l4var12z := false;
                     l4exp5z := curExpr;
                     if (SY = COLON) then {
                         expression;
-                        if not typeCheck(l4typ11z, curExpr@.typ) then
+                        if not typeCheck(l4typ11z, curExpr@.vt.typ) then
                             error(24); (*errIncompatibleExprsInSetCtor*)
                         if (l4exp5z@.op = GETENUM) and
                            (curExpr@.op = GETENUM) then {
@@ -5337,7 +5333,7 @@ var
                         };
                         new(l4var7z);
                         with l4var7z@ do {
-                            typ := integerType;
+                            vt.typ := integerType;
                             op := MKRANGE;
                             expr1 := l4exp5z;
                             expr2 := curExpr;
@@ -5353,7 +5349,7 @@ var
                         };
                         new(l4var7z);
                         with l4var7z@ do {
-                            typ := integerType;
+                            vt.typ := integerType;
                             op := STANDPROC;
                             expr1 := l4exp5z;
                             num2 := 109; (* P/SS *)
@@ -5362,7 +5358,7 @@ var
                     };
                     new(curExpr);
                     with curExpr@ do {
-                        typ := integerType;
+                        vt.typ := integerType;
                         op := SETOR;
                         expr1 := newExpr;
                         expr2 := l4exp5z;
@@ -5373,8 +5369,8 @@ var
             checkSymAndRead(RBRACK);
             with l4var8z@ do {
                 op := GETENUM;
-                typ := integerType;
-                d1 := l4var1z;
+                vt.typ := integerType;
+                lit := l4var1z;
             }
         };
         end; (* case *)
@@ -5386,7 +5382,7 @@ var
         newExpr := curExpr;
         new(curExpr);
         with curExpr@ do {
-            typ := pointerType;
+            vt.typ := pointerType;
             op  :=  STANDPROC;
             expr1  :=  newExpr;
             num2  :=  fnREF;
@@ -5413,8 +5409,8 @@ var
         inSymbol;
         leftArg := curExpr;
         factor;
-        arg1Type := curExpr@.typ;
-        arg2Type := leftArg@.typ;
+        arg1Type := curExpr@.vt.typ;
+        arg2Type := leftArg@.vt.typ;
         match := typeCheck(arg1Type, arg2Type);
         if (not match) and
            (RDIVOP < curOp) then {
@@ -5466,7 +5462,7 @@ var
                 expr1 := leftArg;
                 expr2 := curExpr;
                 curExpr := l4var3z;
-                typ := arg1Type;
+                vt.typ := arg1Type;
             }
         }
     }
@@ -5491,17 +5487,17 @@ var
     term;
 (minus)
     if (oper <> NOOP) then {
-        arg1Type := curExpr@.typ;
+        arg1Type := curExpr@.vt.typ;
         new(leftExpr);
         with leftExpr@ do {
-            typ := arg1Type;
+            vt.typ := arg1Type;
             expr1 := curExpr;
             if oper = MINUSOP then {
             if arg1Type = realType then {
                 op := RNEGOP;
             } else if typeCheck(arg1Type, integerType) then {
                 leftExpr@.op := INEGOP;
-                leftExpr@.typ := integerType;
+                leftExpr@.vt.typ := integerType;
             } else {
                 error(69); (* errUnaryMinusNeedRealOrInteger *)
                 exit minus
@@ -5509,7 +5505,7 @@ var
             } else if oper = SETSUB then {
                 if typeCheck(arg1Type, integerType) then {
                 leftExpr@.op := BITNEGOP;
-                leftExpr@.typ := integerType;
+                leftExpr@.vt.typ := integerType;
             } else {
                 error(62); (* errIntegerNeeded *)
                 exit minus
@@ -5523,8 +5519,8 @@ var
         inSymbol;
         leftExpr := curExpr;
         term;
-        arg1Type := curExpr@.typ;
-        arg2Type := leftExpr@.typ;
+        arg1Type := curExpr@.vt.typ;
+        arg2Type := leftExpr@.vt.typ;
         match := typeCheck(arg1Type, arg2Type);
         argKind := arg2Type@.k;
         if (kindArray <= argKind) then {
@@ -5535,25 +5531,25 @@ var
                 if (oper = OROP) then {
                     if match and ((arg1Type = booleanType) or
                                   (arg1Type = integerType)) then {
-                       typ := booleanType;
+                       vt.typ := booleanType;
                        op := oper
                     } else goto 15031;
                 } else  {
                    if (oper = SETOR) or (oper = SETSUB) then {
                        op := oper;
-                       typ := arg2Type;
+                       vt.typ := arg2Type;
                    } else  if (match) then {
                         if (arg1Type = realType) then {
                             op := oper;
-                            typ := realType;
+                            vt.typ := realType;
                         } else if (baseType = integerType) then {
                             op := iAddOpMap[oper];
-                            typ := integerType;
+                            vt.typ := integerType;
                         } else {
                             goto 15031
                         }
                     } else if areTypesCompatible(leftExpr) then {
-                        finalExpr@.typ := realType;
+                        finalExpr@.vt.typ := realType;
                         finalExpr@.op := oper;
                     } else
                         goto 15031
@@ -5594,8 +5590,8 @@ var
         inSymbol;
         ex2 := curExpr;
         simpleExpression;
-        arg1Type := curExpr@.typ;
-        arg2Type := ex2@.typ;
+        arg1Type := curExpr@.vt.typ;
+        arg2Type := ex2@.vt.typ;
         if typeCheck(arg1Type, arg2Type) then {
             if
                (arg1Type@.k = kindFile) or
@@ -5613,7 +5609,7 @@ var
         };
         new(ex1);
         with ex1@ do {
-            typ := booleanType;
+            vt.typ := booleanType;
             if (oper IN [GTOP, LEOP]) then {
                 expr1 := curExpr;
                 expr2 := ex2;
@@ -5691,7 +5687,7 @@ var
         if (hashTravPtr <> NIL) and
            (hashTravPtr@.cl >= VARID) then {
             parseLval;
-            if (curExpr@.typ@.k = kindStruct) then {
+            if (curExpr@.vt.typ@.k = kindStruct) then {
                 formOperator(SETREG);
                 l4var3z := (l4var3z + [curVal.i]) * set148z;
             } else {
@@ -5806,7 +5802,7 @@ function max(a, b: integer): integer;
 { (* caseStatement *)
     startLine := lineCnt;
     parentExpression;
-    exprtype := curExpr@.typ;
+    exprtype := curExpr@.vt.typ;
     otherSeen := false;
     if (exprtype = alfaType) or
        (exprtype@.k IN [kindScalar, kindRange]) then
@@ -5988,7 +5984,7 @@ var
     else {
         new(curExpr);
         with curExpr@ do {
-            typ := hashTravPtr@.typ;
+            vt.typ := hashTravPtr@.typ;
             op := GETVAR;
             id1 := hashTravPtr;
         };
@@ -5996,7 +5992,7 @@ var
     };
     checkSymAndRead(BECOMES);
     readNext := false;
-    targType := curExpr@.typ;
+    targType := curExpr@.vt.typ;
     if (targType@.k = kindStruct) and
        (SY = LBRACK) then {
         formOperator(SETREG9);
@@ -6028,14 +6024,14 @@ var
     } else  {
         lhsExpr := curExpr;
         expression;
-        srcType := curExpr@.typ;
+        srcType := curExpr@.vt.typ;
         if (typeCheck(targType, srcType)) then {
             if (srcType@.k = kindFile) then
                 error(75) (*errCannotAssignFiles*)
             else {
 16332:          new(assnExpr);
                 with assnExpr@ do {
-                    typ := targType;
+                    vt.typ := targType;
                     op := ASSIGNOP;
                     expr1 := lhsExpr;
                     expr2 := curExpr;
@@ -6058,7 +6054,8 @@ procedure ifWhileStatement;
 {
     disableNorm;
     parentExpression;
-    if (curExpr@.typ <> booleanType) and (curExpr@.typ <> integerType) then
+    if (curExpr@.vt.typ <> booleanType) and
+       (curExpr@.vt.typ <> integerType) then
         error(errBooleanNeeded)
     else {
         jumpTarget := 0;
@@ -6235,7 +6232,7 @@ procedure verifyType(l5arg1z: tptr);
        (hashTravPtr@.cl >= VARID) then {
         parseLval;
         if (l5arg1z <> NIL) and
-           not typeCheck(l5arg1z, curExpr@.typ) then
+           not typeCheck(l5arg1z, curExpr@.vt.typ) then
             error(errNeedOtherTypesOfOperands);
     } else {
         error(errNotDefined);
@@ -6247,7 +6244,7 @@ procedure verifyType(l5arg1z: tptr);
 procedure startReadOrWrite(doWrite: boolean);
 {
     expression;
-    l4typ3z := curExpr@.typ;
+    l4typ3z := curExpr@.vt.typ;
     l4exp7z := curExpr;
     if not (doWrite) then {
         if not (curExpr@.op IN lvalOpSet) then
@@ -6258,7 +6255,7 @@ procedure startReadOrWrite(doWrite: boolean);
             workExpr := curExpr;
         } else {
             new(workExpr);
-            workExpr@.typ := textType;
+            workExpr@.vt.typ := textType;
             workExpr@.op := GETVAR;
             if (doWrite) then {
                 workExpr@.id1 := outputFile;
@@ -6270,15 +6267,15 @@ procedure startReadOrWrite(doWrite: boolean);
                 }
             }
         };
-        arg2Type := workExpr@.typ;
+        arg2Type := workExpr@.vt.typ;
         l4var13z.b := typeCheck(arg2Type@.base, charType);
         l4bool12z := true;
         new(l4exp8z);
-        l4exp8z@.typ := arg2Type@.base;
+        l4exp8z@.vt.typ := arg2Type@.base;
         l4exp8z@.op := FILEPTR;
         l4exp8z@.expr1 := workExpr;
         new(l4exp6z);
-        l4exp6z@.typ := l4exp8z@.typ;
+        l4exp6z@.vt.typ := l4exp8z@.vt.typ;
         l4exp6z@.op := ASSIGNOP;
         if (doWrite) then
             l4exp6z@.expr1 := l4exp8z
@@ -6291,7 +6288,7 @@ procedure startReadOrWrite(doWrite: boolean);
 function parseWidthSpecifier: eptr;
 {
     expression;
-    if not typeCheck(integerType, curExpr@.typ) then {
+    if not typeCheck(integerType, curExpr@.vt.typ) then {
         error(14); (* errExprIsNotInteger *)
         parseWidthSpecifier := uVarPtr;
     } else
@@ -6315,7 +6312,7 @@ procedure P17037;
 {
     set145z := set145z - [12];
     if (helperNo <> 49) and             (* P/RDC *)
-       not typeCheck(l4exp8z@.typ, l4exp7z@.typ) then
+       not typeCheck(l4exp8z@.vt.typ, l4exp7z@.vt.typ) then
         error(34) (* errTypeIsNotAFileElementType *)
     else {
         if (helperNo = 29) then {       (* P/PF *)
@@ -6462,7 +6459,7 @@ procedure checkArrayArg;
 {
     verifyType(NIL);
     workExpr := curExpr;
-    l4typ1z := curExpr@.typ;
+    l4typ1z := curExpr@.vt.typ;
     if (l4typ1z@.pck) or
        (l4typ1z@.k <> kindArray) then
         error(errNeedOtherTypesOfOperands);
@@ -6470,7 +6467,7 @@ procedure checkArrayArg;
     readNext := false;
     expression;
     l4exp8z := curExpr;
-    if not typeCheck(l4typ1z@.range, l4exp8z@.typ) then
+    if not typeCheck(l4typ1z@.range, l4exp8z@.vt.typ) then
         error(errNeedOtherTypesOfOperands);
 }; (* checkArrayArg *)
 %
@@ -6480,18 +6477,18 @@ var
     t: tptr;
 {
     new(l4exp7z);
-    l4exp7z@.typ := l4typ1z@.base;
+    l4exp7z@.vt.typ := l4typ1z@.base;
     l4exp7z@.op := GETELT;
     l4exp7z@.expr1 := workExpr;
     l4exp7z@.expr2 := l4exp8z;
-    t := l4exp6z@.typ;
+    t := l4exp6z@.vt.typ;
     if (t@.k <> kindArray) or
        not t@.pck or
        not typeCheck(t@.base, l4typ1z@.base) or
        not typeCheck(l4typ1z@.range, t@.range) then
         error(errNeedOtherTypesOfOperands);
     new(curExpr);
-    curExpr@.val.c := chr(procNo + 50);
+    curExpr@.vt.c := chr(procNo + 50);
     curExpr@.expr1 := l4exp7z;
     curExpr@.expr2 := l4exp6z;
     formOperator(PCKUNPCK);
@@ -6511,7 +6508,7 @@ var
         if (hashTravPtr@.cl < VARID) then
             error(46); (* errNoVarForStandProc *)
         parseLval;
-        arg1Type := curExpr@.typ;
+        arg1Type := curExpr@.vt.typ;
         curVarKind := arg1Type@.k;
     };
     if (procNo IN [0..6]) then
@@ -6524,7 +6521,7 @@ var
            (SY = COMMA) then {
             formOperator(gen8);
             expression;
-            if (not typeCheck(integerType, curExpr@.typ)) then
+            if (not typeCheck(integerType, curExpr@.vt.typ)) then
                 error(14); (* errExprIsNotInteger *)
             formOperator(LOAD);
             formAndAlign(getHelperProc(97)); (*"P/RE"*)
@@ -6543,7 +6540,7 @@ var
         ii := l2typ13z@.size;
         if (charClass = EQOP) then {
             expression;
-            if not typeCheck(integerType, curExpr@.typ) then
+            if not typeCheck(integerType, curExpr@.vt.typ) then
                 error(14); (* errExprIsNotInteger *)
             if (curExpr@.op = GETENUM) then {
                 ii := curExpr@.num1; goto 44;
@@ -6639,7 +6636,7 @@ var
         l4typ1z := alfaType;
         l4typ2z := integerType;
         expression;
-        if not typeCheck(curExpr@.typ, l4typ1z) then
+        if not typeCheck(curExpr@.vt.typ, l4typ1z) then
             error(errNeedOtherTypesOfOperands);
         checkSymAndRead(COMMA);
         formOperator(LOAD);
@@ -6912,14 +6909,15 @@ writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
             };
             disableNorm;
             parentExpression;
-            if (curExpr@.typ<>booleanType)and(curExpr@.typ<>integerType) then {
+            if (curExpr@.vt.typ<>booleanType)and
+               (curExpr@.vt.typ<>integerType) then {
                 error(errBooleanNeeded)
             } else {
                 jumpTarget := curOffset.i;
                 whileExpr := curExpr;
                 new(curExpr);
                 with curExpr@do {
-                    typ := booleanType;
+                    vt.typ := booleanType;
                     op := NOTOP;
                     expr1 := whileExpr;
                 };
@@ -7236,7 +7234,7 @@ var l : integer;
     regSysType(41544641C(*"    ALFA"*), alfaType);
     regSysType(64457064C(*"    TEXT"*), textType);
     tempType := pointerType;
-    regSysEnum(565154C(*"     NIL"*), (74000C));
+    regSysEnum(565154C(*"     NIL"*), 74000C);
     maxSmallString := 0;
     for strLen := 2 to 5 do
         makeStringType(smallStringType[strLen]);
@@ -7251,7 +7249,7 @@ var l : integer;
     };
     new(uVarPtr);
     with uVarPtr@ do {
-        typ := integerType;
+        vt.typ := integerType;
         op := GETVAR;
         id1 := curIdRec;
     };
@@ -7377,7 +7375,7 @@ procedure makeExtFile;
 {
     new(l2var10z);
     with l2var10z@ do {
-        typ := ptr(ord(curExternFile));
+        vt.typ := ptr(ord(curExternFile));
         id2 := workidr;
         expr1 := curExpr;
     };
@@ -8229,7 +8227,7 @@ procedure initOptions;
         457064456256C           (*"  EXTERN"*),
         4262454153C             (*"   BREAK"*),
         4357566451566545C       (*"CONTINUE"*),
-        576450456263C           (*" DEFAULT"*);
+        44454641655464C         (*" DEFAULT"*);
 %
     charSym := NOSY:128;
     chrClass := NOOP:128;
