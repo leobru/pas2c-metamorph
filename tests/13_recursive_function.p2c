@@ -1,0 +1,16 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+function fact(n: int): int;
+{
+    if (n <= 1) {
+        fact = 1;
+    } else {
+        fact = n * fact(n - 1);
+    }
+};
+//
+{
+    writeln('5! = ', fact(5):0);
+}
+.

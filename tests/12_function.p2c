@@ -1,0 +1,14 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+function square(x: int): int;
+{
+    square = x * x;
+};
+//
+var result: int;
+{
+    result = square(7);
+    writeln('7 squared = ', result:0);
+}
+.

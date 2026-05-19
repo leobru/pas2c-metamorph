@@ -1,0 +1,15 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var s1, s2: packed array [1..6] of char;
+{
+    s1 = 'HELLO ';
+    s2 = 'HELLO ';
+    
+    if (s1 == s2) {
+        writeln(' Strings are equal');
+    } else {
+        writeln(' Strings are different');
+    }
+}
+.

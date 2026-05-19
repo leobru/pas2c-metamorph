@@ -1,0 +1,13 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+type
+    color = enum { RED, GREEN, BLUE };
+var c: color;
+{
+    c = GREEN;
+    if (c == GREEN) {
+        writeln('Color is GREEN');
+    }
+}
+.

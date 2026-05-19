@@ -1,0 +1,11 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var c: char;
+{
+    c = 'A';
+    writeln('Character: ', c);
+    c = succ(c);
+    writeln('Next character: ', c);
+}
+.

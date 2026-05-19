@@ -1,0 +1,11 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var a, b, c: int;
+{
+    a = 12;  // 1100 in binary
+    b = 10;  // 1010 in binary
+    c = a & b;  // 1000 in binary = 8
+    writeln('12 & 10 = ', c:0);
+}
+.

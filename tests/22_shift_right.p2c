@@ -1,0 +1,10 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var a, b: int;
+{
+    a = 20;
+    b = a >> 2;  // 20 / 4 = 5
+    writeln('20 >> 2 = ', b oct);
+}
+.

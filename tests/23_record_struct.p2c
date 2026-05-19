@@ -1,0 +1,14 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+type
+    point = struct {
+        x, y: int
+    };
+var p: point;
+{
+    p.x = 10;
+    p.y = 20;
+    writeln('Point: (', p.x:0, ', ', p.y:0, ')');
+}
+.

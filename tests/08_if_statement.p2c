@@ -1,0 +1,13 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var x: int;
+{
+    x = 10;
+    if (x > 5) {
+        writeln('x is greater than 5');
+    } else {
+        writeln('x is not greater than 5');
+    }
+}
+.

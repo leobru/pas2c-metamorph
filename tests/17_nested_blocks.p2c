@@ -1,0 +1,18 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var x: int;
+{
+    x = 1;
+    writeln('Outer: x = ', x:0);
+    {
+        x = x + 10;
+        writeln('Inner: x = ', x:0);
+        {
+            x = x + 100;
+            writeln('Inner-inner: x = ', x:0);
+        }
+    };
+    writeln('Outer again: x = ', x:0);
+}
+.

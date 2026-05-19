@@ -1,0 +1,10 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var i: int;
+{
+    for i = 1 to 5 do {
+        writeln('i = ', i:0);
+    }
+}
+.

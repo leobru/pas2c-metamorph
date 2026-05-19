@@ -1,0 +1,11 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var a, b: int;
+{
+    a = 5;
+    b = ~a;
+    // On 48-bit BESM-6, ~5 should flip all bits
+    writeln('~5 = ', b oct);
+}
+.

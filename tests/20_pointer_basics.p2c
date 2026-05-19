@@ -1,0 +1,12 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+type intptr = @int;
+var p: intptr;
+    x: int;
+{
+    x = 42;
+    p = &x;
+    writeln('Value through pointer: ', p@:0);
+}
+.

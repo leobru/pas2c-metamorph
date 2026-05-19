@@ -1,0 +1,33 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var a, b: int;
+{
+    a = 10;
+    b = 20;
+    
+    if (a < b) {
+        writeln(' 10 < 20: true');
+    };
+    
+    if (a <= b) {
+        writeln(' 10 <= 20: true');
+    };
+    
+    if (b > a) {
+        writeln(' 20 > 10: true');
+    };
+    
+    if (b >= a) {
+        writeln(' 20 >= 10: true');
+    };
+    
+    if (a == a) {
+        writeln(' 10 == 10: true');
+    };
+    
+    if (a != b) {
+        writeln(' 10 != 20: true');
+    }
+}
+.
