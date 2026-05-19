@@ -16,5 +16,8 @@ base.o: base.pas
 pascom.bin: build-pascom.dub
 	dubna build-pascom.dub
 
+test: base.o libc.bin pascom.bin
+	./runtests.sh
+
 clean:
 	rm -f *.o tmp* *.lst *.asm *.bin *.utxt

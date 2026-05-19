@@ -8,9 +8,9 @@ function fact(n: int): int;
     } else {
         fact = n * fact(n - 1);
     }
-};
+}
 //
 {
-    writeln('5! = ', fact(5):0);
+    writeln(' 5! = ', fact(5):0);
 }
 .

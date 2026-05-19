@@ -1,6 +1,6 @@
 #!/bin/bash
 # Test runner for p2c compiler test suite
-# Runs test programs using runbase.sh and compares outputs
+# Runs test programs using runtest.sh and compares outputs
 
 set -e
 
@@ -43,7 +43,7 @@ run_test() {
     fi
     
     # Run the test with timeout
-    if timeout 10 ./runbase.sh "$test_file" > "$result_file" 2>&1; then
+    if timeout 10 ./runtest.sh "$test_file" > "$result_file" 2>&1; then
         # Extract output after *EXECUTE line
         if grep -q '\*EXECUTE' "$result_file"; then
             # Get everything after *EXECUTE until the separator line
@@ -96,14 +96,14 @@ echo -e "${BLUE}P2C Compiler Test Suite${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
-# Check if runbase.sh exists
-if [ ! -f "runbase.sh" ]; then
-    echo -e "${RED}ERROR: runbase.sh not found${NC}"
+# Check if runtest.sh exists
+if [ ! -f "runtest.sh" ]; then
+    echo -e "${RED}ERROR: runtest.sh not found${NC}"
     exit 1
 fi
 
-# Make runbase.sh executable
-chmod +x runbase.sh
+# Make runtest.sh executable
+chmod +x runtest.sh
 
 # Run all tests if no arguments given, otherwise run specified tests
 if [ $# -eq 0 ]; then
