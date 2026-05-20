@@ -1167,6 +1167,7 @@ procedure readOptFlag(var res: boolean);
              if s9 IN optSflags.m then {
                 opToInsn[IDIVOP] := 101; (* C/DI *)
                 opToInsn[IMODOP] := 102; (* C/MD *)
+                funcInsn[fnORD] := KATX;
              }
         };
         'F': readOptFlag(checkFortran);
@@ -1349,7 +1350,7 @@ procedure readOptFlag(var res: boolean);
                         curToken.m := numstr[tokenIdx].m * [45..47] +
                         curToken.m;
                     };
-                    if numFormat = OCTAL then {
+                    if (numFormat = OCTAL) and not (s9 in optSflags.m) then {
                         if curToken.m * [0..6] <> [] then {
                             error(errNumberTooLarge);
                             curToken.i := 1;
@@ -2113,7 +2114,9 @@ procedure addJumpInsn(opcode: integer);
             case l4var4z of
             mcCARD: {
                 addInsnToBuf(KACX);
-                if not (s9 in optSflags.m) then
+                if (s9 in optSflags.m) then
+                    addInsnToBuf(KATX)
+                else
                     addInsnToBuf(KAEX+ZERO);
             };
             21: goto 3556;
@@ -3586,6 +3589,7 @@ var i    : integer; ret: bitset;
             genComparison;
         } else {
             if arg1Const and arg2Const then {
+writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 case curOP of
                 MUL:        arg1Val.r := arg1Val.r * arg2Val.r;
                 RDIVOP:     arg1Val.r := arg1Val.r / arg2Val.r;
@@ -3640,7 +3644,11 @@ var i    : integer; ret: bitset;
                 opfMOD:
                     if (arg2Const) then {
                         prepLoad;
-                        if card(arg2Val.m) = 4 then {
+                        if (s9 IN optSflags.m) and (card(arg2Val.m) = 1) then {
+                            curVal.m := [minel(arg2Val.m)+1..47];
+                            addToInsnList(KAAX+I8 +getFCSToffset);
+                            l3int3z := 0;
+                        } else if card(arg2Val.m) = 4 then {
                             curVal.m := [0,1,3,minel(arg2Val.m-intZero)+1..47];
                             addToInsnList(KAAX+I8 +getFCSToffset);
                             l3int3z := 0;
@@ -3833,7 +3841,8 @@ var i    : integer; ret: bitset;
                     case work of
                     fnABS:   arg1Val.r := abs(arg1Val.r);
                     fnTRUNC: arg1Val.i := trunc(arg1Val.r);
-                    fnORD:   arg1Val.i := ord(arg1Val.c);
+                    fnORD:
+                    if not (s9 in optSflags.m) then arg1Val.i := ord(arg1Val.c);
                     fnCHR:   arg1Val.c := chr(arg1Val.i);
                     fnSUCC:  arg1Val.c := succ(arg1Val.c);
                     fnPRED:  arg1Val.c := pred(arg1Val.c);
@@ -3973,7 +3982,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* formOperator *)
-   writeln(' formoperator ', l3arg1z);
+%   writeln(' formoperator ', l3arg1z);
     l3bool13z := true;
     if (errors and (l3arg1z <> SETREG)) or (curExpr = NIL) then
         exit;
@@ -5795,7 +5804,7 @@ type
         offset: integer;
     end;
 var
-    allClauses, curClause, clause, unused: @casechain;
+    allClauses, curClause, clause, prev: @casechain;
     isIntCase: boolean;
     otherSeen: boolean;
     otherOffset: integer;
@@ -5866,7 +5875,7 @@ function max(a, b: integer): integer;
                         } else if (itemvalue.i < curClause@.value.i) then {
                             exit loop
                         } else {
-                            unused := curClause;
+                            prev := curClause;
                             curClause := curClause@.next;
                         }
                     };
@@ -5875,7 +5884,7 @@ function max(a, b: integer): integer;
                         allClauses := clause;
                     } else {
                         clause@.next := curClause;
-                        unused@.next := clause;
+                        prev@.next := clause;
                     };
                     inSymbol;
                 };
@@ -5912,7 +5921,7 @@ function max(a, b: integer): integer;
             if (expected = curClause@.value) and
                (exprtype@.k = kindScalar) then {
                 maxValue := expected;
-                if (isIntCase) then {
+                if not (s9 in optSflags.m) and isIntCase then {
                     expected.i := expected.i + 1;
                 } else {
                     curVal := expected;
@@ -6664,7 +6673,9 @@ var
             form3Insn(ASN64-33, KAUX+BITS15, KAEX+ASCII0);
         } else {
             form2Insn(KAPX+BITS15, ASN64+33);
-            if not (s9 in optSflags.m) then
+            if (s9 in optSflags.m) then
+               form1Insn(KATX)
+            else
                form1Insn(KAEX+ZERO);
         };
         verifyType(l4typ2z);
