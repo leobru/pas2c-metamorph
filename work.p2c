@@ -1,4 +1,4 @@
-/*=l1,p-,t-,s8,y+,k9,l1*/
+/*=l1,p-,t-,s8,s8,y+,k9,l1*/
 extern _output_, _child_, pasinput, pasinfor, paseofcd;
 //
 label 9999;
@@ -2212,12 +2212,12 @@ void addJumpInsn(opcode: int);
     for (l4var4z = 1; l4var4z <= insnBufIdx; l4var4z=l4var4z+1)
 (iter) {
         curInsn  =  insnBuf[l4var4z];
-        tempInsn  =  curInsn & [0, 1, 3, 23:32];
+        tempInsn  =  curInsn & ([23:32] | intZero);
         if (tempInsn == KATX+SP) {
             i  =  l4var4z + 1;
             while (insnBufIdx + 1 != i) {
-                curVal.i  =  insnBuf[i] & [0, 1, 3, 23, 28:35];
-                tempInsn  =  curVal.i & [0, 1, 3, 23, 28:32];
+                curVal.i  =  insnBuf[i] & ([23, 28:35] | intZero);
+                tempInsn  =  curVal.i & ([23, 28:32] | intZero);
                 if (curVal.i == insnTemp[XTA]) {
                     insnBuf[i]  =
                         insnBuf[i] ^ [32, 34, 35];
@@ -2276,9 +2276,9 @@ void addJumpInsn(opcode: int);
             l4inl7z->offset  =  moduleOffset;
         } else {
             curInsn  =  curInsn - macro;
-            curVal.i  =  curInsn & [0, 1, 3, 28:32];
+            curVal.i  =  curInsn & ([28:32] | intZero);
             jumpType  =  curVal.i;
-            curVal.i  =  [0, 1, 3, 33:47] & curInsn;
+            curVal.i  =  curInsn & ([33:47] | intZero);
             l4inl7z  =  ptr(curVal.i);
             formJump(&l4inl7z->code);
             jumpType  =  insnTemp[UJ];
@@ -2416,13 +2416,13 @@ var
                                 addToInsnList(ASN64 + l4int3z);
                         }
                         if (l4bool9z) {
-                            curVal.i  =  [(48 - l4int2z)..47];
+                            curVal.i  =  (~0U) >> (48 - l4int2z);
                             addToInsnList(KAAX+I8 + getFCSToffset());
                         }
                     } else {
                         if (helper != 48)
                             addToInsnList(ASN64-48 + helper);
-                        curVal.i  =  [0..(l4int2z-1)];
+                        curVal.i  =  (~0U) << (48 - l4int2z);
                         addToInsnList(KAAX+I8 + getFCSToffset());
                     }
                     if (l4bool8z)
@@ -2584,7 +2584,8 @@ var
             }
             addInsnAndOffset(insnTemp[UTC] + insnList->ilf5,
                              insnList->ilf6);
-            curVal.i  =  ~ [(48-l4int3z)..(47 -l4int2z)];
+            // binary negation of [(48-l4int3z)..(47 -l4int2z)]
+            curVal.i = (~0U) << l4int3z | (~0U) >> (48-l4int2z);
             addInsnAndOffset(macro+mcPCKSTORE, getFCSToffset());
         } else {
             if (not l4bool5z) {
@@ -3205,8 +3206,7 @@ var
                             form1Insn(KUTM+SP + l5var15z);
                         else
                             form1Insn(0);
-                        form2Insn(
-                            getHelperProc(63/*P/B6*/) + 06437777777300000U,
+                        form2Insn(getHelperProc(63/*P/B6*/) + (-0500000),
                             allocGlobalObject(l5idr4z) + KUJ);
                         if (l5idr3z != NIL) {
                             do {
@@ -3579,7 +3579,7 @@ var
                     if (arg2Const) {
                         prepLoad();
                         if (card(arg2Val.i) == 4) {
-                            curVal.i = intZero|[minel(arg2Val.i & (~intZero))+1..47];
+                            curVal.i = intZero|((~0U) >> (minel(arg2Val.i & (~intZero))+1));
                             addToInsnList(KAAX+I8 +getFCSToffset());
                             l3int3z  =  0;
                         } else {
@@ -5217,25 +5217,19 @@ var
                         expression();
                         if (not typeCheck(l4typ11z, curExpr->typ))
                             error(24); /*errIncompatibleExprsInSetCtor*/
-                        if ((l4exp5z->op == GETENUM) &&
-                           (curExpr->op == GETENUM)) {
-                            l4var4z  =  l4exp5z->num1;
-                            l4var3z  =  curExpr->num1;
-                            l4var4z  =  l4var4z & (~intZero);
-                            l4var3z  =  l4var3z & (~intZero);
-                            l4var1z  =  l4var1z | [l4var4z..l4var3z];
-                            curExpr  =  newExpr;
-                            goto 14567;
-                        }
-                        new(l4var7z);
-                        with l4var7z@ do {
-                            typ  =  intType;
-                            op  =  MKRANGE;
-                            expr1  =  l4exp5z;
-                            expr2  =  curExpr;
-                        }
-                        l4exp5z  =  l4var7z;
-                   } else {
+                        if ((l4exp5z->op != GETENUM) ||
+                           (curExpr->op != GETENUM))
+                            error(errNoConstant);
+                        l4var4z  =  l4exp5z->num1;
+                        l4var3z  =  curExpr->num1;
+                        l4var4z  =  l4var4z & (~intZero);
+                        l4var3z  =  l4var3z & (~intZero);
+                        l4var1z  =  l4var1z |
+                        // [l4var4z..l4var3z];
+                        (((~0U) >> l4var4z) ^ ((~0U) >> 1 >> l4var3z));
+                        curExpr  =  newExpr;
+                        goto 14567;
+                    } else {
                         if (l4exp5z->op == GETENUM) {
                             l4var4z  =  l4exp5z->num1;
                             l4var4z  =  l4var4z & (~intZero);
@@ -5628,8 +5622,7 @@ var
                                 formJump(&curLab->exitTarget);
                                 jumpType  =  insnTemp[UJ];
                             }
-                            form1Insn(getHelperProc(60) +
-                                      06437777713700000U); /* P/ZAM */
+                            form1Insn(getHelperProc(60) + (-064100000)); /* P/ZAM */
                         }
                         exit;
                     }
@@ -6795,7 +6788,8 @@ var
     expr63z  =  NIL;
     arithMode  =  1;
     set146z  =  0U;
-    freeRegs  =  [curProcNesting+1..6];
+    // [curProcNesting+1..6];
+    freeRegs  = ((~0U) >> 1 >> curProcNesting) & ((~0U) << 41);
     set148z  =  freeRegs & (~[minel(freeRegs)]);
     l3var7z  =  freeRegs;
     exitTarget  =  0;

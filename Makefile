@@ -20,4 +20,4 @@ test: base.o libc.bin pascom.bin
 	./runtests.sh
 
 clean:
-	rm -f *.o tmp* *.lst *.asm *.bin *.utxt
+	rm -rf *.o tmp* *.lst *.asm *.bin *.utxt test_results

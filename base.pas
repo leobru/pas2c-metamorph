@@ -3553,12 +3553,26 @@ var
     };
 
 }; (* genComparison *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function shift(val:bitset; amt:integer):bitset;
-var i    : integer; ret: bitset;
+var i    : integer; ret: word;
 {
-    ret   := [];
-    for i := 0 to 47 do if (i-amt) in val then ret := ret + [i];
-    shift := ret;
+    ret.i := amt;
+    ret.m := ret.m + intZero;
+    amt := ret.i;
+    ret.m := [];
+    for i := 0 to 47 do if (i-amt) in val then ret.m := ret.m + [i];
+    shift := ret.m;
+};
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure constmul;
+{
+arg1Val.m := arg1Val.m + intZero;
+arg2Val.m := arg2Val.m + intZero;
+arg1Val.i := arg1Val.i * arg2Val.i;
+if s9 IN optSflags.m then arg1Val.m := arg1Val.m - intZero;
 };
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3599,7 +3613,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 PLUSOP:     arg1Val.r := arg1Val.r + arg2Val.r;
                 MINUSOP:    arg1Val.r := arg1Val.r - arg2Val.r;
                 OROP:       arg1Val.b := arg1Val.b or arg2Val.b:
-                IMULOP:     arg1Val.i := arg1Val.i * arg2Val.i;
+                IMULOP:     constmul;
                 SETAND:     arg1Val.m := arg1Val.m * arg2Val.m;
                 SETXOR:     arg1Val.m := arg1Val.m MOD arg2Val.m;
                 INTPLUS:    arg1Val.i := arg1Val.i + arg2Val.i;
@@ -3649,7 +3663,8 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                             addToInsnList(KAAX+I8 +getFCSToffset);
                             l3int3z := 0;
                         } else if card(arg2Val.m) = 4 then {
-                            curVal.m := [0,1,3,minel(arg2Val.m-intZero)+1..47];
+                            curVal.m := intZero +
+                                        [minel(arg2Val.m-intZero)+1..47];
                             addToInsnList(KAAX+I8 +getFCSToffset);
                             l3int3z := 0;
                         } else {
@@ -5348,24 +5363,18 @@ var
                         expression;
                         if not typeCheck(l4typ11z, curExpr@.vt.typ) then
                             error(24); (*errIncompatibleExprsInSetCtor*)
-                        if (l4exp5z@.op = GETENUM) and
-                           (curExpr@.op = GETENUM) then {
+                        if (l4exp5z@.op <> GETENUM) or
+                           (curExpr@.op <> GETENUM) then
+                            error(errNoConstant)
+                        else {
                             l4var4z.i := l4exp5z@.num1;
                             l4var3z.i := curExpr@.num1;
                             l4var4z.m := l4var4z.m - intZero;
                             l4var3z.m := l4var3z.m - intZero;
                             l4var1z.m := l4var1z.m + [l4var4z.i..l4var3z.i];
                             curExpr := newExpr;
-                            goto 14567;
                         };
-                        new(l4var7z);
-                        with l4var7z@ do {
-                            vt.typ := integerType;
-                            op := MKRANGE;
-                            expr1 := l4exp5z;
-                            expr2 := curExpr;
-                        };
-                        l4exp5z := l4var7z;
+                        goto 14567;
                    } else {
                         if (l4exp5z@.op = GETENUM) then {
                             l4var4z.i := l4exp5z@.num1;

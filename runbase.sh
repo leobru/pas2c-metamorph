@@ -21,7 +21,6 @@ cat << EOF >> tmp$$
 *copy:0,000000,000000
 *libra:23
 *call dtran(program)
-real:17
 *assem
 *read:1
 *libra:43

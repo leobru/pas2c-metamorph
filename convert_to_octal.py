@@ -4,7 +4,7 @@ import re
 
 def decimal_to_octal(match):
     decimal_num = int(match.group(1))
-    if 65 <= decimal_num <= 90:
+    if 65 <= decimal_num <= 95:
         char = chr(decimal_num)
         return f"char('{char}')"
     octal_num = oct(decimal_num)[2:]
@@ -22,7 +22,10 @@ input_text = sys.stdin.read()
 output_text = re.sub(r'\((\d+)\)', decimal_to_octal, input_text)
 output_text = re.sub(r',([0-7]+)B', octal_b_to_c, output_text)
 output_text = re.sub(r'\(64([0-7]{14})C\)', strip_64_prefix, output_text)
-output_text = re.sub(r'P/WI', 'C/WI', output_text)
-output_text = re.sub(r'P/DI', 'C/DI', output_text)
-output_text = re.sub(r'P/MD', 'C/MD', output_text)
+output_text = re.sub(r',P/WI', ',C/WI', output_text)
+output_text = re.sub(r',P/DI', ',C/DI', output_text)
+output_text = re.sub(r',P/MD', ',C/MD', output_text)
+output_text = re.sub(r'1,A[EO]X,9\n', ',ATX,\n', output_text)
+output_text = re.sub(r'1,ANX,9\n 1,A-X,17', ',ANX,\n 1,A-X,8', output_text)
+output_text = re.sub(r'1,AEX,10\n', '1,AEX,21\n', output_text)
 sys.stdout.write(output_text)
