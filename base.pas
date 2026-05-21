@@ -2396,25 +2396,25 @@ procedure prepLoad;
 label
     4545, 4602;
 var
-    helper, l4int2z, l4int3z: integer;
-    l4typ4z: tptr;
-    l4var5z: kind;
-    l4st6z: state;
-    l4bool7z, l4bool8z, l4bool9z: boolean;
+    helper, baseWidth, offsetShift: integer;
+    valueType: tptr;
+    typeKind: kind;
+    addrState: state;
+    isSimple, needsAdjust, needsMask: boolean;
 {
-    l4typ4z := insnList@.typ;
+    valueType := insnList@.typ;
     with insnList@ do {
         case ilm of
         ilCONST: {
             curVal := ilf5;
-            if (l4typ4z@.size = 1) then
+            if (valueType@.size = 1) then
                 curVal.i := getFCSToffset;
             addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
         };
         il1: {
             helper := insnList@.ilf7;
-            l4int2z := insnList@.ilf5.i;
-            l4int3z := insnList@.ilf6;
+            baseWidth := insnList@.ilf5.i;
+            offsetShift := insnList@.ilf6;
             if (15 < helper) then {
                 (* empty *)
             } else {
@@ -2422,64 +2422,64 @@ var
                     addToInsnList(macro + mcACC2ADDR);
                 } else {
                     helper := indexreg[insnList@.ilf7];
-                    if (l4int2z = 0) and (insnList@.st = st0) then {
+                    if (baseWidth = 0) and (insnList@.st = st0) then {
                         addInsnAndOffset(helper + curInsnTemplate,
-                                         l4int3z);
+                                         offsetShift);
                         goto 4602;
                     } else {
                         addToInsnList(helper + insnTemp[UTC]);
                     }
                 }
             };
-            l4st6z := insnList@.st;
-            if l4st6z = st0 then {
-                addInsnAndOffset(l4int2z + curInsnTemplate, l4int3z);
+            addrState := insnList@.st;
+            if addrState = st0 then {
+                addInsnAndOffset(baseWidth + curInsnTemplate, offsetShift);
             } else {
-                l4var5z := l4typ4z@.k;
-                if (l4var5z < kindArray) or
-                   (l4var5z = kindStruct) and (s6 in optSflags.m) then {
-                    l4bool7z := true;
-                    l4bool8z := not (s9 in optSflags.m) and
-                                typeCheck(l4typ4z, integerType);
+                typeKind := valueType@.k;
+                if (typeKind < kindArray) or
+                   (typeKind = kindStruct) and (s6 in optSflags.m) then {
+                    isSimple := true;
+                    needsAdjust := not (s9 in optSflags.m) and
+                                typeCheck(valueType, integerType);
                 } else {
-                    l4bool7z := false;
-                    l4bool8z := false;
+                    isSimple := false;
+                    needsAdjust := false;
                 };
-                if l4st6z = st1 then {
-                    if (l4int3z <> l4int2z) or
+                if addrState = st1 then {
+                    if (offsetShift <> baseWidth) or
                        (helper <> 18) or (* P/RC *)
-                       (l4int2z <> 0) then
-                        addInsnAndOffset(l4int2z + insnTemp[XTA],
-                                         l4int3z);
-                    l4int3z := insnList@.shift;
-                    l4int2z := insnList@.width;
-                    l4bool9z := true;
-                    helper := l4int3z + l4int2z;
-                    if l4bool7z then {
-                        if (30 < l4int3z) then {
-                            addToInsnList(ASN64-48 + l4int3z);
+                       (baseWidth <> 0) then
+                        addInsnAndOffset(baseWidth + insnTemp[XTA],
+                                         offsetShift);
+                    offsetShift := insnList@.shift;
+                    baseWidth := insnList@.width;
+                    needsMask := true;
+                    helper := offsetShift + baseWidth;
+                    if isSimple then {
+                        if (30 < offsetShift) then {
+                            addToInsnList(ASN64-48 + offsetShift);
                             addToInsnList(insnTemp[YTA]);
-                            if (helper = 48) then (* P/RDR *)
-                                l4bool9z := false;
+                            if (helper = 48) then
+                                needsMask := false;
                         } else {
-                            if (l4int3z <> 0) then
-                                addToInsnList(ASN64 + l4int3z);
+                            if (offsetShift <> 0) then
+                                addToInsnList(ASN64 + offsetShift);
                         };
-                        if l4bool9z then {
-                            curVal.m := [(48 - l4int2z)..47];
+                        if needsMask then {
+                            curVal.m := [(48 - baseWidth)..47];
                             addToInsnList(KAAX+I8 + getFCSToffset);
                         }
                     } else {
                         if (helper <> 48) then
                             addToInsnList(ASN64-48 + helper);
-                        curVal.m := [0..(l4int2z-1)];
+                        curVal.m := [0..(baseWidth-1)];
                         addToInsnList(KAAX+I8 + getFCSToffset);
                     };
-                    if l4bool8z then
+                    if needsAdjust then
                         addToInsnList(KAEX+ZERO);
                 } else {
-                    if l4bool7z then
-                        helper := ord(l4bool8z)+74 (* P/LDAR[IN] *)
+                    if isSimple then
+                        helper := ord(needsAdjust)+74 (* P/LDAR[IN] *)
                     else
                         helper := 56; (* P/RR *)
                     addToInsnList(getHelperProc(helper));
@@ -2489,7 +2489,7 @@ var
             goto 4545;
         };
         il2: {
-4545:       if forValue and (l4typ4z = booleanType) and
+4545:       if forValue and (valueType = booleanType) and
                (16 in insnList@.regsused) then
                 addToInsnList(KAEX+E1);
         };
@@ -2594,8 +2594,8 @@ var
     l4int1z: integer;
     l4int2z, l4int3z: integer;
     l4bool4z, l4bool5z: boolean;
-    l4st6z: state;
-    l4var7z: kind;
+    addrState: state;
+    typeKind: kind;
 {
     with insnList@ do
         l4int1z := ilf7;
@@ -2607,10 +2607,10 @@ var
         addToInsnList(indexreg[l4int1z] + insnTemp[UTC]);
     };
     l4bool4z := 0 in insnList@.regsused;
-    l4st6z := insnList@.st;
-    if (l4st6z <> st0) or l4bool4z then
+    addrState := insnList@.st;
+    if (addrState <> st0) or l4bool4z then
         addxToInsnList(macro + mcPUSH);
-    if (l4st6z = st0) then {
+    if (addrState = st0) then {
         if (l4bool4z) then {
             addInsnAndOffset(insnList@.ilf5.i + insnTemp[UTC],
                              insnList@.ilf6);
@@ -2619,11 +2619,11 @@ var
             addInsnAndOffset(insnList@.ilf5.i, insnList@.ilf6);
         }
     } else {
-        l4var7z := insnList@.typ@.k;
+        typeKind := insnList@.typ@.k;
         l4int1z := insnList@.typ@.bits;
-        l4bool5z := (l4var7z < kindArray) or
-                     (l4var7z = kindStruct) and (S6 in optSflags.m);
-        if (l4st6z = st1) then {
+        l4bool5z := (typeKind < kindArray) or
+                     (typeKind = kindStruct) and (S6 in optSflags.m);
+        if (addrState = st1) then {
             l4int2z := insnList@.shift;
             l4int3z := l4int2z + insnList@.width;
             if l4bool5z then {
@@ -5383,14 +5383,7 @@ var
                             curExpr := newExpr;
                             goto 14567;
                         };
-                        new(l4var7z);
-                        with l4var7z@ do {
-                            vt.typ := integerType;
-                            op := STANDPROC;
-                            expr1 := l4exp5z;
-                            num2 := 109; (* P/SS *)
-                            l4exp5z := l4var7z;
-                        }
+                        error(errNoConstant);
                     };
                     new(curExpr);
                     with curExpr@ do {
