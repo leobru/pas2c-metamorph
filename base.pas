@@ -3621,9 +3621,8 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 SETOR:      arg1Val.m := arg1Val.m + arg2Val.m;
                 SHLEFT:     arg1Val.m := shift(arg1Val.m, -arg2Val.i);
                 SHRIGHT:    arg1Val.m := shift(arg1Val.m, arg2Val.i);
-                SETSUB:     arg1Val.m := arg1Val.m - arg2Val.m;
                 NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP,
-                MKRANGE, ASSIGNOP:
+                MKRANGE, ASSIGNOP, SETSUB:
                     error(200);
                 end;
                 insnList@.ilf5 := arg1Val;
@@ -3633,7 +3632,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 nextInsn := opToInsn[curOP];
                 case flags of
                 opfCOMM:
-7760:               tryFlip(curOP in [MUL, PLUSOP, SETAND, INTPLUS]);
+7760:               tryFlip(curOP in [MUL, PLUSOP, SETOR, SETAND, INTPLUS]);
                 opfHELP:
                     genHelper;
                 opfASSN: {
@@ -7976,7 +7975,7 @@ var
     jdx := KUTC;
     for l3var1z := UTC to VJM do {
         insnTemp[l3var1z] := jdx;
-        jdx := (jdx + 100000B);
+        jdx := jdx + 100000B;
     };
     for idx to 15 do
         indexreg[idx] := idx * frameRegTemplate;
@@ -8006,7 +8005,6 @@ var
     opToInsn[SETOR] := insnTemp[AOX];
     opToInsn[INTPLUS] := insnTemp[ADD];
     opToInsn[INTMINUS] := insnTemp[SUB];
-    opToInsn[MKRANGE] := 61; (* P/PI *)
     opToInsn[SETSUB] := insnTemp[AAX];
     opToInsn[SHLEFT] := 98;
     opToInsn[SHRIGHT] := 99;
@@ -8021,7 +8019,7 @@ var
     opFlags[SHLEFT] := opfSHIFT;
     opFlags[SHRIGHT] := opfSHIFT;
     for jdx := 0 to 6 do {
-        funcInsn[jdx] := (500000B + jdx);
+        funcInsn[jdx] := 500000B + jdx;
     }
 }; (* initInsnTemplates *)
 %
@@ -8055,10 +8053,6 @@ var
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* regKeywords *)
-    SY := MULOP;
-    charClass := AMPERS;
-    regResWord(415644C(*"     AND"*));
-    regResWord(445166C(*"     DIV"*));
     SY := RELOP;
     charClass := INOP;
     regResWord(5156C(*"      IN"*));
@@ -8070,44 +8064,19 @@ var
     for idx := 0 to 25 do
         regResWord(resWordName[idx]);
 }; (* regKeywords *)
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure initArrays;
-var
-    l3var1z, l3var2z: word;
-{
-    FcstCnt := 0;
-    FcstCount := 0;
-    for idx := 3 to 6 do {
-        l3var2z.i := (idx - (2));
-        for jdx to l3var2z.i do
-            frameRestore[idx][jdx] := 0;
-    };
-    for idx to 102 do
-        helperMap[idx] := 0;
-}; (* initArrays *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure initSets;
-{
-    skipToSet := blockBegSys + statBegSys - [SWITCHSY];
-    bigSkipSet := skipToSet + statEndSys;
-}; (* initSets *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* initTables *)
-    initArrays;
+    FcstCnt := 0;
+    FcstCount := 0;
     initInsnTemplates;
-    initSets;
+    skipToSet := blockBegSys + statBegSys - [SWITCHSY];
+    bigSkipSet := skipToSet + statEndSys;
     unpack(pasinfor.a3@, iso2text, '_052'); (* '*' *)
     iso2text['_'] := iso2text['*'];
     rewrite(CHILD);
     for jdx to 10 do
         put(CHILD);
-    for idx := 0 to 127 do {
-        symHash[idx] := NIL;
-        typeHash[idx] := ;
-        kwordHash[idx] := ;
-    };
     regKeywords;
     numLabList := NIL;
     totalErrors := 0;
@@ -8238,6 +8207,9 @@ procedure initOptions;
     hashMask := 203407C;
     statEndSys := [SEMICOLON, ENDSY, ELSESY, WHILESY];
     lvalOpSet := [GETELT, GETVAR, op36, op37, GETFIELD, DEREF, FILEPTR];
+    symHash := NIL:128;
+    typeHash := NIL:128;
+    kwordHash := NIL:128;
     resWordName :=
         5441424554C             (*"   LABEL"*),
         4357566364C             (*"   CONST"*),
@@ -8246,7 +8218,7 @@ procedure initOptions;
         4665564364515756C       (*"FUNCTION"*),
         66575144C               (*"    VOID"*),
         45566555C               (*"    ENUM"*),
-        604143534544C           (*"  PACKED"*),
+        1212604143534544C       (*"**PACKED"*),
         4162624171C             (*"   ARRAY"*),
         636462654364C           (*"  STRUCT"*),
         46515445C               (*"    FILE"*),
@@ -8287,6 +8259,7 @@ procedure initOptions;
     funcInsn[fnABSI] := KAMX;
     iAddOpMap[PLUSOP] := INTPLUS, INTMINUS;
     imulOpMap := IMULOP, IDIVOP;
+    frameRestore := 0:16;
     charSym[''''] := CHARCONST;
     charSym['_'] := IDENT;
     charSym['<'] := LTSY;
@@ -8324,6 +8297,7 @@ procedure initOptions;
     charSym[':'] := COLON;
     charSym['!'] := NOTSY;
     charSym['~'] := ADDOP;
+    helperMap := 0:102;
     helperNames :=
         6017210000000000C      (*"P/1     "*),
         6017220000000000C      (*"P/2     "*),
@@ -8333,7 +8307,7 @@ procedure initOptions;
         6017260000000000C      (*"P/6     "*),
         6017434100000000C      (*"P/CA    "*),
         6017455700000000C      (*"P/EO    "*), (* fnEOF - 6 *)
-        6017636300000000C      (*"P/SS    "*),
+        0000000000000000C      (*"P/SS obs"*),
 (*10*)  6017455400000000C      (*"P/EL    "*), (* fnEOLN - 6 *)
         6017554400000000C      (*"P/MD    "*),
         6017555100000000C      (*"P/MI    "*),
@@ -8385,7 +8359,7 @@ procedure initOptions;
         6017646200000000C      (*"P/TR    "*),
         6017546600000000C      (*"P/LV    "*),
 (*60*)  6017724155000000C      (*"P/ZAM  u"*),
-        6017605100000000C      (*"P/PI    "*),
+        0000000000000000C      (*"P/PI obs"*),
         6017426000000000C      (*"P/BP    "*),
         6017422600000000C      (*"P/B6    "*),
         6017604200000000C      (*"P/PB    "*),

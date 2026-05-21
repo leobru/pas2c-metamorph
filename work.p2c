@@ -211,7 +211,7 @@ word = struct { switch int of
     0: {i: int};
     1: {r: real};
     3: {a: alfa};
-    4: {t: packed array[0..7] of '\000' .. '\077'};
+    4: {t: __packed array[0..7] of '\000' .. '\077'};
     7: {c: char};
     8: {cl: idclass};
     9: {tp: tptr};
@@ -274,8 +274,8 @@ typechain = struct {
     next:         @typechain;
     type1, type2: tptr;
 };
-charmap   = packed array ['\000'..'\176'] of char;
-textmap   = packed array ['\052'..'\177'] of '\000'..'\077';
+charmap   = __packed array ['\000'..'\176'] of char;
+textmap   = __packed array ['\052'..'\177'] of '\000'..'\077';
 //
 four = array [1..4] of int;
 entries   = array [0..41] of int;
@@ -499,7 +499,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void printErrMsg(errno: int);
 type
-    errtxt = packed array [0..100] of '\000'..'\077';
+    errtxt = __packed array [0..100] of '\000'..'\077';
 var
     errptr: @errtxt;
     errtext: array [0..100] of '\000'..'\077';
@@ -3318,7 +3318,7 @@ var
                 addToInsnList(KMTJ+I7 + curProcNesting);
             } else {
                 l5var15z  =  frameRestore[curProcNesting][l5var17z];
-                if (l5var15z == (0)) {
+                if (l5var15z == 0) {
                     curVal.i  =  /*=A3*/'P/      ';/*=A2*/
                     l5var19z  =  (curProcNesting + 16) << 30;
                     l5var18z  =  (l5var17z + 16) << 24;
@@ -3577,7 +3577,7 @@ var
                 nextInsn  =  opToInsn[curOP];
                 switch (flags) {
                 opfCOMM:
-7760:               tryFlip(curOP in [MUL, PLUSOP, SETAND, INTPLUS]);
+7760:               tryFlip(curOP in [MUL, PLUSOP, SETOR, SETAND, INTPLUS]);
                 opfHELP:
                     genHelper();
                 opfASSN: {
@@ -5981,7 +5981,7 @@ label
 type
     DATAREC = struct {
         switch int of
-            false: {a: packed array [0..3] of 0..4095};
+            false: {a: __packed array [0..3] of 0..4095};
             true:  {b: int};
     };
 var
@@ -7790,7 +7790,6 @@ var
     opToInsn[SETOR]  =  insnTemp[AOX];
     opToInsn[INTPLUS]  =  insnTemp[ADD];
     opToInsn[INTMINUS]  =  insnTemp[SUB];
-    opToInsn[MKRANGE]  =  61; /* P/PI */
     opToInsn[SETSUB]  =  insnTemp[AAX];
     opToInsn[SHLEFT]  =  98;
     opToInsn[SHRIGHT]  =  99;
@@ -7847,25 +7846,11 @@ var
     for (idx = 0; idx <= 26; idx=idx+1)
         regResWord(resWordName[idx]);
 } /*=A2 regKeywords */
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void initArrays;
-var
-    l3var2z: int;
-{
-    FcstCnt  =  0;
-    FcstCount  =  0;
-    for (idx = 3; idx <= 6; idx=idx+1) {
-        l3var2z  =  idx - 2;
-        for (jdx = 1; jdx <= l3var2z; jdx=jdx+1)
-            frameRestore[idx][jdx]  =  0;
-    }
-    for (idx = 1; idx <= 102; idx=idx+1)
-        helperMap[idx]  =  0;
-} /* initArrays */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* initTables */
-    initArrays();
+    FcstCnt  =  0;
+    FcstCount  =  0;
     initInsnTemplates();
     skipToSet  =  blockBegSys | statBegSys & (~[SWITCHSY]);
     bigSkipSet  =  skipToSet | statEndSys;
@@ -7874,11 +7859,6 @@ var
     rewrite(_CHILD_);
     for (jdx = 1; jdx <= 10; jdx=jdx+1)
         put(_CHILD_);
-    for (idx = 0; idx < 128; idx=idx+1) {
-        symHash[idx]  =  NIL;
-        typeHash[idx]  =  ;
-        kwordHash[idx]  =  ;
-    }
     regKeywords();
     numLabList  =  NIL;
     totalErrors  =  0;
@@ -7999,6 +7979,9 @@ void initOptions;
     hashMask  =  0203407U;
     statEndSys  =  [SEMICOLON, ENDSY, ELSESY, WHILESY];
     lvalOpSet  =  [GETELT, GETVAR, op36, op37, GETFIELD, DEREF, FILEPTR];
+    symHash = NIL:128;
+    typeHash = NIL:128;
+    kwordHash = NIL:128;
     /*=A3*/
     resWordName  =
         '   LABEL',
@@ -8008,7 +7991,7 @@ void initOptions;
         'FUNCTION',
         '    VOID',
         '    ENUM',
-        '  PACKED',
+        '**PACKED',
         '   ARRAY',
         '  STRUCT',
         '    FILE',
@@ -8047,6 +8030,7 @@ void initOptions;
     funcInsn[fnABSI]  =  KAMX;
     iAddOpMap[PLUSOP]  =  INTPLUS, INTMINUS;
     imulOpMap  =  IMULOP, IDIVOP;
+    frameRestore = 0:16;
     charSym['''']  =  CHARCONST;
     charSym['_']  =  IDENT;
     charSym['<']  =  LTSY;
@@ -8084,6 +8068,7 @@ void initOptions;
     charSym[':']  =  COLON;
     charSym['!']  =  NOTSY;
     charSym['~']  =  ADDOP;
+    helperMap    =  0:102;
     /*=A3*/
     helperNames  =
         'P/1     ',
@@ -8094,7 +8079,7 @@ void initOptions;
         'P/6     ',
         'P/CA    ',
         'P/EO    ',
-        'P/SS    ',
+        '        ', // was P/SS, not needed anymore
 /*10*/  'P/EL    ',
         'P/MD    ',
         'P/MI    ',
@@ -8146,7 +8131,7 @@ void initOptions;
         'P/TR    ',
         'P/LV    ',
 /*60*/  'P/ZAM  u',
-        'P/PI    ',
+        '        ', // was P/SS, not needed anymore
         'P/BP    ',
         'P/B6    ',
         'P/PB    ',
@@ -8185,7 +8170,7 @@ void initOptions;
         'P/RE    ',
         'C/SHL   ',
         'C/SHR   ',
-        'C/WI    ',
+/*100*/ 'C/WI    ',
         'C/DI    ',
         'C/MD    ';
     systemProcNames  =
