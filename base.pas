@@ -42,6 +42,8 @@ const
     errEOFEncountered = 52;
     errFirstDigitInCharLiteralGreaterThan3 = 60;
 %
+    precNone = 0;  precRel = 1;  precAdd = 2;  precMul = 3;
+%
     macro = 100000000B;
     mcACC2ADDR = 6;
     mcPOP = 4;
@@ -122,6 +124,8 @@ const
 %
    maxLineLen = 130;
 type
+    assoc = (leftAs, rightAs);
+%
     symbol = (
 (*0B*)  IDENT,      INTCONST,   REALCONST,  CHARCONST,
         LTSY,       GTSY,       NOTSY,      LPAREN,
@@ -132,7 +136,7 @@ type
         LABELSY,    CONSTSY,    TYPESY,     VARSY,
 (*32B*) FUNCSY,     VOIDSY,     ENUMSY,     PACKEDSY,
         ARRAYSY,    STRUCTSY,   FILESY,
-(*41B*) IFSY,       SWITCHSY,     WHILESY,
+(*41B*) IFSY,       SWITCHSY,   WHILESY,
         FORSY,      WITHSY,     GOTOSY,
 (*47B*) ELSESY,     OFSY,       DOSY,
 (*52B*) EXTERNSY,  BREAKSY, CONTSY, DEFAULTSY,
@@ -158,11 +162,10 @@ setofsys = set of ident .. dosy;
 operator = (
     SHLEFT,     SHRIGHT,
     SETAND,     SETXOR,     SETOR,
-    MUL,        RDIVOP,     AMPERS,     IDIVOP,     IMODOP,
+    MUL,        RDIVOP,     ANDOP,     IDIVOP,     IMODOP,
     PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
-    IMULOP,
-    SETSUB,     INTPLUS,    INTMINUS,   badop27,    badop30,
+    IMULOP,     INTPLUS,    INTMINUS,   badop27,    badop30,
     badop31,    MKRANGE,    ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
     FILEPTR,    op44,       ALNUM,      PCALL,      FCALL,
@@ -461,6 +464,8 @@ var
    typeHash: array [0..127] of irptr;
    helperMap: array [1..102] of integer;
    helperNames: array [1..102] of bitset;
+   opPrec: array [operator] of integer;
+   opAssoc: array [operator] of assoc;
 %
    symTab:array [74000B..75500B] of bitset;
    systemProcNames: array [0..22] of integer;
@@ -1596,7 +1601,7 @@ procedure readOptFlag(var res: boolean);
                     nextCH;
             };
             MULOP: {
-               if charClass = AMPERS then {
+               if charClass = ANDOP then {
                    nextCH;
                    if CH = '&' then nextCH
                    else charClass := SETAND;
@@ -1631,11 +1636,11 @@ procedure readOptFlag(var res: boolean);
                 }
             };
             end; (* case *)
-%            if (CH = '=') and (SY IN [ADDOP,MULOP])  then {
+%           if (CH = '=') and (SY IN [ADDOP,MULOP])  then {
 %                 SY := ASSNOP;
 %writeln(' ASSNOP');
 %                 nextCH;
-%            }
+%           }
         } else {
             nextCH;
         };
@@ -3607,7 +3612,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 case curOP of
                 MUL:        arg1Val.r := arg1Val.r * arg2Val.r;
                 RDIVOP:     arg1Val.r := arg1Val.r / arg2Val.r;
-                AMPERS:     arg1Val.b := arg1Val.b and arg2Val.b;
+                ANDOP:     arg1Val.b := arg1Val.b and arg2Val.b;
                 IDIVOP:     arg1Val.i := arg1Val.i DIV arg2Val.i;
                 IMODOP:     arg1Val.i := arg1Val.i MOD arg2Val.i;
                 PLUSOP:     arg1Val.r := arg1Val.r + arg2Val.r;
@@ -3622,7 +3627,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 SHLEFT:     arg1Val.m := shift(arg1Val.m, -arg2Val.i);
                 SHRIGHT:    arg1Val.m := shift(arg1Val.m, arg2Val.i);
                 NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP,
-                MKRANGE, ASSIGNOP, SETSUB:
+                MKRANGE, ASSIGNOP:
                     error(200);
                 end;
                 insnList@.ilf5 := arg1Val;
@@ -5154,6 +5159,158 @@ var
 }; (* parseCallArgs *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function getPrec(sym: symbol; cls: operator): integer;
+{
+    if sym in [MULOP..RELOP] then
+        getPrec := opPrec[cls]
+    else
+        getPrec := precNone
+}; (* getPrec *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure bldMulOp(oper: operator; leftArg: eptr; match: boolean);
+label 14650;
+var l4var3z: eptr;
+{
+    if (not match) and (RDIVOP < oper) then {
+14650:  error(errNeedOtherTypesOfOperands);
+        writeln(oper)
+    } else {
+        case oper of
+        MUL, RDIVOP: {
+            if (match) then {
+                if (arg1Type = realType) then {
+                    (* empty *)
+                } else {
+                    if (baseType = integerType) then {
+                        arg1Type := integerType;
+                        oper := imulOpMap[oper];
+                    } else {
+                        goto 14650;
+                    }
+                }
+            } else {
+                if areTypesCompatible(leftArg) then {
+                    arg1Type := realType;
+                } else
+                    goto 14650;
+            }
+        };
+        ANDOP: {
+                if (arg1Type<>booleanType) and (arg1Type<>integerType) then
+                    goto 14650;
+                arg1Type := booleanType;
+        };
+        IDIVOP: {
+            if (baseType <> integerType) then
+                goto 14650;
+            arg1Type := integerType;
+        };
+        SHLEFT, SHRIGHT: { arg1Type := arg2Type; };
+        IMODOP: {
+            if (baseType = integerType) then {
+                arg1Type := integerType;
+            } else {
+                goto 14650;
+            }
+        };
+        end;
+        new(l4var3z);
+        with l4var3z@ do {
+            op := oper;
+            expr1 := leftArg;
+            expr2 := curExpr;
+            curExpr := l4var3z;
+            vt.typ := arg1Type;
+        }
+    }
+}; (* bldMulOp *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure bldAddOp(oper: operator; leftExpr: eptr; match: boolean);
+label 15031;
+var
+    finalExpr: eptr;
+    argKind: kind;
+{
+    argKind := arg2Type@.k;
+    if (kindArray <= argKind) then {
+15031:  error(errNeedOtherTypesOfOperands);
+    } else {
+        new(finalExpr);
+        with finalExpr@ do {
+            if (oper = OROP) then {
+                if match and ((arg1Type = booleanType) or
+                              (arg1Type = integerType)) then {
+                   vt.typ := booleanType;
+                   op := oper
+                } else goto 15031;
+            } else  {
+               if (oper = SETOR) then {
+                   op := oper;
+                   vt.typ := arg2Type;
+               } else  if (match) then {
+                    if (arg1Type = realType) then {
+                        op := oper;
+                        vt.typ := realType;
+                    } else if (baseType = integerType) then {
+                        op := iAddOpMap[oper];
+                        vt.typ := integerType;
+                    } else {
+                        goto 15031
+                    }
+                } else if areTypesCompatible(leftExpr) then {
+                    finalExpr@.vt.typ := realType;
+                    finalExpr@.op := oper;
+                } else
+                    goto 15031
+            };
+            finalExpr@.expr1 := leftExpr;
+            finalExpr@.expr2 := curExpr;
+            curExpr := finalExpr;
+        }
+    };
+}; (* bldAddOp *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure bldRelOp(oper: operator; ex2: eptr);
+var ex1: eptr;
+{
+    if typeCheck(arg1Type, arg2Type) then {
+        if
+           (arg1Type@.k = kindFile) or
+           (arg1Type@.size <> 1) and
+           (oper >= LTOP) and
+           not isCharArray(arg1Type) then
+            error(errNeedOtherTypesOfOperands);
+    } else  {
+        if not areTypesCompatible(ex2) and
+           ((arg1Type <> integerType) or
+           not (arg2Type@.k IN [kindScalar, kindRange]) or
+           (oper <> INOP)) then {
+            error(errNeedOtherTypesOfOperands);
+        }
+    };
+    new(ex1);
+    with ex1@ do {
+        vt.typ := booleanType;
+        if (oper IN [GTOP, LEOP]) then {
+            expr1 := curExpr;
+            expr2 := ex2;
+            if (oper = GTOP) then
+                op := LTOP
+            else
+                op := GEOP;
+        } else {
+            expr1 := ex2;
+            expr2 := curExpr;
+            op := oper;
+        };
+        curExpr := ex1;
+    }
+}; (* bldRelOp *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure factor;
 label
     14567;
@@ -5423,97 +5580,19 @@ var
 }; (* factor *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure term;
-label
-    14650;
+procedure parseUnaryExpression;
 var
-    curOp: operator;
-    leftArg, l4var3z: eptr;
-    match: boolean;
-{
-    factor;
-    while (SY = MULOP) do {
-        curOp := charClass;
-        inSymbol;
-        leftArg := curExpr;
-        factor;
-        arg1Type := curExpr@.vt.typ;
-        arg2Type := leftArg@.vt.typ;
-        match := typeCheck(arg1Type, arg2Type);
-        if (not match) and
-           (RDIVOP < curOp) then {
-14650:                           error(errNeedOtherTypesOfOperands);
-                                 writeln(curOp)
-        } else {
-            case curOp of
-            MUL, RDIVOP: {
-                if (match) then {
-                    if (arg1Type = realType) then {
-                        (* empty *)
-                    } else {
-                        if (baseType = integerType) then {
-                            arg1Type := integerType;
-                            curOp := imulOpMap[curOp];
-                        } else {
-                            goto 14650;
-                        }
-                    }
-                } else {
-                    if areTypesCompatible(leftArg) then {
-                        arg1Type := realType;
-                    } else
-                        goto 14650;
-                }
-            };
-            AMPERS: {
-                    if (arg1Type<>booleanType) and (arg1Type<>integerType) then
-                        goto 14650;
-                    arg1Type := booleanType;
-            };
-            IDIVOP: {
-                if (baseType <> integerType) then
-                    goto 14650;
-                arg1Type := integerType;
-            };
-            SHLEFT, SHRIGHT: { arg1Type := arg2Type; };
-            IMODOP: {
-                if (baseType = integerType) then {
-                    arg1Type := integerType;
-                } else {
-                    goto 14650;
-                }
-            };
-            end;
-            new(l4var3z);
-            with l4var3z@ do {
-                op := curOp;
-                expr1 := leftArg;
-                expr2 := curExpr;
-                curExpr := l4var3z;
-                vt.typ := arg1Type;
-            }
-        }
-    }
-}; (* term *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure simpleExpression;
-label
-    15031;
-var
-    finalExpr, leftExpr: eptr;
     oper: operator;
-    argKind: kind;
-    match: boolean;
+    leftExpr: eptr;
 {
     oper := NOOP;
-    if (charClass IN [PLUSOP, MINUSOP, SETSUB]) then {
+    if (charClass IN [PLUSOP, MINUSOP, BITNEGOP]) then {
         if (charClass <> PLUSOP) then
             oper := charClass;
         inSymbol;
     };
-    term;
-(minus)
+    factor;
+(unaryex)
     if (oper <> NOOP) then {
         arg1Type := curExpr@.vt.typ;
         new(leftExpr);
@@ -5528,68 +5607,64 @@ var
                 leftExpr@.vt.typ := integerType;
             } else {
                 error(69); (* errUnaryMinusNeedRealOrInteger *)
-                exit minus
+                exit unaryex
             };
-            } else if oper = SETSUB then {
+            } else if oper = BITNEGOP then {
                 if typeCheck(arg1Type, integerType) then {
                 leftExpr@.op := BITNEGOP;
                 leftExpr@.vt.typ := integerType;
             } else {
                 error(62); (* errIntegerNeeded *)
-                exit minus
+                exit unaryex
             };
             };
             curExpr := leftExpr;
         }
     };
-    while (SY = ADDOP) do {
+}; (* parseUnaryExpression *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure parsePrc(minPrec: integer);
+var
+    oper: operator;
+    leftExpr: eptr;
+    curPrec: integer;
+    match: boolean;
+{
+    (* Parse left operand with unary operators *)
+    if minPrec >= precMul then
+        factor
+    else
+        parseUnaryExpression;
+
+    (* Climb through operators at this precedence level and higher *)
+    while true do {
+        curPrec := getPrec(SY, charClass);
+
+        (* Stop if operator has lower precedence than minimum *)
+        if curPrec < minPrec then
+            exit;
+
         oper := charClass;
         inSymbol;
         leftExpr := curExpr;
-        term;
+
+        (* Recursively parse right operand with higher precedence *)
+        (* For left-associative: use curPrec + 1 *)
+        parsePrc(curPrec + 1);
+
+        (* Build AST node based on operator type *)
         arg1Type := curExpr@.vt.typ;
         arg2Type := leftExpr@.vt.typ;
         match := typeCheck(arg1Type, arg2Type);
-        argKind := arg2Type@.k;
-        if (kindArray <= argKind) then {
-15031:      error(errNeedOtherTypesOfOperands);
-        } else {
-            new(finalExpr);
-            with finalExpr@ do {
-                if (oper = OROP) then {
-                    if match and ((arg1Type = booleanType) or
-                                  (arg1Type = integerType)) then {
-                       vt.typ := booleanType;
-                       op := oper
-                    } else goto 15031;
-                } else  {
-                   if (oper = SETOR) or (oper = SETSUB) then {
-                       op := oper;
-                       vt.typ := arg2Type;
-                   } else  if (match) then {
-                        if (arg1Type = realType) then {
-                            op := oper;
-                            vt.typ := realType;
-                        } else if (baseType = integerType) then {
-                            op := iAddOpMap[oper];
-                            vt.typ := integerType;
-                        } else {
-                            goto 15031
-                        }
-                    } else if areTypesCompatible(leftExpr) then {
-                        finalExpr@.vt.typ := realType;
-                        finalExpr@.op := oper;
-                    } else
-                        goto 15031
-                };
-                finalExpr@.expr1 := leftExpr;
-                finalExpr@.expr2 := curExpr;
-                curExpr := finalExpr;
-            }
-        };
-    }
 
-}; (* simpleExpression *)
+        case curPrec of
+            precMul: bldMulOp(oper, leftExpr, match);
+            precAdd: bldAddOp(oper, leftExpr, match);
+            precRel: bldRelOp(oper, leftExpr);
+        end;
+    }
+}; (* parsePrc *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure parentExpression;
@@ -5604,56 +5679,12 @@ procedure parentExpression;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure expression;
-var
-    oper: operator;
-    ex1, ex2: eptr;
 {
     if (readNext) then
         inSymbol
     else
         readNext := true;
-    simpleExpression;
-    if (SY = RELOP) then {
-        oper := charClass;
-        inSymbol;
-        ex2 := curExpr;
-        simpleExpression;
-        arg1Type := curExpr@.vt.typ;
-        arg2Type := ex2@.vt.typ;
-        if typeCheck(arg1Type, arg2Type) then {
-            if
-               (arg1Type@.k = kindFile) or
-               (arg1Type@.size <> 1) and
-               (oper >= LTOP) and
-               not isCharArray(arg1Type) then
-                error(errNeedOtherTypesOfOperands);
-        } else  {
-            if not areTypesCompatible(ex2) and
-               ((arg1Type <> integerType) or
-               not (arg2Type@.k IN [kindScalar, kindRange]) or
-               (oper <> INOP)) then {
-                error(errNeedOtherTypesOfOperands);
-            }
-        };
-        new(ex1);
-        with ex1@ do {
-            vt.typ := booleanType;
-            if (oper IN [GTOP, LEOP]) then {
-                expr1 := curExpr;
-                expr2 := ex2;
-                if (oper = GTOP) then
-                    op := LTOP
-                else
-                    op := GEOP;
-            } else {
-                expr1 := ex2;
-                expr2 := curExpr;
-                op := oper;
-            };
-            curExpr := ex1;
-        }
-    }
-
+    parsePrc(precRel);
 }; (* expression *)
 procedure assignStatement(doLHS: boolean); forward;
 %
@@ -8005,17 +8036,15 @@ var
     opToInsn[SETOR] := insnTemp[AOX];
     opToInsn[INTPLUS] := insnTemp[ADD];
     opToInsn[INTMINUS] := insnTemp[SUB];
-    opToInsn[SETSUB] := insnTemp[AAX];
     opToInsn[SHLEFT] := 98;
     opToInsn[SHRIGHT] := 99;
-    opFlags[AMPERS] := opfAND;
+    opFlags[ANDOP] := opfAND;
     opFlags[IDIVOP] := opfDIV;
     opFlags[OROP] := opfOR;
     opFlags[IMULOP] := opfMULMSK;
     opFlags[IMODOP] := opfMOD;
     opFlags[MKRANGE] := opfHELP;
     opFlags[ASSIGNOP] := opfASSN;
-    opFlags[SETSUB] := opfINV;
     opFlags[SHLEFT] := opfSHIFT;
     opFlags[SHRIGHT] := opfSHIFT;
     for jdx := 0 to 6 do {
@@ -8270,10 +8299,10 @@ procedure initOptions;
     chrClass['/'] := RDIVOP;
     chrClass['%'] := IMODOP;
     chrClass['='] := EQOP;
-    chrClass['&'] := AMPERS;
+    chrClass['&'] := ANDOP;
     chrClass['|'] := OROP;
     chrClass['^'] := SETXOR;
-    chrClass['~'] := SETSUB;
+    chrClass['~'] := BITNEGOP;
     chrClass['>'] := GTOP;
     chrClass['<'] := LTOP;
     chrClass['!'] := NEOP;
@@ -8296,8 +8325,39 @@ procedure initOptions;
     charSym['='] := BECOMES;
     charSym[':'] := COLON;
     charSym['!'] := NOTSY;
-    charSym['~'] := ADDOP;
+    charSym['~'] := NOTSY;
     helperMap := 0:102;
+%
+    (* Initialize operator precedence table *)
+    opPrec := precNone:48;
+    opAssoc := leftAs:48;
+%
+    (* Relational operators - precedence 1 *)
+    opPrec[NEOP] := precRel;
+    opPrec[EQOP] := precRel;
+    opPrec[LTOP] := precRel;
+    opPrec[GEOP] := precRel;
+    opPrec[GTOP] := precRel;
+    opPrec[LEOP] := precRel;
+    opPrec[INOP] := precRel;
+%
+    (* Additive operators - precedence 2 *)
+    opPrec[PLUSOP] := precAdd;
+    opPrec[MINUSOP] := precAdd;
+    opPrec[OROP] := precAdd;
+    opPrec[SETOR] := precAdd;
+%
+    (* Multiplicative operators - precedence 3 *)
+    opPrec[MUL] := precMul;
+    opPrec[RDIVOP] := precMul;
+    opPrec[ANDOP] := precMul;
+    opPrec[IDIVOP] := precMul;
+    opPrec[IMODOP] := precMul;
+    opPrec[SHLEFT] := precMul;
+    opPrec[SHRIGHT] := precMul;
+    opPrec[SETAND] := precMul;
+    opPrec[SETXOR] := precMul;
+%
     helperNames :=
         6017210000000000C      (*"P/1     "*),
         6017220000000000C      (*"P/2     "*),
