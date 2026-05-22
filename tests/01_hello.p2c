@@ -4,4 +4,3 @@ extern _output_;
 {
     writeln('Hello from p2c!');
 }
-.

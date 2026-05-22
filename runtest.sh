@@ -15,7 +15,8 @@ cat << EOF > tmp$$
 P 2 0 1000440000B .
 *call *pascom
 EOF
-sed 's/{/<:/g;s/}/:>/g' < $1 > tmpsrc.utxt
+echo '/*=s9*/' > tmpsrc.utxt
+sed 's/{/<:/g;s/}/:>/g' < $1 >> tmpsrc.utxt
 echo '                                                                                 ' >> tmpsrc.utxt
 cat << EOF >> tmp$$
 *copy:0,000000,000000

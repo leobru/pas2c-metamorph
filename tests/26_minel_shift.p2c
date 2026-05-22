@@ -1,0 +1,15 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var i, j: int;
+{
+    for (j = 2; j < 10000; j = j * 2) {
+    i  = minel(j & (~0));
+    write(' ', i:0);
+    i = (~0U) >> (i+1);
+    write(' ', i oct);
+    i  = 0|i;
+    writeln(' ', i:0);
+}
+}
+.

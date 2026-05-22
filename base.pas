@@ -7,7 +7,7 @@ const
     boilerplate = ' PASCAL METAMORPH HELPER (2025) ';
 %
     fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
-    fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnODD  = 9;
+    fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;
     fnORD   = 10; fnCHR  = 11; fnSUCC = 12; fnPRED  = 13; fnEOF  = 14;
     fnREF   = 15; fnEOLN = 16; (*   17   *) fnROUND = 18; fnCARD = 19;
     fnMINEL = 20; fnPTR  = 21; fnABSI = 22;
@@ -409,7 +409,7 @@ var
    uProcPtr: irptr;
    externFileList: @extfilerec;
    baseType, typ121z: tptr;
-   pointerType: tptr;
+   voidPtr: tptr;
    booleanType: tptr;
    textType: tptr;
    integerType: tptr;
@@ -1100,7 +1100,7 @@ var
     localBuf: array [0..130] of char;
     tokenLen, tokenIdx: integer;
     expSign: boolean;
-    l3var135z: irptr;
+    chain: irptr;
     expMultiple, expValue: real;
     curChar: char;
     numstr: array [1..17] of word;
@@ -1214,16 +1214,6 @@ procedure readOptFlag(var res: boolean);
 1473:
         while (CH = ' ') and not atEOL do
             nextCH;
-        if '_200' < CH then {
-            lineBuf[linePos] := ' ';
-            chord := ord(CH);
-            for jj := 130 to chord do {
-                linePos := linePos + 1;
-                lineBuf[linePos] := ' ';
-            };
-            nextCH;
-            goto 1473;
-        };
         if atEOL then {
             endOfLine;
             nextCH;
@@ -1292,11 +1282,11 @@ procedure readOptFlag(var res: boolean);
                     if expr63z = NIL then
                         goto 2;
                     expr62z := expr63z;
-                    l3var135z := typeHash[bucket];
-                    if l3var135z <> NIL then {
+                    chain := typeHash[bucket];
+                    if chain <> NIL then {
                         while expr62z <> NIL do {
                             l3int162z := expr62z@.typ2@.size;
-                            hashTravPtr := l3var135z;
+                            hashTravPtr := chain;
                             while hashTravPtr <> NIL do {
                                 if (hashTravPtr@.id = curIdent)
                                 and (hashTravPtr@.value = l3int162z) then
@@ -1659,12 +1649,12 @@ var
     sym: symbol;
 {
     sym := SY;
-    while (sym <> ENDSY) or (SY <> PERIOD) do {
+    while (CH <> '_000') and ((sym <> ENDSY) or (SY <> PERIOD)) do {
         sym := SY;
         inSymbol
     };
     if CH = 'D' then
-        while SY <> ENDSY do
+        while (CH <> '_000') and (SY <> ENDSY) do
             inSymbol;
     goto 9999;
 };
@@ -1854,20 +1844,6 @@ procedure allocWithTypeCheck;
 }; (* allocWithTypeCheck *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function checkRecord(l4arg1z, l4arg2z: tptr): boolean;
-var
-    l4var1z: boolean;
-{
-    l4var1z := (l4arg1z = NIL) or (l4arg2z = NIL);
-    if (l4var1z) then {
-        checkRecord := l4arg1z = l4arg2z;
-    } else {
-        checkRecord := typeCheck(l4arg1z@.base, l4arg2z@.base) and
-                 checkRecord(l4arg1z@.next, l4arg2z@.next);
-    };
-}; (* checkRecord *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* typeCheck *)
     rangeMismatch := false;
     if (type1@.k = kindRange) then {
@@ -1913,7 +1889,7 @@ var
                     exit
                 };
                 kindPtr: {
-                    if (type1 = pointerType) or (type2 = pointerType) then
+                    if (type1 = voidPtr) or (type2 = voidPtr) then
                         goto 1;
                     basetyp1 := type1@.base;
                     basetyp2 := type2@.base;
@@ -1957,7 +1933,7 @@ var
                         goto 1;
                 };
                 kindStruct: {
-                    if checkRecord(type1@.first, type2@.first) then
+                    if type1 = type2 then
                         goto 1;
                 }
                 end (* case *)
@@ -1992,15 +1968,15 @@ var
 }; (* argCount *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function makeNameWithStars: bitset;
+function leftAlign: bitset;
 {
     while curVal.m * [0..5] = [] do {
         curVal := curVal;
         besm(ASN64-6);
         curVal := ;
     };
-    makeNameWithStars := curVal.m;
-}; (* makeNameWithStars *)
+    leftAlign := curVal.m;
+}; (* leftAlign *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure formOperator(l3arg1z: opgen);
@@ -2216,8 +2192,7 @@ procedure addJumpInsn(opcode: integer);
                 curval.i := curInsn.i mod 32768;
                 if curVal.i < 2048 then
                     addInsnToBuf(tempInsn.i + curInsn.i)
-                else
-(stmt)          if (curVal.i >= 28672) or (curVal.i < 4096) then {
+                else if (curVal.i >= 28672) or (curVal.i < 4096) then {
                     addInsnToBuf(
                         allocSymtab((curVal.m + [24])*halfWord)
                         + tempInsn.i - 28672);
@@ -3172,7 +3147,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
     if (l6arg1z@.pos = 0) then {
         if (l6arg1z@.flags * [20, 21] <> []) then {
             curVal := l6arg1z@.id;
-            curVal.m := makeNameWithStars;
+            curVal.m := leftAlign;
             l6arg1z@.pos := allocExtSymbol(extSymMask);
         } else {
             l6arg1z@.pos := symTabPos;
@@ -3898,7 +3873,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                         goto 10122;
                     };
                     if (work IN [fnSQRT:fnEXP,
-                                 fnODD:fnSUCC, fnCARD, fnPTR]) then {
+                                 fnORD:fnSUCC, fnCARD, fnPTR]) then {
                         l3int3z := 0;
                     } else if (work = fnABS) then
                         l3int3z := 3
@@ -4537,7 +4512,7 @@ var
         inSymbol;
         if (SY <> IDENT) then {
             error(errNoIdent);
-            curType := pointerType;
+            curType := voidPtr;
         } else {
             if (hashTravPtr = NIL) then {
                 if (inTypeDef) then {
@@ -4548,7 +4523,7 @@ var
                     };
                 } else {
 12366:              error(errNotAType);
-                    curType := pointerType;
+                    curType := voidPtr;
                 };
             } else {
                 if (hashTravPtr@.cl <> TYPEID) then {
@@ -4844,7 +4819,7 @@ var
         if l3var3z then {
             if (41 >= entryPtCnt) then {
                 curVal := l2idr2z@.id;
-                entryPtTable[entryPtCnt] := makeNameWithStars;
+                entryPtTable[entryPtCnt] := leftAlign;
                 entryPtTable[entryPtCnt+1] := [1] + frame.m - [0, 3];
                 entryPtCnt := entryPtCnt + 2;
             } else
@@ -5036,11 +5011,11 @@ var
     }
 }; (* castToReal *)
 %
-function areTypesCompatible(var l4arg1z: eptr): boolean;
+function areTypesCompatible(var other: eptr): boolean;
 {
     if (arg1Type = realType) then {
         if typeCheck(integerType, arg2Type) then {
-            castToReal(l4arg1z);
+            castToReal(other);
             areTypesCompatible := true;
             exit
         };
@@ -5378,7 +5353,7 @@ var
     if not ((checkMode = chkREAL) and
             (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnROUND])
            or ((checkMode = chkINT) and
-            (asBitset <= [fnSQRT:fnABS,fnODD,fnCHR,fnREF,fnCARD,fnMINEL,fnPTR]))
+            (asBitset <= [fnSQRT:fnABS,fnCHR,fnREF,fnCARD,fnMINEL,fnPTR]))
            or ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) and
             (asBitset <= [fnORD, fnSUCC, fnPRED, fnREF]))
            or ((checkMode = chkFILE) and
@@ -5574,7 +5549,7 @@ var
         newExpr := curExpr;
         new(curExpr);
         with curExpr@ do {
-            vt.typ := pointerType;
+            vt.typ := voidPtr;
             op  :=  STANDPROC;
             expr1  :=  newExpr;
             num2  :=  fnREF;
@@ -5774,7 +5749,7 @@ var
 }; (* withStatement *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure reportStmtType(l4arg1z: integer);
+procedure reportStmtType;
 {
     writeln(' STATEMENT ', stmtname:0, ' IN ', startLine:0, ' LINE');
 }; (* reportStmtType *)
@@ -5945,7 +5920,7 @@ function max(a, b: integer): integer;
     if (SY <> ENDSY) then {
         requiredSymErr(ENDSY);
         stmtName := 'CASE  ';
-        reportStmtType(startLine);
+        reportStmtType;
     } else
         inSymbol;
     if not typeCheck(firstType, exprtype) then {
@@ -6409,7 +6384,7 @@ var
         helperNo := 100               (* C/WI *)
     else
         helperNo := 36;               (* P/WI *)
-    if (l4typ3z = integerType) then
+    if ((l4typ3z = integerType) or (l4typ3z = booleanType)) then
         defWidth := 10
     else if (l4typ3z = realType) then {
         helperNo := 37;               (* P/WR *)
@@ -6874,7 +6849,7 @@ procedure setStrLab(forGoto: boolean);
                 if (SY <> ENDSY) then {
                     stmtName := ' BEGIN';
                     requiredSymErr(SEMICOLON);
-                    reportStmtType(startLine);
+                    reportStmtType;
                     skip(bigSkipSet);
                     if (SY IN statBegSys) then
                         goto skip;
@@ -6978,7 +6953,7 @@ writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
             if (SY <> WHILESY) then {
                 requiredSymErr(WHILESY);
                 stmtName := '  DO  ';
-                reportStmtType(startLine);
+                reportStmtType;
                 goto 8888;
             };
             disableNorm;
@@ -7088,9 +7063,9 @@ var
     repeat
         statement;
         if (curProcNesting = 1) then
-            done := SY = PERIOD
+            done := (SY = PERIOD) or (CH = '_000')
         else
-            done := (SY IN blockBegSys);
+            done := (SY IN blockBegSys) or (CH = '_000');
         if not done then
            if (curProcNesting = 1) then
                requiredSymErr(PERIOD)
@@ -7190,7 +7165,7 @@ var l : integer;
 {
     l := 0;
     curVal := curIdent;
-    l3var1z.m := makeNameWithStars;
+    l3var1z.m := leftAlign;
     if (curIdent = inName) then {
         new(inputFile, 12);
         with inputFile@ do {
@@ -7275,12 +7250,12 @@ var l : integer;
         bits := 48;
         k := kindReal;
     };
-    new(pointerType, kindPtr);
-    with pointerType@ do {
+    new(voidPtr, kindPtr);
+    with voidPtr@ do {
         size := 1;
         bits := 48;
         k := kindPtr;
-        base := pointerType;
+        base := voidPtr;
     };
     new(textType, kindFile);
     with textType@ do {
@@ -7307,7 +7282,7 @@ var l : integer;
     regSysType(62454154C(*"    REAL"*), realType);
     regSysType(41544641C(*"    ALFA"*), alfaType);
     regSysType(64457064C(*"    TEXT"*), textType);
-    tempType := pointerType;
+    tempType := voidPtr;
     regSysEnum(565154C(*"     NIL"*), 74000C);
     maxSmallString := 0;
     for strLen := 2 to 5 do
@@ -7359,7 +7334,7 @@ var l : integer;
     regSysProc(60624544C(*"    PRED"*));
     temptype := integerType;
     regSysProc(455746C(*"     EOF"*));
-    temptype := pointerType;
+    temptype := voidPtr;
     regSysProc(0C(*was REF, unused*));
     temptype := integerType;
     regSysProc(45575456C(*"    EOLN"*));
@@ -7367,7 +7342,7 @@ var l : integer;
     regSysProc(6257655644C(*"   ROUND"*));
     regSysProc(43416244C(*"    CARD"*));
     regSysProc(5551564554C(*"   MINEL"*));
-    temptype := pointerType;
+    temptype := voidPtr;
     regSysProc(606462C(*"     PTR"*));
     l3var11z.i := 30;
     l3var11z.m := l3var11z.m * halfWord + [24,27,28,29];
@@ -7379,7 +7354,7 @@ var l : integer;
             curVal.i := 6041634357556054C; (* PASCOMPL *)
             id := ;
             pos := 0;
-            symTab[74000B] := makeNameWithStars;
+            symTab[74000B] := leftAlign;
     };
     entryPtTable[1] := symTab[74000B];
     entryPtTable[3] :=
@@ -7429,7 +7404,7 @@ var l : integer;
     l3var6z := 40;
     repeat
         programme(l3var6z, programObj);
-    until (SY = PERIOD);
+    until (SY = PERIOD) or (CH = '_000');
     if (CH <> 'D') then {
         int92z := 0;
         int93z := ;
@@ -7757,6 +7732,8 @@ procedure exitScope(var arg: array [0..127] of irptr);
             (* 22663 -> 22620 *) until done;
             checkSymAndRead(COLON);
             parseTypeRef(l2typ13z, skipToSet + [IDENT,SEMICOLON]);
+            if l2typ13z@.k = kindRange then
+               error(48);
             jj := l2typ13z@.size;
             while workidr <> NIL do with workidr@ do {
                 curIdRec := list;
@@ -7945,9 +7922,10 @@ procedure exitScope(var arg: array [0..127] of irptr);
             };
             curIdRec@.flags := curIdRec@.flags + curVal.m;
         } else  {
-            repeat
+            (loop) repeat
                 setup(scopeBound);
                 programme(l2int18z, curIdRec);
+                if CH = '_000' then exit loop;
                 if not (SY IN [FUNCSY,VOIDSY,BEGINSY]) then
                     errAndSkip(errBadSymbol, skipToSet);
             until SY IN [FUNCSY,VOIDSY,BEGINSY];
@@ -7969,6 +7947,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
         curFrameRegTemplate := curFrameRegTemplate - indexreg[1];
         curProcNesting := curProcNesting - 1;
     };
+    if CH = '_000' then exit;
     if (SY <> BEGINSY) and
        (not allowCompat or not (SY IN blockBegSys)) then
         errAndSkip(84 (* errErrorInDeclarations *), skipToSet);
@@ -8285,7 +8264,6 @@ procedure initOptions;
     chrClass['_'] := ALNUM;
     funcInsn[fnABS] := KAMX;
     funcInsn[fnTRUNC] := KADD+ZERO;
-    funcInsn[fnODD] := KAAX+E1;
     funcInsn[fnORD] := KAOX+ZERO;
     funcInsn[fnCHR] := KAAX+MANTISSA;
     funcInsn[fnSUCC] := KARX+E1;

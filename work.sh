@@ -31,6 +31,7 @@ length=$(($length-2))
 grep -q 'LINES STRUCTURE 1' work.lst
 if [ $? -ne 0 ]; then
 echo '[1;31mFAILURE[22;39m'
+grep -A 2 '\*\*\*[1-9]' work.lst
 exit 1
 fi
 echo Module length is $length zones

@@ -3,8 +3,8 @@ extern _output_;
 //
 var a, b: int;
 {
-    a = 20;
-    b = a >> 2;  // 20 / 4 = 5
-    writeln('20 >> 2 = ', b oct);
+    a = ~0U;
+    for (b = 0; b < 10; b = b + 1)
+        writeln(' ~0u >> ', b+1:0, ' = ', a >> (b+1) oct);
 }
 .
