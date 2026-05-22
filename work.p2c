@@ -5345,25 +5345,6 @@ var
             curExpr->op  =  GETENUM;
             inSymbol();
         }
-        NOTSY: {
-            inSymbol();
-            factor();
-            newExpr  =  curExpr;
-            new(curExpr);
-            curExpr->typ  =  boolType;
-            if (newExpr->typ == boolType) with curExpr@ do {
-                op  =  NOTOP;
-                expr1  =  newExpr;
-            } else if (newExpr->typ == intType) {
-                with curExpr@ do {
-                    op  =  EQOP;
-                    expr1  =  newExpr;
-                    new(expr2);
-                }
-                curExpr->expr2@ = [intType, GETENUM, 0U];
-            } else
-                error(errNeedOtherTypesOfOperands);
-        }
         LBRACK: {
             new(curExpr);
             inSymbol();
@@ -5453,40 +5434,60 @@ void parseUnaryExpression;
 var
     oper: operator;
     leftExpr: eptr;
+    isNot: int;
 {
     oper = NOOP;
-    if (charClass IN [PLUSOP, MINUSOP, BITNEGOP]) {
+    isNot = false;
+    if (SY == NOTSY) {
+        if (charClass == BITNEGOP)
+            oper = BITNEGOP;
+        else
+            isNot = true;
+        inSymbol();
+    } else if (charClass IN [PLUSOP, MINUSOP]) {
         if (charClass != PLUSOP)
             oper = charClass;
         inSymbol();
     }
     factor();
 (unaryex)
-    if (oper != NOOP) {
+    if (oper != NOOP || isNot) {
         arg1Type = curExpr->typ;
         new(leftExpr);
         with leftExpr@ do {
             typ = arg1Type;
             expr1 = curExpr;
             if (oper == MINUSOP) {
-            if (arg1Type == realType) {
-                leftExpr->op = RNEGOP;
-                leftExpr->typ = realType;
-            } else if (typeCheck(arg1Type, intType)) {
-                leftExpr->op = INEGOP;
-                leftExpr->typ = intType;
-            } else {
-                error(69); /* errUnaryMinusNeedRealOrInteger */
-                exit unaryex;
-            }
+                if (arg1Type == realType) {
+                    leftExpr->op = RNEGOP;
+                    leftExpr->typ = realType;
+                } else if (typeCheck(arg1Type, intType)) {
+                    leftExpr->op = INEGOP;
+                    leftExpr->typ = intType;
+                } else {
+                    error(69); /* errUnaryMinusNeedRealOrInteger */
+                    exit unaryex;
+                }
             } else if (oper == BITNEGOP) {
                 if (typeCheck(arg1Type, intType)) {
-                leftExpr->op = BITNEGOP;
-                leftExpr->typ = intType;
-            } else {
-                error(62); /* errIntegerNeeded */
-                exit unaryex;
-            }
+                    leftExpr->op = BITNEGOP;
+                    leftExpr->typ = intType;
+                } else {
+                    error(62); /* errIntegerNeeded */
+                    exit unaryex;
+                }
+            } else if (isNot) {
+                leftExpr->typ = boolType;
+                if (arg1Type == boolType) {
+                    leftExpr->op = NOTOP;
+                } else if (arg1Type == intType) {
+                    leftExpr->op = EQOP;
+                    new(leftExpr->expr2);
+                    leftExpr->expr2@ = [intType, GETENUM, 0U];
+                } else {
+                    error(errNeedOtherTypesOfOperands);
+                    exit unaryex;
+                }
             }
             curExpr = leftExpr;
         }

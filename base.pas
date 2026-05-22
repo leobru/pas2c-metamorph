@@ -3965,7 +3965,7 @@ procedure dump(expr : eptr; indent: integer);
     if (expr = NIL) or (expr = ptr(0c))then {
         writeln(' ':indent, '<NIL>'); exit;
     };
-    writeln(' ':indent, expr@.op oct, ' ', expr@.op);
+%    writeln(' ':indent, expr@.op oct, ' ', expr@.op);
     indent := indent + 1;
 if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
        dump(expr@.expr1, indent);
@@ -5457,25 +5457,6 @@ var
             curExpr@.op := GETENUM;
             inSymbol;
         };
-        NOTSY: {
-            inSymbol;
-            factor;
-            newExpr := curExpr;
-            new(curExpr);
-            curexpr@.vt.typ := booleanType;
-            if (newExpr@.vt.typ = booleanType) then with curExpr@ do {
-                op := NOTOP;
-                expr1 := newExpr;
-            } else if (newExpr@.vt.typ = integerType) then {
-                with curExpr@ do {
-                    op := EQOP;
-                    expr1 := newExpr;
-                    new(expr2);
-                };
-               curExpr@.expr2@ := [integerType, GETENUM, 0C];
-            } else
-                error(errNeedOtherTypesOfOperands);
-        };
         LBRACK: {
             new(curExpr);
             inSymbol;
@@ -5566,39 +5547,61 @@ procedure parseUnaryExpression;
 var
     oper: operator;
     leftExpr: eptr;
+    isNot: boolean;
 {
     oper := NOOP;
-    if (charClass IN [PLUSOP, MINUSOP, BITNEGOP]) then {
+    isNot := false;
+    if (SY = NOTSY) then {
+        if (charClass = BITNEGOP) then
+            oper := BITNEGOP
+        else
+            isNot := true;
+        inSymbol;
+    } else if (charClass IN [PLUSOP, MINUSOP]) then {
         if (charClass <> PLUSOP) then
             oper := charClass;
         inSymbol;
     };
     factor;
 (unaryex)
-    if (oper <> NOOP) then {
+    if (oper <> NOOP) or isNot then {
         arg1Type := curExpr@.vt.typ;
         new(leftExpr);
         with leftExpr@ do {
             vt.typ := arg1Type;
             expr1 := curExpr;
             if oper = MINUSOP then {
-            if arg1Type = realType then {
-                op := RNEGOP;
-            } else if typeCheck(arg1Type, integerType) then {
-                leftExpr@.op := INEGOP;
-                leftExpr@.vt.typ := integerType;
-            } else {
-                error(69); (* errUnaryMinusNeedRealOrInteger *)
-                exit unaryex
-            };
+                if arg1Type = realType then {
+                    op := RNEGOP;
+                } else if typeCheck(arg1Type, integerType) then {
+                    leftExpr@.op := INEGOP;
+                    leftExpr@.vt.typ := integerType;
+                } else {
+                    error(69); (* errUnaryMinusNeedRealOrInteger *)
+                    exit unaryex
+                };
             } else if oper = BITNEGOP then {
+writeln(' BITNEGOP handled in parseUnaryExpression');
                 if typeCheck(arg1Type, integerType) then {
-                leftExpr@.op := BITNEGOP;
-                leftExpr@.vt.typ := integerType;
-            } else {
-                error(62); (* errIntegerNeeded *)
-                exit unaryex
-            };
+                    leftExpr@.op := BITNEGOP;
+                    leftExpr@.vt.typ := integerType;
+                } else {
+                    error(62); (* errIntegerNeeded *)
+                    exit unaryex
+                };
+            } else if isNot then {
+writeln(' NOTSY handled in parseUnaryExpression');
+                leftExpr@.vt.typ := booleanType;
+                if (arg1Type = booleanType) then {
+                    leftExpr@.op := NOTOP;
+                } else if (arg1Type = integerType) then {
+                    leftExpr@.op := EQOP;
+                    new(leftExpr@.expr2);
+                    leftExpr@.expr2@ := [integerType, GETENUM, 0C];
+                } else {
+                    error(errNeedOtherTypesOfOperands);
+                    exit unaryex
+                };
             };
             curExpr := leftExpr;
         }
