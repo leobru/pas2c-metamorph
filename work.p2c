@@ -41,7 +41,8 @@ const
     errEOFEncountered = 52;
     errFirstDigitInCharLiteralGreaterThan3 = 60;
 //
-    precNone = 0;  precRel = 1;  precAdd = 2;  precMul = 3;
+    precNone = 0;  precOr = 1;  precAnd = 2;  precRel = 3;
+    precAdd = 4;  precMul = 5;
 //
     macro = 0100000000;
     mcJUMP = 2;
@@ -671,14 +672,14 @@ var
     startPos, lastErr: int;
 {
     listMode  =  pasinfor.listMode;
-    if ((listMode != 0) || (errsInLine != 0))
+    if (listMode != 0 || errsInLine != 0)
     {
         write(' ', (lineStartOffset + PASINFOR.startOffset):5 oct,
               lineCnt:5, lineNesting:3, commentModeCH);
         startPos  =  13;
         do
             linePos  =  linePos-1;
-        while ((lineBuf[linePos]  == ' ') && (linePos >= 0));
+        while (lineBuf[linePos]  == ' ' && linePos >= 0);
         for (err = 0; err <= linePos; err=err+1) {
             _output_@ = lineBuf[err];
             put(_output_);
@@ -1014,7 +1015,7 @@ var
         form3Insn(KITA+14, insnTemp[ASN] + arg, KAOX+I7+1);
         form1Insn(KATX+I7+1);
         exit;
-    } else if ((mode == 1) || (mode < -2)) {
+    } else if (mode == 1 || mode < -2) {
         arg  =  arg - curVal.i;
         offset  =  getFCSToffset();
         if (mode == 1)
@@ -1091,7 +1092,7 @@ var t:int;
 void readOptFlag(res: @int);
 {
     nextCH();
-    if ((CH == '-') || (CH == '+')) {
+    if (CH == '-' || CH == '+') {
         res@  =  CH == '+';
         badOpt  =  false;
     }
@@ -1443,7 +1444,7 @@ var
                         } else
 2233:                       with PASINFOR do {
                                 if (charEncoding == 3) {
-                                    if ((ch < '*') || ('\176' < CH))
+                                    if (ch < '*' || '\176' < CH)
                                         curChar  =  chr(0);
                                     else {
                                         curChar  =  iso2text[CH];
@@ -1613,7 +1614,7 @@ var
     sym: symbol;
 {
     sym  =  SY;
-    while ((sym != ENDSY) || (SY != PERIOD)) {
+    while (sym != ENDSY || SY != PERIOD) {
         sym  =  SY;
         inSymbol();
     }
@@ -1630,8 +1631,8 @@ void error;
 {
     errors  =  true;
     bool110z  = ;
-    if (((linePos != prevErrPos) && (9 >= errsInLine))
-        || (errno == 52))
+    if ((linePos != prevErrPos && 9 >= errsInLine)
+        || errno == 52)
      {
         write(' ');
         totalErrors  =  totalErrors + 1;
@@ -1704,8 +1705,7 @@ var
     } else
         switch (SY) {
         IDENT: {
-            if ((hashTravPtr == NIL) ||
-               (hashTravPtr->cl != ENUMID))
+            if (hashTravPtr == NIL || hashTravPtr->cl != ENUMID)
                 goto 99;
             ret  =  hashTravPtr->typ;
             litValue@  =  hashTravPtr->value;
@@ -1762,8 +1762,8 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function isFileType(typtr: tptr): int;
 {
-    isFileType  =  (typtr->k == kindFile) ||
-        (typtr->k == kindStruct) && typtr->flag;
+    isFileType  =  typtr->k == kindFile ||
+        typtr->k == kindStruct && typtr->flag;
 } /* isFileType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1866,7 +1866,7 @@ function checkRecord(t1, t2: tptr): int;
 var
     done: int;
 {
-    done  =  (t1 == NIL) || (t2 == NIL);
+    done  =  t1 == NIL || t2 == NIL;
     if (done) {
         checkRecord  =  t1 == t2;
     } else {
@@ -1883,7 +1883,7 @@ var
     } else {
         baseType  =  type1;
     }
-    if (!checkTypes || (type1 == type2))
+    if (!checkTypes || type1 == type2)
 1:      typeCheck  =  true;
     else
         with type1@ do {
@@ -1905,30 +1905,30 @@ var
                         }
                         if ((enums1 == NIL) && (enums2 == NIL))
                             goto 1;
-                    } else if ((type1 == boolType) && (type2 == intType)
-                    || (type2 == boolType) && (type1 == intType))
+                    } else if (type1 == boolType && type2 == intType
+                    || type2 == boolType && type1 == intType)
                        goto 1;
                 }
                 kindRange: {
-                    baseMatch  =  (type1->base == type2->base);
+                    baseMatch  =  type1->base == type2->base;
                     baseType  =  type1->base;
-                    rangeMismatch  =  (type1->left != type2->left) ||
-                                (type1->right != type2->right);
+                    rangeMismatch  =  type1->left != type2->left ||
+                                type1->right != type2->right;
                     typeCheck  =  baseMatch;
                     exit;
                 }
                 kindPtr: {
-                    if ((type1 == pointerType) || (type2 == pointerType))
+                    if (type1 == pointerType || type2 == pointerType)
                         goto 1;
                     basetyp1  =  type1->base;
                     basetyp2  =  type2->base;
                     if (chain != NIL) {
                         link  =  chain;
                         while (link != NIL) with link@ do {
-                            if ((type1 == basetyp1) &&
-                               (type2 == basetyp2) ||
-                               (type2 == basetyp1) &&
-                               (type1 == basetyp2))
+                            if (type1 == basetyp1 &&
+                                type2 == basetyp2 ||
+                                type2 == basetyp1 &&
+                                type1 == basetyp2)
                                 goto 1;
                             link  =  next;
                         }
@@ -2186,7 +2186,7 @@ void addJumpInsn(opcode: int);
                 if (curVal.i < 2048)
                     addInsnToBuf(tempInsn + curInsn);
                 else
-(stmt)          if ((curVal.i >= 28672) || (curVal.i < 4096)) {
+(stmt)          if (curVal.i >= 28672 || curVal.i < 4096) {
                     addInsnToBuf(
                         allocSymtab((curVal.i | 040000000U) & halfWord)
                         + tempInsn - 28672);
@@ -2200,8 +2200,7 @@ void addJumpInsn(opcode: int);
     insnBufIdx  =  insnBufIdx-1;
     for (l4var4z = insnBufIdx; l4var4z >=1; l4var4z=l4var4z-1) {
         curInsn  =  insnBuf[l4var4z];
-        if ((curInsn == insnTemp[NTR]) ||
-           (curInsn == 0370007))
+        if (curInsn == insnTemp[NTR] || curInsn == 0370007)
          {
             l4var3z  =  l4var4z - 1;
             l4var213z  =  false;
@@ -2209,7 +2208,7 @@ void addJumpInsn(opcode: int);
                 exit loop;
             else {
                 tempInsn  =  insnBuf[l4var3z] & 03700000U;
-                if ((tempInsn == CUTC) || (tempInsn == CWTC))
+                if (tempInsn == CUTC || tempInsn == CWTC)
                  {
                     l4var3z  =  l4var3z-1;
                     goto loop;
@@ -2248,10 +2247,10 @@ void addJumpInsn(opcode: int);
                 } else if (curVal.i == insnTemp[ITA]) {
                     insnBuf[i]  =  insnBuf[i] | [35];
                     exit iter;
-                } else if ((curVal.i == insnTemp[NTR]) ||
-                    (tempInsn == insnTemp[UTC]) ||
-                    (tempInsn == insnTemp[WTC]) ||
-                    (tempInsn == insnTemp[VTM]))
+                } else if (curVal.i == insnTemp[NTR] ||
+                    tempInsn == insnTemp[UTC] ||
+                    tempInsn == insnTemp[WTC] ||
+                    tempInsn == insnTemp[VTM])
                     i  =  i + 1;
                 else {
                     i  =  insnBufIdx + 1;
@@ -2263,8 +2262,8 @@ void addJumpInsn(opcode: int);
         if (curInsn < macro) {
             form1Insn(curInsn);
             tempInsn  =  curInsn & [28:32];
-            if ((tempInsn == 03100000U) || /* VJM */
-               (tempInsn == 0500000U))    /* ELFUN */
+            if (tempInsn == 03100000U || /* VJM */
+               tempInsn == 0500000U)    /* ELFUN */
              {
                 padToLeft();
                 prevOpcode  =  1;
@@ -2410,8 +2409,8 @@ var
                 addInsnAndOffset(l4int2z + curInsnTemplate, l4int3z);
             } else {
                 l4var5z  =  l4typ4z->k;
-                if ((l4var5z < kindArray) ||
-                   (l4var5z == kindStruct) && (s6 in optSflags)) {
+                if (l4var5z < kindArray ||
+                   (l4var5z == kindStruct && s6 in optSflags)) {
                     l4bool7z  =  true;
                     l4bool8z  =  !(s9 in optSflags) &&
                                 typeCheck(l4typ4z, intType);
@@ -2420,9 +2419,9 @@ var
                     l4bool8z  =  false;
                 }
                 if (l4st6z == st1) {
-                    if ((l4int3z != l4int2z) ||
-                       (helper != 18) || /* P/RC */
-                       (l4int2z != 0))
+                    if (l4int3z != l4int2z ||
+                       helper != 18 || /* P/RC */
+                       l4int2z != 0)
                         addInsnAndOffset(l4int2z + insnTemp[XTA],
                                          l4int3z);
                     l4int3z  =  insnList->shift;
@@ -2581,7 +2580,7 @@ var
     }
     l4bool4z  =  0 in insnList->regsused;
     l4st6z  =  insnList->st;
-    if ((l4st6z != st0) || l4bool4z)
+    if (l4st6z != st0 || l4bool4z)
         addxToInsnList(macro + mcPUSH);
     if (l4st6z == st0) {
         if (l4bool4z) {
@@ -2594,8 +2593,8 @@ var
     } else {
         l4var7z  =  insnList->typ->k;
         l4int1z  =  insnList->typ->bits;
-        l4bool5z  =  (l4var7z < kindArray) ||
-                     (l4var7z == kindStruct) && ((E48 >> S6) & optSflags);
+        l4bool5z  =  l4var7z < kindArray ||
+                     (l4var7z == kindStruct && (E48 >> S6) & optSflags);
         if (l4st6z == st1) {
             l4int2z  =  insnList->shift;
             l4int3z  =  l4int2z + insnList->width;
@@ -5109,11 +5108,6 @@ var l4var3z: eptr;
                     goto 14650;
             }
         };
-        ANDOP: {
-            if ((arg1Type != boolType) && (arg1Type != intType))
-                goto 14650;
-            arg1Type = boolType;
-        };
         IDIVOP: {
             if (baseType != intType)
                 goto 14650;
@@ -5154,32 +5148,24 @@ var finalExpr: eptr;
     } else {
         new(finalExpr);
         with finalExpr@ do {
-            if (oper == OROP) {
-                if (match && ((arg1Type == boolType) ||
-                              (arg1Type == intType))) {
-                   typ = boolType;
-                   op = oper;
-                } else goto 15031;
-            } else  {
-               if (oper == SETOR) {
-                   op = oper;
-                   typ = arg2Type;
-               } else  if (match) {
-                    if (arg1Type == realType) {
-                        op = oper;
-                        typ = realType;
-                    } else if (baseType == intType) {
-                        op = iAddOpMap[oper];
-                        typ = intType;
-                    } else {
-                        goto 15031;
-                    }
-                } else if (areTypesCompatible(&leftExpr)) {
-                    finalExpr->typ = realType;
-                    finalExpr->op = oper;
-                } else
+            if (oper == SETOR) {
+                op = oper;
+                typ = arg2Type;
+            } else  if (match) {
+                if (arg1Type == realType) {
+                    op = oper;
+                    typ = realType;
+                } else if (baseType == intType) {
+                    op = iAddOpMap[oper];
+                    typ = intType;
+                } else {
                     goto 15031;
-            }
+                }
+            } else if (areTypesCompatible(&leftExpr)) {
+                finalExpr->typ = realType;
+                finalExpr->op = oper;
+            } else
+                goto 15031;
             finalExpr->expr1 = leftExpr;
             finalExpr->expr2 = curExpr;
             curExpr = finalExpr;
@@ -5223,6 +5209,24 @@ var ex1: eptr;
         curExpr = ex1;
     }
 } /* bldRelOp */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void bldLogOp(oper: operator; leftExpr: eptr; match: int);
+var finalExpr: eptr;
+{
+    if (!match || ((arg1Type != boolType) && (arg1Type != intType))) {
+        error(errNeedOtherTypesOfOperands);
+    } else {
+        new(finalExpr);
+        with finalExpr@ do {
+            typ = boolType;
+            op = oper;
+            expr1 = leftExpr;
+            expr2 = curExpr;
+            curExpr = finalExpr;
+        }
+    }
+} /* bldLogOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void factor;
@@ -5555,6 +5559,8 @@ var
             precMul: bldMulOp(oper, leftExpr, match);
             precAdd: bldAddOp(oper, leftExpr, match);
             precRel: bldRelOp(oper, leftExpr);
+            precAnd: bldLogOp(oper, leftExpr, match);
+            precOr: bldLogOp(oper, leftExpr, match);
         }
     }
 } /* parsePrc */
@@ -5577,7 +5583,7 @@ void expression;
         inSymbol();
     else
         readNext  =  true;
-    parsePrc(precRel);
+    parsePrc(precOr);
 } /* expression */
 //
 void assignStatement(doLHS: int); forward;
@@ -8115,7 +8121,13 @@ void initOptions;
     opPrec = precNone:48;
     opAssoc = leftAs:48;
 
-    /* Relational operators - precedence 1 */
+    /* Logical OR operators - precedence 1 (lowest) */
+    opPrec[OROP] = precOr;
+
+    /* Logical AND operators - precedence 2 */
+    opPrec[ANDOP] = precAnd;
+
+    /* Relational operators - precedence 3 */
     opPrec[NEOP] = precRel;
     opPrec[EQOP] = precRel;
     opPrec[LTOP] = precRel;
@@ -8124,16 +8136,14 @@ void initOptions;
     opPrec[LEOP] = precRel;
     opPrec[INOP] = precRel;
 
-    /* Additive operators - precedence 2 */
+    /* Additive operators - precedence 4 */
     opPrec[PLUSOP] = precAdd;
     opPrec[MINUSOP] = precAdd;
-    opPrec[OROP] = precAdd;
     opPrec[SETOR] = precAdd;
 
-    /* Multiplicative operators - precedence 3 */
+    /* Multiplicative operators - precedence 5 (highest) */
     opPrec[MUL] = precMul;
     opPrec[RDIVOP] = precMul;
-    opPrec[ANDOP] = precMul;
     opPrec[IDIVOP] = precMul;
     opPrec[IMODOP] = precMul;
     opPrec[SHLEFT] = precMul;

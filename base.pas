@@ -42,7 +42,8 @@ const
     errEOFEncountered = 52;
     errFirstDigitInCharLiteralGreaterThan3 = 60;
 %
-    precNone = 0;  precRel = 1;  precAdd = 2;  precMul = 3;
+    precNone = 0;  precOr = 1;  precAnd = 2;  precRel = 3;
+    precAdd = 4;  precMul = 5;
 %
     macro = 100000000B;
     mcACC2ADDR = 6;
@@ -5196,11 +5197,6 @@ var l4var3z: eptr;
                     goto 14650;
             }
         };
-        ANDOP: {
-                if (arg1Type<>booleanType) and (arg1Type<>integerType) then
-                    goto 14650;
-                arg1Type := booleanType;
-        };
         IDIVOP: {
             if (baseType <> integerType) then
                 goto 14650;
@@ -5239,32 +5235,24 @@ var
     } else {
         new(finalExpr);
         with finalExpr@ do {
-            if (oper = OROP) then {
-                if match and ((arg1Type = booleanType) or
-                              (arg1Type = integerType)) then {
-                   vt.typ := booleanType;
-                   op := oper
-                } else goto 15031;
-            } else  {
-               if (oper = SETOR) then {
-                   op := oper;
-                   vt.typ := arg2Type;
-               } else  if (match) then {
-                    if (arg1Type = realType) then {
-                        op := oper;
-                        vt.typ := realType;
-                    } else if (baseType = integerType) then {
-                        op := iAddOpMap[oper];
-                        vt.typ := integerType;
-                    } else {
-                        goto 15031
-                    }
-                } else if areTypesCompatible(leftExpr) then {
-                    finalExpr@.vt.typ := realType;
-                    finalExpr@.op := oper;
-                } else
+            if (oper = SETOR) then {
+                op := oper;
+                vt.typ := arg2Type;
+            } else  if (match) then {
+                if (arg1Type = realType) then {
+                    op := oper;
+                    vt.typ := realType;
+                } else if (baseType = integerType) then {
+                    op := iAddOpMap[oper];
+                    vt.typ := integerType;
+                } else {
                     goto 15031
-            };
+                }
+            } else if areTypesCompatible(leftExpr) then {
+                finalExpr@.vt.typ := realType;
+                finalExpr@.op := oper;
+            } else
+                goto 15031;
             finalExpr@.expr1 := leftExpr;
             finalExpr@.expr2 := curExpr;
             curExpr := finalExpr;
@@ -5309,6 +5297,25 @@ var ex1: eptr;
         curExpr := ex1;
     }
 }; (* bldRelOp *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure bldLogOp(oper: operator; leftExpr: eptr; match: boolean);
+var finalExpr: eptr;
+{
+    if (not match) or
+       ((arg1Type <> booleanType) and (arg1Type <> integerType)) then {
+        error(errNeedOtherTypesOfOperands);
+    } else {
+        new(finalExpr);
+        with finalExpr@ do {
+            vt.typ := booleanType;
+            op := oper;
+            expr1 := leftExpr;
+            expr2 := curExpr;
+            curExpr := finalExpr;
+        }
+    }
+}; (* bldLogOp *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure factor;
@@ -5662,6 +5669,8 @@ var
             precMul: bldMulOp(oper, leftExpr, match);
             precAdd: bldAddOp(oper, leftExpr, match);
             precRel: bldRelOp(oper, leftExpr);
+            precAnd: bldLogOp(oper, leftExpr, match);
+            precOr: bldLogOp(oper, leftExpr, match);
         end;
     }
 }; (* parsePrc *)
@@ -5684,7 +5693,7 @@ procedure expression;
         inSymbol
     else
         readNext := true;
-    parsePrc(precRel);
+    parsePrc(precOr);
 }; (* expression *)
 procedure assignStatement(doLHS: boolean); forward;
 %
@@ -8332,7 +8341,13 @@ procedure initOptions;
     opPrec := precNone:48;
     opAssoc := leftAs:48;
 %
-    (* Relational operators - precedence 1 *)
+    (* Logical OR operators - precedence 1 (lowest) *)
+    opPrec[OROP] := precOr;
+%
+    (* Logical AND operators - precedence 2 *)
+    opPrec[ANDOP] := precAnd;
+%
+    (* Relational operators - precedence 3 *)
     opPrec[NEOP] := precRel;
     opPrec[EQOP] := precRel;
     opPrec[LTOP] := precRel;
@@ -8341,16 +8356,14 @@ procedure initOptions;
     opPrec[LEOP] := precRel;
     opPrec[INOP] := precRel;
 %
-    (* Additive operators - precedence 2 *)
+    (* Additive operators - precedence 4 *)
     opPrec[PLUSOP] := precAdd;
     opPrec[MINUSOP] := precAdd;
-    opPrec[OROP] := precAdd;
     opPrec[SETOR] := precAdd;
 %
-    (* Multiplicative operators - precedence 3 *)
+    (* Multiplicative operators - precedence 5 (highest) *)
     opPrec[MUL] := precMul;
     opPrec[RDIVOP] := precMul;
-    opPrec[ANDOP] := precMul;
     opPrec[IDIVOP] := precMul;
     opPrec[IMODOP] := precMul;
     opPrec[SHLEFT] := precMul;
