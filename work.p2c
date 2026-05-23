@@ -129,6 +129,7 @@ const
 //
     intZero = 0;
     halfWord  =  077777777U;
+    all1 = 07777777777777777U;
     extSymMask  =  043000000U;
     maxLineLen = 130;
     /*=A3*/
@@ -2415,13 +2416,13 @@ var
                                 addToInsnList(ASN64 + l4int3z);
                         }
                         if (l4bool9z) {
-                            curVal.i  =  (~0U) >> (48 - l4int2z);
+                            curVal.i  =  all1 >> (48 - l4int2z);
                             addToInsnList(KAAX+I8 + getFCSToffset());
                         }
                     } else {
                         if (helper != 48)
                             addToInsnList(ASN64-48 + helper);
-                        curVal.i  =  (~0U) << (48 - l4int2z);
+                        curVal.i  =  all1 << (48 - l4int2z);
                         addToInsnList(KAAX+I8 + getFCSToffset());
                     }
                     if (l4bool8z)
@@ -2584,7 +2585,7 @@ var
             addInsnAndOffset(insnTemp[UTC] + insnList->ilf5,
                              insnList->ilf6);
             // binary negation of [(48-l4int3z)..(47 -l4int2z)]
-            curVal.i = (~0U) << l4int3z | (~0U) >> (48-l4int2z);
+            curVal.i = all1 << l4int3z | all1 >> (48-l4int2z);
             addInsnAndOffset(macro+mcPCKSTORE, getFCSToffset());
         } else {
             if (not l4bool5z) {
@@ -3583,11 +3584,11 @@ var
                     if (arg2Const) {
                         prepLoad();
                         if ((s9 in optSflags) && (card(arg2Val.i) == 1)) {
-                            curVal.i  =  (~0U) >> (minel(arg2Val.i)+1);
+                            curVal.i  =  all1 >> (minel(arg2Val.i)+1);
                             addToInsnList(KAAX+I8 +getFCSToffset());
                             l3int3z  =  0;
                         } else if (card(arg2Val.i) == 4) {
-                            curVal.i = intZero|((~0U) >> (minel(arg2Val.i & (~intZero))+1));
+                            curVal.i = intZero|(all1 >> (minel(arg2Val.i & (~intZero))+1));
                             addToInsnList(KAAX+I8 +getFCSToffset());
                             l3int3z  =  0;
                         } else {
@@ -5058,6 +5059,7 @@ var finalExpr: eptr;
 {
     if (arg1Type->k != kindScalar || arg2Type->k != kindScalar) {
         error(errNeedOtherTypesOfOperands);
+        curExpr = uVarPtr;
         exit;
     }
     new(finalExpr);
@@ -5072,6 +5074,7 @@ var finalExpr: eptr;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void bldArithOp(oper: operator; leftExpr: eptr; match: int);
+label 1;
 var
     finalExpr: eptr;
     k1, k2: kind;
@@ -5080,18 +5083,20 @@ var
     k2 = arg2Type->k;
     if (k1 > kindScalar || k2 > kindScalar) {
         error(errNeedOtherTypesOfOperands);
+1:      curExpr = uVarPtr;
         exit;
     }
     new(finalExpr);
     with finalExpr@ do {
         if (k1 == kindReal || k2 == kindReal) {
             if (oper == IMODOP) {
-                error(62); // errIntNeeded);
-                exit;
+                error(62); // errIntNeeded
+                goto 1;
             }
-            if (oper == RDIVOP && k1 != kindReal) {
+            if (k1 != kindReal)
                 castToReal(&curExpr);
-            }
+            if (k2 != kindReal)
+                castToReal(&leftExpr);
             op = oper;
             typ = realType;
         } else {
@@ -5106,20 +5111,24 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void bldRelOp(oper: operator; ex2: eptr);
+label 1;
 var ex1: eptr;
 {
     if (typeCheck(arg1Type, arg2Type)) {
         if ((arg1Type->k == kindFile) ||
             (arg1Type->size != 1) &&
             (oper >= LTOP) &&
-            !isCharArray(arg1Type))
-            error(errNeedOtherTypesOfOperands);
+            !isCharArray(arg1Type)) {
+1:          error(errNeedOtherTypesOfOperands);
+            curExpr = uVarPtr;
+            exit;
+        }
     } else  {
         if (!areTypesCompatible(&ex2) &&
             ((arg1Type != intType) ||
             !(arg2Type->k IN [kindScalar, kindRange]) ||
             (oper != INOP))) {
-            error(errNeedOtherTypesOfOperands);
+            goto 1;
         }
     }
     new(ex1);
@@ -5147,6 +5156,7 @@ var finalExpr: eptr;
 {
     if (!match || ((arg1Type != boolType) && (arg1Type != intType))) {
         error(errNeedOtherTypesOfOperands);
+        finalExpr = uVarPtr;
     } else {
         new(finalExpr);
         with finalExpr@ do {
@@ -5154,9 +5164,9 @@ var finalExpr: eptr;
             op = oper;
             expr1 = leftExpr;
             expr2 = curExpr;
-            curExpr = finalExpr;
         }
     }
+    curExpr = finalExpr;
 } /* bldLogOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5336,7 +5346,7 @@ var
                     l4var3z  =  l4var3z & (~intZero);
                     l4var1z  =  l4var1z |
                     // [l4var4z..l4var3z];
-                    (((~0U) >> l4var4z) ^ ((~0U) >> 1 >> l4var3z));
+                    ((all1 >> l4var4z) ^ (all1 >> 1 >> l4var3z));
                     curExpr  =  newExpr;
                     goto 14567;
                 } else {
@@ -6816,7 +6826,7 @@ var
     arithMode  =  1;
     set146z  =  0U;
     // [curProcNesting+1..6];
-    freeRegs  = ((~0U) >> 1 >> curProcNesting) & ((~0U) << 41);
+    freeRegs  = (all1 >> 1 >> curProcNesting) & (all1 << 41);
     set148z  =  freeRegs & (~(E48 >> minel(freeRegs)));
     l3var7z  =  freeRegs;
     exitTarget  =  0;
