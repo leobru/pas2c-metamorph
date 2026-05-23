@@ -5268,165 +5268,151 @@ var
 { /* factor */
     l4var2z  =  bool47z;
     bool47z  =  false;
-    if (SY < MULOP) {
-        switch (SY) {
-        IDENT: {
-            if (hashTravPtr == NIL) {
-                error(errNotDefined);
+    switch (SY) {
+    IDENT: {
+        if (hashTravPtr == NIL) {
+            error(errNotDefined);
+            curExpr  =  uVarPtr;
+        } else
+            switch (hashTravPtr->cl) {
+            TYPEID: {
+                error(23); /* errTypeIdInsteadOfVar */
                 curExpr  =  uVarPtr;
-            } else
-                switch (hashTravPtr->cl) {
-                TYPEID: {
-                    error(23); /* errTypeIdInsteadOfVar */
-                    curExpr  =  uVarPtr;
+            }
+            ENUMID: {
+                new(curExpr);
+                with curExpr@ do {
+                    typ  =  hashTravPtr->typ;
+                    op  =  GETENUM;
+                    num1  =  hashTravPtr->value;
+                    num2  =  0;
                 }
-                ENUMID: {
-                    new(curExpr);
-                    with curExpr@ do {
-                        typ  =  hashTravPtr->typ;
-                        op  =  GETENUM;
-                        num1  =  hashTravPtr->value;
-                        num2  =  0;
+                inSymbol();
+            }
+            ROUTINEID: {
+                routine  =  hashTravPtr;
+                inSymbol();
+                if (routine->offset == 0) {
+                    if ((routine->typ != NIL) &&
+                       (SY == LPAREN)) {
+                        stdCall();
+                        exit;
                     }
-                    inSymbol();
-                }
-                ROUTINEID: {
-                    routine  =  hashTravPtr;
-                    inSymbol();
-                    if (routine->offset == 0) {
-                        if ((routine->typ != NIL) &&
-                           (SY == LPAREN)) {
-                            stdCall();
-                            exit;
-                        }
-                        error(44); /* errIncorrectUsageOfStandProcOrFunc */
-                    } else if (routine->typ == NIL) {
-                        if (l4var2z) {
-                            l4op10z  =  PCALL;
-                        } else {
-                            error(68); /* errUsingVoidInExpression */
-                        }
-                   } else {
-                        if (SY == LPAREN) {
-                            parseCallArgs(routine);
-                            exit;
-                        }
-                        if (l4var2z) {
-                            l4op10z  =  FCALL;
-                        } else {
-                            parseCallArgs(routine);
-                            exit;
-                        }
-                    }
-                    new(curExpr);
-                    if (not (SY IN [RPAREN, COMMA])) {
-                        error(errNoCommaOrParenOrTooFewArgs);
-                        goto 8888;
-                    }
-                    with curExpr@ do {
-                        typ  =  routine->typ;
-                        op  =  l4op10z;
-                        expr1  =  NIL;
-                        id2  =  routine;
-                    }
-                }
-                VARID, FORMALID, FIELDID:
-                    parseLval();
-                } /* switch */
-        }
-        LPAREN: {
-            expression();
-            checkSymAndRead(RPAREN);
-        }
-        INTCONST, REALCONST, CHARCONST, LTSY: {
-            new(curExpr);
-            curExpr->typ = parseLiteral(&curExpr->num1, false);
-            curExpr->num2  =  ord(numFormat);
-            curExpr->op  =  GETENUM;
-            inSymbol();
-        }
-        LBRACK: {
-            new(curExpr);
-            inSymbol();
-            l4var8z  =  curExpr;
-            l4var1z  =  0U;
-            if (SY != RBRACK) {
-                l4var12z  =  true;
-                readNext  =  false;
-                do {
-                    newExpr  =  curExpr;
-                    expression();
-                    if (l4var12z) {
-                        l4typ11z  =  curExpr->typ;
-                        if (not (l4typ11z->k IN [kindScalar, kindRange]))
-                            error(23); /* errTypeIdInsteadOfVar */
+                    error(44); /* errIncorrectUsageOfStandProcOrFunc */
+                } else if (routine->typ == NIL) {
+                    if (l4var2z) {
+                        l4op10z  =  PCALL;
                     } else {
-                        if (not typeCheck(l4typ11z, curExpr->typ))
-                            error(24); /*errIncompatibleExprsInSetCtor*/
+                        error(68); /* errUsingVoidInExpression */
                     }
-                    l4var12z  =  false;
-                    l4exp5z  =  curExpr;
-                    if (SY == COLON) {
-                        expression();
-                        if (not typeCheck(l4typ11z, curExpr->typ))
-                            error(24); /*errIncompatibleExprsInSetCtor*/
-                        if ((l4exp5z->op != GETENUM) ||
-                           (curExpr->op != GETENUM))
-                            error(errNoConstant);
+               } else {
+                    if (SY == LPAREN) {
+                        parseCallArgs(routine);
+                        exit;
+                    }
+                    if (l4var2z) {
+                        l4op10z  =  FCALL;
+                    } else {
+                        parseCallArgs(routine);
+                        exit;
+                    }
+                }
+                new(curExpr);
+                if (not (SY IN [RPAREN, COMMA])) {
+                    error(errNoCommaOrParenOrTooFewArgs);
+                    goto 8888;
+                }
+                with curExpr@ do {
+                    typ  =  routine->typ;
+                    op  =  l4op10z;
+                    expr1  =  NIL;
+                    id2  =  routine;
+                }
+            }
+            VARID, FORMALID, FIELDID:
+                parseLval();
+            } /* switch */
+    }
+    LPAREN: {
+        expression();
+        checkSymAndRead(RPAREN);
+    }
+    INTCONST, REALCONST, CHARCONST, LTSY: {
+        new(curExpr);
+        curExpr->typ = parseLiteral(&curExpr->num1, false);
+        curExpr->num2  =  ord(numFormat);
+        curExpr->op  =  GETENUM;
+        inSymbol();
+    }
+    LBRACK: {
+        new(curExpr);
+        inSymbol();
+        l4var8z  =  curExpr;
+        l4var1z  =  0U;
+        if (SY != RBRACK) {
+            l4var12z  =  true;
+            readNext  =  false;
+            do {
+                newExpr  =  curExpr;
+                expression();
+                if (l4var12z) {
+                    l4typ11z  =  curExpr->typ;
+                    if (not (l4typ11z->k IN [kindScalar, kindRange]))
+                        error(23); /* errTypeIdInsteadOfVar */
+                } else {
+                    if (not typeCheck(l4typ11z, curExpr->typ))
+                        error(24); /*errIncompatibleExprsInSetCtor*/
+                }
+                l4var12z  =  false;
+                l4exp5z  =  curExpr;
+                if (SY == COLON) {
+                    expression();
+                    if (not typeCheck(l4typ11z, curExpr->typ))
+                        error(24); /*errIncompatibleExprsInSetCtor*/
+                    if ((l4exp5z->op != GETENUM) ||
+                       (curExpr->op != GETENUM))
+                        error(errNoConstant);
+                    l4var4z  =  l4exp5z->num1;
+                    l4var3z  =  curExpr->num1;
+                    l4var4z  =  l4var4z & (~intZero);
+                    l4var3z  =  l4var3z & (~intZero);
+                    l4var1z  =  l4var1z |
+                    // [l4var4z..l4var3z];
+                    (((~0U) >> l4var4z) ^ ((~0U) >> 1 >> l4var3z));
+                    curExpr  =  newExpr;
+                    goto 14567;
+                } else {
+                    if (l4exp5z->op == GETENUM) {
                         l4var4z  =  l4exp5z->num1;
-                        l4var3z  =  curExpr->num1;
                         l4var4z  =  l4var4z & (~intZero);
-                        l4var3z  =  l4var3z & (~intZero);
-                        l4var1z  =  l4var1z |
-                        // [l4var4z..l4var3z];
-                        (((~0U) >> l4var4z) ^ ((~0U) >> 1 >> l4var3z));
+                        l4var1z  =  l4var1z | (E48 >> l4var4z);
                         curExpr  =  newExpr;
                         goto 14567;
-                    } else {
-                        if (l4exp5z->op == GETENUM) {
-                            l4var4z  =  l4exp5z->num1;
-                            l4var4z  =  l4var4z & (~intZero);
-                            l4var1z  =  l4var1z | (E48 >> l4var4z);
-                            curExpr  =  newExpr;
-                            goto 14567;
-                        }
-                        error(errNoConstant);
                     }
-                    new(curExpr);
-                    with curExpr@ do {
-                        typ  =  intType;
-                        op  =  SETOR;
-                        expr1  =  newExpr;
-                        expr2  =  l4exp5z;
-                    }
-14567:              ;
-                } while (SY == COMMA);
-            }
-            checkSymAndRead(RBRACK);
-            with l4var8z@ do {
-                op  =  GETENUM;
-                typ  =  intType;
-                num1  =  l4var1z;
-            }
+                    error(errNoConstant);
+                }
+                new(curExpr);
+                with curExpr@ do {
+                    typ  =  intType;
+                    op  =  SETOR;
+                    expr1  =  newExpr;
+                    expr2  =  l4exp5z;
+                }
+14567:          ;
+            } while (SY == COMMA);
         }
-        } /* switch */
-    } else if (charClass == SETAND) {
-        inSymbol();
-        factor();
-        if (not (curExpr@.op IN lvalOpSet))
-            error(27); // errExpressionWhereVariableExpected
-        newExpr = curExpr;
-        new(curExpr);
-        with curExpr@ do {
-            typ = voidPtr;
-            op  =  STANDPROC;
-            expr1  =  newExpr;
-            num2  =  fnREF;
+        checkSymAndRead(RBRACK);
+        with l4var8z@ do {
+            op  =  GETENUM;
+            typ  =  intType;
+            num1  =  l4var1z;
         }
-    } else {
+    };
+    default: {
         error(errBadSymbol);
         goto 8888;
     }
+    } /* switch */
 } /* factor */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5435,9 +5421,11 @@ var
     oper: operator;
     leftExpr: eptr;
     isNot: int;
+    isSetand: int;
 {
     oper = NOOP;
     isNot = false;
+    isSetand = false;
     if (SY == NOTSY) {
         if (charClass == BITNEGOP)
             oper = BITNEGOP;
@@ -5447,6 +5435,9 @@ var
     } else if (charClass IN [PLUSOP, MINUSOP]) {
         if (charClass != PLUSOP)
             oper = charClass;
+        inSymbol();
+    } else if (charClass == SETAND) {
+        isSetand = true;
         inSymbol();
     }
     factor();
@@ -5491,6 +5482,18 @@ var
             }
             curExpr = leftExpr;
         }
+    }
+    if (isSetand) {
+        if (not (curExpr->op IN lvalOpSet))
+            error(27); /* errExpressionWhereVariableExpected */
+        new(leftExpr);
+        with leftExpr@ do {
+            typ = voidPtr;
+            op = STANDPROC;
+            expr1 = curExpr;
+            num2 = fnREF;
+        }
+        curExpr = leftExpr;
     }
 } /* parseUnaryExpression */
 //

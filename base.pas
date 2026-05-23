@@ -5380,7 +5380,7 @@ var
 { (* factor *)
     l4var2z := bool47z;
     bool47z := false;
-    if (SY < MULOP) then {
+    if (SY IN [IDENT,INTCONST,REALCONST,CHARCONST,LTSY,LPAREN,LBRACK]) then {
         case SY of
         IDENT: {
             if (hashTravPtr = NIL) then {
@@ -5522,19 +5522,6 @@ var
             }
         };
         end; (* case *)
-    } else if (charClass = SETAND) then {
-        inSymbol;
-        factor;
-        if not (curExpr@.op IN lvalOpSet) then
-            error(27); (* errExpressionWhereVariableExpected *)
-        newExpr := curExpr;
-        new(curExpr);
-        with curExpr@ do {
-            vt.typ := voidPtr;
-            op  :=  STANDPROC;
-            expr1  :=  newExpr;
-            num2  :=  fnREF;
-        }
     } else {
         error(errBadSymbol);
         goto 8888;
@@ -5548,9 +5535,11 @@ var
     oper: operator;
     leftExpr: eptr;
     isNot: boolean;
+    isSetand: boolean;
 {
     oper := NOOP;
     isNot := false;
+    isSetand := false;
     if (SY = NOTSY) then {
         if (charClass = BITNEGOP) then
             oper := BITNEGOP
@@ -5561,10 +5550,13 @@ var
         if (charClass <> PLUSOP) then
             oper := charClass;
         inSymbol;
+    } else if (charClass = SETAND) then {
+        isSetand := true;
+        inSymbol;
     };
     factor;
 (unaryex)
-    if (oper <> NOOP) or isNot then {
+    if (oper <> NOOP) or isNot or isSetAnd then {
         arg1Type := curExpr@.vt.typ;
         new(leftExpr);
         with leftExpr@ do {
@@ -5581,7 +5573,6 @@ var
                     exit unaryex
                 };
             } else if oper = BITNEGOP then {
-writeln(' BITNEGOP handled in parseUnaryExpression');
                 if typeCheck(arg1Type, integerType) then {
                     leftExpr@.op := BITNEGOP;
                     leftExpr@.vt.typ := integerType;
@@ -5590,7 +5581,6 @@ writeln(' BITNEGOP handled in parseUnaryExpression');
                     exit unaryex
                 };
             } else if isNot then {
-writeln(' NOTSY handled in parseUnaryExpression');
                 leftExpr@.vt.typ := booleanType;
                 if (arg1Type = booleanType) then {
                     leftExpr@.op := NOTOP;
@@ -5602,6 +5592,15 @@ writeln(' NOTSY handled in parseUnaryExpression');
                     error(errNeedOtherTypesOfOperands);
                     exit unaryex
                 };
+            } else if isSetand then {
+                if not (curExpr@.op IN lvalOpSet) then
+                    error(27); (* errExpressionWhereVariableExpected *)
+                with leftExpr@ do {
+                    vt.typ := voidPtr;
+                    op := STANDPROC;
+                    expr1 := curExpr;
+                    num2 := fnREF;
+                }
             };
             curExpr := leftExpr;
         }
