@@ -41,8 +41,10 @@ const
     errEOFEncountered = 52;
     errFirstDigitInCharLiteralGreaterThan3 = 60;
 //
-    precNone = 0;  precOr = 1;  precAnd = 2;  precRel = 3;
-    precAdd = 4;  precMul = 5;
+    precNone = 0;   precOr = 1;      precAnd = 2;
+    precBitOr = 3;  precBitXor = 4;  precBitAnd = 5;
+    precEq = 6;     precRel = 7;     precShift = 8;
+    precAdd = 9;    precMul = 10;
 //
     macro = 0100000000;
     mcJUMP = 2;
@@ -741,7 +743,7 @@ var
             exit; /* no use in UJ after UJ */
         if (putLeft && (prevOpcode == 1)) {
             pos  =  objBufIdx - 1;
-            if (objBuffer[pos] & [0..8] == [0, 1, 3..5, 8]) {
+            if ((objBuffer[pos] & [0..8]) == [0, 1, 3..5, 8]) {
                 prevOpcode  =  opcode;
                 half1 = (insn & 077777U) << 24;
                 half2 = (objBuffer[pos] >> 24) & 077777U;
@@ -849,7 +851,7 @@ function allocExtSymbol(sym: int): int;
 var i: int;
 {
     allocExtSymbol  =  symTabPos;
-    if (curVal.i & halfWord != 0U) {
+    if ((curVal.i & halfWord) != 0U) {
         for (i = 1; i <= longSymCnt; i=i+1)
             if (curVal.i == longSyms[i]) {
                 allocExtSymbol  =  longSym[i];
@@ -1307,7 +1309,7 @@ var
                             numstr[tokenIdx].i & [45..47];
                     }
                     if ((numFormat == OCTAL) && !(s9 in optSflags)) {
-                        if (curToken.i & [0..6] != 0U) {
+                        if ((curToken.i & [0..6]) != 0U) {
                             error(errNumberTooLarge);
                             curToken.i  =  1;
                         } else
@@ -1784,7 +1786,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function leftAlign(val:int): int;
 {
-    while (val & [0..5] == 0U) {
+    while ((val & [0..5]) == 0U) {
         val  =  val << 6;
     }
     leftAlign  =  val;
@@ -2099,7 +2101,7 @@ void addJumpInsn(opcode: int);
             }
             mcCOND2INT: addInsnToBuf(3*macro + curInsn);
             mcPOP: {
-                if (insnBuf[insnBufIdx-1] & [21:23, 28:35] == 0U)
+                if ((insnBuf[insnBufIdx-1] & [21:23, 28:35]) == 0U)
                     insnBuf[insnBufIdx-1]  =  insnBuf[insnBufIdx-1] | [35];
                 else
                     addInsnToBuf(KXTA+SP);
@@ -2108,7 +2110,7 @@ void addJumpInsn(opcode: int);
 (blk)       {
                 if (l4oi212z != NIL) {
                     tempInsn  =  l4oi212z->code;
-                    if (tempInsn & [21:23, 28:35] == [32]) {
+                    if ((tempInsn & [21:23, 28:35]) == [32]) {
                         l4oi212z->code  =
                             tempInsn - insnTemp[XTA] + insnTemp[XTS];
                         exit blk;
@@ -3098,7 +3100,7 @@ var
 function allocGlobalObject(arg: irptr): int;
 {
     if (arg->pos == 0) {
-        if (arg->flags & [20, 21] != 0U) {
+        if ((arg->flags & [20, 21]) != 0U) {
             curVal.i  =  leftAlign(arg->id);
             arg->pos  =  allocExtSymbol(extSymMask);
         } else {
@@ -3309,7 +3311,7 @@ var
             }
         }
     }
-    if (not l5bool9z || ([20, 21] & l5var12z != 0U)) {
+    if (not l5bool9z || ([20, 21] & l5var12z) != 0U) {
         addToInsnList(KVTM+040074001);
     }
     set145z  =  (set145z | l5var12z) & [1:15];
@@ -5250,7 +5252,7 @@ var
     asBitset  =  E48 >> stProcNo;
     if ((asBitset & checkMode) == 0U)
         error(errNeedOtherTypesOfOperands);
-    if (asBitset & [fnABS, fnSUCC, fnPRED] == 0U) {
+    if ((asBitset & [fnABS, fnSUCC, fnPRED]) == 0U) {
         arg1Type  =  routine->typ;
     } else if ((arg1Type == intType) && (stProcNo == fnABS)) {
         stProcNo  =  fnABSI;
@@ -5535,7 +5537,12 @@ var
         switch (curPrec) {
             precMul: bldMulOp(oper, leftExpr, match);
             precAdd: bldAddOp(oper, leftExpr, match);
+            precShift: bldMulOp(oper, leftExpr, match);
             precRel: bldRelOp(oper, leftExpr);
+            precEq: bldRelOp(oper, leftExpr);
+            precBitAnd: bldMulOp(oper, leftExpr, match);
+            precBitXor: bldMulOp(oper, leftExpr, match);
+            precBitOr: bldAddOp(oper, leftExpr, match);
             precAnd: bldLogOp(oper, leftExpr, match);
             precOr: bldLogOp(oper, leftExpr, match);
         }
@@ -6217,7 +6224,7 @@ function parseWidthSpecifier: eptr;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void callHelperWithArg;
 {
-    if (([12] & set145z != 0U) || l4bool12z) {
+    if (([12] & set145z) != 0U || l4bool12z) {
         curExpr  =  workExpr;
         formOperator(gen8);
     }
@@ -6903,7 +6910,7 @@ var
     if (exitTarget != 0)
         P0715(0, exitTarget);
     if (not bool48z && not doPMD && (sizeCount == 3) &&
-       (curProcNesting != 1) && (set145z & [1:15] != [1:15])) {
+       (curProcNesting != 1) && (set145z & [1:15]) != [1:15]) {
         objBuffer[0]  =  0037000702200000U; // NTR 7; UTC
         with l2idr2z@ do
             flags  =  flags | [25];
@@ -8102,29 +8109,39 @@ void initOptions;
     /* Logical AND operators - precedence 2 */
     opPrec[ANDOP] = precAnd;
 
-    /* Relational operators - precedence 3 */
-    opPrec[NEOP] = precRel;
-    opPrec[EQOP] = precRel;
+    /* Bitwise OR - precedence 3 */
+    opPrec[SETOR] = precBitOr;
+
+    /* Bitwise XOR - precedence 4 */
+    opPrec[SETXOR] = precBitXor;
+
+    /* Bitwise AND - precedence 5 */
+    opPrec[SETAND] = precBitAnd;
+
+    /* Equality operators - precedence 6 */
+    opPrec[NEOP] = precEq;
+    opPrec[EQOP] = precEq;
+
+    /* Relational operators - precedence 7 */
     opPrec[LTOP] = precRel;
     opPrec[GEOP] = precRel;
     opPrec[GTOP] = precRel;
     opPrec[LEOP] = precRel;
     opPrec[INOP] = precRel;
 
-    /* Additive operators - precedence 4 */
+    /* Shift operators - precedence 8 */
+    opPrec[SHLEFT] = precShift;
+    opPrec[SHRIGHT] = precShift;
+
+    /* Additive operators - precedence 9 */
     opPrec[PLUSOP] = precAdd;
     opPrec[MINUSOP] = precAdd;
-    opPrec[SETOR] = precAdd;
 
-    /* Multiplicative operators - precedence 5 (highest) */
+    /* Multiplicative operators - precedence 10 (highest) */
     opPrec[MUL] = precMul;
     opPrec[RDIVOP] = precMul;
     opPrec[IDIVOP] = precMul;
     opPrec[IMODOP] = precMul;
-    opPrec[SHLEFT] = precMul;
-    opPrec[SHRIGHT] = precMul;
-    opPrec[SETAND] = precMul;
-    opPrec[SETXOR] = precMul;
 
     helperMap    =  0:102;
     /*=A3*/

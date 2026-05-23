@@ -42,8 +42,10 @@ const
     errEOFEncountered = 52;
     errFirstDigitInCharLiteralGreaterThan3 = 60;
 %
-    precNone = 0;  precOr = 1;  precAnd = 2;  precRel = 3;
-    precAdd = 4;  precMul = 5;
+    precNone = 0;   precOr = 1;      precAnd = 2;
+    precBitOr = 3;  precBitXor = 4;  precBitAnd = 5;
+    precEq = 6;     precRel = 7;     precShift = 8;
+    precAdd = 9;    precMul = 10;
 %
     macro = 100000000B;
     mcACC2ADDR = 6;
@@ -5645,7 +5647,12 @@ var
         case curPrec of
             precMul: bldMulOp(oper, leftExpr, match);
             precAdd: bldAddOp(oper, leftExpr, match);
+            precShift: bldMulOp(oper, leftExpr, match);
             precRel: bldRelOp(oper, leftExpr);
+            precEq: bldRelOp(oper, leftExpr);
+            precBitAnd: bldMulOp(oper, leftExpr, match);
+            precBitXor: bldMulOp(oper, leftExpr, match);
+            precBitOr: bldAddOp(oper, leftExpr, match);
             precAnd: bldLogOp(oper, leftExpr, match);
             precOr: bldLogOp(oper, leftExpr, match);
         end;
@@ -8327,29 +8334,39 @@ procedure initOptions;
     (* Logical AND operators - precedence 2 *)
     opPrec[ANDOP] := precAnd;
 %
-    (* Relational operators - precedence 3 *)
-    opPrec[NEOP] := precRel;
-    opPrec[EQOP] := precRel;
+    (* Bitwise OR - precedence 3 *)
+    opPrec[SETOR] := precBitOr;
+%
+    (* Bitwise XOR - precedence 4 *)
+    opPrec[SETXOR] := precBitXor;
+%
+    (* Bitwise AND - precedence 5 *)
+    opPrec[SETAND] := precBitAnd;
+%
+    (* Equality operators - precedence 6 *)
+    opPrec[NEOP] := precEq;
+    opPrec[EQOP] := precEq;
+%
+    (* Relational operators - precedence 7 *)
     opPrec[LTOP] := precRel;
     opPrec[GEOP] := precRel;
     opPrec[GTOP] := precRel;
     opPrec[LEOP] := precRel;
     opPrec[INOP] := precRel;
 %
-    (* Additive operators - precedence 4 *)
+    (* Shift operators - precedence 8 *)
+    opPrec[SHLEFT] := precShift;
+    opPrec[SHRIGHT] := precShift;
+%
+    (* Additive operators - precedence 9 *)
     opPrec[PLUSOP] := precAdd;
     opPrec[MINUSOP] := precAdd;
-    opPrec[SETOR] := precAdd;
 %
-    (* Multiplicative operators - precedence 5 (highest) *)
+    (* Multiplicative operators - precedence 10 (highest) *)
     opPrec[MUL] := precMul;
     opPrec[RDIVOP] := precMul;
     opPrec[IDIVOP] := precMul;
     opPrec[IMODOP] := precMul;
-    opPrec[SHLEFT] := precMul;
-    opPrec[SHRIGHT] := precMul;
-    opPrec[SETAND] := precMul;
-    opPrec[SETXOR] := precMul;
 %
     helperNames :=
         6017210000000000C      (*"P/1     "*),
