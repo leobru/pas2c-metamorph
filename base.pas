@@ -4881,6 +4881,74 @@ var
 }; (* parseDecls *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure labCheckAndDefine(upto: @numlabel; mode: integer);
+label 1;
+{
+% mode 1 - LABEL declaration
+% mode 2 - definition
+% mode 3 - goto
+    labIter := numLabList;
+    while (labIter <> upto) and (labIter@.id <> curToken) do
+        labIter := labIter@.next;
+    if (mode = 1) and (labIter <> upto) then {
+1:      errLine := labIter@.line;
+        error(17); (* errLblAlreadyDefinedInLine *)
+        exit;
+    };
+    if (labIter = upto) then {
+        if (mode = 1) then {
+            new(labIter);
+            with labIter@ do {
+                id := curToken;
+                frame := curFrameRegTemplate;
+                offset := 0;
+                line := lineCnt;
+                defined := false;
+                next := numLabList;
+            };
+            numLabList := labIter;
+        } else {
+            if (mode = 2) then
+                error(16) (* errLblNotDefinedInBlock *)
+            else
+                error(18); (* errLblNotDefined *)
+            exit;
+        }
+    };
+    with labIter@ do {
+        if (mode = 2) then {
+            if defined then goto 1;
+            line := lineCnt;
+            defined := true;
+            if offset = 0 then {
+                (* empty *)
+            } else if (offset >= 74000B) then {
+                curVal.i := moduleOffset - 40000B;
+                symTab[offset] := [24,29] + curVal.m * O77777;
+            } else {
+                P0715(0, offset);
+            };
+            offset := moduleOffset;
+        } else if (mode = 3) then {
+            if (curFrameRegTemplate = frame) then {
+                if (offset >= 40000B) then {
+                    form1Insn(insnTemp[UJ] + offset);
+                } else {
+                    formJump(offset);
+                }
+            } else {
+                if offset = 0 then {
+                    offset := symTabPos;
+                    putToSymTab([]);
+                };
+                form3Insn(frame + (KMTJ + 13), KVTM+I14 + offset,
+                          getHelperProc(18(*"P/RC"*)) + (-64100000B));
+            };
+        }
+    }
+};
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure statement;
 label
     8888;
@@ -6735,33 +6803,7 @@ procedure setStrLab(forGoto: boolean);
             disableNorm;
             flag := true;
             padToLeft;
-            (loop) if numLabPtr <> labFence then with numLabPtr@ do {
-                if id <> curToken then {
-                    numLabPtr := next;
-                    goto loop;
-                };
-                flag := false;
-                if (defined) then {
-                    curVal.i := line;
-                    error(17); (* errLblAlreadyDefinedInLine *);
-                } else {
-                    numLabPtr@.line := lineCnt;
-                    numLabPtr@.defined := true;
-                    padToLeft;
-                    if numLabPtr@.offset = 0 then {
-                        (* empty *)
-                    } else if (numLabPtr@.offset >= 74000B) then {
-                        curVal.i := (moduleOffset - 40000B);
-                        symTab[numLabPtr@.offset] := [24,29] +
-                                                     curVal.m * O77777;
-                    } else {
-                        P0715(0, numLabPtr@.offset);
-                    };
-                    numLabPtr@.offset := moduleOffset;
-                };
-            };
-            if (flag) then
-                error(16); (* errLblNotDefinedInBlock *);
+            labCheckAndDefine(labFence, 2);
             inSymbol;
             checkSymAndRead(COLON);
         }; (* 20355*)
@@ -6840,30 +6882,7 @@ procedure setStrLab(forGoto: boolean);
                     goto 8888;
             };
             disableNorm;
-            numLabPtr := numLabList;
-(loop)      if (numLabPtr <> NIL) then with numLabPtr@ do {
-                if (id <> curToken) then {
-                    numLabPtr := next;
-                } else {
-                    if (curFrameRegTemplate = frame) then {
-                        if (offset >= 40000B) then {
-                            form1Insn(insnTemp[UJ] + offset);
-                        } else {
-                            formJump(offset);
-                        }
-                    } else {
-                        if offset = 0 then {
-                            offset := symTabPos;
-                            putToSymTab([]);
-                        };
-                        form3Insn(frame + (KMTJ + 13), KVTM+I14 + offset,
-                                  getHelperProc(18(*"P/RC"*)) + (-64100000B));
-                    };
-                    exit loop;
-                };
-                goto loop;
-            } else
-                error(18); (* errLblNotDefined *)
+            labCheckAndDefine(NIL, 3);
             inSymbol;
         } else  if (SY = IFSY) then {
             ifWhileStatement;
@@ -7529,33 +7548,6 @@ procedure exitScope(var arg: array [0..127] of irptr);
 }; (* exitScope *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure labCheckAndDefine(upto: @numlabel; err, def: boolean);
-{
-    labIter := numLabList;
-    while (labIter <> upto) do {
-        if (labIter@.id <> curToken) then {
-            labIter := labIter@.next;
-        } else {
-            if (err) then {
-                errLine := labIter@.line;
-                error(17); (* errLblAlreadyDefinedInLine *)
-            };
-            exit;
-        }
-    };
-    new(labIter);
-    with labIter@ do {
-        id := curToken;
-        frame := curFrameRegTemplate;
-        offset := 0;
-        line := lineCnt;
-        defined := def;
-        next := numLabList;
-    };
-    numLabList := labIter;
-};
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 { (* programme *)
     localSize := l2arg1z;
@@ -7579,7 +7571,7 @@ procedure labCheckAndDefine(upto: @numlabel; err, def: boolean);
                 requiredSymErr(INTCONST);
                 goto 22421;
             };
-            labCheckAndDefine(labFence, true, false);
+            labCheckAndDefine(labFence, 1);
 22420:      inSymbol;
 22421:      if not (SY IN [COMMA,SEMICOLON]) then
                 errAndSkip(1, skipToSet + [COMMA,SEMICOLON]);
