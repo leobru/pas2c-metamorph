@@ -451,8 +451,7 @@ var
     symTabCnt: int;
     symtabarray: array [0..79] of word;
     symtbidx: array [0..79] of int;
-    iMulOpMap: array [MUL..IMODOP] of operator;
-    iAddOpMap: array [PLUSOP..MINUSOP] of operator;
+    intOpMap: array [MUL..MINUSOP] of operator;
     entryPtTable: entries;
     frameRestore: array [3..6] of four;
     indexreg: array [1..15] of int;
@@ -5054,99 +5053,56 @@ function getPrec(sym: symbol; cls: operator): int;
 } /* getPrec */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldMulOp(oper: operator; leftArg: eptr; match: int);
-label 14650;
-var l4var3z: eptr;
+void bldBitOp(oper: operator; leftArg: eptr);
+var finalExpr: eptr;
 {
-    if ((!match) && (RDIVOP < oper)) {
-14650:
+    if (arg1Type->k != kindScalar || arg2Type->k != kindScalar) {
         error(errNeedOtherTypesOfOperands);
-        writeln(oper);
-    } else {
-        switch (oper) {
-        MUL, RDIVOP: {
-            if (match) {
-                if (arg1Type == realType) {
-                    /* empty */
-                } else {
-                    if (baseType == intType) {
-                        arg1Type = intType;
-                        oper = imulOpMap[oper];
-                    } else {
-                        goto 14650;
-                    }
-                }
-            } else {
-                if (areTypesCompatible(&leftArg)) {
-                    arg1Type = realType;
-                } else
-                    goto 14650;
-            }
-        };
-        IDIVOP: {
-            if (baseType != intType)
-                goto 14650;
-            arg1Type = intType;
-        };
-        SHLEFT, SHRIGHT: {
-            arg1Type = arg2Type;
-        };
-        IMODOP: {
-            if (baseType == intType) {
-                arg1Type = intType;
-            } else {
-                goto 14650;
-            }
-        }
-        };
-        new(l4var3z);
-        with l4var3z@ do {
-            op = oper;
-            expr1 = leftArg;
-            expr2 = curExpr;
-            curExpr = l4var3z;
-            typ = arg1Type;
-        }
+        exit;
     }
-} /* bldMulOp */
+    new(finalExpr);
+    with finalExpr@ do {
+        op = oper;
+        expr1 = leftArg;
+        expr2 = curExpr;
+        typ = arg1Type;
+    }
+    curExpr = finalExpr;
+} /* bldBitOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldAddOp(oper: operator; leftExpr: eptr; match: int);
-label 15031;
-var finalExpr: eptr;
-    argKind: kind;
+void bldArithOp(oper: operator; leftExpr: eptr; match: int);
+var
+    finalExpr: eptr;
+    k1, k2: kind;
 {
-    argKind = arg2Type->k;
-    if (kindArray <= argKind) {
-15031:
+    k1 = arg1Type->k;
+    k2 = arg2Type->k;
+    if (k1 > kindScalar || k2 > kindScalar) {
         error(errNeedOtherTypesOfOperands);
-    } else {
-        new(finalExpr);
-        with finalExpr@ do {
-            if (oper == SETOR) {
-                op = oper;
-                typ = arg2Type;
-            } else  if (match) {
-                if (arg1Type == realType) {
-                    op = oper;
-                    typ = realType;
-                } else if (baseType == intType) {
-                    op = iAddOpMap[oper];
-                    typ = intType;
-                } else {
-                    goto 15031;
-                }
-            } else if (areTypesCompatible(&leftExpr)) {
-                finalExpr->typ = realType;
-                finalExpr->op = oper;
-            } else
-                goto 15031;
-            finalExpr->expr1 = leftExpr;
-            finalExpr->expr2 = curExpr;
-            curExpr = finalExpr;
-        }
+        exit;
     }
-} /* bldAddOp */
+    new(finalExpr);
+    with finalExpr@ do {
+        if (k1 == kindReal || k2 == kindReal) {
+            if (oper == IMODOP) {
+                error(62); // errIntNeeded);
+                exit;
+            }
+            if (oper == RDIVOP && k1 != kindReal) {
+                castToReal(&curExpr);
+            }
+            op = oper;
+            typ = realType;
+        } else {
+            op = intOpMap[oper];
+            typ = intType;
+        }
+        expr1 = leftExpr;
+        expr2 = curExpr;
+   };
+   curExpr = finalExpr;
+} /* bldArithOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void bldRelOp(oper: operator; ex2: eptr);
@@ -5535,15 +5491,15 @@ var
         match = typeCheck(arg1Type, arg2Type);
 
         switch (curPrec) {
-            precMul: bldMulOp(oper, leftExpr, match);
-            precAdd: bldAddOp(oper, leftExpr, match);
-            precShift: bldMulOp(oper, leftExpr, match);
-            precRel: bldRelOp(oper, leftExpr);
+            precMul: bldArithOp(oper, leftExpr, match);
+            precAdd: bldArithOp(oper, leftExpr, match);
+            precRel,
             precEq: bldRelOp(oper, leftExpr);
-            precBitAnd: bldMulOp(oper, leftExpr, match);
-            precBitXor: bldMulOp(oper, leftExpr, match);
-            precBitOr: bldAddOp(oper, leftExpr, match);
-            precAnd: bldLogOp(oper, leftExpr, match);
+            precShift,
+            precBitAnd,
+            precBitXor,
+            precBitOr: bldBitOp(oper, leftExpr);
+            precAnd,
             precOr: bldLogOp(oper, leftExpr, match);
         }
     }
@@ -8058,8 +8014,8 @@ void initOptions;
     funcInsn[fnMINEL]  =  macro + mcMINEL;
     funcInsn[fnPTR]  =  KAAX+MANTISSA;
     funcInsn[fnABSI]  =  KAMX;
-    iAddOpMap[PLUSOP]  =  INTPLUS, INTMINUS;
-    imulOpMap  =  IMULOP, IDIVOP;
+    intOpMap[MUL] = IMULOP,IDIVOP;
+    intOpMap[IMODOP] = IMODOP,INTPLUS,INTMINUS;
     frameRestore = 0:16;
     charSym['''']  =  CHARCONST;
     charSym['_']  =  IDENT;

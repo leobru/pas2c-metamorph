@@ -445,8 +445,7 @@ var
    symTabCnt: integer;
    symtabarray: array [1..80] of word;
    symtbidx: array [1..80] of integer;
-   iMulOpMap: array [MUL..IMODOP] of operator;
-   iAddOpMap: array [PLUSOP..MINUSOP] of operator;
+   intOpMap: array [MUL..MINUSOP] of operator;
    entryPtTable: entries;
    frameRestore: array [3..6] of four;
    indexreg: array [1..15] of integer;
@@ -5016,6 +5015,7 @@ var
 function areTypesCompatible(var other: eptr): boolean;
 {
     if (arg1Type = realType) then {
+                                  writeln(' arg1 real');
         if typeCheck(integerType, arg2Type) then {
             castToReal(other);
             areTypesCompatible := true;
@@ -5023,6 +5023,7 @@ function areTypesCompatible(var other: eptr): boolean;
         };
     } else if (arg2Type = realType) and
                typeCheck(integerType, arg1Type) then {
+                                                     writeln(' arg2 real');
         castToReal(curExpr);
         areTypesCompatible := true;
         exit
@@ -5146,96 +5147,56 @@ function getPrec(sym: symbol; cls: operator): integer;
 }; (* getPrec *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure bldMulOp(oper: operator; leftArg: eptr; match: boolean);
-label 14650;
-var l4var3z: eptr;
+procedure bldBitOp(oper: operator; leftArg: eptr);
+var finalExpr: eptr;
 {
-    if (not match) and (RDIVOP < oper) then {
-14650:  error(errNeedOtherTypesOfOperands);
-        writeln(oper)
-    } else {
-        case oper of
-        MUL, RDIVOP: {
-            if (match) then {
-                if (arg1Type = realType) then {
-                    (* empty *)
-                } else {
-                    if (baseType = integerType) then {
-                        arg1Type := integerType;
-                        oper := imulOpMap[oper];
-                    } else {
-                        goto 14650;
-                    }
-                }
-            } else {
-                if areTypesCompatible(leftArg) then {
-                    arg1Type := realType;
-                } else
-                    goto 14650;
-            }
-        };
-        IDIVOP: {
-            if (baseType <> integerType) then
-                goto 14650;
-            arg1Type := integerType;
-        };
-        SHLEFT, SHRIGHT: { arg1Type := arg2Type; };
-        IMODOP: {
-            if (baseType = integerType) then {
-                arg1Type := integerType;
-            } else {
-                goto 14650;
-            }
-        };
-        end;
-        new(l4var3z);
-        with l4var3z@ do {
-            op := oper;
-            expr1 := leftArg;
-            expr2 := curExpr;
-            curExpr := l4var3z;
-            vt.typ := arg1Type;
-        }
-    }
-}; (* bldMulOp *)
+    if (arg1Type@.k <> kindScalar) or (arg2Type@.k <> kindScalar) then {
+        error(errNeedOtherTypesOfOperands);
+        exit;
+    };
+    new(finalExpr);
+    with finalExpr@ do {
+        op := oper;
+        expr1 := leftArg;
+        expr2 := curExpr;
+        vt.typ := arg1Type;
+    };
+    curExpr := finalExpr;
+};
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure bldAddOp(oper: operator; leftExpr: eptr; match: boolean);
-label 15031;
+procedure bldArithOp(oper: operator; leftExpr: eptr; match: boolean);
 var
     finalExpr: eptr;
-    argKind: kind;
+    k1, k2: kind;
 {
-    argKind := arg2Type@.k;
-    if (kindArray <= argKind) then {
-15031:  error(errNeedOtherTypesOfOperands);
-    } else {
-        new(finalExpr);
-        with finalExpr@ do {
-            if (oper = SETOR) then {
-                op := oper;
-                vt.typ := arg2Type;
-            } else  if (match) then {
-                if (arg1Type = realType) then {
-                    op := oper;
-                    vt.typ := realType;
-                } else if (baseType = integerType) then {
-                    op := iAddOpMap[oper];
-                    vt.typ := integerType;
-                } else {
-                    goto 15031
-                }
-            } else if areTypesCompatible(leftExpr) then {
-                finalExpr@.vt.typ := realType;
-                finalExpr@.op := oper;
-            } else
-                goto 15031;
-            finalExpr@.expr1 := leftExpr;
-            finalExpr@.expr2 := curExpr;
-            curExpr := finalExpr;
-        }
+    k1 := arg1Type@.k;
+    k2 := arg2Type@.k;
+    if (k1 > kindScalar) or (k2 > kindScalar) then {
+        error(errNeedOtherTypesOfOperands);
+        exit;
     };
-}; (* bldAddOp *)
+    new(finalExpr);
+    with finalExpr@ do {
+        if (k1 = kindReal) or (k2 = kindReal) then {
+            if (oper = IMODOP) then {
+                error(62); (* errIntegerNeeded *)
+                exit;
+            };
+            if (oper = RDIVOP) and (k1 <> kindReal) then {
+                castToReal(curExpr);
+            };
+            op := oper;
+            vt.typ := realType;
+        } else {
+            op := intOpMap[oper];
+            vt.typ := integerType;
+        };
+        expr1 := leftExpr;
+        expr2 := curExpr;
+   };
+   curExpr := finalExpr;
+}; (* bldArithOp *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure bldRelOp(oper: operator; ex2: eptr);
@@ -5645,15 +5606,15 @@ var
         match := typeCheck(arg1Type, arg2Type);
 
         case curPrec of
-            precMul: bldMulOp(oper, leftExpr, match);
-            precAdd: bldAddOp(oper, leftExpr, match);
-            precShift: bldMulOp(oper, leftExpr, match);
-            precRel: bldRelOp(oper, leftExpr);
+            precMul: bldArithOp(oper, leftExpr, match);
+            precAdd: bldArithOp(oper, leftExpr, match);
+            precRel,
             precEq: bldRelOp(oper, leftExpr);
-            precBitAnd: bldMulOp(oper, leftExpr, match);
-            precBitXor: bldMulOp(oper, leftExpr, match);
-            precBitOr: bldAddOp(oper, leftExpr, match);
-            precAnd: bldLogOp(oper, leftExpr, match);
+            precShift,
+            precBitAnd,
+            precBitXor,
+            precBitOr: bldBitOp(oper, leftExpr);
+            precAnd,
             precOr: bldLogOp(oper, leftExpr, match);
         end;
     }
@@ -8282,8 +8243,8 @@ procedure initOptions;
     funcInsn[fnMINEL] := macro + mcMINEL;
     funcInsn[fnPTR] := KAAX+MANTISSA;
     funcInsn[fnABSI] := KAMX;
-    iAddOpMap[PLUSOP] := INTPLUS, INTMINUS;
-    imulOpMap := IMULOP, IDIVOP;
+    intOpMap[MUL] := IMULOP,IDIVOP;
+    intOpMap[IMODOP] := IMODOP,INTPLUS,INTMINUS;
     frameRestore := 0:16;
     charSym[''''] := CHARCONST;
     charSym['_'] := IDENT;
