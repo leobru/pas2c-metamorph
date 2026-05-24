@@ -7,7 +7,7 @@ const
     boilerplate = ' PASCAL METAMORPH HELPER (2025) ';
 %
     fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
-    fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;
+    fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
     fnORD   = 10; fnCHR  = 11; fnSUCC = 12; fnPRED  = 13; fnEOF  = 14;
     fnREF   = 15; fnEOLN = 16; (*   17   *) fnROUND = 18; fnCARD = 19;
     fnMINEL = 20; fnPTR  = 21; fnABSI = 22;
@@ -2638,8 +2638,7 @@ procedure P5117(op: operator);
 {
     addInsnAndOffset(curFrameRegTemplate, localSize);
     new(curExpr);
-    with curExpr@ do
-        vt.typ := insnList@.typ;
+    curExpr@.vt.typ := insnList@.typ;
     genOneOp;
     curExpr@.op := op;
     curExpr@.num1 := localSize;
@@ -3614,7 +3613,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 nextInsn := opToInsn[curOP];
                 case flags of
                 opfCOMM:
-7760:               tryFlip(curOP in [MUL, PLUSOP, SETOR, SETAND, INTPLUS]);
+7760:               tryFlip(curOP in [MUL,PLUSOP,SETOR,SETAND,INTPLUS,IMULOP]);
                 opfHELP:
                     genHelper;
                 opfASSN: {
@@ -3804,6 +3803,8 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
             } else {
                 prepLoad;
                 if (curOP = TOREAL) then {
+%                    if (s9 in optSflags.m) then
+                        addToInsnList(KAOX+ZERO);
                     addToInsnList(insnTemp[AVX]);
                     l3int3z := 3;
                     goto 10122;
@@ -5083,7 +5084,6 @@ var
 function areTypesCompatible(var other: eptr): boolean;
 {
     if (arg1Type = realType) then {
-                                  writeln(' arg1 real');
         if typeCheck(integerType, arg2Type) then {
             castToReal(other);
             areTypesCompatible := true;
@@ -5091,7 +5091,6 @@ function areTypesCompatible(var other: eptr): boolean;
         };
     } else if (arg2Type = realType) and
                typeCheck(integerType, arg1Type) then {
-                                                     writeln(' arg2 real');
         castToReal(curExpr);
         areTypesCompatible := true;
         exit
@@ -5382,7 +5381,7 @@ var
         checkMode := chkOTHER;
     };
     asBitset := [stProcNo];
-    if not ((checkMode = chkREAL) and
+    if (stProcNo <> fnSIZEOF) and not ((checkMode = chkREAL) and
             (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnROUND])
            or ((checkMode = chkINT) and
             (asBitset <= [fnSQRT:fnABS,fnCHR,fnREF,fnCARD,fnMINEL,fnPTR]))
@@ -5393,17 +5392,24 @@ var
            or ((checkMode = chkOTHER) and
             (stProcNo = fnREF))) then
         error(errNeedOtherTypesOfOperands);
-    if not (asBitset <= [fnABS, fnSUCC, fnPRED]) then {
+    if not (asBitset <= [fnABS, fnSUCC, fnPRED, fnSIZEOF]) then {
         arg1Type := routine@.typ;
     } else if (checkMode = chkINT) and (asBitset <= [fnABS]) then {
         stProcNo := fnABSI
     };
     new(newExpr);
-    newExpr@.op := STANDPROC;
-    newExpr@.expr1 := curExpr;
-    newExpr@.num2 := stProcNo;
+    with newExpr@ do
+        if (stProcNo = fnSIZEOF) then {
+            op := GETENUM;
+            lit.i := arg1Type@.size;
+            vt.typ := integerType;
+        } else {
+            op := STANDPROC;
+            expr1 := curExpr;
+            num2 := stProcNo;
+            vt.typ := arg1Type;
+        };
     curExpr := newExpr;
-    curExpr@.vt.typ := arg1Type;
     checkSymAndRead(RPAREN);
 
 }; (* stdCall *)
@@ -7316,7 +7322,7 @@ var l : integer;
     regSysProc(414263C(*"     ABS"*));
     temptype := integerType;
     regSysProc(6462655643C(*"   TRUNC"*));
-    regSysProc(0C(* was ODD, unused*));
+    regSysProc(635172455746C(*"  SIZEOF" *));
     regSysProc(576244C(*"     ORD"*));
     temptype := charType;
     regSysProc(435062C(*"     CHR"*));

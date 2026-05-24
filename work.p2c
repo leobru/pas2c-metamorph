@@ -3558,7 +3558,7 @@ var
                 nextInsn  =  opToInsn[curOP];
                 switch (flags) {
                 opfCOMM:
-7760:               tryFlip(curOP in [MUL, PLUSOP, SETOR, SETAND, INTPLUS]);
+7760:               tryFlip(curOP in [MUL,PLUSOP,SETOR,SETAND,INTPLUS,IMULOP]);
                 opfHELP:
                     genHelper();
                 opfASSN: {
@@ -3746,6 +3746,8 @@ var
             } else {
                 prepLoad();
                 if (curOP == TOREAL) {
+//                    if (s9 in optSflags)
+                        addToInsnList(KAOX+ZERO);
                     addToInsnList(insnTemp[AVX]);
                     l3int3z  =  3;
                     goto 10122;
