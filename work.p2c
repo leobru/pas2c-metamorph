@@ -182,7 +182,7 @@ operator = enum {
     PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
     IMULOP,     INTPLUS,    INTMINUS,   badop27,    badop30,
-    badop31,    MKRANGE,    ASSIGNOP,   GETELT,     GETVAR,
+    badop31,    unused32,   ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
     FILEPTR,    op44,       ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
@@ -191,7 +191,7 @@ operator = enum {
 //
 opgen = enum {
     gen0,  STORE, LOAD,  gen3,  SETREG,
-    SETREG9,  gen6,  gen7,  gen8,  gen9,
+    SETREG9,  gen6,  gen7,  SETREG12,  gen9,
     gen10, gen11, gen12, FILEACCESS, FILEINIT,
     BRANCH, PCKUNPCK, LITINSN
 };
@@ -2066,9 +2066,7 @@ void addJumpInsn(opcode: int);
             switch (l4var4z) {
             mcCARD: {
                 addInsnToBuf(KACX);
-                if (s9 in optSflags)
-                    addInsnToBuf(KATX);
-                else
+                if (!(s9 in optSflags))
                     addInsnToBuf(KAEX+ZERO);
             }
             21: goto 3556;
@@ -3404,7 +3402,7 @@ var
     if (l3int3z == 6) {     /* IN */
         if (arg1Const) {
             if (arg2Const) {
-                insnList->ilf5  =  (arg1Val.i IN arg2Val.i);
+                insnList->ilf5  =  arg1Val.i IN arg2Val.i;
             } else {
                 l5set2z  =  E48 >> arg1Val.i;
                 if (l5set2z == 0U) {
@@ -3548,7 +3546,7 @@ var
                 SHLEFT:     arg1Val.i  =  arg1Val.i << arg2Val.i;
                 SHRIGHT:    arg1Val.i  =  arg1Val.i >> arg2Val.i;
                 NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP,
-                MKRANGE, ASSIGNOP:
+                ASSIGNOP:
                     error(200);
                 } /* switch 7750 */
                 insnList->ilf5  =  arg1Val.i;
@@ -3595,7 +3593,7 @@ var
                             addToInsnList(macro + mcPUSH);
                             genConstDiv();
                             insnList->next->mode  =  1;
-                            curVal.i  =  arg2Val.i & (~[1, 3]);
+                            curVal.i  =  arg2Val.i & (~[1, 3]) | [0];
                             addToInsnList(KMUL+I8 + getFCSToffset());
                             addToInsnList(KYTA+64);
                             addToInsnList(KRSUB+SP);
@@ -3734,7 +3732,7 @@ var
             if (insnList->ilm == ilCONST) {
                 arg1Val.i  =  insnList->ilf5;
                 switch (curOP) {
-                TOREAL: arg1Val.r  =  arg1Val.i;
+                TOREAL: arg1Val.r  =  arg1Val.i | [0,1,3];
                 NOTOP:  arg1Val.i  =  not arg1Val.i;
                 RNEGOP: arg1Val.r  =  -arg1Val.r;
                 INEGOP: arg1Val.i  =  -arg1Val.i;
@@ -3746,7 +3744,7 @@ var
             } else {
                 prepLoad();
                 if (curOP == TOREAL) {
-//                    if (s9 in optSflags)
+                    if (s9 in optSflags)
                         addToInsnList(KAOX+ZERO);
                     addToInsnList(insnTemp[AVX]);
                     l3int3z  =  3;
@@ -3988,7 +3986,7 @@ var l4exf1z: @extfilerec;
         genOneOp();
         form1Insn(KATX+I9 + l3int1z);
     }
-    gen8: {
+    SETREG12: {
         setAddrTo(12);
         genOneOp();
     }
@@ -5046,8 +5044,7 @@ var
         else
             inSymbol();
     } else {
-//        if (noArgs && (subroutine->argList != NIL))
-            error(42); /*errNoArgList*/
+        error(42); /*errNoArgList*/
     }
     curExpr  =  callExpr;
 } /* parseCallArgs */
@@ -5863,7 +5860,7 @@ function max(a, b: int): int;
         form1Insn(KATI+14);
         curVal.i  =  moduleOffset + 1 - curVal.i;
         if (curVal.i < 040000) {
-            curVal.i  =  (curVal.i - 040000);
+            curVal.i  =  curVal.i - 040000;
             curVal.i  =  allocSymtab(041000000U | (curVal.i & 077777U));
         }
         form1Insn(KUJ+I14 + curVal.i);
@@ -5986,49 +5983,43 @@ function allocDataRef(l6arg1z: int): int;
 void parseData;
 label
     16545;
-type
-    DATAREC = struct {
-        switch int of
-            false: {a: __packed array [4] of 0..4095};
-            true:  {b: int};
-    };
 var
-    dsize, setcount, l4var3z, l4var4z, l4var5z: int;
+    dsize, setcount, l4var3z, length, repCount: int;
     boundary: eptr;
     l4var7z: int;
     savedVal: word;
     l4var9z: int;
-    F: file of DATAREC;
+    F: file of int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void P16432(l5arg1z: int);
+void putDataRec(count: int);
 var
-    l5var1z: DATAREC;
+    rec: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* P16432 */
-    l5var1z.a[0]  =  allocDataRef(l4var4z);
+{ /* putDataRec */
+    rec  =  allocDataRef(length) << 36;
     if (FcstCnt == l4var3z) {
         curVal  =  savedVal;
         curVal.i  =  addCurValToFCST();
     } else {
         curVal.i  =  l4var3z;
     }
-    l5var1z.a[1]  =  allocSymtab(0400100000000U | curVal.i & halfWord);
-    l5var1z.a[2]  =  allocDataRef(l5arg1z);
+    rec  =  rec | (07777U & allocSymtab(0400100000000U | curVal.i & halfWord)) << 24;
+    rec  =  rec | allocDataRef(count) << 12;
     if (l4var9z == 0) {
         curVal.i  =  l4var7z >> 24;
     } else {
         curVal.i  =  allocSymtab(l4var7z | l4var9z & halfWord);
     }
-    l5var1z.a[3]  =  curVal.i;
-    l4var9z  =  l5arg1z * l4var4z + l4var9z;
-    F@  =  l5var1z;
+    rec  =  rec | curVal.i & 07777U;
+    l4var9z  =  count * length + l4var9z;
+    F@  =  rec;
     put(F);
     setcount  =  setcount + 1;
-    l4var4z  =  0;
+    length  =  0;
     l4var3z  =  FcstCnt;
-} /* P16432 */
+} /* putDataRec */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* parseData */
@@ -6062,7 +6053,7 @@ var
             error(errVarTooComplex);
         l4var7z  =  leftInsn & (07777U << 24);
         l4var3z  =  FcstCnt;
-        l4var4z  =  0;
+        length  =  0;
         l4var9z  =  0;
         do {
             expression();
@@ -6070,30 +6061,30 @@ var
             savedVal  =  curVal;
             if (SY == COLON) {
                 inSymbol();
-                l4var5z  =  curToken.i;
+                repCount  =  curToken.i;
                 if (SY != INTCONST) {
                     error(62); /* errIntNeeded */
-                    l4var5z  =  0;
+                    repCount  =  0;
                 } else
                     inSymbol();
             } else
-                l4var5z  =  1;
-            if (l4var5z != 1) {
-                if (l4var4z != 0)
-                    P16432(1);
-                l4var4z  =  1;
-                P16432(l4var5z);
+                repCount  =  1;
+            if (repCount != 1) {
+                if (length != 0)
+                    putDataRec(1);
+                length  =  1;
+                putDataRec(repCount);
             } else {
-                l4var4z  =  l4var4z + 1;
+                length  =  length + 1;
                 if (SY == COMMA) {
                     curVal  =  savedVal;
                     toFCST();
                 } else {
-                    if (l4var4z != 1) {
+                    if (length != 1) {
                         curVal  =  savedVal;
                         toFCST();
                     }
-                    P16432(1);
+                    putDataRec(1);
                 }
             }
         } while (SY == COMMA);
@@ -6103,7 +6094,7 @@ var
         error(errBadSymbol);
     reset(F);
     while (not eof(F)) {
-        write(FCST, F->b);
+        write(FCST, F@);
         get(F);
     }
     int92z  =  FcstCnt - dsize;
@@ -6200,7 +6191,7 @@ void callHelperWithArg;
 {
     if (([12] & set145z) != 0U || l4bool12z) {
         curExpr  =  workExpr;
-        formOperator(gen8);
+        formOperator(SETREG12);
     }
     l4bool12z  =  false;
     formAndAlign(getHelperProc(helperNo));
@@ -6421,7 +6412,7 @@ var
         if (curVarKind != kindFile)
             error(47); /* errNoVarOfFileType */
         if ((procNo == 3) && (SY == COMMA)) { // reset with file location
-            formOperator(gen8);
+            formOperator(SETREG12);
             expression();
             if (not typeCheck(intType, curExpr->typ))
                 error(14); /* errExprIsNotInt */
@@ -6541,9 +6532,7 @@ var
         checkSymAndRead(COMMA);
         formOperator(LOAD);
         form2Insn(KAPX+BITS15, ASN64+33);
-        if (s9 in optSflags)
-            form1Insn(KATX);
-        else
+        if (!(s9 in optSflags))
             form1Insn(KAEX+ZERO);
         verifyType(l4typ2z);
         formOperator(STORE);
@@ -6552,7 +6541,7 @@ var
         inSymbol();
         verifyType(charType);
         checkSymAndRead(COMMA);
-        formOperator(gen8);
+        formOperator(SETREG12);
         verifyType(alfaType);
         if (procNo == 20) {
             formOperator(LOAD);
@@ -7804,12 +7793,11 @@ var
     opFlags[OROP]  =  opfOR;
     opFlags[IMULOP]  =  opfMULMSK;
     opFlags[IMODOP]  =  opfMOD;
-    opFlags[MKRANGE]  =  opfHELP;
     opFlags[ASSIGNOP]  =  opfASSN;
     opFlags[SHLEFT]  =  opfSHIFT;
     opFlags[SHRIGHT]  =  opfSHIFT;
     for (jdx = 0; jdx <= 6; jdx=jdx+1) {
-        funcInsn[jdx]  =  (0500000 + jdx);
+        funcInsn[jdx]  =  0500000 + jdx;
     }
 } /* initInsnTemplates */
 //

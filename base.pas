@@ -169,7 +169,7 @@ operator = (
     PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
     IMULOP,     INTPLUS,    INTMINUS,   badop27,    badop30,
-    badop31,    MKRANGE,    ASSIGNOP,   GETELT,     GETVAR,
+    badop31,    unused32,    ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
     FILEPTR,    op44,       ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
@@ -178,7 +178,7 @@ operator = (
 %
 opgen = (
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
-    SETREG9,  STOREAT9,  gen7,  gen8,  DFLTWDTH,
+    SETREG9,  STOREAT9,  gen7,  SETREG12,  DFLTWDTH,
     FRACWIDTH, gen11, gen12, FILEACCESS, FILEINIT,
     BRANCH, PCKUNPCK, LITINSN
 );
@@ -2097,9 +2097,7 @@ procedure addJumpInsn(opcode: integer);
             case l4var4z of
             mcCARD: {
                 addInsnToBuf(KACX);
-                if (s9 in optSflags.m) then
-                    addInsnToBuf(KATX)
-                else
+                if not (s9 in optSflags.m) then
                     addInsnToBuf(KAEX+ZERO);
             };
             21: goto 3556;
@@ -3603,7 +3601,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 SHLEFT:     arg1Val.m := shift(arg1Val.m, -arg2Val.i);
                 SHRIGHT:    arg1Val.m := shift(arg1Val.m, arg2Val.i);
                 NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP,
-                MKRANGE, ASSIGNOP:
+                ASSIGNOP:
                     error(200);
                 end;
                 insnList@.ilf5 := arg1Val;
@@ -3790,7 +3788,10 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
             if (insnList@.ilm = ilCONST) then {
                 arg1Val := insnList@.ilf5;
                 case curOP of
-                TOREAL: arg1Val.r := arg1Val.i;
+                TOREAL: {
+                    arg1Val.m := arg1Val.m + intZero;
+                    arg1Val.r := arg1Val.i
+                };
                 NOTOP:  arg1Val.b := not arg1Val.b;
                 RNEGOP: arg1Val.r := -arg1Val.r;
                 INEGOP: arg1Val.i := -arg1Val.i;
@@ -3803,7 +3804,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
             } else {
                 prepLoad;
                 if (curOP = TOREAL) then {
-%                    if (s9 in optSflags.m) then
+                    if (s9 in optSflags.m) then
                         addToInsnList(KAOX+ZERO);
                     addToInsnList(insnTemp[AVX]);
                     l3int3z := 3;
@@ -4062,7 +4063,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
         genOneOp;
         form1Insn(KATX+I9 + l3int1z);
     };
-    gen8: {
+    SETREG12: {
         setAddrTo(12);
         genOneOp
     };
@@ -5204,8 +5205,7 @@ var
         else
             inSymbol;
     } else {
-%        if (noArgs) and (subroutine@.argList <> NIL) then
-            error(42); (*errNoArgList*)
+        error(42); (*errNoArgList*)
     };
     curExpr := callExpr;
 }; (* parseCallArgs *)
@@ -6173,11 +6173,11 @@ var
     l4var3z, length: integer;
     repCount: integer;
     boundary: eptr;
-    l4var7z, l4var8z, l4var9z: word;
+    l4var7z, savedVal, l4var9z: word;
     F: file of DATAREC;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure P16432(count: integer);
+procedure putDataRec(count: integer);
 var
     rec: DATAREC;
 %
@@ -6193,10 +6193,11 @@ function allocDataRef(value: integer): integer;
 }; (* allocDataRef *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ (* P16432 *)
+{ (* putDataRec *)
     rec.a[0] := allocDataRef(length);
+    writeln(' datarec ', rec.b oct);
     if (FcstCnt = l4var3z) then {
-        curVal := l4var8z;
+        curVal := savedVal;
         curVal.i := addCurValToFCST;
     } else {
         curVal.i := l4var3z;
@@ -6217,7 +6218,7 @@ function allocDataRef(value: integer): integer;
     setcount := setcount + 1;
     length := 0;
     l4var3z := FcstCnt;
-}; (* P16432 *)
+}; (* putDataRec *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* parseData *)
@@ -6256,7 +6257,7 @@ function allocDataRef(value: integer): integer;
         repeat
             expression;
             formOperator(LITINSN);
-            l4var8z := curVal;
+            savedVal := curVal;
             if (SY = COLON) then {
                 inSymbol;
                 repCount := curToken.i;
@@ -6269,20 +6270,20 @@ function allocDataRef(value: integer): integer;
                 repCount := 1;
             if (repCount <> 1) then {
                 if (length <> 0) then
-                    P16432(1);
+                    putDataRec(1);
                 length := 1;
-                P16432(repCount);
+                putDataRec(repCount);
             } else {
                 length := length + 1;
                 if (SY = COMMA) then {
-                    curVal := l4var8z;
+                    curVal := savedVal;
                     toFCST;
                 } else {
                     if (length <> 1) then {
-                        curVal := l4var8z;
+                        curVal := savedVal;
                         toFCST;
                     };
-                    P16432(1);
+                    putDataRec(1);
                 }
             };
         until SY <> COMMA;
@@ -6394,7 +6395,7 @@ procedure callHelperWithArg;
 {
     if ([12] <= set145z) or l4bool12z then {
         curExpr := workExpr;
-        formOperator(gen8);
+        formOperator(SETREG12);
     };
     l4bool12z := false;
     formAndAlign(getHelperProc(helperNo));
@@ -6614,7 +6615,7 @@ var
             error(47); (* errNoVarOfFileType *)
         if (procNo = 3) and
            (SY = COMMA) then {
-            formOperator(gen8);
+            formOperator(SETREG12);
             expression;
             if (not typeCheck(integerType, curExpr@.vt.typ)) then
                 error(14); (* errExprIsNotInteger *)
@@ -6740,9 +6741,7 @@ var
             form3Insn(ASN64-33, KAUX+BITS15, KAEX+ASCII0);
         } else {
             form2Insn(KAPX+BITS15, ASN64+33);
-            if (s9 in optSflags.m) then
-               form1Insn(KATX)
-            else
+            if not (s9 in optSflags.m) then
                form1Insn(KAEX+ZERO);
         };
         verifyType(l4typ2z);
@@ -6752,7 +6751,7 @@ var
         inSymbol;
         verifyType(charType);
         checkSymAndRead(COMMA);
-        formOperator(gen8);
+        formOperator(SETREG12);
         verifyType(alfaType);
         if (procNo = 20) then {
             formOperator(LOAD);
@@ -8014,7 +8013,6 @@ var
     opFlags[OROP] := opfOR;
     opFlags[IMULOP] := opfMULMSK;
     opFlags[IMODOP] := opfMOD;
-    opFlags[MKRANGE] := opfHELP;
     opFlags[ASSIGNOP] := opfASSN;
     opFlags[SHLEFT] := opfSHIFT;
     opFlags[SHRIGHT] := opfSHIFT;
