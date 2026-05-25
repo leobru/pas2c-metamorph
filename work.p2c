@@ -216,7 +216,7 @@ word = struct { switch int of
     0: {i: int};
     1: {r: real};
     3: {a: alfa};
-    4: {t: __packed array[0..7] of '\000' .. '\077'};
+    4: {t: __packed array[8] of '\000' .. '\077'};
     7: {c: char};
     8: {cl: idclass};
     9: {tp: tptr};
@@ -286,7 +286,7 @@ charmap   = __packed array ['\000'..'\176'] of char;
 textmap   = __packed array ['\052'..'\177'] of '\000'..'\077';
 //
 four = array [1..4] of int;
-entries   = array [0..41] of int;
+entries   = array [42] of int;
 //
 expr = struct {
     typ:       tptr;
@@ -354,7 +354,7 @@ extfilerec = struct {
     line: int
 };
 NumberFormat = enum {DECIMAL, OCTAL, FULLWORD};
-hashArray = array [0..127] of irptr;
+hashArray = array [128] of irptr;
 //
 var
     numFormat: NumberFormat;
@@ -450,8 +450,8 @@ var
     maxSmallString: int;
     smallStringType: array [2..6] of tptr;
     symTabCnt: int;
-    symtabarray: array [0..79] of word;
-    symtbidx: array [0..79] of int;
+    symtabarray: array [80] of word;
+    symtbidx: array [80] of int;
     intOpMap: array [MUL..MINUSOP] of operator;
     entryPtTable: entries;
     frameRestore: array [3..6] of four;
@@ -459,16 +459,16 @@ var
     opToInsn: array [SHLEFT..op44] of int;
     opToMode: array [SHLEFT..op44] of int;
     opFlags: array [SHLEFT..op44] of opflg;
-    funcInsn: array [0..23] of int;
+    funcInsn: array [24] of int;
     insnTemp: array [ATX..VJM] of int;
     frameRegTemplate: int;
     constRegTemplate: int;
     disNormTemplate: int;
-    lineBuf: array [0..129] of char;
-    errMap: array [0..9] of int;
-    chrClass: array ['\000'..'\177'] of operator;
-    kwordHash: array [0..127] of @kword;
-    charSym: array ['\000'..'\177'] of symbol;
+    lineBuf: array [130] of char;
+    errMap: array [10] of int;
+    chrClass: array ['\200'] of operator;
+    kwordHash: array [128] of @kword;
+    charSym: array ['\200'] of symbol;
     symHash, typeHash: hashArray;
     helperMap: array [1..102] of int;
     helperNames: array [1..102] of int;
@@ -476,14 +476,14 @@ var
     opAssoc: array [SHLEFT..INOP] of assoc;
 //
     symTab: array [074000 .. 075500] of int;
-    systemProcNames: array [0..22] of int;
-    resWordName: array [0..26] of int;
+    systemProcNames: array [23] of int;
+    resWordName: array [27] of int;
     longSymCnt: int;
     longSym: array [1..90] of int;
     longSyms: array [1..90] of int;
     constVals: array [1..500] of alfa;
     constNums: array [1..500] of int;
-    objBuffer: array [0..1023] of int;
+    objBuffer: array [1024] of int;
     iso2text: array ['\052'..'\177'] of '\000'..'\077';
     fcst: file of int; /* last */
 //
@@ -498,7 +498,7 @@ var
         /*3*/ startOffset:  int;
       /*4-6*/ a0, a1, a4:   @charmap;
         /*7*/ a3:           @textmap;
-     /*8-17*/ sizes:        array [0..9] of @int;
+     /*8-17*/ sizes:        array [10] of @int;
        /*18*/ flags:        int;
 };
     paseofcd:alfa;
@@ -508,10 +508,10 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void printErrMsg(errno: int);
 type
-    errtxt = __packed array [0..100] of '\000'..'\077';
+    errtxt = __packed array [101] of '\000'..'\077';
 var
     errptr: @errtxt;
-    errtext: array [0..100] of '\000'..'\077';
+    errtext: array [101] of '\000'..'\077';
     i: int;
     c: char;
 //
@@ -1160,13 +1160,13 @@ void inSymbol;
 label
     1473, 1, 2, 2175, 2233, 2320;
 var
-    localBuf: array [0..130] of char;
+    localBuf: array [131] of char;
     tokenLen, tokenIdx: int;
     expSign: int;
     chain: irptr;
     expMultiple, expValue: real;
     curChar: char;
-    numstr: array [0..16] of word;
+    numstr: array [17] of word;
     expLiteral, expMagnitude: int;
     val: int;
     chord: int;
@@ -4602,15 +4602,21 @@ var
             if (tempType != NIL) {
                 inSymbol();
                 if (SY != COLON) {
-                    requiredSymErr(COLON);
+// Handle a single value N as a range 0..N-1
+                    rightBound = leftBound - 1U;
+                    curType = tempType;
+                    if (E48 & leftBound)
+                        leftBound = 0;
+                    else
+                        leftBound = 0U;
                 } else {
                     inSymbol();
+                    curType = parseLiteral(&rightBound, true);
+                    inSymbol();
                 }
-                curType = parseLiteral(&rightBound, true);
                 if ((curType == tempType) &&
                    (curType->k == kindScalar)) {
                     curType = defineRange(curType, leftBound, rightBound);
-                    inSymbol();
                     goto 13020;
                 }
             }
@@ -5983,7 +5989,7 @@ label
 type
     DATAREC = struct {
         switch int of
-            false: {a: __packed array [0..3] of 0..4095};
+            false: {a: __packed array [4] of 0..4095};
             true:  {b: int};
     };
 var
@@ -7872,7 +7878,7 @@ var
 void finalize;
 var
     idx, cnt: int;
-    sizes: array [0..9] of @int;
+    sizes: array [10] of @int;
 {
     sizes[0]  =  ptr(1);
     sizes[1]  =  ptr(symTabPos - 074000 - 1);

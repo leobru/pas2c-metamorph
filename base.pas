@@ -4680,15 +4680,21 @@ var
             if (tempType <> NIL) then {
                 inSymbol;
                 if (SY <> COLON) then {
-                    requiredSymErr(COLON);
+% Handle a single value N as a range 0..N-1
+                    rightBound.i := leftBound.i - 1C;
+                    curType := tempType;
+                    if (0 in leftBound.m) then
+                        leftBound.i := 0
+                    else
+                        leftBound.i := 0C;
                 } else {
                     inSymbol;
+                    parseLiteral(curType, rightBound, true);
+                    inSymbol;
                 };
-                parseLiteral(curType, rightBound, true);
                 if (curType = tempType) and
                    (curType@.k = kindScalar) then {
                     defineRange(curType, leftBound.i, rightBound.i);
-                    inSymbol;
                     goto 13020;
                 }
             };
