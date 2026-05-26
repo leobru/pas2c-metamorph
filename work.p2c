@@ -1,4 +1,4 @@
-/*=l1,p-,t-,s8,s8,y+,k9,l1*/
+/*=l1,p-,t-,s8,s9,y+,k9,l1*/
 extern _output_, _child_, pasinput, pasinfor, paseofcd;
 //
 label 9999;
@@ -674,8 +674,7 @@ var
     startPos, lastErr: int;
 {
     listMode  =  pasinfor.listMode;
-    if (listMode != 0 || errsInLine != 0)
-    {
+    if (listMode || errsInLine) {
         write(' ', (lineStartOffset + PASINFOR.startOffset):5 oct,
               lineCnt:5, lineNesting:3, commentModeCH);
         startPos  =  13;
@@ -686,7 +685,7 @@ var
             write(linebuf[err]);
         }
         writeln;
-        if (errsInLine != 0) {
+        if (errsInLine) {
             write('*****':startPos, ' ':errMap[0], '0');
             lastErr  =  errsInLine - 1;
             for (err = 1; err <= lastErr; err=err+1) {
@@ -850,7 +849,7 @@ function allocExtSymbol(sym: int): int;
 var i: int;
 {
     allocExtSymbol  =  symTabPos;
-    if ((curVal.i & halfWord) != 0U) {
+    if (curVal.i & halfWord) {
         for (i = 1; i <= longSymCnt; i=i+1)
             if (curVal.i == longSyms[i]) {
                 allocExtSymbol  =  longSym[i];
@@ -992,7 +991,7 @@ var
         curVal.i  =  moduleOffset;
 1:      addr  =  curval.i & 077777U;
         leftHalf = curVal.i << 24;
-        while (arg != 0) {
+        while (arg) {
             if (4096 < arg) {
                 isLarge  =  true;
                 arg  =  arg - 4096;
@@ -1308,7 +1307,7 @@ var
                             numstr[tokenIdx].i & [45..47];
                     }
                     if ((numFormat == OCTAL) && !(s9 in optSflags)) {
-                        if ((curToken.i & [0..6]) != 0U) {
+                        if (curToken.i & [0..6]) {
                             error(errNumberTooLarge);
                             curToken.i  =  1;
                         } else
@@ -1377,7 +1376,7 @@ var
                     else
                         expMagnitude  =  expMagnitude + expLiteral;
                 }
-                if (expMagnitude != 0) {
+                if (expMagnitude) {
                     expValue  =  1.0;
                     expSign  =  expMagnitude < 0;
                     expMagnitude  =  abs(expMagnitude);
@@ -1390,9 +1389,9 @@ var
                         if (expMagnitude & 1U)
                             expValue  =  expValue * expMultiple;
                         expMagnitude  =  expMagnitude / 2;
-                        if (expMagnitude != 0)
+                        if (expMagnitude)
                             expMultiple  =  expMultiple*expMultiple;
-                    } while (expMagnitude != 0);
+                    } while (expMagnitude);
                     if (expSign)
                         curToken.r  =  curToken.r / expValue;
                     else
@@ -2256,7 +2255,7 @@ void addJumpInsn(opcode: int);
             P3363(l4var213z);
             form1Insn(insnTemp[UJ] + 2 + moduleOffset);
             padToLeft();
-            if (curInsn != 0) {
+            if (curInsn) {
                 if (not F3413())
                     error(211);
                 P0715(0, l4inl7z->code);
@@ -3096,7 +3095,7 @@ var
 function allocGlobalObject(arg: irptr): int;
 {
     if (arg->pos == 0) {
-        if ((arg->flags & [20, 21]) != 0U) {
+        if (arg->flags & [20, 21]) {
             curVal.i  =  leftAlign(arg->id);
             arg->pos  =  allocExtSymbol(extSymMask);
         } else {
@@ -3307,7 +3306,7 @@ var
             }
         }
     }
-    if (not l5bool9z || ([20, 21] & l5var12z) != 0U) {
+    if (not l5bool9z || [20, 21] & l5var12z) {
         addToInsnList(KVTM+040074001);
     }
     set145z  =  (set145z | l5var12z) & [1:15];
@@ -7105,11 +7104,12 @@ void defExtern;
     regSysProc('     CHR');
     regSysProc('    SUCC');
     regSysProc('    PRED');
-    temptype  =  intType;
+    temptype  =  boolType;
     regSysProc('     EOF');
     regSysProc('resrv   '); /* was REF, fnREF still used */
     regSysProc('    EOLN');
     regSysProc('unused  '); /* was SQR, fn17 */
+    temptype  =  intType;
     regSysProc('   ROUND');
     regSysProc('    CARD');
     regSysProc('   MINEL');

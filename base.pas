@@ -1985,7 +1985,7 @@ procedure formOperator(l3arg1z: opgen);
 var
     l3int1z, l3int2z, l3int3z : integer;
     nextInsn                  : integer;
-    l3var5z                   : eptr;
+    helpExpr                  : eptr;
     direction                 : boolean;
     noTarget                  : boolean;
     l3var10z, l3var11z        : word;
@@ -3992,10 +3992,10 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
     SETREG: {
         with insnList@ do {
             l3int3z := insnCount;
-            new(l3var5z);
-            l3var5z@.expr1 := expr63z;
-            expr63z := l3var5z;
-            l3var5z@.op := NOOP;
+            new(helpExpr);
+            helpExpr@.expr1 := expr63z;
+            expr63z := helpExpr;
+            helpExpr@.op := NOOP;
             case st of
             st0: {
                 if (l3int3z = 0) then {
@@ -4021,17 +4021,17 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                     set146z := set146z + l3var11z.m;
                 };
                 curVal.i := l3int2z;
-                l3var5z@.vt := curVal;
+                helpExpr@.vt := curVal;
             };
             st1: {
                 curVal.i := 14;
-                l3var5z@.vt := curVal;
+                helpExpr@.vt := curVal;
             };
             st2:
                 error(errVarTooComplex);
             end; (* case *)
         }; (* with *)
-        l3var5z@.expr2 := curExpr;
+        helpExpr@.expr2 := curExpr;
     }; (* SETREG *)
     gen0: {
         prepLoad;
@@ -4108,6 +4108,18 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                     }
                 }
             } else {
+                if (curExpr@.vt.typ <> booleanType) and not (curExpr@.op IN
+                    [SHLEFT..SETOR,ASSIGNOP..ALNUM]) then {
+                    new(helpExpr);
+                    with helpExpr@ do {
+                        vt.typ := booleanType;
+                        expr1 := curExpr;
+                        op := NEOP;
+                        new(expr2);
+                        expr2@ := [integerType, GETENUM, 0C];
+                    };
+                    curExpr := helpExpr;
+                };
                 direction := 16 in insnList@.regsused;
                 if (insnList@.ilm = il3) and
                    (insnList@.ilf5.i <> 0) then {
@@ -4149,20 +4161,20 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
             }
         }; (* BRANCH *)
     PCKUNPCK: {
-        l3var5z := curExpr;
+        helpExpr := curExpr;
         curExpr := curExpr@.expr1;
         formOperator(gen11);
-        genFullExpr(l3var5z@.expr2);
+        genFullExpr(helpExpr@.expr2);
         if (11 IN insnList@.regsused) then
             error(44); (* errIncorrectUsageOfStandProcOrFunc *)
         setAddrTo(12);
         genOneOp;
-        arg1Type := l3var5z@.expr2@.vt.typ;
+        arg1Type := helpExpr@.expr2@.vt.typ;
         with arg1Type@.range@ do
             l3int3z := right - left + 1;
         form2Insn((KVTM+I14) + l3int3z,
                   (KVTM+I10+64) - arg1Type@.pcksize);
-        l3int3z := ord(l3var5z@.vt.typ);
+        l3int3z := ord(helpExpr@.vt.typ);
         l3int1z := arg1Type@.perword;
         if (l3int3z = 72) then          (* P/KC *)
             l3int1z := 1 - l3int1z;
@@ -6138,11 +6150,11 @@ var
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure ifWhileStatement;
+var eq : eptr;
 {
     disableNorm;
     parentExpression;
-    if (curExpr@.vt.typ <> booleanType) and
-       (curExpr@.vt.typ <> integerType) then
+    if (curExpr@.vt.typ@.k > kindPtr) then
         error(errBooleanNeeded)
     else {
         jumpTarget := 0;
@@ -7325,12 +7337,13 @@ var l : integer;
     regSysProc(435062C(*"     CHR"*));
     regSysProc(63654343C(*"    SUCC"*));
     regSysProc(60624544C(*"    PRED"*));
-    temptype := integerType;
+    temptype := booleanType;
     regSysProc(455746C(*"     EOF"*));
     temptype := voidPtr;
     regSysProc(0C(*was REF, unused*));
-    temptype := integerType;
+    temptype := booleanType;
     regSysProc(45575456C(*"    EOLN"*));
+    temptype := integerType;
     regSysProc(0C); (* was SQR, unused *)
     regSysProc(6257655644C(*"   ROUND"*));
     regSysProc(43416244C(*"    CARD"*));
