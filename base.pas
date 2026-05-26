@@ -6510,6 +6510,8 @@ procedure writeProc;
                     } else {
                         curExpr := firstWidth;
                         formOperator(LOAD);
+                        if s9 in optSflags.m then
+                            form1Insn(KAOX+ZERO);
                     }
                 };
                 if (helperNo = 37) then {       (* P/WR *)
@@ -6519,6 +6521,8 @@ procedure writeProc;
                     } else {
                         curExpr := secondWidth;
                         formOperator(FRACWIDTH);
+                        if s9 in optSflags.m then
+                            form1Insn(KAOX+ZERO);
                     }
                 };
                 curExpr := l4exp7z;

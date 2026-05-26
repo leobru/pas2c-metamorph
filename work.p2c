@@ -191,8 +191,8 @@ operator = enum {
 //
 opgen = enum {
     gen0,  STORE, LOAD,  gen3,  SETREG,
-    SETREG9,  gen6,  gen7,  SETREG12,  gen9,
-    gen10, gen11, gen12, FILEACCESS, FILEINIT,
+    SETREG9,  gen6,  gen7,  SETREG12,  DFLTWDTH,
+    FRACWIDTH, gen11, gen12, FILEACCESS, FILEINIT,
     BRANCH, PCKUNPCK, LITINSN
 };
 //
@@ -3905,7 +3905,7 @@ var l4exf1z: @extfilerec;
     l3bool13z  =  true;
     if ((errors && (l3arg1z != SETREG)) || (curExpr == NIL))
         exit;
-    if (not (l3arg1z IN [gen3, gen6, gen9, FILEINIT, PCKUNPCK]))
+    if (not (l3arg1z IN [gen3, gen6, DFLTWDTH, FILEINIT, PCKUNPCK]))
         genFullExpr(curExpr);
     switch (l3arg1z) {
     gen7: genOneOp();
@@ -3986,11 +3986,12 @@ var l4exf1z: @extfilerec;
         setAddrTo(12);
         genOneOp();
     }
-    gen9: {
-        curVal.i  =  curVal.i | intZero;
+    DFLTWDTH: {
+        // Write routines need integer exponent on widths
+        curVal.i  =  curVal.i | [0, 1, 3];
         form1Insn(KXTA+I8 + getFCSToffset());
     }
-    gen10: {
+    FRACWIDTH: {
         prepLoad();
         addxToInsnList(macro + mcPUSH);
         genOneOp();
@@ -6096,11 +6097,11 @@ label
     17753, 44;
 var
     l4typ1z, l4typ2z, l4typ3z: tptr;
-    l4var4z, l4var5z: eptr;
+    firstWidth, secondWidth: eptr;
     l4exp6z: eptr;
     l4exp7z, l4exp8z, workExpr: eptr;
     l4bool10z,
-    l4bool11z, l4bool12z, l4var13z, l4var14z: int;
+    noWidth, l4bool12z, l4var13z, l4var14z: int;
     defWidth: int;
     procNo: int;
     helperNo: int;
@@ -6262,12 +6263,12 @@ void writeProc;
                 P17037();
             } else {
                 checkElementForReadWrite();
-                l4var5z  =  NIL;
-                l4var4z  =  NIL;
+                secondWidth  =  NIL;
+                firstWidth  =  NIL;
                 if (SY == COLON)
-                    l4var4z = parseWidthSpecifier();
+                    firstWidth = parseWidthSpecifier();
                 if (SY == COLON) {
-                    l4var5z = parseWidthSpecifier();
+                    secondWidth = parseWidthSpecifier();
                     if (helperNo != 37)     /* P/WR */
                         error(35); /* errSecondSpecifierForWriteOnlyForReal */
                 } else {
@@ -6279,31 +6280,33 @@ void writeProc;
                         inSymbol();
                     }
                 }
-                l4bool11z  =  false;
-                if ((l4var4z == NIL) &&
+                noWidth  =  false;
+                if ((firstWidth == NIL) &&
                    (helperNo IN [38,39,40])) {  /* WC,A6,A7 */
                     helperNo  =  helperNo + 5;       /* CW,6A,7A */
-                    l4bool11z  =  true;
+                    noWidth  =  true;
                 } else {
-                    if (l4var4z == NIL) {
-                        curVal.i  =  defWidth;
-                        formOperator(gen9);
+                    if (firstWidth == NIL) {
+                        curVal.i  =  defWidth | [0,1,3];
+                        formOperator(DFLTWDTH);
                     } else {
-                        curExpr  =  l4var4z;
+                        curExpr  =  firstWidth;
                         formOperator(LOAD);
+                        form1Insn(KAOX+ZERO);
                     }
                 }
                 if (helperNo == 37) {       /* P/WR */
-                    if (l4var5z == NIL) {
-                        curVal.i  =  4;
+                    if (secondWidth == NIL) {
+                        curVal.i  =  4 | [0,1,3];
                         form1Insn(KXTS+I8 + getFCSToffset());
                     } else {
-                        curExpr  =  l4var5z;
-                        formOperator(gen10);
+                        curExpr  =  secondWidth;
+                        formOperator(FRACWIDTH);
+                        form1Insn(KAOX+ZERO);
                     }
                 }
                 curExpr  =  l4exp7z;
-                if (l4bool11z) {
+                if (noWidth) {
                     if (helperNo == 45)      /* P/7A */
                         l4var18z  =  gen11;
                     else
@@ -6313,7 +6316,7 @@ void writeProc;
                        (helperNo == 81))      /* P/WA */
                         l4var18z  =  gen12;
                     else
-                        l4var18z  =  gen10;
+                        l4var18z  =  FRACWIDTH;
                 }
                 formOperator(l4var18z);
                 if ((helperNo IN [39,40,44,45]) || /* A6,A7,6A,7A */
@@ -7899,7 +7902,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void initOptions;
 {
-    pasinfor.startOffset  =  pasinfor.startOffset - 16384;
+    pasinfor.startOffset  =  (pasinfor.startOffset & ~[0..6]) - 16384;
     commentModeCH  =  ' ';
     lineNesting  =  0;
     CH  =  ' ';
