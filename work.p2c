@@ -240,9 +240,9 @@ insnltyp  = struct {
     typ: tptr;
     regsused: int;
     ilm: ilmode;
-    ilf5: int;
-    ilf6: int;
-    ilf7: int;
+    payload: int;
+    disp: int;
+    addrmd: int;
     st: state;
     width, shift: int
 };
@@ -2351,22 +2351,22 @@ var
     with insnList@ do {
         switch (ilm) {
         ilCONST: {
-            curVal.i  =  ilf5;
+            curVal.i  =  payload;
             if (l4typ4z->size == 1)
                 curVal.i  =  getFCSToffset();
             addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
         }
         il1: {
-            helper  =  insnList->ilf7;
-            l4int2z  =  insnList->ilf5;
-            l4int3z  =  insnList->ilf6;
+            helper  =  insnList->addrmd;
+            l4int2z  =  insnList->payload;
+            l4int3z  =  insnList->disp;
             if (15 < helper) {
                 /* empty */
             } else {
                 if (helper == 15) { /* P/CP */
                     addToInsnList(macro + mcACC2ADDR);
                 } else {
-                    helper  =  indexreg[insnList->ilf7];
+                    helper  =  indexreg[insnList->addrmd];
                     if ((l4int2z == 0) && (insnList->st == st0)) {
                         addInsnAndOffset(helper + curInsnTemplate,
                                          l4int3z);
@@ -2441,7 +2441,7 @@ var
         il3: {
             if (forValue)
                 addInsnAndOffset(macro+mcCOND2INT,
-                    ord(16 in insnList->regsused)*010000 + insnList->ilf5);
+                    ord(16 in insnList->regsused)*010000 + insnList->payload);
         }
         } /* switch */
 4602:
@@ -2470,19 +2470,19 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void getOffset;
 {
-      l4var6z = insnList->ilf6 % 32768;
+      l4var6z = insnList->disp % 32768;
 } /* getOffset */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* setAddrTo */
     with insnList@ do {
-        l4int2z  =  ilf7;
+        l4int2z  =  addrmd;
         opCode  =  insnTemp[VTM];
         regField  =  indexreg[reg];
-        l4var4z  =  ilf5;
+        l4var4z  =  payload;
         regsused  =  regsused | (E48 >> reg);
         if (ilm == ilCONST) {
-            curVal.i  =  ilf5;
+            curVal.i  =  payload;
             if (typ->size == 1)
                 curVal.i  =  addCurValToFCST();
             l4var6z  =  curVal.i;
@@ -2503,7 +2503,7 @@ void getOffset;
             }
         } else if (l4int2z == 17) {
             getOffset();
-            l4var4z  =  insnList->ilf6;
+            l4var4z  =  insnList->disp;
             l4var5z  =  insnList->next->code - insnTemp[UTC];
             if (l4var4z != 0) {
                 l4var1z  =  macro * l4var5z + l4var4z;
@@ -2526,9 +2526,9 @@ void getOffset;
     } /* with */
     with insnList@ do {
         ilm  =  il1;
-        ilf7  =  reg;
-        ilf6  =  0;
-        ilf5  =  0;
+        addrmd  =  reg;
+        disp  =  0;
+        payload  =  0;
     }
 } /* setAddrTo */
 //
@@ -2542,7 +2542,7 @@ var
     l4var7z: kind;
 {
     with insnList@ do
-        l4int1z  =  ilf7;
+        l4int1z  =  addrmd;
     if (15 < l4int1z) {
         /* nothing? */
     } else if (l4int1z == 15) {
@@ -2556,11 +2556,11 @@ var
         addxToInsnList(macro + mcPUSH);
     if (l4st6z == st0) {
         if (l4bool4z) {
-            addInsnAndOffset(insnList->ilf5 + insnTemp[UTC],
-                             insnList->ilf6);
+            addInsnAndOffset(insnList->payload + insnTemp[UTC],
+                             insnList->disp);
             addToInsnList(macro+mcPOP2ADDR);
         } else {
-            addInsnAndOffset(insnList->ilf5, insnList->ilf6);
+            addInsnAndOffset(insnList->payload, insnList->disp);
         }
     } else {
         l4var7z  =  insnList->typ->k;
@@ -2577,8 +2577,8 @@ var
                 if (l4int3z != 48)
                     addxToInsnList(ASN64 + 48 - l4int3z);
             }
-            addInsnAndOffset(insnTemp[UTC] + insnList->ilf5,
-                             insnList->ilf6);
+            addInsnAndOffset(insnTemp[UTC] + insnList->payload,
+                             insnList->disp);
             // binary negation of [(48-l4int3z)..(47 -l4int2z)]
             curVal.i = all1 << l4int3z | all1 >> (48-l4int2z);
             addInsnAndOffset(macro+mcPCKSTORE, getFCSToffset());
@@ -2643,9 +2643,9 @@ void P5155;
     prepLoad();
     insnList->ilm  =  il1;
     insnList->st  =  st0;
-    insnList->ilf6  =  0;
-    insnList->ilf5  =  0;
-    insnList->ilf7  =  18;
+    insnList->disp  =  0;
+    insnList->payload  =  0;
+    insnList->addrmd  =  18;
 } /* P5155 */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2662,10 +2662,10 @@ var
         (insnList->st == st1) &&
         (insnList->shift == 0)))
      {
-        l5var1z  =  insnList->ilf7;
-        l5var2z  =  insnList->ilf6;
+        l5var1z  =  insnList->addrmd;
+        l5var2z  =  insnList->disp;
         if ((l5var1z == 18) || (l5var1z == 16)) {
-5220:       addInsnAndOffset((insnList->ilf5 + insnTemp[WTC]), l5var2z);
+5220:       addInsnAndOffset((insnList->payload + insnTemp[WTC]), l5var2z);
         } else {
             if (l5var1z == 17) {
                 if (l5var2z == 0) {
@@ -2690,9 +2690,9 @@ var
         }
         addToInsnList(macro + mcACC2ADDR);
     }
-    insnList->ilf6  =  0;
-    insnList->ilf5  =  0;
-    insnList->ilf7  =  16;
+    insnList->disp  =  0;
+    insnList->payload  =  0;
+    insnList->addrmd  =  16;
 } /* genDeref */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2737,7 +2737,7 @@ var
 void negateCond;
 {
     if (insnList->ilm == ilCONST) {
-        insnList->ilf5  =  not insnList->ilf5;
+        insnList->payload  =  not insnList->payload;
     } else {
         insnList->regsused  =  insnList->regsused ^ [16];
     }
@@ -2821,13 +2821,13 @@ var
         l5var6z  =  (l5var1z|0) + macro;
         l5var7z  =  (l5var2z|0) + macro;
         if (insnList->ilm == il3) {
-            l5var3z  =  insnList->ilf5;
+            l5var3z  =  insnList->payload;
         } else {
             l5var3z  =  0;
             prepLoad();
         }
         if (otherIns->ilm == il3) {
-            l5var4z  =  otherIns->ilf5;
+            l5var4z  =  otherIns->payload;
         } else {
             l5var4z  =  0;
         }
@@ -2902,7 +2902,7 @@ var
         l5ins8z->next->next  =  insnList->next2;
         insnList->next2  =  l5ins8z->next2;
         insnList->ilm  =  il3;
-        insnList->ilf5  =  l5var5z;
+        insnList->payload  =  l5var5z;
         forValue  =  true;
     }
 } /* genBoolAnd */
@@ -2946,11 +2946,11 @@ var
         l5var7z  =  l5var27z->left;
         l5var8z  =  l5var26z->size;
         if (not l5var25z)
-            insnCopy.ilf6  =  insnCopy.ilf6 - l5var8z * l5var7z;
+            insnCopy.disp  =  insnCopy.disp - l5var8z * l5var7z;
         insnList  =  getEltInsns[curDim];
         l5ilm28z  =  insnList->ilm;
         if (l5ilm28z == ilCONST) {
-            curVal.i  =  insnList->ilf5 | intZero;
+            curVal.i  =  insnList->payload | intZero;
             if ((curVal.i < l5var7z) ||
                (l5var27z->right < curVal.i))
                 error(29); /* errIndexOutOfBounds */
@@ -2958,7 +2958,7 @@ var
                 l5var4z  =  curVal.i - l5var7z;
                 l5var5z  =  insnCopy.typ->perword;
                 insnCopy.regsused  =  insnCopy.regsused | E48;
-                insnCopy.ilf6  =  l5var4z / l5var5z + insnCopy.ilf6;
+                insnCopy.disp  =  l5var4z / l5var5z + insnCopy.disp;
                 l5var6z  =  (l5var5z-1-l5var4z % l5var5z) *
                            insnCopy.typ->pcksize;
                 switch (insnCopy.st) {
@@ -2970,8 +2970,8 @@ var
                 insnCopy.width  =  insnCopy.typ->pcksize;
                 insnCopy.st  =  st1;
             }  else {
-                insnCopy.ilf6  =  curVal.i  * l5var26z->size +
-                                  insnCopy.ilf6;
+                insnCopy.disp  =  curVal.i  * l5var26z->size +
+                                  insnCopy.disp;
             }
         } else {
             if (l5var8z != 1) {
@@ -2994,11 +2994,11 @@ var
                prepLoad();
            l5var23z  =  insnCopy.regsused | insnList->regsused;
            if (not l5var25z) {
-               if (insnCopy.ilf7 == 18) {
+               if (insnCopy.addrmd == 18) {
                     if (insnList->ilm == il2) {
-                        insnCopy.ilf7  =  15;
+                        insnCopy.addrmd  =  15;
                     } else {
-                        insnCopy.ilf7  =  16;
+                        insnCopy.addrmd  =  16;
                         curInsnTemplate  =  insnTemp[WTC];
                         prepLoad();
                         curInsnTemplate  =  insnTemp[XTA];
@@ -3006,7 +3006,7 @@ var
                     insnCopy.next  =  insnList->next;
                     insnCopy.next2  =  insnList->next2;
                 } else {
-                    if (insnCopy.ilf7 >= 15) {
+                    if (insnCopy.addrmd >= 15) {
                         l5var1z  =   minel(l5var22z);
                         if (0 >= l5var1z) {
                             l5var1z  =  minel(freeRegs & (~ insnCopy.regsused));
@@ -3016,16 +3016,16 @@ var
                         saved  =  insnList;
                         insnList  =  copyPtr;
                         l5var23z  =  l5var23z | (E48 >> l5var1z);
-                        if (insnCopy.ilf7 == 15) {
+                        if (insnCopy.addrmd == 15) {
                             addToInsnList(insnTemp[ATI] + l5var1z);
                         } else {
                             addToInsnList(indexreg[l5var1z] + insnTemp[VTM]);
                         }
-                        insnCopy.ilf7  =  l5var1z;
+                        insnCopy.addrmd  =  l5var1z;
                         insnCopy.regsused  =  insnCopy.regsused | (E48 >> l5var1z);
                         insnList  =  saved;
                     } else {
-                            l5var1z  =  insnCopy.ilf7;
+                            l5var1z  =  insnCopy.addrmd;
                     }
                     if (l5var1z IN insnList->regsused) {
                          push();
@@ -3066,8 +3066,8 @@ var
                         addToInsnList(macro + mcPOP);
                     l5var23z  =  l5var23z | [0, 10, 11, 13, 14];
                     insnCopy.st  =  st2;
-                    insnCopy.ilf6  =  0;
-                    insnCopy.ilf5  =  0;
+                    insnCopy.disp  =  0;
+                    insnCopy.payload  =  0;
                     insnCopy.width  =  insnCopy.typ->pcksize;
                     curVal.i  =  insnCopy.width;
                     if (curVal.i == 24)
@@ -3075,7 +3075,7 @@ var
                     curVal.i  =  curVal.i << 24;
                     addToInsnList(allocSymtab(  /* P/00C */
                         helperNames[76] | curVal.i)+(KVTM+I11));
-                    insnCopy.ilf7  =  16;
+                    insnCopy.addrmd  =  16;
                     insnCopy.shift  =  0;
                     saved->next->next  =  insnCopy.next2;
                     insnCopy.next2  =  saved->next2;
@@ -3338,13 +3338,13 @@ void startInsnList(l5arg1z: ilmode);
     insnList->regsused  =  0U;
     insnList->ilm  =  l5arg1z;
     if (l5arg1z == ilCONST) {
-        insnList->ilf5  =  exprToGen->num1;
-        insnList->ilf7  =  exprToGen->num2;
+        insnList->payload  =  exprToGen->num1;
+        insnList->addrmd  =  exprToGen->num2;
     } else {
         insnList->st  =  st0;
-        insnList->ilf7  =  18;
-        insnList->ilf5  =  curFrameRegTemplate;
-        insnList->ilf6  =  exprToGen->num1;
+        insnList->addrmd  =  18;
+        insnList->payload  =  curFrameRegTemplate;
+        insnList->disp  =  exprToGen->num1;
     }
 } /* startInsnList */
 //
@@ -3399,17 +3399,17 @@ var
     if (l3int3z == 6) {     /* IN */
         if (arg1Const) {
             if (arg2Const) {
-                insnList->ilf5  =  arg1Val.i IN arg2Val.i;
+                insnList->payload  =  arg1Val.i IN arg2Val.i;
             } else {
                 l5set2z  =  E48 >> arg1Val.i;
                 if (l5set2z == 0U) {
-                    insnList->ilf5  =  false;
+                    insnList->payload  =  false;
                 } else {
                     insnList  =  otherIns;
                     prepLoad();
                     curVal.i  =  l5set2z;
                     addToInsnList(KAAX+I8 + getFCSToffset());
-                    insnList->ilf5  =  0;
+                    insnList->payload  =  0;
                     insnList->ilm  =  il3;
                 }
             }
@@ -3449,7 +3449,7 @@ var
                 nextInsn  =  insnTemp[AEX];
                 tryFlip(true);
 7504:           insnList->ilm  =  il3;
-                insnList->ilf5  =  0;
+                insnList->payload  =  0;
             }
         } else {
             switch (work) {
@@ -3507,12 +3507,12 @@ var
             l3bool13z  =  true;
         if (insnList->ilm == ilCONST) {
             arg1Const  =  true;
-            arg1Val.i  =  insnList->ilf5;
+            arg1Val.i  =  insnList->payload;
         } else
             arg1Const  =  false;
         if (otherIns->ilm == ilCONST) {
             arg2Const  =  true;
-            arg2Val.i  =  otherIns->ilf5;
+            arg2Val.i  =  otherIns->payload;
         } else
             arg2Const  =  false;
         if (curOP IN [NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP]) {
@@ -3546,7 +3546,7 @@ var
                 ASSIGNOP:
                     error(200);
                 } /* switch 7750 */
-                insnList->ilf5  =  arg1Val.i;
+                insnList->payload  =  arg1Val.i;
             } else {
                 l3int3z  =  opToMode[curOP];
                 nextInsn  =  opToInsn[curOP];
@@ -3608,10 +3608,10 @@ var
                 }
                 opfMULMSK: {
                     if (arg1Const) {
-                        insnList->ilf5  =  (arg1Val.i | [0]) & (~[1, 3]);
+                        insnList->payload  =  (arg1Val.i | [0]) & (~[1, 3]);
                     } else {
                         if (arg2Const) {
-                            otherIns->ilf5  =  (arg2Val.i | [0]) & (~[1, 3]);
+                            otherIns->payload  =  (arg2Val.i | [0]) & (~[1, 3]);
                         } else {
                             prepLoad();
                             if (s9 in optSflags)
@@ -3661,28 +3661,28 @@ var
                     next2  =  NIL;
                     regsused  =  0U;
                     ilm  =  il1;
-                    ilf5  =  curIdRec->offset;
-                    ilf6  =  curIdRec->high;
+                    payload  =  curIdRec->offset;
+                    disp  =  curIdRec->high;
                     st  =  st0;
-                    ilf7  =  18;
+                    addrmd  =  18;
                 }
                 if (curIdRec->cl == FORMALID) {
                     writeln (' wtf '); halt;
                     genDeref();
                 } else if (curIdRec->cl == ROUTINEID) {
-                    insnList->ilf6  =  3;
-                    insnList->ilf5  =  (insnList->ilf5 + frameRegTemplate);
-                } else if (insnList->ilf6 >= 074000) {
-                    addToInsnList(insnTemp[UTC] + insnList->ilf6);
-                    insnList->ilf6  =  0;
-                    insnList->ilf7  =  17;
-                    insnList->ilf5  =  0;
+                    insnList->disp  =  3;
+                    insnList->payload  =  (insnList->payload + frameRegTemplate);
+                } else if (insnList->disp >= 074000) {
+                    addToInsnList(insnTemp[UTC] + insnList->disp);
+                    insnList->disp  =  0;
+                    insnList->addrmd  =  17;
+                    insnList->payload  =  0;
                 }
             } else if (curOP == GETFIELD) {
                 genFullExpr(exprToGen->expr1);
                 curIdRec  =  exprToGen->id2;
                 with insnList@ do {
-                    ilf6  =  ilf6 + curIdRec->offset;
+                    disp  =  disp + curIdRec->offset;
                     if (curIdRec->pckfield) {
                         switch (st) {
                         st0:
@@ -3726,7 +3726,7 @@ var
         else if (curOP IN [TOREAL..BITNEGOP]) {
             genFullExpr(exprToGen->expr1);
             if (insnList->ilm == ilCONST) {
-                arg1Val.i  =  insnList->ilf5;
+                arg1Val.i  =  insnList->payload;
                 switch (curOP) {
                 TOREAL: arg1Val.r  =  arg1Val.i | [0,1,3];
                 NOTOP:  arg1Val.i  =  not arg1Val.i;
@@ -3734,7 +3734,7 @@ var
                 INEGOP: arg1Val.i  =  -arg1Val.i;
                 BITNEGOP: arg1Val.i = ~arg1Val.i;
                 } /* switch 10345 */
-                insnList->ilf5  =  arg1Val.i;
+                insnList->payload  =  arg1Val.i;
             } else if (curOP == NOTOP) {
                 negateCond();
             } else {
@@ -3767,7 +3767,7 @@ var
             } else {
                 if (insnList->ilm == ilCONST) {
                     arg1Const  =  true;
-                    arg1Val.i  =  insnList->ilf5;
+                    arg1Val.i  =  insnList->payload;
                 } else
                     arg1Const  =  false;
                 arg2Const  =  (insnList->typ == realType);
@@ -3791,7 +3791,7 @@ var
                     fnEOLN:
                         error(201);
                     }
-                    insnList->ilf5  =  arg1Val.i;
+                    insnList->payload  =  arg1Val.i;
                 } else if (work IN [fnEOF, fnREF, fnEOLN]) {
                     if (work == fnREF) {
                         setAddrTo(14);
@@ -3834,9 +3834,9 @@ var
                         next2  =  ;
                         regsused  =  0U;
                         ilm  =  il1;
-                        ilf7  =  18;
-                        ilf5  =  indexreg[curVal.i];
-                        ilf6  =  0;
+                        addrmd  =  18;
+                        payload  =  indexreg[curVal.i];
+                        disp  =  0;
                         st  =  st0;
                     }
                 } else {
@@ -4019,7 +4019,7 @@ var l4exf1z: @extfilerec;
             noTarget  =  jumpTarget == 0;
             l3int3z  =  jumpTarget;
             if (ilm == ilCONST) {
-                if (ilf5) {
+                if (payload) {
                     jumpTarget  =  0;
                 } else {
                     if (noTarget) {
@@ -4029,9 +4029,21 @@ var l4exf1z: @extfilerec;
                     }
                 }
             } else {
+                if ((curExpr->typ != boolType) && (!(curExpr->op IN
+                    [SHLEFT..SETOR,ASSIGNOP..ALNUM]))) {
+                    new(l3var5z);
+                    with l3var5z@ do {
+                        typ  =  boolType;
+                        expr1  =  curExpr;
+                        op  =  NEOP;
+                        new(expr2);
+                        expr2@  =  [intType, GETENUM, 0U];
+                    };
+                    curExpr  =  l3var5z;
+                };
                 direction  =  (16 in insnList->regsused);
                 if ((insnList->ilm == il3) &&
-                   (insnList->ilf5 != 0)) {
+                   (insnList->payload != 0)) {
                     genOneOp();
                     if (direction) {
                         if (noTarget)
@@ -4103,7 +4115,7 @@ var l4exf1z: @extfilerec;
                 error(errNoConstant);
             if (insnList->typ->size != 1)
                 error(errConstOfOtherTypeNeeded);
-            curVal.i  =  insnList->ilf5;
+            curVal.i  =  insnList->payload;
         }
     }
     } /* switch */

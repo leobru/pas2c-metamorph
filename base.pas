@@ -229,9 +229,9 @@ insnltyp  = record
     typ: tptr;
     regsused: bitset;
     ilm: ilmode;
-    ilf5: word;
-    ilf6: integer;
-    ilf7: integer;
+    payload: word;
+    disp: integer;
+    addrmd: integer;
     st: state;
     width, shift: integer
 end;
@@ -2386,22 +2386,22 @@ var
     with insnList@ do {
         case ilm of
         ilCONST: {
-            curVal := ilf5;
+            curVal := payload;
             if (valueType@.size = 1) then
                 curVal.i := getFCSToffset;
             addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
         };
         il1: {
-            helper := insnList@.ilf7;
-            baseWidth := insnList@.ilf5.i;
-            offsetShift := insnList@.ilf6;
+            helper := insnList@.addrmd;
+            baseWidth := insnList@.payload.i;
+            offsetShift := insnList@.disp;
             if (15 < helper) then {
                 (* empty *)
             } else {
                 if (helper = 15) then { (* P/CP *)
                     addToInsnList(macro + mcACC2ADDR);
                 } else {
-                    helper := indexreg[insnList@.ilf7];
+                    helper := indexreg[insnList@.addrmd];
                     if (baseWidth = 0) and (insnList@.st = st0) then {
                         addInsnAndOffset(helper + curInsnTemplate,
                                          offsetShift);
@@ -2476,7 +2476,7 @@ var
         il3: {
             if forValue then
                 addInsnAndOffset(macro+mcCOND2INT,
-                    ord(16 in insnList@.regsused)*10000B + insnList@.ilf5.i);
+                    ord(16 in insnList@.regsused)*10000B + insnList@.payload.i);
         };
         end; (* case *)
 4602:
@@ -2506,7 +2506,7 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure P4613;
 {
-    l4var1z.i := insnList@.ilf6;
+    l4var1z.i := insnList@.disp;
     l4var1z.i := l4var1z.i mod 32768;
     l4var6z := l4var1z.i
 }; (* P4613 *)
@@ -2514,13 +2514,13 @@ procedure P4613;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* setAddrTo *)
     with insnList@ do {
-        l4int2z := ilf7;
+        l4int2z := addrmd;
         opCode := insnTemp[VTM];
         regField := indexreg[reg];
-        l4var4z := ilf5.i;
+        l4var4z := payload.i;
         regsused := regsused + [reg];
         if (ilm = ilCONST) then {
-            curVal := ilf5;
+            curVal := payload;
             if (typ@.size = 1) then
                 curVal.i := addCurValToFCST;
             l4var6z := curVal.i;
@@ -2541,7 +2541,7 @@ procedure P4613;
             }
         } else if (l4int2z = 17) then {
             P4613;
-            l4var4z := insnList@.ilf6;
+            l4var4z := insnList@.disp;
             l4var5z := insnList@.next@.code - insnTemp[UTC];
             if (l4var4z <> 0) then {
                 l4var1z.i := macro * l4var5z + l4var4z;
@@ -2563,9 +2563,9 @@ procedure P4613;
         }
     }; (* with *)
     insnList@.ilm := il1;
-    insnList@.ilf7 := reg;
-    insnList@.ilf6 := 0;
-    insnList@.ilf5.i := 0;
+    insnList@.addrmd := reg;
+    insnList@.disp := 0;
+    insnList@.payload.i := 0;
 }; (* setAddrTo *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2578,7 +2578,7 @@ var
     typeKind: kind;
 {
     with insnList@ do
-        l4int1z := ilf7;
+        l4int1z := addrmd;
     if (15 < l4int1z) then {
         (* nothing? *)
     } else if (l4int1z = 15) then {
@@ -2592,11 +2592,11 @@ var
         addxToInsnList(macro + mcPUSH);
     if (addrState = st0) then {
         if (l4bool4z) then {
-            addInsnAndOffset(insnList@.ilf5.i + insnTemp[UTC],
-                             insnList@.ilf6);
+            addInsnAndOffset(insnList@.payload.i + insnTemp[UTC],
+                             insnList@.disp);
             addToInsnList(macro+mcPOP2ADDR);
         } else {
-            addInsnAndOffset(insnList@.ilf5.i, insnList@.ilf6);
+            addInsnAndOffset(insnList@.payload.i, insnList@.disp);
         }
     } else {
         typeKind := insnList@.typ@.k;
@@ -2613,8 +2613,8 @@ var
                 if (l4int3z <> 48) then
                     addxToInsnList(ASN64 + 48 - l4int3z);
             };
-            addInsnAndOffset(insnTemp[UTC] + insnList@.ilf5.i,
-                             insnList@.ilf6);
+            addInsnAndOffset(insnTemp[UTC] + insnList@.payload.i,
+                             insnList@.disp);
             curVal.m := [0..47] - [(48-l4int3z)..(47 -l4int2z)];
             addInsnAndOffset(macro+22, getFCSToffset);
         } else {
@@ -2677,9 +2677,9 @@ procedure P5155;
     prepLoad;
     insnList@.ilm := il1;
     insnList@.st := st0;
-    insnList@.ilf6 := 0;
-    insnList@.ilf5.i := 0;
-    insnList@.ilf7 := 18;
+    insnList@.disp := 0;
+    insnList@.payload.i := 0;
+    insnList@.addrmd := 18;
 }; (* P5155 *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2697,10 +2697,10 @@ var
         (insnList@.st = st1) and
         (insnList@.shift = 0))
     then {
-        l5var1z.i := insnList@.ilf7;
-        l5var2z.i := insnList@.ilf6;
+        l5var1z.i := insnList@.addrmd;
+        l5var2z.i := insnList@.disp;
         if (l5var1z.i = 18) or (l5var1z.i = 16) then {
-5220:       addInsnAndOffset((insnList@.ilf5.i + insnTemp[WTC]), l5var2z.i);
+5220:       addInsnAndOffset((insnList@.payload.i + insnTemp[WTC]), l5var2z.i);
         } else {
             if (l5var1z.i = 17) then {
                 if (l5var2z.i = 0) then {
@@ -2725,9 +2725,9 @@ var
         };
         addToInsnList(macro + mcACC2ADDR);
     };
-    insnList@.ilf6 := 0;
-    insnList@.ilf5.i := 0;
-    insnList@.ilf7 := 16;
+    insnList@.disp := 0;
+    insnList@.payload.i := 0;
+    insnList@.addrmd := 16;
 }; (* genDeref *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2772,7 +2772,7 @@ var
 procedure negateCond;
 {
     if (insnList@.ilm = ilCONST) then {
-        insnList@.ilf5.b := not insnList@.ilf5.b;
+        insnList@.payload.b := not insnList@.payload.b;
     } else {
         insnList@.regsused := insnList@.regsused mod [16];
     }
@@ -2856,13 +2856,13 @@ var
         l5var6z := ord(l5var1z) + macro;
         l5var7z := ord(l5var2z) + macro;
         if (insnList@.ilm = il3) then {
-            l5var3z := insnList@.ilf5.i;
+            l5var3z := insnList@.payload.i;
         } else {
             l5var3z := 0;
             prepLoad;
         };
         if (otherIns@.ilm = il3) then {
-            l5var4z := otherIns@.ilf5.i;
+            l5var4z := otherIns@.payload.i;
         } else {
             l5var4z := 0;
         };
@@ -2937,7 +2937,7 @@ var
         l5ins8z@.next@.next := insnList@.next2;
         insnList@.next2 := l5ins8z@.next2;
         insnList@.ilm := il3;
-        insnList@.ilf5.i := l5var5z;
+        insnList@.payload.i := l5var5z;
         forValue := true;
     }
 }; (* genBoolAnd *)
@@ -2981,11 +2981,11 @@ var
         l5var7z := l5var27z@.left;
         l5var8z := l5var26z@.size;
         if not l5var25z then
-            insnCopy.ilf6 := insnCopy.ilf6 - l5var8z * l5var7z;
+            insnCopy.disp := insnCopy.disp - l5var8z * l5var7z;
         insnList := getEltInsns[curDim];
         l5ilm28z := insnList@.ilm;
         if (l5ilm28z = ilCONST) then {
-            curVal := insnList@.ilf5;
+            curVal := insnList@.payload;
             curVal.m := curVal.m +  intZero;
             if (curVal.i < l5var7z) or
                (l5var27z@.right < curVal.i) then
@@ -2994,7 +2994,7 @@ var
                 l5var4z := curVal.i - l5var7z;
                 l5var5z := insnCopy.typ@.perword;
                 insnCopy.regsused := insnCopy.regsused + [0];
-                insnCopy.ilf6 := l5var4z DIV l5var5z + insnCopy.ilf6;
+                insnCopy.disp := l5var4z DIV l5var5z + insnCopy.disp;
                 l5var6z := (l5var5z-1-l5var4z MOD l5var5z) *
                            insnCopy.typ@.pcksize;
                 case insnCopy.st of
@@ -3006,8 +3006,8 @@ var
                 insnCopy.width := insnCopy.typ@.pcksize;
                 insnCopy.st := st1;
             }  else {
-                insnCopy.ilf6 := curVal.i  * l5var26z@.size +
-                                  insnCopy.ilf6;
+                insnCopy.disp := curVal.i  * l5var26z@.size +
+                                  insnCopy.disp;
             }
         } else { (* 6123*)
             if (l5var8z <> 1) then {
@@ -3030,11 +3030,11 @@ var
                prepLoad;
            l5var23z.m := insnCopy.regsused + insnList@.regsused;
            if (not l5var25z) then {
-               if (insnCopy.ilf7 = 18) then {
+               if (insnCopy.addrmd = 18) then {
                     if (insnList@.ilm = il2) then {
-                        insnCopy.ilf7 := 15;
+                        insnCopy.addrmd := 15;
                     } else {
-                        insnCopy.ilf7 := 16;
+                        insnCopy.addrmd := 16;
                         curInsnTemplate := insnTemp[WTC];
                         prepLoad;
                         curInsnTemplate := insnTemp[XTA];
@@ -3042,7 +3042,7 @@ var
                     insnCopy.next := insnList@.next;
                     insnCopy.next2 := insnList@.next2;
                 } else {
-                    if (insnCopy.ilf7 >= 15) then {
+                    if (insnCopy.addrmd >= 15) then {
                         l5var1z :=  minel(l5var22z.m);
                         if (0 >= l5var1z) then {
                             l5var1z := minel(set147z - insnCopy.regsused);
@@ -3052,16 +3052,16 @@ var
                         saved := insnList;
                         insnList := copyPtr;
                         l5var23z.m := l5var23z.m + [l5var1z];
-                        if (insnCopy.ilf7 = 15) then {
+                        if (insnCopy.addrmd = 15) then {
                             addToInsnList(insnTemp[ATI] + l5var1z);
                         } else {
                             addToInsnList(indexreg[l5var1z] + insnTemp[VTM]);
                         };
-                        insnCopy.ilf7 := l5var1z;
+                        insnCopy.addrmd := l5var1z;
                         insnCopy.regsused := insnCopy.regsused + [l5var1z];
                         insnList := saved;
                     } else {
-                            l5var1z := insnCopy.ilf7;
+                            l5var1z := insnCopy.addrmd;
                     };
                     if (l5var1z IN insnList@.regsused) then {
                          P4606;
@@ -3102,8 +3102,8 @@ var
                         addToInsnList(macro + mcPOP);
                     l5var23z.m := l5var23z.m + [0, 10, 11, 13, 14];
                     insnCopy.st := st2;
-                    insnCopy.ilf6 := 0;
-                    insnCopy.ilf5.i := 0;
+                    insnCopy.disp := 0;
+                    insnCopy.payload.i := 0;
                     insnCopy.width := insnCopy.typ@.pcksize;
                     curVal.i := insnCopy.width;
                     if (curVal.i = 24) then
@@ -3111,7 +3111,7 @@ var
                     curVal := curVal;besm(ASN64-24);curVal:=;
                     addToInsnList(allocSymtab(  (* P/00C *)
                         helperNames[76] + curVal.m)+(KVTM+I11));
-                    insnCopy.ilf7 := 16;
+                    insnCopy.addrmd := 16;
                     insnCopy.shift := 0;
                     saved@.next@.next := insnCopy.next2;
                     insnCopy.next2 := saved@.next2;
@@ -3379,13 +3379,13 @@ procedure startInsnList(l5arg1z: ilmode);
     insnList@.regsused := [];
     insnList@.ilm := l5arg1z;
     if (l5arg1z = ilCONST) then {
-        insnList@.ilf5.i := exprToGen@.num1;
-        insnList@.ilf7 := exprToGen@.num2;
+        insnList@.payload.i := exprToGen@.num1;
+        insnList@.addrmd := exprToGen@.num2;
     } else {
         insnList@.st := st0;
-        insnList@.ilf7 := 18;
-        insnList@.ilf5.i := curFrameRegTemplate;
-        insnList@.ilf6 := exprToGen@.num1;
+        insnList@.addrmd := 18;
+        insnList@.payload.i := curFrameRegTemplate;
+        insnList@.disp := exprToGen@.num1;
     }
 }; (* startInsnList *)
 %
@@ -3440,17 +3440,17 @@ var
     if (l3int3z = 6) then {     (* IN *)
         if (arg1Const) then {
             if (arg2Const) then {
-                insnList@.ilf5.b := (arg1Val.i IN arg2Val.m);
+                insnList@.payload.b := (arg1Val.i IN arg2Val.m);
             } else {
                 l5set2z := [arg1Val.i];
                 if (l5set2z = []) then {
-                    insnList@.ilf5.b := false;
+                    insnList@.payload.b := false;
                 } else {
                     insnList := otherIns;
                     prepLoad;
                     curVal.m := l5set2z;
                     addToInsnList(KAAX+I8 + getFCSToffset);
-                    insnList@.ilf5.i := 0;
+                    insnList@.payload.i := 0;
                     insnList@.ilm := il3;
                 }
             };
@@ -3490,7 +3490,7 @@ var
                 nextInsn := insnTemp[AEX];
                 tryFlip(true);
 7504:           insnList@.ilm := il3;
-                insnList@.ilf5.i := 0;
+                insnList@.payload.i := 0;
             };
         } else {
             case work of
@@ -3570,12 +3570,12 @@ if s9 IN optSflags.m then arg1Val.m := arg1Val.m - intZero;
             l3bool13z := true;
         if (insnList@.ilm = ilCONST) then {
             arg1Const := true;
-            arg1Val := insnList@.ilf5;
+            arg1Val := insnList@.payload;
         } else
             arg1Const := false;
         if (otherIns@.ilm = ilCONST) then {
             arg2Const := true;
-            arg2Val := otherIns@.ilf5;
+            arg2Val := otherIns@.payload;
         } else
             arg2Const := false;
         if (curOP IN [NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP]) then {
@@ -3604,7 +3604,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 ASSIGNOP:
                     error(200);
                 end;
-                insnList@.ilf5 := arg1Val;
+                insnList@.payload := arg1Val;
             } else {
                 l3int3z := opToMode[curOP];
                 nextInsn := opToInsn[curOP];
@@ -3667,9 +3667,9 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 };
                 opfMULMSK: {
                     if (arg1Const) then {
-                        insnList@.ilf5.m := arg1Val.m + [0] - [1, 3];
+                        insnList@.payload.m := arg1Val.m + [0] - [1, 3];
                     } else if (arg2Const) then {
-                        otherIns@.ilf5.m := arg2Val.m + [0] - [1, 3];
+                        otherIns@.payload.m := arg2Val.m + [0] - [1, 3];
                     } else {
                         prepLoad;
                         if s9 in optSflags.m then
@@ -3718,28 +3718,29 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     next2 := NIL;
                     regsused := [];
                     ilm := il1;
-                    ilf5.i := curIdRec@.offset;
-                    ilf6 := curIdRec@.high.i;
+                    payload.i := curIdRec@.offset;
+                    disp := curIdRec@.high.i;
                     st := st0;
-                    ilf7 := 18;
+                    addrmd := 18;
                 };
                 if (curIdRec@.cl = FORMALID) then {
                     genDeref;
                 } else if (curIdRec@.cl = ROUTINEID) then {
-                    insnList@.ilf6 := 3;
-                    insnList@.ilf5.i := (insnList@.ilf5.i + frameRegTemplate);
-                } else if (insnList@.ilf6 >= 74000B) then {
-                    addToInsnList(insnTemp[UTC] + insnList@.ilf6);
-                    insnList@.ilf6 := 0;
-                    insnList@.ilf7 := 17;
-                    insnList@.ilf5.i := 0;
+                    insnList@.disp := 3;
+                    insnList@.payload.i :=
+                        insnList@.payload.i + frameRegTemplate;
+                } else if (insnList@.disp >= 74000B) then {
+                    addToInsnList(insnTemp[UTC] + insnList@.disp);
+                    insnList@.disp := 0;
+                    insnList@.addrmd := 17;
+                    insnList@.payload.i := 0;
                 }
             } else
             if (curOP = GETFIELD) then {
                 genFullExpr(exprToGen@.expr1);
                 curIdRec := exprToGen@.id2;
                 with insnList@ do {
-                    ilf6 := ilf6 + curIdRec@.offset;
+                    disp := disp + curIdRec@.offset;
                     if (curIdRec@.pckfield) then {
                         case st of
                         st0:
@@ -3785,7 +3786,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
         else if (curOP IN [TOREAL..BITNEGOP]) then {
             genFullExpr(exprToGen@.expr1);
             if (insnList@.ilm = ilCONST) then {
-                arg1Val := insnList@.ilf5;
+                arg1Val := insnList@.payload;
                 case curOP of
                 TOREAL: {
                     arg1Val.m := arg1Val.m + intZero;
@@ -3796,7 +3797,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 INEGOP: arg1Val.i := -arg1Val.i;
                 BITNEGOP: arg1Val.m := [0..47] - arg1Val.m
                 end; (* case 10345 *)
-                insnList@.ilf5 := arg1Val;
+                insnList@.payload := arg1Val;
             } else
             if (curOP = NOTOP) then {
                 negateCond;
@@ -3830,7 +3831,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
             } else {
                 if (insnList@.ilm = ilCONST) then {
                     arg1Const := true;
-                    arg1Val := insnList@.ilf5;
+                    arg1Val := insnList@.payload;
                 } else
                     arg1Const := false;
                 arg2Const := (insnList@.typ = realType);
@@ -3853,7 +3854,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     fnEOLN:
                         error(201);
                     end;
-                    insnList@.ilf5 := arg1Val;
+                    insnList@.payload := arg1Val;
                 } else
                 if (work IN [fnEOF, fnREF, fnEOLN]) then {
                     if (work = fnREF) then {
@@ -3897,9 +3898,9 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                         next2 := ;
                         regsused := [];
                         ilm := il1;
-                        ilf7 := 18;
-                        ilf5.i := indexreg[curVal.i];
-                        ilf6 := 0;
+                        addrmd := 18;
+                        payload.i := indexreg[curVal.i];
+                        disp := 0;
                         st := st0;
                     }
                 } else {
@@ -4098,7 +4099,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
             noTarget := jumpTarget = 0;
             l3int3z := jumpTarget;
             if (ilm = ilCONST) then {
-                if (ilf5.b) then {
+                if (payload.b) then {
                     jumpTarget := 0;
                 } else {
                     if (noTarget) then {
@@ -4122,7 +4123,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                 };
                 direction := 16 in insnList@.regsused;
                 if (insnList@.ilm = il3) and
-                   (insnList@.ilf5.i <> 0) then {
+                   (insnList@.payload.i <> 0) then {
                     genOneOp;
                     if (direction) then {
                         if (noTarget) then
@@ -4194,7 +4195,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                 error(errNoConstant);
             if (insnList@.typ@.size <> 1) then
                 error(errConstOfOtherTypeNeeded);
-            curVal := insnList@.ilf5;
+            curVal := insnList@.payload;
         }
     };
     end; (* case *)

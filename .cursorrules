@@ -1,0 +1,5 @@
+Identifiers must be unique by the first 8 characters, case-insensitive.
+Do not use git
+Grep only in files *.pas and *.p2c
+In work.p2c, use constants false and true for int variables with Boolean meaning.
+Line length in base.pas must not exceed 80 characters.
