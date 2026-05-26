@@ -4962,7 +4962,6 @@ label
     8888;
 var
     boundary              : eptr;
-    numLabPtr             : @numLabel;
     strLabPtr             : @strLabel;
     l3var4z               : boolean;
     flag                  : boolean;
@@ -5578,29 +5577,24 @@ procedure parseUnaryExpression;
 var
     oper: operator;
     leftExpr: eptr;
-    isNot: boolean;
-    isSetand: boolean;
 {
     oper := NOOP;
-    isNot := false;
-    isSetand := false;
     if (SY = NOTSY) then {
         if (charClass = BITNEGOP) then
             oper := BITNEGOP
         else
-            isNot := true;
+            oper := NOTOP;
         inSymbol;
     } else if (charClass IN [PLUSOP, MINUSOP]) then {
         if (charClass <> PLUSOP) then
             oper := charClass;
         inSymbol;
     } else if (charClass = SETAND) then {
-        isSetand := true;
+        oper := SETAND;
         inSymbol;
     };
     factor;
-(unaryex)
-    if (oper <> NOOP) or isNot or isSetAnd then {
+    if oper <> NOOP then {
         arg1Type := curExpr@.vt.typ;
         new(leftExpr);
         with leftExpr@ do {
@@ -5614,7 +5608,7 @@ var
                     leftExpr@.vt.typ := integerType;
                 } else {
                     error(69); (* errUnaryMinusNeedRealOrInteger *)
-                    exit unaryex
+                    exit
                 };
             } else if oper = BITNEGOP then {
                 if typeCheck(arg1Type, integerType) then {
@@ -5622,9 +5616,9 @@ var
                     leftExpr@.vt.typ := integerType;
                 } else {
                     error(62); (* errIntegerNeeded *)
-                    exit unaryex
+                    exit
                 };
-            } else if isNot then {
+            } else if oper = NOTOP then {
                 leftExpr@.vt.typ := booleanType;
                 if (arg1Type = booleanType) then {
                     leftExpr@.op := NOTOP;
@@ -5634,9 +5628,9 @@ var
                     leftExpr@.expr2@ := [integerType, GETENUM, 0C];
                 } else {
                     error(errNeedOtherTypesOfOperands);
-                    exit unaryex
+                    exit
                 };
-            } else if isSetand then {
+            } else if oper = SETAND then {
                 if not (curExpr@.op IN lvalOpSet) then
                     error(27); (* errExpressionWhereVariableExpected *)
                 with leftExpr@ do {
@@ -6810,7 +6804,6 @@ procedure setStrLab(forGoto: boolean);
     else {
         if SY = INTCONST then {
             set146z := [];
-            numLabPtr := numLabList;
             disableNorm;
             flag := true;
             padToLeft;
@@ -7447,15 +7440,13 @@ var
     int93z := 0;
     inSymbol;
     l3var2z := NIL;
-    if not (SY IN [IDENT,VARSY,FUNCSY,VOIDSY]) then
+    if not (SY IN [IDENT,FUNCSY,VOIDSY]) then
         errAndSkip(errBadSymbol, (skipToSet + [IDENT,RPAREN]));
     int92z := 1;
-    while (SY IN [IDENT,VARSY,FUNCSY,VOIDSY]) do {
+    while (SY IN [IDENT,FUNCSY,VOIDSY]) do {
         l3sym7z := SY;
         if (SY = IDENT) then
             parClass := VARID
-        else if (SY = VARSY) then
-            parClass := FORMALID
         else {
             parClass := ROUTINEID;
         };
@@ -7504,12 +7495,10 @@ var
         if (l3sym7z <> VOIDSY) then {
             checkSymAndRead(COLON);
             parseTypeRef(expType, (skipToSet + [IDENT,RPAREN]));
-            if (l3sym7z <> VARSY) then {
-                if (isFileType(expType)) then
+            if (isFileType(expType)) then
                 error(5) (*errSimpleTypeReq *)
-                else if (expType@.size <> 1) then
-                     l3var5z := l3var6z * expType@.size + l3var5z;
-            };
+            else if (expType@.size <> 1) then
+                l3var5z := l3var6z * expType@.size + l3var5z;
             if (l3var3z <> NIL) then
                 while (l3var3z <> curIdRec) do with l3var3z@ do {
                     typ := expType;
@@ -7520,7 +7509,7 @@ var
         if (SY = SEMICOLON) then {
             int93z := 0;
             inSymbol;
-            if not (SY IN (skipToSet + [IDENT,VARSY,FUNCSY,VOIDSY])) then
+            if not (SY IN (skipToSet + [IDENT,FUNCSY,VOIDSY])) then
                 errAndSkip(errBadSymbol, (skipToSet + [IDENT,RPAREN]));
         };
     };

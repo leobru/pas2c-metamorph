@@ -683,8 +683,7 @@ var
             linePos  =  linePos-1;
         while (lineBuf[linePos]  == ' ' && linePos >= 0);
         for (err = 0; err <= linePos; err=err+1) {
-            _output_@ = lineBuf[err];
-            put(_output_);
+            write(linebuf[err]);
         }
         writeln;
         if (errsInLine != 0) {
@@ -5393,29 +5392,24 @@ void parseUnaryExpression;
 var
     oper: operator;
     leftExpr: eptr;
-    isNot: int;
-    isSetand: int;
 {
     oper = NOOP;
-    isNot = false;
-    isSetand = false;
     if (SY == NOTSY) {
         if (charClass == BITNEGOP)
             oper = BITNEGOP;
         else
-            isNot = true;
+            oper = NOTOP;
         inSymbol();
     } else if (charClass IN [PLUSOP, MINUSOP]) {
         if (charClass != PLUSOP)
             oper = charClass;
         inSymbol();
     } else if (charClass == SETAND) {
-        isSetand = true;
+        oper = SETAND;
         inSymbol();
     }
     factor();
-(unaryex)
-    if (oper != NOOP || isNot) {
+    if (oper != NOOP) {
         arg1Type = curExpr->typ;
         new(leftExpr);
         with leftExpr@ do {
@@ -5430,7 +5424,7 @@ var
                     leftExpr->typ = intType;
                 } else {
                     error(69); /* errUnaryMinusNeedRealOrInteger */
-                    exit unaryex;
+                    exit;
                 }
             } else if (oper == BITNEGOP) {
                 if (typeCheck(arg1Type, intType)) {
@@ -5438,9 +5432,9 @@ var
                     leftExpr->typ = intType;
                 } else {
                     error(62); /* errIntegerNeeded */
-                    exit unaryex;
+                    exit;
                 }
-            } else if (isNot) {
+            } else if (oper == NOTOP) {
                 leftExpr->typ = boolType;
                 if (arg1Type == boolType) {
                     leftExpr->op = NOTOP;
@@ -5450,23 +5444,20 @@ var
                     leftExpr->expr2@ = [intType, GETENUM, 0U];
                 } else {
                     error(errNeedOtherTypesOfOperands);
-                    exit unaryex;
+                    exit;
+                }
+            } else if (oper == SETAND) {
+                if (not (curExpr->op IN lvalOpSet))
+                    error(27); /* errExpressionWhereVariableExpected */
+                with leftExpr@ do {
+                    typ = voidPtr;
+                    op = STANDPROC;
+                    expr1 = curExpr;
+                    num2 = fnREF;
                 }
             }
             curExpr = leftExpr;
         }
-    }
-    if (isSetand) {
-        if (not (curExpr->op IN lvalOpSet))
-            error(27); /* errExpressionWhereVariableExpected */
-        new(leftExpr);
-        with leftExpr@ do {
-            typ = voidPtr;
-            op = STANDPROC;
-            expr1 = curExpr;
-            num2 = fnREF;
-        }
-        curExpr = leftExpr;
     }
 } /* parseUnaryExpression */
 //
@@ -7223,7 +7214,7 @@ var
     int93z  =  0;
     inSymbol();
     l3var2z  =  NIL;
-    if (not (SY IN [IDENT,VARSY,FUNCSY,VOIDSY]))
+    if (not (SY IN [IDENT,FUNCSY,VOIDSY]))
         errAndSkip(errBadSymbol, (skipToSet | [IDENT,RPAREN]));
     int92z  =  1;
     while (SY IN [IDENT,FUNCSY,VOIDSY]) {
