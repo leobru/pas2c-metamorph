@@ -1963,8 +1963,7 @@ var
     l3int1z, l3int2z, l3int3z: int;
     nextInsn: int;
     l3var5z: eptr;
-    flags: opflg;
-    l3var8z: int;
+    direction: int;
     noTarget: int;
     l3var10z, l3var11z: int;
     saved: @insnltyp;
@@ -3524,7 +3523,7 @@ var
                 switch (curOP) {
                 MUL:        arg1Val.r  =  arg1Val.r * arg2Val.r;
                 RDIVOP:     arg1Val.r  =  arg1Val.r / arg2Val.r;
-                ANDOP:     arg1Val.i  =  arg1Val.i && arg2Val.i;
+                ANDOP:      arg1Val.i  =  arg1Val.i && arg2Val.i;
                 IDIVOP:     arg1Val.i  =  arg1Val.i / arg2Val.i;
                 IMODOP:     arg1Val.i  =  arg1Val.i % arg2Val.i;
                 PLUSOP:     arg1Val.r  =  arg1Val.r + arg2Val.r;
@@ -3551,9 +3550,8 @@ var
                 insnList->ilf5  =  arg1Val.i;
             } else {
                 l3int3z  =  opToMode[curOP];
-                flags  =  opFlags[curOP];
                 nextInsn  =  opToInsn[curOP];
-                switch (flags) {
+                switch (opFlags[curOP]) {
                 opfCOMM:
 7760:               tryFlip(curOP in [MUL,PLUSOP,SETOR,SETAND,INTPLUS,IMULOP]);
                 opfHELP:
@@ -4031,11 +4029,11 @@ var l4exf1z: @extfilerec;
                     }
                 }
             } else {
-                l3var8z  =  (16 in insnList->regsused);
+                direction  =  (16 in insnList->regsused);
                 if ((insnList->ilm == il3) &&
                    (insnList->ilf5 != 0)) {
                     genOneOp();
-                    if (l3var8z) {
+                    if (direction) {
                         if (noTarget)
                             formJump(&l3int3z);
                         else
@@ -4056,7 +4054,7 @@ var l4exf1z: @extfilerec;
                         forValue  =  true;
                     }
                     genOneOp();
-                    if (l3var8z)
+                    if (direction)
                         nextInsn  =  insnTemp[U1A];
                     else
                         nextInsn  =  insnTemp[UZA];

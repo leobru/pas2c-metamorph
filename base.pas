@@ -57,6 +57,7 @@ const
     mcROUND = 11;
     mcMINEL = 15;
     mcPOP2ADDR = 19;
+    mcCOND2INT = 20;
     mcCARD = 23;
 %
     ASCII0 =    4000007B;
@@ -1985,7 +1986,6 @@ var
     l3int1z, l3int2z, l3int3z : integer;
     nextInsn                  : integer;
     l3var5z                   : eptr;
-    flags                     : opflg;
     direction                 : boolean;
     noTarget                  : boolean;
     l3var10z, l3var11z        : word;
@@ -2128,7 +2128,7 @@ procedure addJumpInsn(opcode: integer);
                 else
                     error(207);
             };
-            20: addInsnToBuf(3*macro + curInsn.i);
+            mcCOND2INT: addInsnToBuf(3*macro + curInsn.i);
             4: {
                 if insnBuf[insnBufIdx-1].m * [21:23, 28:35] = [] then
                     insnBuf[insnBufIdx-1].m := insnBuf[insnBufIdx-1].m + [35]
@@ -2419,7 +2419,7 @@ var
                 if (typeKind < kindArray) or
                    (typeKind = kindStruct) and (s6 in optSflags.m) then {
                     isSimple := true;
-                    needsAdjust := not (s9 in optSflags.m) and
+                    needsAdjust := (not (s9 in optSflags.m) or not forValue) and
                                 typeCheck(valueType, integerType);
                 } else {
                     isSimple := false;
@@ -2475,7 +2475,7 @@ var
         };
         il3: {
             if forValue then
-                addInsnAndOffset(macro+20,
+                addInsnAndOffset(macro+mcCOND2INT,
                     ord(16 in insnList@.regsused)*10000B + insnList@.ilf5.i);
         };
         end; (* case *)
@@ -3607,9 +3607,8 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 insnList@.ilf5 := arg1Val;
             } else {
                 l3int3z := opToMode[curOP];
-                flags := opFlags[curOP];
                 nextInsn := opToInsn[curOP];
-                case flags of
+                case opFlags[curOP] of
                 opfCOMM:
 7760:               tryFlip(curOP in [MUL,PLUSOP,SETOR,SETAND,INTPLUS,IMULOP]);
                 opfHELP:
@@ -4109,7 +4108,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                     }
                 }
             } else {
-                direction := (16 in insnList@.regsused);
+                direction := 16 in insnList@.regsused;
                 if (insnList@.ilm = il3) and
                    (insnList@.ilf5.i <> 0) then {
                     genOneOp;
@@ -6000,7 +5999,7 @@ function max(a, b: integer): integer;
                     if (firstType@.k = kindScalar) then
                         itemSpan := firstType@.numen;
                 };
-                itemsEnded := (itemSpan < 32000);
+                itemsEnded := itemSpan < 32000;
                 if (itemsEnded) then {
                     form1Insn(KATI+14);
                 } else {
