@@ -243,14 +243,14 @@ types = record
     case kind of
     kindReal:   ();
     kindRange:  (base:      tptr;
-                 checker,
+                 placeholder,   (* fails if commented out *)
                  left,
                  right:     integer);
     kindArray:  (abase,
                  range:     tptr;
                  pck:       boolean;
                  perword,
-                 pcksize:   integer);
+                 pcksize, aleft, aright:   integer);
     kindScalar: (enums:     irptr;
                  numen,
                  start:     integer);
@@ -264,7 +264,7 @@ types = record
     kindCases:  (sel:       word;
                  first,
                  next:      tptr;
-                 r6:        tptr)
+                 alt:       tptr)
     end;
 %
 typechain = record
@@ -338,6 +338,7 @@ identrec = record
              flags: bitset
             );
 end;
+hashArray = array [0..127] of irptr;
 extfilerec = record
     id:     word;
     offset: integer;
@@ -463,8 +464,7 @@ var
    chrClass: array ['_000'..'_177'] of operator;
    kwordHash: array [0..127] of @kword;
    charSym: array ['_000'..'_177'] of symbol;
-   symHash: array [0..127] of irptr;
-   typeHash: array [0..127] of irptr;
+   symHash, fieldHash: hashArray;
    helperMap: array [1..102] of integer;
    helperNames: array [1..102] of bitset;
    opPrec: array [operator] of integer;
@@ -591,7 +591,6 @@ var span: tptr;
         new(res, kindArray);
         with span@ do {
             size := 1;
-            checker := 0;
             bits := 12;
             k := kindRange;
             base := integerType;
@@ -610,6 +609,8 @@ var span: tptr;
             pck := true;
             perword := 6;
             pcksize := 8;
+            aleft := 1;
+            aright := strLen;
         }
     }
 }; (* makeStringType *)
@@ -942,7 +943,6 @@ var
         size := 1;
         bits := 48;
         base := res;
-        checker := 0;
         k := kindRange;
         curVal.i := l;
         curVal.m := curVal.m + intZero;
@@ -1284,7 +1284,7 @@ procedure readOptFlag(var res: boolean);
                     if expr63z = NIL then
                         goto 2;
                     expr62z := expr63z;
-                    chain := typeHash[bucket];
+                    chain := fieldHash[bucket];
                     if chain <> NIL then {
                         while expr62z <> NIL do {
                             l3int162z := expr62z@.typ2@.size;
@@ -1301,7 +1301,7 @@ procedure readOptFlag(var res: boolean);
                     goto 2;
                 };
                 3: {
-                    hashTravPtr := typeHash[bucket];
+                    hashTravPtr := fieldHash[bucket];
                     while hashTravPtr <> NIL do {
                         with hashTravPtr@ do {
                             if (id = curIdent) and
@@ -1915,10 +1915,8 @@ procedure allocWithTypeCheck;
                     }
                 };
                 kindArray: {
-                    with type1@.range@ do
-                        span1 := right - left;
-                    with type2@.range@ do
-                        span2 := right - left;
+                    span1 := type1@.aright - type1@.aleft;
+                    span2 := type2@.aright - type2@.aleft;
                     if typeCheck(type1@.base, type2@.base) and
                        (span1 = span2) and
                        (type1@.pck = type2@.pck) and
@@ -2978,7 +2976,7 @@ var
         l5var26z := insnCopy.typ@.base;
         l5var27z := insnCopy.typ@.range;
         l5var25z := insnCopy.typ@.pck;
-        l5var7z := l5var27z@.left;
+        l5var7z := insnCopy.typ@.aleft;
         l5var8z := l5var26z@.size;
         if not l5var25z then
             insnCopy.disp := insnCopy.disp - l5var8z * l5var7z;
@@ -2988,7 +2986,7 @@ var
             curVal := insnList@.payload;
             curVal.m := curVal.m +  intZero;
             if (curVal.i < l5var7z) or
-               (l5var27z@.right < curVal.i) then
+                (insnCopy.typ@.aright < curVal.i) then
                 error(29); (* errIndexOutOfBounds *)
             if (l5var25z) then {
                 l5var4z := curVal.i - l5var7z;
@@ -3009,7 +3007,7 @@ var
                 insnCopy.disp := curVal.i  * l5var26z@.size +
                                   insnCopy.disp;
             }
-        } else { (* 6123*)
+        } else {
             if (l5var8z <> 1) then {
                 prepLoad;
                 if (l5var27z@.base = integerType) then {
@@ -4171,8 +4169,8 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
         setAddrTo(12);
         genOneOp;
         arg1Type := helpExpr@.expr2@.vt.typ;
-        with arg1Type@.range@ do
-            l3int3z := right - left + 1;
+        with arg1Type@ do
+            l3int3z := aright - aleft + 1;
         form2Insn((KVTM+I14) + l3int3z,
                   (KVTM+I10+64) - arg1Type@.pcksize);
         l3int3z := ord(helpExpr@.vt.typ);
@@ -4246,9 +4244,9 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure addFieldToHash;
 {
-    curEnum@ := [curIdent, , typeHash[bucket], ,
+    curEnum@ := [curIdent, , fieldHash[bucket], ,
                     FIELDID, NIL, curType, isPacked];
-    typeHash[bucket] := curEnum;
+    fieldHash[bucket] := curEnum;
 }; (* addFieldToHash *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4389,33 +4387,21 @@ var
             l4var9z := bucket;
             curEnum := hashTravPtr;
             inSymbol;
-            if (SY = COLON) then {
-                if (curEnum <> NIL) then
-                    error(errIdentAlreadyDefined);
-                new(curEnum = 10);
-                curIdent := l4var8z;
-                bucket := l4var9z;
-                addFieldToHash;
-                inSymbol;
-                curField := curEnum;
-                packFields;
-            } else {
-                curEnum := symHash[l4var9z];
-                while (curEnum <> NIL) do {
-                    if (curEnum@.id <> l4var8z) then {
-                        curEnum := curEnum@.next;
+            curEnum := symHash[l4var9z];
+            while (curEnum <> NIL) do {
+                if (curEnum@.id <> l4var8z) then {
+                    curEnum := curEnum@.next;
+                } else {
+                    if (curEnum@.cl <> TYPEID) then {
+                        error(errNotAType);
+                        selType := integerType;
                     } else {
-                        if (curEnum@.cl <> TYPEID) then {
-                            error(errNotAType);
-                            selType := integerType;
-                        } else {
-                            selType := curEnum@.typ;
-                        };
-                        exit identif;
+                        selType := curEnum@.typ;
                     };
+                    exit identif;
                 };
-                error(errNotDefined)
             };
+            error(errNotDefined)
         };
         if (selType@.k = kindRange) then
             selType := selType@.base;
@@ -4437,7 +4423,7 @@ var
                 if (l4var3z = NIL) then {
                     tempType := l4var5z;
                 } else {
-                    l4var3z@.r6 := l4var5z;
+                    l4var3z@.alt := l4var5z;
                 };
                 l4var3z := l4var5z;
                 inSymbol;
@@ -4612,6 +4598,8 @@ var
                 bits := 48;
                 k := kindArray;
                 range := nestedType;
+                aleft := nestedType@.left;
+                aright := nestedType@.right;
             };
             if (tempType = NIL) then
                 curType := l3typ26z
@@ -6455,8 +6443,7 @@ var
         dumpEnumNames(l4typ3z);
         defWidth := 8;
     } else if (isCharArray(l4typ3z)) then {
-        l5typ1z := l4typ3z@.range;
-        defWidth := l5typ1z@.right - l5typ1z@.left + 1;
+        defWidth := l4typ3z@.aright - l4typ3z@.aleft + 1;
         if not (l4typ3z@.pck) then
             helperNo := 81            (* P/WA *)
         else if (6 >= defWidth) then
@@ -6573,7 +6560,7 @@ procedure checkArrayArg;
     readNext := false;
     expression;
     l4exp8z := curExpr;
-    if not typeCheck(l4typ1z@.range, l4exp8z@.vt.typ) then
+    if (l4typ1z@.range@.base <> l4exp8z@.vt.typ) then
         error(errNeedOtherTypesOfOperands);
 }; (* checkArrayArg *)
 %
@@ -6674,7 +6661,7 @@ var
                                     ii := l4typ1z@.size;
                                     exit loop2;
                                 };
-                                l4typ2z := l4typ2z@.r6;
+                                l4typ2z := l4typ2z@.alt;
                             };
                             l4typ1z := l4typ1z@.next;
                         }
@@ -7285,6 +7272,8 @@ var l : integer;
         pck := true;
         perword := 6;
         pcksize := 8;
+        aleft := 1;
+        aright := 6;
     };
     smallStringType[6] := alfaType;
     regSysType(515664C  (*"     INT"*), integerType);
@@ -7553,7 +7542,7 @@ var
 }; (* parseParameters *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure exitScope(var arg: array [0..127] of irptr);
+procedure exitScope(var arg: hashArray);
 {
     for ii := 0 to 127 do {
         workidr := arg[ii];
@@ -7919,7 +7908,7 @@ procedure exitScope(var arg: array [0..127] of irptr);
             until SY IN [FUNCSY,VOIDSY,BEGINSY];
             rollup(scopeBound);
             exitScope(symHash);
-            exitScope(typeHash);
+            exitScope(fieldHash);
             goto 23301;
         };
         inSymbol;
@@ -8212,7 +8201,7 @@ procedure initOptions;
     statEndSys := [SEMICOLON, ENDSY, ELSESY, WHILESY];
     lvalOpSet := [GETELT, GETVAR, op36, op37, GETFIELD, DEREF, FILEPTR];
     symHash := NIL:128;
-    typeHash := NIL:128;
+    fieldHash := NIL:128;
     kwordHash := NIL:128;
     resWordName :=
         5441424554C             (*"   LABEL"*),

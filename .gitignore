@@ -10,6 +10,7 @@
 tmp*
 *.utxt
 *.bin
+test_results/
 
 # Listings
 *.lst

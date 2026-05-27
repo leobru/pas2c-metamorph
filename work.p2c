@@ -220,7 +220,7 @@ word = struct { switch int of
     7: {c: char};
     8: {cl: idclass};
     9: {tp: tptr};
-    };
+};
 //
 oiptr = @oneinsn;
 //
@@ -275,7 +275,7 @@ types = struct {
     kindCases:  {sel:       int;
                  first,
                  next:      tptr;
-                 r6:        tptr}
+                 alt:       tptr}
 };
 //
 typechain = struct {
@@ -469,7 +469,7 @@ var
     chrClass: array ['\200'] of operator;
     kwordHash: array [128] of @kword;
     charSym: array ['\200'] of symbol;
-    symHash, typeHash: hashArray;
+    symHash, fieldHash: hashArray;
     helperMap: array [1..102] of int;
     helperNames: array [1..102] of int;
     opPrec: array [SHLEFT..INOP] of int;
@@ -1244,7 +1244,7 @@ var
                     if (expr63z == NIL)
                         goto 2;
                     expr62z  =  expr63z;
-                    chain  =  typeHash[bucket];
+                    chain  =  fieldHash[bucket];
                     if (chain != NIL) {
                         while (expr62z != NIL) {
                             val  =  expr62z->typ2->size;
@@ -1261,7 +1261,7 @@ var
                     goto 2;
                 }
                 3: {
-                    hashTravPtr  =  typeHash[bucket];
+                    hashTravPtr  =  fieldHash[bucket];
                     while (hashTravPtr != NIL) {
                         with hashTravPtr@ do {
                             if ((id == curIdent) &&
@@ -4167,9 +4167,9 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void addFieldToHash;
 {
-    curEnum@  =  [curIdent, , typeHash[bucket], ,
+    curEnum@  =  [curIdent, , fieldHash[bucket], ,
                     FIELDID, NIL, curType, isPacked];
-    typeHash[bucket]  =  curEnum;
+    fieldHash[bucket]  =  curEnum;
 } /* addFieldToHash */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4309,33 +4309,21 @@ var
             l4var9z  =  bucket;
             curEnum  =  hashTravPtr;
             inSymbol();
-            if (SY == COLON) {
-                if (curEnum != NIL)
-                    error(errIdentAlreadyDefined);
-                new(curEnum = 10);
-                curIdent  =  l4var8z;
-                bucket  =  l4var9z;
-                addFieldToHash();
-                inSymbol();
-                curField  =  curEnum;
-                packFields();
-            } else {
-                curEnum  =  symHash[l4var9z];
-                while (curEnum != NIL) {
-                    if (curEnum->id != l4var8z) {
-                        curEnum  =  curEnum->next;
+            curEnum  =  symHash[l4var9z];
+            while (curEnum != NIL) {
+                if (curEnum->id != l4var8z) {
+                    curEnum  =  curEnum->next;
+                } else {
+                    if (curEnum->cl != TYPEID) {
+                        error(errNotAType);
+                        selType  =  intType;
                     } else {
-                        if (curEnum->cl != TYPEID) {
-                            error(errNotAType);
-                            selType  =  intType;
-                        } else {
-                            selType  =  curEnum->typ;
-                        }
-                        exit identif;
+                        selType  =  curEnum->typ;
                     }
+                    exit identif;
                 }
-                error(errNotDefined);
             }
+            error(errNotDefined);
         }
         if (selType->k == kindRange)
             selType  =  selType->base;
@@ -4357,7 +4345,7 @@ var
                 if (l4var3z == NIL) {
                     tempType  =  l4var5z;
                 } else {
-                    l4var3z->r6  =  l4var5z;
+                    l4var3z->alt  =  l4var5z;
                 }
                 l4var3z  =  l4var5z;
                 inSymbol();
@@ -6461,7 +6449,7 @@ var
                                     ii  =  l4typ1z->size;
                                     exit loop2;
                                 }
-                                l4typ2z  =  l4typ2z->r6;
+                                l4typ2z  =  l4typ2z->alt;
                             }
                             l4typ1z  =  l4typ1z->next;
                         }
@@ -7701,7 +7689,7 @@ void exitScope(arg: @hashArray);
             } while (not (SY IN [FUNCSY,VOIDSY,BEGINSY]));
             rollup(scopeBound);
             exitScope(&symHash);
-            exitScope(&typeHash);
+            exitScope(&fieldHash);
             goto 23301;
         }
         inSymbol();
@@ -7977,7 +7965,7 @@ void initOptions;
     statEndSys  =  [SEMICOLON, ENDSY, ELSESY, WHILESY];
     lvalOpSet  =  [GETELT, GETVAR, op36, op37, GETFIELD, DEREF, FILEPTR];
     symHash = NIL:128;
-    typeHash = NIL:128;
+    fieldHash = NIL:128;
     kwordHash = NIL:128;
     /*=A3*/
     resWordName  =
