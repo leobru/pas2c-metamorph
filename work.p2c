@@ -162,15 +162,6 @@ idclass = enum {
         FORMALID,   FIELDID
 };
 //
-insn = enum {
-/*000*/ ATX,   STX,   OP2,   XTS,   ADD,   SUB,   RSUB,  AMX,
-/*010*/ XTA,   AAX,   AEX,   ARX,   AVX,   AOX,   ADIVX, AMULX,
-/*020*/ APX,   AUX,   ACX,   ANX,   EADD,  ESUB,  ASX,   XTR,
-/*030*/ RTE,   YTA,   OP32,  OP33,  EADDI, ESUBI, ASN,   NTR,
-/*040*/ ATI,   STI,   ITA,   ITS,   MTJ,   JADDM, ELFUN,
-/*047*/ UTC,   WTC,   VTM,   UTM,   UZA,   U1A,   UJ,    VJM, NINSNS
-};
-//
 setofsys = int; // set of symbol
 //
 operator = enum {
@@ -7667,7 +7658,6 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void initInsnTemplates;
 var
-    i: insn;
     op: operator;
 {
     for (idx = 1; idx < 16; idx=idx+1)

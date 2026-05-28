@@ -2370,7 +2370,7 @@ var
     valueType: tptr;
     typeKind: kind;
     addrState: state;
-    isSimple, needsAdjust, needsMask: boolean;
+    isSimple, needsMask: boolean;
 {
     valueType := insnList@.typ;
     with insnList@ do {
@@ -2409,12 +2409,8 @@ var
                 if (typeKind < kindArray) or
                    (typeKind = kindStruct) and (s6 in optSflags.m) then {
                     isSimple := true;
-                    needsAdjust := not forValue and
-                                typeCheck(valueType, integerType);
-                } else {
+                } else
                     isSimple := false;
-                    needsAdjust := false;
-                };
                 if addrState = st1 then {
                     if (offsetShift <> baseWidth) or
                        (helper <> 18) or (* P/RC *)
@@ -2445,11 +2441,9 @@ var
                         curVal.m := [0..(baseWidth-1)];
                         addToInsnList(KAAX+I8 + getFCSToffset);
                     };
-                    if needsAdjust then
-                        addToInsnList(KAEX+ZERO);
                 } else {
                     if isSimple then
-                        helper := ord(needsAdjust)+74 (* P/LDAR[IN] *)
+                        helper := 74 (* P/LDAR *)
                     else
                         helper := 56; (* P/RR *)
                     addToInsnList(getHelperProc(helper));
@@ -3077,8 +3071,7 @@ var
                     prepLoad;
                     if (l5var7z <> 0) then {
                         curVal.i := 0 - l5var7z;
-                        if (not typeCheck(insnList@.typ, integerType)) then
-                            curVal.m := curVal.m - intZero;
+                        curVal.m := curVal.m - intZero;
                         addToInsnList(KADD+I8 + getFCSToffset);
                         insnList@.next@.mode := 1;
                     };
