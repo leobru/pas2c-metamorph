@@ -258,10 +258,10 @@ types = struct {
                  left,
                  right:     int};
     kindArray:  {abase,
-                 range:     tptr;
+                 rbase:     tptr;
                  pck:       int;
                  perword,
-                 pcksize:   int};
+                 pcksize, aleft, aright:   int};
     kindScalar: {enums:     irptr;
                  numen,
                  start:     int};
@@ -572,21 +572,12 @@ void printTextWord(val: int);
 //              makeStringType                %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function makeStringType: tptr;
-var span, res: tptr;
+var res: tptr;
 {
     if (maxSmallString >= strLen)
         res  =  smallStringType[strLen];
     else {
-        new(span = 7);
         new(res, kindArray);
-        with span@ do {
-            size  =  1;
-            bits  =  12;
-            k  =  kindRange;
-            base  =  intType;
-            left  =  1;
-            right  =  strLen;
-        }
         with res@ do {
             size  =  (strLen + 5) / 6;
             if (size == 1)
@@ -595,10 +586,12 @@ var span, res: tptr;
                 bits  =  0;
             k  =  kindArray;
             base  =  charType;
-            range  =  span;
             pck  =  true;
             perword  =  6;
             pcksize  =  8;
+            aleft  =  1;
+            aright  =  strLen;
+            rbase  =  intType;
         }
     }
     makeStringType = res;
@@ -952,16 +945,11 @@ function defineRange(typ: tptr; l, r: int):tptr;
 var
     temp: tptr;
 {
-    new(temp=7);
+    new(temp, kindRange);
     with temp@ do {
-        size  =  1;
-        bits  =  48;
         base  =  typ;
-        k  =  kindRange;
         left  =  l | intZero;
         right  =  r | intZero;
-        if (left >= 0)
-            bits  =  nrOfBits(right);
         defineRange  =  temp;
     }
 } /* defineRange */
@@ -1920,14 +1908,6 @@ void allocWithTypeCheck;
                     || type2 == boolType && type1 == intType)
                        goto 1;
                 }
-                kindRange: {
-                    baseMatch  =  type1->base == type2->base;
-                    baseType  =  type1->base;
-                    rangeMismatch  =  type1->left != type2->left ||
-                                type1->right != type2->right;
-                    typeCheck  =  baseMatch;
-                    exit;
-                }
                 kindPtr: {
                     if (type1 == voidPtr || type2 == voidPtr)
                         goto 1;
@@ -1953,10 +1933,8 @@ void allocWithTypeCheck;
                     }
                 }
                 kindArray: {
-                    with type1->range@ do
-                        span1  =  right - left;
-                    with type2->range@ do
-                        span2  =  right - left;
+                    span1  =  type1->aright - type1->aleft;
+                    span2  =  type2->aright - type2->aleft;
                     if (typeCheck(type1->base, type2->base) &&
                        (span1 == span2) &&
                        (type1->pck == type2->pck) &&
@@ -1977,15 +1955,6 @@ void allocWithTypeCheck;
                         goto 1;
                 }
                 } /* switch */
-            } else {
-                if (kind1 == kindRange) {
-                    rangeMismatch  =  true;
-                    baseType  =  type2;
-                    if (type1->base == type2)
-                        goto 1;
-                } else if (kind2 == kindRange &&
-                           type1 == type2->base)
-                    goto 1;
             }
             typeCheck  =  false;
         }
@@ -2976,9 +2945,9 @@ var
        l5var22z  =  l5var22z & (~ getEltInsns[curDim]->regsused);
     for (curDim = dimCnt; curDim >= 1; curDim=curDim-1) {
         l5var26z  =  insnCopy.typ->base;
-        l5var27z  =  insnCopy.typ->range;
+        l5var27z  =  insnCopy.typ->rbase;
         l5var25z  =  insnCopy.typ->pck;
-        l5var7z  =  l5var27z->left;
+        l5var7z  =  insnCopy.typ->aleft;
         l5var8z  =  l5var26z->size;
         if (not l5var25z)
             insnCopy.disp  =  insnCopy.disp - l5var8z * l5var7z;
@@ -2987,7 +2956,7 @@ var
         if (l5ilm28z == ilCONST) {
             curVal.i  =  insnList->payload | intZero;
             if ((curVal.i < l5var7z) ||
-               (l5var27z->right < curVal.i))
+               (insnCopy.typ->aright < curVal.i))
                 error(29); /* errIndexOutOfBounds */
             if (l5var25z) {
                 l5var4z  =  curVal.i - l5var7z;
@@ -3011,7 +2980,7 @@ var
         } else {
             if (l5var8z != 1) {
                 prepLoad();
-                if (l5var27z->base == intType) {
+                if (l5var27z == intType) {
                     l5var4z  =  KYTA+64;
                 } else {
                     l5var4z  =  KYTA+64-40;
@@ -3464,7 +3433,7 @@ var
         size  =  l2typ13z->size;
         if (l2typ13z == realType) {
             work  =  1;
-        } else if (curVarKind IN [kindScalar, kindRange])
+        } else if (curVarKind == kindScalar)
             work  =  3;
         else {
             work  =  4;
@@ -4126,8 +4095,7 @@ var l4exf1z: @extfilerec;
         setAddrTo(12);
         genOneOp();
         arg1Type  =  l3var5z->expr2->typ;
-        with arg1Type->range@ do
-            l3int3z  =  right - left + 1;
+        l3int3z  =  arg1Type->aright - arg1Type->aleft + 1;
         form2Insn((KVTM+I14) + l3int3z,
                   (KVTM+I10+64) - arg1Type->pcksize);
         l3int3z  =  ord(l3var5z->typ);
@@ -4359,8 +4327,6 @@ var
             }
             error(errNotDefined);
         }
-        if (selType->k == kindRange)
-            selType  =  selType->base;
         checkSymAndRead(OFSY);
         cases1  =  cases;
         cases2  =  cases;
@@ -4586,14 +4552,14 @@ var
             checkSymAndRead(LBRACK);
             tempType  =  NIL;
 12476:      nestedType = parseRange();
-            if (nestedType->k != kindRange)
-                error(8); /* errNotAnIndexType */
             new(arrayType, kindArray);
             with arrayType@ do {
                 size  =  ord(tempType);
                 bits  =  48;
                 k  =  kindArray;
-                range  =  nestedType;
+                aleft  =  nestedType->left;
+                aright  =  nestedType->right;
+                rbase  =  nestedType->base;
             }
             if (tempType == NIL)
                 curType  =  arrayType;
@@ -4611,7 +4577,7 @@ var
             if (isFileType(nestedType))
                 error(errTypeMustNotBeFile);
             do with arrayType@ do {
-                with range@ do span  =  right - left + 1;
+                span  =  aright - aleft + 1;
                 tempType  =  ptr(size);
                 l3int22z  =  base->bits;
                 if (24 < l3int22z)
@@ -4638,7 +4604,7 @@ var
                     size  =  span * base->size;
                     curVal.i  =  base->size;
                     curVal.i  =  curVal.i & [7:47] | E48;
-                    if (range->base != intType)
+                    if (rbase != intType)
                         curVal.i  =  curVal.i | [1, 3];
                     arrayType->perword  =  KMUL+ I8 + getFCSToffset();
                 }
@@ -4669,7 +4635,7 @@ var
                 elsize  =  l3int22z;
             }
         } else {
-            curType = parseRange();
+            error(errNotAType);
         }
     }
 13020:
@@ -4944,7 +4910,7 @@ var
                 if (l4typ3z->k != kindArray) {
                     error(errWrongVarTypeBefore);
                 } else {
-                    if (not typeCheck(l4typ3z->range, curExpr->typ))
+                    if (not typeCheck(l4typ3z->rbase, curExpr->typ))
                         error(66 /*errOtherIndexTypeNeeded */);
                     new(l4exp2z);
                     with l4exp2z@ do {
@@ -5181,7 +5147,7 @@ var ex1: eptr;
     } else  {
         if (!areTypesCompatible(&ex2) &&
             ((arg1Type != intType) ||
-            !(arg2Type->k IN [kindScalar, kindRange]) ||
+             (arg2Type->k != kindScalar) ||
             (oper != INOP))) {
             goto 1;
         }
@@ -5256,8 +5222,6 @@ var
         exit;
     }
     arg1Type  =  curExpr->typ;
-    if (arg1Type->k == kindRange)
-        arg1Type  =  arg1Type->base;
     argKind  =  arg1Type->k;
     if (arg1Type == realType)
         checkMode  =  [fnSQRT:fnTRUNC, fnROUND];
@@ -5380,7 +5344,7 @@ var
                 expression();
                 if (l4var12z) {
                     l4typ11z  =  curExpr->typ;
-                    if (not (l4typ11z->k IN [kindScalar, kindRange]))
+                    if (l4typ11z->k != kindScalar)
                         error(23); /* errTypeIdInsteadOfVar */
                 } else {
                     if (not typeCheck(l4typ11z, curExpr->typ))
@@ -6236,8 +6200,6 @@ void P17037;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void checkElementForReadWrite;
-var
-    l5typ1z: tptr;
 {
     set145z  =  set145z & (~[12]);
     curVarKind  =  l4typ3z->k;
@@ -6258,8 +6220,7 @@ var
         dumpEnumNames(l4typ3z);
         defWidth  =  8;
     } else if (isCharArray(l4typ3z)) {
-        l5typ1z  =  l4typ3z->range;
-        defWidth  =  l5typ1z->right - l5typ1z->left + 1;
+        defWidth  =  l4typ3z->aright - l4typ3z->aleft + 1;
         if (not (l4typ3z->pck))
             helperNo  =  81;            /* P/WA */
         else if (6 >= defWidth)
@@ -6376,7 +6337,7 @@ void checkArrayArg;
     readNext  =  false;
     expression();
     l4exp8z  =  curExpr;
-    if (not typeCheck(l4typ1z->range, l4exp8z->typ))
+    if (l4typ1z->rbase != l4exp8z->typ)
         error(errNeedOtherTypesOfOperands);
 } /* checkArrayArg */
 //
@@ -7069,10 +7030,12 @@ void defExtern;
         bits  =  48;
         k  =  kindArray;
         base  =  charType;
-        range  =  temptype;
         pck  =  true;
         perword  =  6;
         pcksize  =  8;
+        aleft  =  1;
+        aright  =  6;
+        rbase  =  intType;
     }
     smallStringType[6]  =  alfaType;
      /*=A3 constructing TEXT constants */
@@ -7164,7 +7127,6 @@ void defExtern;
     programObj->argList  =  NIL;
     programObj->flags  =  0U;
     objBufIdx  =  0;
-    alfaType->range  =  defineRange(intType, 1, 6);
     int93z  =  0;
     outputObjFile();
     outputFile  =  NIL;
