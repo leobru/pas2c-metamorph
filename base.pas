@@ -18,7 +18,6 @@ const
     S6 = 3;
     NoPtrCheck = 4;
     NoStackCheck = 5;
-    S9 = 6;
 %
     ASN64 = 360100B;
 %
@@ -1197,15 +1196,10 @@ procedure readOptFlag(var res: boolean);
         'Y': readOptFlag(allowCompat);
         'E': readOptFlag(declExternal);
         'S': {
-            readOptVal(curVal.i, 9);
+            readOptVal(curVal.i, 8);
             if curVal.i = 3 then lineCnt := 1
-            else if curVal.i in [4..9] then
+            else if curVal.i in [4..8] then
                 optSflags.m := optSflags.m + [curVal.i - 3];
-             if s9 IN optSflags.m then {
-                opToInsn[IDIVOP] := 101; (* C/DI *)
-                opToInsn[IMODOP] := 102; (* C/MD *)
-                funcInsn[fnORD] := KATX;
-             }
         };
         'F': readOptFlag(checkFortran);
         'L': readOptVal(PASINFOR.listMode, 3);
@@ -1377,13 +1371,6 @@ procedure readOptFlag(var res: boolean);
                         curToken.m := numstr[tokenIdx].m * [45..47] +
                         curToken.m;
                     };
-                    if (numFormat = OCTAL) and not (s9 in optSflags.m) then {
-                        if curToken.m * [0..6] <> [] then {
-                            error(errNumberTooLarge);
-                            curToken.i := 1;
-                        } else
-                            curToken.m := curToken.m + intZero;
-                    };
                     exit lexer;
                 }; (* octdec *)
                 curToken.i := 0;
@@ -1466,7 +1453,7 @@ procedure readOptFlag(var res: boolean);
                         curToken.r := curToken.r / expValue
                     else
                         curToken.r := curToken.r * expValue;
-                } else if s9 in optSflags.m then
+                } else
                     curToken.m := curToken.m - intZero;
                 exit lexer
             }; (* INTCONST *) (*=m+*)
@@ -2105,8 +2092,6 @@ procedure addJumpInsn(opcode: integer);
             case l4var4z of
             mcCARD: {
                 addInsnToBuf(KACX);
-                if not (s9 in optSflags.m) then
-                    addInsnToBuf(KAEX+ZERO);
             };
             21: goto 3556;
             0:  addJumpInsn(insnTemp[UZA]);
@@ -2169,10 +2154,7 @@ procedure addJumpInsn(opcode: integer);
             14: add2InsnsToBuf(indexreg[curInsn.i] + KVTM,
                                KITA + curInsn.i);
             mcMINEL: {
-                if s9 IN optSflags.m then
-                    add2InsnsToBuf(KANX, KSUB+E1)
-                else
-                    add2InsnsToBuf(KANX+ZERO, KSUB+PLUS1);   (* minel *)
+                add2InsnsToBuf(KANX, KSUB+E1);
             };
             16: add2InsnsToBuf(insnTemp[XTA], KATX+SP + curInsn.i);
             17: {
@@ -2427,7 +2409,7 @@ var
                 if (typeKind < kindArray) or
                    (typeKind = kindStruct) and (s6 in optSflags.m) then {
                     isSimple := true;
-                    needsAdjust := (not (s9 in optSflags.m) or not forValue) and
+                    needsAdjust := not forValue and
                                 typeCheck(valueType, integerType);
                 } else {
                     isSimple := false;
@@ -3559,7 +3541,7 @@ procedure constmul;
 arg1Val.m := arg1Val.m + intZero;
 arg2Val.m := arg2Val.m + intZero;
 arg1Val.i := arg1Val.i * arg2Val.i;
-if s9 IN optSflags.m then arg1Val.m := arg1Val.m - intZero;
+arg1Val.m := arg1Val.m - intZero;
 };
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3643,7 +3625,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 opfMOD:
                     if (arg2Const) then {
                         prepLoad;
-                        if (s9 IN optSflags.m) and (card(arg2Val.m) = 1) then {
+                        if (card(arg2Val.m) = 1) then {
                             curVal.m := [minel(arg2Val.m)+1..47];
                             addToInsnList(KAAX+I8 +getFCSToffset);
                             l3int3z := 0;
@@ -3680,10 +3662,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                         otherIns@.payload.m := arg2Val.m + [0] - [1, 3];
                     } else {
                         prepLoad;
-                        if s9 in optSflags.m then
-                            addToInsnList(KAEX+E48)
-                        else
-                            addToInsnList(KAEX+MULTMASK);
+                        addToInsnList(KAEX+E48);
                     };
                     tryFlip(true);
                     insnList@.next@.mode := 1;
@@ -3812,8 +3791,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
             } else {
                 prepLoad;
                 if (curOP = TOREAL) then {
-                    if (s9 in optSflags.m) then
-                        addToInsnList(KAOX+ZERO);
+                    addToInsnList(KAOX+ZERO);
                     addToInsnList(insnTemp[AVX]);
                     l3int3z := 3;
                     goto 10122;
@@ -3847,8 +3825,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     case work of
                     fnABS:   arg1Val.r := abs(arg1Val.r);
                     fnTRUNC: arg1Val.i := trunc(arg1Val.r);
-                    fnORD:
-                    if not (s9 in optSflags.m) then arg1Val.i := ord(arg1Val.c);
+                    fnORD:   ;
                     fnCHR:   arg1Val.c := chr(arg1Val.i);
                     fnSUCC:  arg1Val.c := succ(arg1Val.c);
                     fnPRED:  arg1Val.c := pred(arg1Val.c);
@@ -4188,12 +4165,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
         if (l3int3z = 72) then          (* P/KC *)
             l3int1z := 1 - l3int1z;
         form1Insn(getValueOrAllocSymtab(l3int1z) + (KVTM+I9));
-        if not (s9 IN optSflags.m) and
-           typeCheck(curExpr@.vt.typ, integerType) then {
-            l3int1z := KXTA+ZERO;
-        } else {
-            l3int1z := insnTemp[XTA];
-        };
+        l3int1z := insnTemp[XTA];
         form1Insn(l3int1z);
         formAndAlign(getHelperProc(l3int3z));
    };
@@ -5994,13 +5966,9 @@ var
             if (expected = curClause@.value) and
                (exprtype@.k = kindScalar) then {
                 maxValue := expected;
-                if not (s9 in optSflags.m) and isIntCase then {
-                    expected.i := expected.i + 1;
-                } else {
-                    curVal := expected;
-                    curVal.c := succ(curVal.c);
-                    expected := curVal;
-                };
+                curVal := expected;
+                curVal.c := succ(curVal.c);
+                expected := curVal;
                 curClause := curClause@.next;
             } else {
                 itemSpan := 34000;
@@ -6412,15 +6380,10 @@ procedure P17037;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure checkElementForReadWrite;
-var
-    l5typ1z: tptr;
 {
     set145z := set145z - [12];
     curVarKind := l4typ3z@.k;
-    if (s9 IN optSflags.m) then
-        helperNo := 100               (* C/WI *)
-    else
-        helperNo := 36;               (* P/WI *)
+    helperNo := 100;               (* C/WI *)
     if ((l4typ3z = integerType) or (l4typ3z = booleanType)) then
         defWidth := 10
     else if (l4typ3z = realType) then {
@@ -6489,8 +6452,7 @@ procedure writeProc;
                     } else {
                         curExpr := firstWidth;
                         formOperator(LOAD);
-                        if s9 in optSflags.m then
-                            form1Insn(KAOX+ZERO);
+                        form1Insn(KAOX+ZERO);
                     }
                 };
                 if (helperNo = 37) then {       (* P/WR *)
@@ -6500,8 +6462,7 @@ procedure writeProc;
                     } else {
                         curExpr := secondWidth;
                         formOperator(FRACWIDTH);
-                        if s9 in optSflags.m then
-                            form1Insn(KAOX+ZERO);
+                        form1Insn(KAOX+ZERO);
                     }
                 };
                 curExpr := l4exp7z;
@@ -6729,8 +6690,6 @@ var
             form3Insn(ASN64-33, KAUX+BITS15, KAEX+ASCII0);
         } else {
             form2Insn(KAPX+BITS15, ASN64+33);
-            if not (s9 in optSflags.m) then
-               form1Insn(KAEX+ZERO);
         };
         verifyType(l4typ2z);
         formOperator(STORE);
@@ -7977,8 +7936,8 @@ var
     };
     opToInsn[MUL] := insnTemp[AMULX];
     opToInsn[RDIVOP] := insnTemp[ADIVX];
-    opToInsn[IDIVOP] := 17; (* P/DI *)
-    opToInsn[IMODOP] := 11; (* P/MD *)
+    opToInsn[IDIVOP] := 101; (* C/DI *)
+    opToInsn[IMODOP] := 102; (* C/MD *)
     opToInsn[PLUSOP] := insnTemp[ADD];
     opToInsn[MINUSOP] := insnTemp[SUB];
     opToInsn[IMULOP] := insnTemp[AMULX];
@@ -8228,7 +8187,7 @@ procedure initOptions;
     chrClass['_'] := ALNUM;
     funcInsn[fnABS] := KAMX;
     funcInsn[fnTRUNC] := KADD+ZERO;
-    funcInsn[fnORD] := KAOX+ZERO;
+    funcInsn[fnORD] := KATX;
     funcInsn[fnCHR] := KAAX+MANTISSA;
     funcInsn[fnSUCC] := KARX+E1;
     funcInsn[fnPRED] := KSUB+E1;

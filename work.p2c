@@ -1,4 +1,4 @@
-/*=l1,p-,t-,s8,s9,y+,k9,l1*/
+/*=l1,p-,t-,s8,y+,k9,l1*/
 extern _output_, _child_, pasinput, pasinfor, paseofcd;
 //
 label 9999;
@@ -17,7 +17,6 @@ const
     S6 = 3;
     NoPtrCheck = 4;
     NoStackCheck = 5;
-    S9 = 6;
 //
     ASN64 = 0360100;
 //
@@ -1124,15 +1123,10 @@ void readOptFlag(res: @int);
         'Y': readOptFlag(&allowCompat);
         'E': readOptFlag(&declExternal);
         'S': {
-            curVal.i = readOptVal(9);
+            curVal.i = readOptVal(8);
             if (curVal.i == 3)  lineCnt  =  1;
-            else if (curVal.i in [4..9])
+            else if (curVal.i in [4..8])
                 optSflags  =  optSflags | (E48 >> (curVal.i - 3));
-             if (s9 in optSflags) {
-                opToInsn[IDIVOP] = 101;  /* C/DI */
-                opToInsn[IMODOP] = 102;  /* C/MD */
-                funcInsn[fnORD] = KATX;
-             }
         }
         'F': readOptFlag(&checkFortran);
         'L': PASINFOR.listMode = readOptVal(3);
@@ -1316,13 +1310,6 @@ var
                         curToken.i = (curToken.i << 3) |
                             numstr[tokenIdx].i & [45..47];
                     }
-                    if ((numFormat == OCTAL) && !(s9 in optSflags)) {
-                        if (curToken.i & [0..6]) {
-                            error(errNumberTooLarge);
-                            curToken.i  =  1;
-                        } else
-                            curToken.i  =  curToken.i | intZero;
-                    }
                     exit lexer;
                 } /* octdec */
                 curToken.i  =  0;
@@ -1406,7 +1393,7 @@ var
                         curToken.r  =  curToken.r / expValue;
                     else
                         curToken.r  =  curToken.r * expValue;
-                } else if (s9 in optSflags)
+                } else
                     curToken.i  =  curToken.i & (~intZero);
                 exit lexer;
             } /* INTCONST */ /*=m+*/
@@ -2067,8 +2054,6 @@ void addJumpInsn(opcode: int);
             switch (l4var4z) {
             mcCARD: {
                 addInsnToBuf(KACX);
-                if (!(s9 in optSflags))
-                    addInsnToBuf(KAEX+ZERO);
             }
             21: goto 3556;
             0:  addJumpInsn(KUZA);
@@ -2132,10 +2117,7 @@ void addJumpInsn(opcode: int);
                                KITA + curInsn);
             }
             mcMINEL: {
-                if (s9 in optSflags)
-                    add2InsnsToBuf(KANX, KSUB+E1);
-                else
-                    add2InsnsToBuf(KANX+ZERO, KSUB+PLUS1);   /* minel */
+                add2InsnsToBuf(KANX, KSUB+E1);
             }
             16: add2InsnsToBuf(KXTA, KATX+SP + curInsn);
             17: {
@@ -2388,8 +2370,7 @@ var
                 if (l4var5z < kindArray ||
                    (l4var5z == kindStruct && s6 in optSflags)) {
                     l4bool7z  =  true;
-                    l4bool8z  =  !(s9 in optSflags) &&
-                                typeCheck(valueType, intType);
+                    l4bool8z  =  false;
                 } else {
                     l4bool7z  =  false;
                     l4bool8z  =  false;
@@ -3536,8 +3517,7 @@ var
                     arg1Val.i = arg1Val.i | intZero;
                     arg2Val.i = arg2Val.i | intZero;
                     arg1Val.i = arg1Val.i * arg2Val.i;
-                    if (s9 in optSflags)
-                        arg1Val.i = arg1Val.i & (~intZero);
+                    arg1Val.i = arg1Val.i & (~intZero);
                 }
                 SETAND:     arg1Val.i  =  arg1Val.i & arg2Val.i;
                 SETXOR:     arg1Val.i  =  arg1Val.i ^ arg2Val.i;
@@ -3581,7 +3561,7 @@ var
                 opfMOD:
                     if (arg2Const) {
                         prepLoad();
-                        if ((s9 in optSflags) && (card(arg2Val.i) == 1)) {
+                        if (card(arg2Val.i) == 1) {
                             curVal.i  =  all1 >> (minel(arg2Val.i)+1);
                             addToInsnList(KAAX+I8 +getFCSToffset());
                             l3int3z  =  0;
@@ -3618,10 +3598,7 @@ var
                             otherIns->payload  =  (arg2Val.i | [0]) & (~[1, 3]);
                         } else {
                             prepLoad();
-                            if (s9 in optSflags)
-                                addToInsnList(KAEX+MSB);
-                            else
-                                addToInsnList(KAEX+MULTMASK);
+                            addToInsnList(KAEX+MSB);
                         }
                     }
                     tryFlip(true);
@@ -3744,8 +3721,7 @@ var
             } else {
                 prepLoad();
                 if (curOP == TOREAL) {
-                    if (s9 in optSflags)
-                        addToInsnList(KAOX+ZERO);
+                    addToInsnList(KAOX+ZERO);
                     addToInsnList(KAVX);
                     l3int3z  =  3;
                     goto 10122;
@@ -3779,9 +3755,7 @@ var
                     switch (work) {
                     fnABS:   arg1Val.r  =  abs(arg1Val.r);
                     fnTRUNC: arg1Val.i  =  trunc(arg1Val.r);
-                    fnORD:
-                    if (!(s9 in optSflags))
-                        arg1Val.i  =  ord(arg1Val.c);
+                    fnORD:   ;
                     fnCHR:   arg1Val.c  =  chr(arg1Val.i);
                     fnSUCC:  arg1Val.c  =  succ(arg1Val.c);
                     fnPRED:  arg1Val.c  =  pred(arg1Val.c);
@@ -4103,12 +4077,7 @@ var l4exf1z: @extfilerec;
         if (l3int3z == 72)           /* P/KC */
             l3int1z  =  1 - l3int1z;
         form1Insn(getValueOrAllocSymtab(l3int1z) + (KVTM+I9));
-        if (!(s9 in optSflags) &&
-           typeCheck(curExpr->typ, intType)) {
-            l3int1z  =  KXTA+ZERO;
-        } else {
-            l3int1z  =  KXTA;
-        }
+        l3int1z  =  KXTA;
         form1Insn(l3int1z);
         formAndAlign(getHelperProc(l3int3z));
    }
@@ -5799,13 +5768,9 @@ var
             if ((expected == curClause->value) &&
                (exprtype->k == kindScalar)) {
                 maxValue  =  expected;
-                if (!(s9 in optSflags) && isIntCase) {
-                    expected.i  =  expected.i + 1;
-                } else {
-                    curVal  =  expected;
-                    curVal.c  =  succ(curVal.c);
-                    expected  =  curVal;
-                }
+                curVal  =  expected;
+                curVal.c  =  succ(curVal.c);
+                expected  =  curVal;
                 curClause  =  curClause->next;
             } else {
                 itemSpan  =  34000;
@@ -6203,10 +6168,7 @@ void checkElementForReadWrite;
 {
     set145z  =  set145z & (~[12]);
     curVarKind  =  l4typ3z->k;
-    if (s9 in optSflags)
-        helperNo  =  100;              /* C/WI */
-    else
-        helperNo  =  36;               /* P/WI */
+    helperNo  =  100;              /* C/WI */
     if (l4typ3z == intType || l4typ3z == boolType)
         defWidth  =  10;
     else if (l4typ3z == realType) {
@@ -6508,8 +6470,6 @@ var
         checkSymAndRead(COMMA);
         formOperator(LOAD);
         form2Insn(KAPX+BITS15, ASN64+33);
-        if (!(s9 in optSflags))
-            form1Insn(KAEX+ZERO);
         verifyType(l4typ2z);
         formOperator(STORE);
     }
@@ -7746,8 +7706,8 @@ var
     }
     opToInsn[MUL]  =  KMUL;
     opToInsn[RDIVOP]  =  KDIV;
-    opToInsn[IDIVOP]  =  17; /* P/DI */
-    opToInsn[IMODOP]  =  11; /* P/MD */
+    opToInsn[IDIVOP]  =  101; /* C/DI */
+    opToInsn[IMODOP]  =  102; /* C/MD */
     opToInsn[PLUSOP]  =  KADD;
     opToInsn[MINUSOP]  =  KSUB;
     opToInsn[IMULOP]  =  KMUL;
@@ -7982,7 +7942,7 @@ void initOptions;
     chrClass['_']  =  ALNUM;
     funcInsn[fnABS]  =  KAMX;
     funcInsn[fnTRUNC]  =  KADD+ZERO;
-    funcInsn[fnORD]  =  KAOX+ZERO;
+    funcInsn[fnORD]  =  KATX;
     funcInsn[fnCHR]  =  KAAX+MANTISSA;
     funcInsn[fnSUCC]  =  KARX+E1;
     funcInsn[fnPRED]  =  KSUB+E1;
