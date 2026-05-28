@@ -243,11 +243,10 @@ types = record
     case kind of
     kindReal:   ();
     kindRange:  (base:      tptr;
-                 placeholder,   (* fails if commented out *)
                  left,
                  right:     integer);
     kindArray:  (abase,
-                 range:     tptr;
+                 rbase:     tptr;
                  pck:       boolean;
                  perword,
                  pcksize, aleft, aright:   integer);
@@ -587,16 +586,7 @@ var span: tptr;
     if maxSmallString >= strLen then
         res := smallStringType[strLen]
     else {
-        new(span = 7);
         new(res, kindArray);
-        with span@ do {
-            size := 1;
-            bits := 12;
-            k := kindRange;
-            base := integerType;
-            left := 1;
-            right := strLen;
-        };
         with res@ do {
             size := (strLen + 5) div 6;
             if size = 1 then
@@ -605,12 +595,12 @@ var span: tptr;
                 bits := 0;
             k := kindArray;
             base := charType;
-            range := span;
             pck := true;
             perword := 6;
             pcksize := 8;
             aleft := 1;
             aright := strLen;
+            rbase := integerType;
         }
     }
 }; (* makeStringType *)
@@ -938,20 +928,15 @@ procedure defineRange(var res: tptr; l, r: integer);
 var
     temp: tptr;
 {
-    new(temp=7);
+    new(temp, kindRange);
     with temp@ do {
-        size := 1;
-        bits := 48;
         base := res;
-        k := kindRange;
         curVal.i := l;
         curVal.m := curVal.m + intZero;
         left := curVal.i;
         curVal.i := r;
         curVal.m := curVal.m + intZero;
         right := curVal.i;
-        if (left >= 0) then
-            bits := nrOfBits(curVal.i);
         res := temp
     }
 }; (* defineRange *)
@@ -2986,7 +2971,7 @@ var
        l5var22z.m := l5var22z.m - getEltInsns[curDim]@.regsused;
     for curDim := dimCnt downto 1 do {
         l5var26z := insnCopy.typ@.base;
-        l5var27z := insnCopy.typ@.range;
+        l5var27z := insnCopy.typ@.rbase;
         l5var25z := insnCopy.typ@.pck;
         l5var7z := insnCopy.typ@.aleft;
         l5var8z := l5var26z@.size;
@@ -3022,7 +3007,7 @@ var
         } else {
             if (l5var8z <> 1) then {
                 prepLoad;
-                if (l5var27z@.base = integerType) then {
+                if (l5var27z = integerType) then {
                     l5var4z := KYTA+64;
                 } else {
                     l5var4z := KYTA+64-40;
@@ -4230,7 +4215,7 @@ var
     cases: caserec;
     numBits, l3int22z, span: integer;
     curEnum, curField: irptr;
-    l3typ26z, nestedType, tempType, curType: tptr;
+    arrayType, nestedType, tempType, curType: tptr;
     l3idr31z: irptr;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4642,20 +4627,20 @@ var
             checkSymAndRead(LBRACK);
             tempType := NIL;
 12476:      nestedType := parseRange;
-            new(l3typ26z, kindArray);
-            with l3typ26z@ do {
+            new(arrayType, kindArray);
+            with arrayType@ do {
                 size := ord(tempType);
                 bits := 48;
                 k := kindArray;
-                range := nestedType;
                 aleft := nestedType@.left;
                 aright := nestedType@.right;
+                rbase := nestedType@.base;
             };
             if (tempType = NIL) then
-                curType := l3typ26z
+                curType := arrayType
             else
-                tempType@.base := l3typ26z;
-            tempType := l3typ26z;
+                tempType@.base := arrayType;
+            tempType := arrayType;
             if (SY = COMMA) then {
                 inSymbol;
                 goto 12476;
@@ -4663,11 +4648,11 @@ var
             checkSymAndRead(RBRACK);
             checkSymAndRead(OFSY);
             parseTypeRef(nestedType, skipTarget);
-            l3typ26z@.base := nestedType;
+            arrayType@.base := nestedType;
             if isFileType(nestedType) then
                 error(errTypeMustNotBeFile);
-            repeat with l3typ26z@, ptr2@ do {
-                span := high.i - low + 1;
+            repeat with arrayType@ do {
+                span := aright - aleft + 1;
                 tempType := ptr(size);
                 l3int22z := base@.bits;
                 if (24 < l3int22z) then
@@ -4694,17 +4679,16 @@ var
                     size := span * base@.size;
                     curVal.i := base@.size;
                     curVal.m := curVal.m * [7:47] + [0];
-                    if (range@.base <> integerType) then
+                    if (rbase <> integerType) then
                         curVal.m := curVal.m + [1, 3];
-                    l3typ26z@.perword := KMUL+ I8 + getFCSToffset;
+                    arrayType@.perword := KMUL+ I8 + getFCSToffset;
                 };
-                l3typ26z@.pck := isPacked;
+                arrayType@.pck := isPacked;
                 isPacked := false;
-                cond := (curType = l3typ26z);
-                l3typ26z := tempType;
+                cond := curType = arrayType;
+                arrayType := tempType;
             } until cond;
-        } else
-        if (SY = FILESY) then {
+        } else if (SY = FILESY) then {
             inSymbol;
             checkSymAndRead(OFSY);
             parseTypeRef(nestedType, skipTarget);
@@ -4726,7 +4710,7 @@ var
                 elsize := l3int22z;
             }
         } else {
-            curType := parseRange;
+            error(errNotAType);
         };
     };
 13020:
@@ -5078,7 +5062,7 @@ var
                 if (l4typ3z@.k <> kindArray) then {
                     error(errWrongVarTypeBefore);
                 } else {
-                    if (not typeCheck(l4typ3z@.range, curExpr@.vt.typ)) then
+                    if (not typeCheck(l4typ3z@.rbase, curExpr@.vt.typ)) then
                         error(66 (*errOtherIndexTypeNeeded *));
                     new(l4exp2z);
                     with l4exp2z@ do {
@@ -6568,7 +6552,7 @@ procedure checkArrayArg;
     readNext := false;
     expression;
     l4exp8z := curExpr;
-    if (l4typ1z@.range@.base <> l4exp8z@.vt.typ) then
+    if (l4typ1z@.rbase <> l4exp8z@.vt.typ) then
         error(errNeedOtherTypesOfOperands);
 }; (* checkArrayArg *)
 %
@@ -7276,12 +7260,12 @@ var l : integer;
         bits := 48;
         k := kindArray;
         base := charType;
-        range := temptype;
         pck := true;
         perword := 6;
         pcksize := 8;
         aleft := 1;
         aright := 6;
+        rbase := integerType;
     };
     smallStringType[6] := alfaType;
     regSysType(515664C  (*"     INT"*), integerType);
@@ -7375,9 +7359,6 @@ var l : integer;
     programObj@.argList := NIL;
     programObj@.flags := [];
     objBufIdx := 1;
-    temptype := integerType;
-    defineRange(temptype, 1, 6);
-    alfaType@.range := temptype;
     int93z := 0;
     outputObjFile;
     outputFile := NIL;

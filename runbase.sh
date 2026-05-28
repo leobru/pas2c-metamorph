@@ -21,6 +21,7 @@ cat << EOF >> tmp$$
 *copy:0,000000,000000
 *libra:23
 *call dtran(program)
+*call setftn:one,long
 *assem
 *read:1
 *libra:43
@@ -28,7 +29,7 @@ cat << EOF >> tmp$$
 *end file
 EOF
 if [ "$1" = "-d" ]; then ln -f tmp$$ run.dub ; fi
-rm tmpsrc.bin
+rm -f tmpsrc.bin
 ulimit -t 3
 dubna tmp$$ | tee runbase.lst
 if [ $? -ne 0 ]; then

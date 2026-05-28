@@ -255,7 +255,6 @@ types = struct {
     switch kind of
     kindReal:   {};
     kindRange:  {base:      tptr;
-                 checker,
                  left,
                  right:     int};
     kindArray:  {abase,
@@ -580,7 +579,6 @@ var span, res: tptr;
         new(res, kindArray);
         with span@ do {
             size  =  1;
-            checker  =  0;
             bits  =  12;
             k  =  kindRange;
             base  =  intType;
@@ -957,7 +955,6 @@ var
         size  =  1;
         bits  =  48;
         base  =  typ;
-        checker  =  0;
         k  =  kindRange;
         left  =  l | intZero;
         right  =  r | intZero;
@@ -4163,7 +4160,7 @@ var
     cases: caserec;
     numBits, l3int22z, span: int;
     curEnum, curField: irptr;
-    l3typ26z, nestedType, tempType, curType: tptr;
+    arrayType, nestedType, tempType, curType: tptr;
     l3idr31z: irptr;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4576,18 +4573,18 @@ var
 12476:      nestedType = parseRange();
             if (nestedType->k != kindRange)
                 error(8); /* errNotAnIndexType */
-            new(l3typ26z, kindArray);
-            with l3typ26z@ do {
+            new(arrayType, kindArray);
+            with arrayType@ do {
                 size  =  ord(tempType);
                 bits  =  48;
                 k  =  kindArray;
                 range  =  nestedType;
             }
             if (tempType == NIL)
-                curType  =  l3typ26z;
+                curType  =  arrayType;
             else
-                tempType->base  =  l3typ26z;
-            tempType  =  l3typ26z;
+                tempType->base  =  arrayType;
+            tempType  =  arrayType;
             if (SY == COMMA) {
                 inSymbol();
                 goto 12476;
@@ -4595,11 +4592,11 @@ var
             checkSymAndRead(RBRACK);
             checkSymAndRead(OFSY);
             nestedType = parseTypeRef(skipTarget);
-            l3typ26z->base  =  nestedType;
+            arrayType->base  =  nestedType;
             if (isFileType(nestedType))
                 error(errTypeMustNotBeFile);
-            do with l3typ26z@, ptr2@ do {
-                span  =  high - low + 1;
+            do with arrayType@ do {
+                with range@ do span  =  right - left + 1;
                 tempType  =  ptr(size);
                 l3int22z  =  base->bits;
                 if (24 < l3int22z)
@@ -4628,12 +4625,12 @@ var
                     curVal.i  =  curVal.i & [7:47] | E48;
                     if (range->base != intType)
                         curVal.i  =  curVal.i | [1, 3];
-                    l3typ26z->perword  =  KMUL+ I8 + getFCSToffset();
+                    arrayType->perword  =  KMUL+ I8 + getFCSToffset();
                 }
-                l3typ26z->pck  =  isPacked;
+                arrayType->pck  =  isPacked;
                 isPacked  =  false;
-                cond  =  (curType == l3typ26z);
-                l3typ26z  =  tempType;
+                cond  =  (curType == arrayType);
+                arrayType  =  tempType;
             } while (not cond);
         } else if (SY == FILESY) {
             inSymbol();
