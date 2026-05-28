@@ -484,6 +484,8 @@ var
     constNums: array [1..500] of int;
     objBuffer: array [1024] of int;
     iso2text: array ['\052'..'\177'] of char;
+    text2iso: __packed array ['\000'..'\077'] of char;
+    maxHeap: int;
     fcst: file of int; /* last */
 //
     pasinput: text;
@@ -537,6 +539,7 @@ var
         unpack(errptr@, errtext, 0);
 (loop)  for (i = 0; i <= 100; i=i+1) {
             c  =  pasisoxt(errtext[i]);
+//            c  =  text2iso[errtext[i]];
             if (c == '*')
                 exit loop;
             write(c);
@@ -1836,6 +1839,19 @@ var
     l2int18z, ii, localSize, sizeCount, jj: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void myrollup(addr : int);
+var cur : @int;
+    top : int;
+{
+    setup(cur);
+    top = ord(cur);
+    if (top > maxHeap)
+        maxHeap = top;
+    cur = ptr(addr);
+    rollup(cur);
+}
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function knownInType(rec: @irptr): int;
 var it: irptr;
 {
@@ -1932,7 +1948,7 @@ void allocWithTypeCheck;
                         setup(type1);
                         allocWithTypeCheck();
                         chain  =  NIL;
-                        rollup(type1);
+                        myrollup(ord(type1));
                         exit;
                     }
                 }
@@ -2361,17 +2377,17 @@ label
     4545, 4602;
 var
     helper, l4int2z, l4int3z: int;
-    l4typ4z: tptr;
+    valueType: tptr;
     l4var5z: kind;
     l4st6z: state;
     l4bool7z, l4bool8z, l4bool9z: int;
 {
-    l4typ4z  =  insnList->typ;
+    valueType  =  insnList->typ;
     with insnList@ do {
         switch (ilm) {
         ilCONST: {
             curVal.i  =  payload;
-            if (l4typ4z->size == 1)
+            if (valueType->size == 1)
                 curVal.i  =  getFCSToffset();
             addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
         }
@@ -2399,12 +2415,12 @@ var
             if (l4st6z == st0) {
                 addInsnAndOffset(l4int2z + curInsnTemplate, l4int3z);
             } else {
-                l4var5z  =  l4typ4z->k;
+                l4var5z  =  valueType->k;
                 if (l4var5z < kindArray ||
                    (l4var5z == kindStruct && s6 in optSflags)) {
                     l4bool7z  =  true;
                     l4bool8z  =  !(s9 in optSflags) &&
-                                typeCheck(l4typ4z, intType);
+                                typeCheck(valueType, intType);
                 } else {
                     l4bool7z  =  false;
                     l4bool8z  =  false;
@@ -2453,7 +2469,7 @@ var
             goto 4545;
         }
         il2: {
-4545:       if (forValue && (l4typ4z == boolType) &&
+4545:       if (forValue && (valueType == boolType) &&
                (16 in insnList->regsused))
                 addToInsnList(KAEX+E1);
         }
@@ -6099,7 +6115,7 @@ var
                 }
             }
         } while (SY == COMMA);
-        rollup(boundary);
+        myrollup(ord(boundary));
     } while (SY == SEMICOLON);
     if (SY != ENDSY)
         error(errBadSymbol);
@@ -6123,7 +6139,7 @@ var
     l4exp6z: eptr;
     l4exp7z, l4exp8z, workExpr: eptr;
     l4bool10z,
-    noWidth, l4bool12z, l4var13z, l4var14z: int;
+    noWidth, l4bool12z, isCharFile, l4var14z: int;
     defWidth: int;
     procNo: int;
     helperNo: int;
@@ -6145,13 +6161,11 @@ void verifyType(t: tptr);
 } /* verifyType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void startReadOrWrite(isWrite: int);
+void startWrite;
 {
     expression();
     l4typ3z  =  curExpr->typ;
     l4exp7z  =  curExpr;
-    if ((not isWrite) && (not (curExpr->op IN lvalOpSet)))
-        error(27); /* errExpressionWhereVariableExpected */
     if (workExpr == NIL) {
         if (l4typ3z->k == kindFile) {
             workExpr  =  curExpr;
@@ -6159,18 +6173,11 @@ void startReadOrWrite(isWrite: int);
             new(workExpr);
             workExpr->typ  =  textType;
             workExpr->op  =  GETVAR;
-            if (isWrite) {
-                workExpr->id1  =  outputFile;
-            } else {
-                if (inputFile != NIL)
-                    workExpr->id1  =  inputFile;
-                else {
-                    error(37); /* errInputMissingInProgramHeader */
-                }
-            }
+            workExpr->id1  =  outputFile;
         }
         arg2Type  =  workExpr->typ;
-        l4var13z  =  typeCheck(arg2Type->base, charType);
+        /* typeCheck(arg2Type->base, charType); */
+        isCharFile  =  arg2Type->base == charType;
         l4bool12z  =  true;
         new(l4exp8z);
         l4exp8z->typ  =  arg2Type->base;
@@ -6179,12 +6186,9 @@ void startReadOrWrite(isWrite: int);
         new(l4exp6z);
         l4exp6z->typ  =  l4exp8z->typ;
         l4exp6z->op  =  ASSIGNOP;
-        if (isWrite)
-            l4exp6z->expr1  =  l4exp8z;
-        else
-            l4exp6z->expr2  =  l4exp8z;
+        l4exp6z->expr1  =  l4exp8z;
     }
-} /* startReadOrWrite */
+} /* startWrite */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function parseWidthSpecifier: eptr;
@@ -6274,11 +6278,11 @@ var
 void writeProc;
 {
     workExpr  =  NIL;
-    l4var13z  =  true;
+    isCharFile  =  true;
     do {
-        startReadOrWrite(true);
+        startWrite();
         if (l4exp7z != workExpr) {
-            if (not (l4var13z)) {
+            if (not isCharFile) {
                 helperNo  =  29;         /* P/PF */
                 P17037();
             } else {
@@ -6455,7 +6459,7 @@ var
         } else {
             if (arg1Type->base->k == kindStruct) {
                 l4typ1z  =  l2typ13z->base;
-(loop)          while ((SY == COMMA) && (l4typ1z != NIL)) {
+(loop)          while (SY == COMMA && l4typ1z != NIL) {
                     inSymbol();
                     l4typ2z = parseLiteral(&curVal.i, true);
                     if (l4typ2z == NIL)
@@ -6796,7 +6800,7 @@ var
     }
     if (l3var4z)
         lineNesting  =  lineNesting - 1;
-    rollup(boundary);
+    myrollup(ord(boundary));
     if (bool110z) {
         bool110z  =  false;
         goto 8888;
@@ -7707,7 +7711,7 @@ void exitScope(arg: @hashArray);
                 if (not (SY IN [FUNCSY,VOIDSY,BEGINSY]))
                     errAndSkip(errBadSymbol, skipToSet);
             } while (not (SY IN [FUNCSY,VOIDSY,BEGINSY]));
-            rollup(scopeBound);
+            myrollup(ord(scopeBound));
             exitScope(&symHash);
             exitScope(&fieldHash);
             goto 23301;
@@ -7964,6 +7968,7 @@ void initOptions;
     } else {
         finalize();
         PASINFOR.errors@  =  false;
+        writeln(' MAXHEAP = ', maxHeap:5 oct);
     }
 }
 .data
@@ -8238,4 +8243,7 @@ void initOptions;
 /*20*/  '   UNPCK',
         '    PACK',
         '  UNPACK';
+/*=A2*/
+    text2iso  =
+    ' !БЦДФ','ГИ()*Й','ЛЯЖ/01','234567','89Ь;П-','+ЫЗABC','DEFGHI','JKLMNO','PQRSTU','VWXYZШ','ЭЩЧЮ  ';
 }

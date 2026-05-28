@@ -479,6 +479,7 @@ var
    constNums: array [1..500] of integer;
    objBuffer: array [1..1024] of bitset;
    iso2text: array ['_052'..'_177'] of '_000'..'_077';
+   maxHeap: integer;
    fcst: file of bitset; (* last *)
 %
     pasinput: text;
@@ -513,6 +514,18 @@ var
     strLabList: @strLabel;
 %
     l2int18z, ii, localSize, l2int21z, jj: integer;
+%
+procedure myrollup(addr : integer);
+var cur : @integer;
+    top : integer;
+{
+    setup(cur);
+    top := ord(cur);
+    if (top > maxHeap) then
+        maxHeap := top;
+    cur := ptr(addr);
+    rollup(cur);
+};
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %              PrintErrMsg               %
@@ -1916,7 +1929,7 @@ procedure allocWithTypeCheck;
                         setup(type1);
                         allocWithTypeCheck;
                         chain := NIL;
-                        rollup(type1);
+                        myrollup(ord(type1));
                         exit
                     }
                 };
@@ -6275,7 +6288,7 @@ function allocDataRef(value: integer): integer;
                 }
             };
         until SY <> COMMA;
-        rollup(boundary);
+        myrollup(ord(boundary));
     until SY <> SEMICOLON;
     if (SY <> ENDSY) then
         error(errBadSymbol);
@@ -6301,7 +6314,7 @@ var
     l4exp7z, l4exp8z, workExpr: eptr;
     l4bool10z,
     noWidth, l4bool12z: boolean;
-    l4var13z: word;
+    isCharFile: boolean;
     oldOffset: integer;
     defWidth: integer;
     procNo: integer;
@@ -6324,15 +6337,11 @@ procedure verifyType(l5arg1z: tptr);
 }; (* verifyType *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure startReadOrWrite(doWrite: boolean);
+procedure startWrite;
 {
     expression;
     l4typ3z := curExpr@.vt.typ;
     l4exp7z := curExpr;
-    if not (doWrite) then {
-        if not (curExpr@.op IN lvalOpSet) then
-            error(27); (* errExpressionWhereVariableExpected *)
-    };
     if (workExpr = NIL) then {
         if (l4typ3z@.k = kindFile) then {
             workExpr := curExpr;
@@ -6340,18 +6349,11 @@ procedure startReadOrWrite(doWrite: boolean);
             new(workExpr);
             workExpr@.vt.typ := textType;
             workExpr@.op := GETVAR;
-            if (doWrite) then {
-                workExpr@.id1 := outputFile;
-            } else {
-                if (inputFile <> NIL) then
-                    workExpr@.id1 := inputFile
-                else {
-                    error(37); (* errInputMissingInProgramHeader *)
-                }
-            }
+            workExpr@.id1 := outputFile;
         };
         arg2Type := workExpr@.vt.typ;
-        l4var13z.b := typeCheck(arg2Type@.base, charType);
+        (* typeCheck(arg2Type@.base, charType); *)
+        isCharFile := arg2Type@.base = charType;
         l4bool12z := true;
         new(l4exp8z);
         l4exp8z@.vt.typ := arg2Type@.base;
@@ -6360,12 +6362,9 @@ procedure startReadOrWrite(doWrite: boolean);
         new(l4exp6z);
         l4exp6z@.vt.typ := l4exp8z@.vt.typ;
         l4exp6z@.op := ASSIGNOP;
-        if (doWrite) then
-            l4exp6z@.expr1 := l4exp8z
-        else
-            l4exp6z@.expr2 := l4exp8z;
+        l4exp6z@.expr1 := l4exp8z
     }
-}; (* startReadOrWrite *)
+}; (* startWrite *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function parseWidthSpecifier: eptr;
@@ -6454,11 +6453,11 @@ var
 procedure writeProc;
 {
     workExpr := NIL;
-    l4var13z.b := true;
+    isCharFile := true;
     repeat {
-        startReadOrWrite(true);
+        startWrite;
         if (l4exp7z <> workExpr) then {
-            if not (l4var13z.b) then {
+            if not isCharFile then {
                 helperNo := 29;         (* P/PF *)
                 P17037;
             } else {
@@ -6977,7 +6976,7 @@ writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
         };
         if (l3var4z) then
             lineNesting := lineNesting - 1;
-        rollup(boundary);
+        myrollup(ord(boundary));
         if (bool110z) then {
             bool110z := false;
             goto 8888;
@@ -7893,7 +7892,7 @@ procedure exitScope(var arg: hashArray);
                 if not (SY IN [FUNCSY,VOIDSY,BEGINSY]) then
                     errAndSkip(errBadSymbol, skipToSet);
             until SY IN [FUNCSY,VOIDSY,BEGINSY];
-            rollup(scopeBound);
+            myrollup(ord(scopeBound));
             exitScope(symHash);
             exitScope(fieldHash);
             goto 23301;
@@ -8171,6 +8170,7 @@ procedure initOptions;
     } else {
         finalize;
         PASINFOR.errors@ := false;
+        writeln(' MAXHEAP = ', maxHeap:5 oct);
     }
 }
 .data
@@ -8182,6 +8182,7 @@ procedure initOptions;
                     GOTOSY];
     O77777 := [33:47];
     intZero := 0;
+    maxHeap := 0;
     extSymMask := (43000000C);
     halfWord := [24:47];
     hashMask := 203407C;
