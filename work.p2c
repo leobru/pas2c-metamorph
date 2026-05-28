@@ -212,11 +212,12 @@ eptr = @expr;
 tptr = @types;
 irptr = @identrec;
 //
+textchar = int:6;
 word = struct { switch int of
     0: {i: int};
     1: {r: real};
     3: {a: alfa};
-    4: {t: __packed array[8] of '\000' .. '\077'};
+    4: {t: __packed array[8] of textchar};
     7: {c: char};
     8: {cl: idclass};
     9: {tp: tptr};
@@ -283,7 +284,7 @@ typechain = struct {
     type1, type2: tptr;
 };
 charmap   = __packed array ['\000'..'\176'] of char;
-textmap   = __packed array ['\052'..'\177'] of '\000'..'\077';
+textmap   = __packed array ['\052'..'\177'] of int:6;
 //
 four = array [1..4] of int;
 entries   = array [42] of int;
@@ -484,7 +485,7 @@ var
     constVals: array [1..500] of alfa;
     constNums: array [1..500] of int;
     objBuffer: array [1024] of int;
-    iso2text: array ['\052'..'\177'] of '\000'..'\077';
+    iso2text: array ['\052'..'\177'] of char;
     fcst: file of int; /* last */
 //
     pasinput: text;
@@ -508,17 +509,17 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void printErrMsg(errno: int);
 type
-    errtxt = __packed array [101] of '\000'..'\077';
+    errtxt = __packed array [101] of textchar;
 var
     errptr: @errtxt;
-    errtext: array [101] of '\000'..'\077';
+    errtext: array [101] of textchar;
     i: int;
     c: char;
 //
     function pasmitxt(errno: int): @errtxt;
         fortran;
 //
-    function pasisoxt(txtchar: '\000'..'\077'): char;
+    function pasisoxt(txtchar: textchar): char;
         fortran;
 //
 { /* PrintErrMsg */
@@ -965,6 +966,28 @@ var
         defineRange  =  temp;
     }
 } /* defineRange */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function mkIntScl(bitWid: int): tptr;
+var
+    res: tptr;
+{
+    if (bitWid < 1 || 40 < bitWid) {
+        error(errNumberTooLarge);
+        mkIntScl = intType;
+        exit;
+    }
+    new(res, kindScalar);
+    with res@ do {
+        size = 1;
+        k = kindScalar;
+        start = -1;
+        enums = NIL;
+        numen = 1 << bitWid;
+        bits = bitWid;
+    }
+    mkIntScl = res;
+} /* mkIntScl */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function getValueOrAllocSymtab(value: int): int;
@@ -4124,7 +4147,7 @@ var l4exf1z: @extfilerec;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function parseTypeRef(skipTarget: setofsys): tptr;
 label
-    12247, 12366, 12476, 12760, 13020;
+    12247, 12366, 12476, 13020;
 type
     pair = struct {
             first, second: int
@@ -4138,7 +4161,6 @@ var
     isPacked: int;
     cond: int;
     cases: caserec;
-    leftBound, rightBound: int;
     numBits, l3int22z, span: int;
     curEnum, curField: irptr;
     l3typ26z, nestedType, tempType, curType: tptr;
@@ -4388,6 +4410,38 @@ var
 } /* parseRecordDecl*/
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function parseRange: tptr;
+var
+    leftBound, rightBound: int;
+    tempType: tptr;
+{
+    tempType = parseLiteral(&leftBound, true);
+    if (tempType != NIL) {
+        inSymbol();
+        if (SY != COLON) {
+// Handle a single value N as a range 0..N-1
+            rightBound = leftBound - 1U;
+            curType = tempType;
+            if (E48 & leftBound)
+                leftBound = 0;
+            else
+                leftBound = 0U;
+        } else {
+            inSymbol();
+            curType = parseLiteral(&rightBound, true);
+            inSymbol();
+        }
+        if ((curType == tempType) &&
+           (curType->k == kindScalar)) {
+            parseRange = defineRange(curType, leftBound, rightBound);
+            exit;
+        }
+    }
+    error(64); /* errIncorrectRangeDefinition */
+    parseRange = boolType;
+} /* parseRange */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* parseTypeRef */
     isPacked  =  false;
 12247:
@@ -4466,7 +4520,8 @@ var
             if (hashTravPtr->cl == TYPEID) {
                 curType  =  hashTravPtr->typ;
             } else {
-                goto 12760;
+                error(errNotAType);
+                curType  =  intType;
             }
         } else {
             if (inTypeDef) {
@@ -4482,6 +4537,16 @@ var
             }
         }
         inSymbol();
+        if ((curType == intType) && (SY == COLON)) {
+            inSymbol();
+            if (SY != INTCONST)
+                error(errNumberTooLarge);
+            else {
+                l3int22z = curToken.i;
+                inSymbol();
+                curType = mkIntScl(l3int22z);
+            }
+        }
     } else {
         if (SY == PACKEDSY) {
             isPacked  =  true;
@@ -4508,7 +4573,7 @@ var
             inSymbol();
             checkSymAndRead(LBRACK);
             tempType  =  NIL;
-12476:      nestedType = parseTypeRef(skipTarget | [OFSY]);
+12476:      nestedType = parseRange();
             if (nestedType->k != kindRange)
                 error(8); /* errNotAnIndexType */
             new(l3typ26z, kindArray);
@@ -4592,31 +4657,7 @@ var
                 elsize  =  l3int22z;
             }
         } else {
-12760:      ;
-            tempType = parseLiteral(&leftBound, true);
-            if (tempType != NIL) {
-                inSymbol();
-                if (SY != COLON) {
-// Handle a single value N as a range 0..N-1
-                    rightBound = leftBound - 1U;
-                    curType = tempType;
-                    if (E48 & leftBound)
-                        leftBound = 0;
-                    else
-                        leftBound = 0U;
-                } else {
-                    inSymbol();
-                    curType = parseLiteral(&rightBound, true);
-                    inSymbol();
-                }
-                if ((curType == tempType) &&
-                   (curType->k == kindScalar)) {
-                    curType = defineRange(curType, leftBound, rightBound);
-                    goto 13020;
-                }
-            }
-            error(64); /* errIncorrectRangeDefinition */
-            curType  =  boolType;
+            curType = parseRange();
         }
     }
 13020:
@@ -5689,22 +5730,12 @@ var
     minValue, maxValue: word;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function max(a, b: int): int;
-{
-    if (b < a)
-        max  =  a;
-    else
-        max  =  b;
-} /* max */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* caseStatement */
     startLine  =  lineCnt;
     parentExpression();
     exprtype  =  curExpr->typ;
     otherSeen  =  false;
-    if ((exprtype == alfaType) ||
-       (exprtype->k IN [kindScalar, kindRange]))
+    if (exprtype == alfaType || exprtype->k == kindScalar)
         formOperator(LOAD);
     else
         error(25); /* errExprNotOfADiscreteType */
@@ -5803,13 +5834,8 @@ function max(a, b: int): int;
             } else {
                 itemSpan  =  34000;
                 P0715(0, l4var17z);
-                if (firstType->k == kindRange) {
-                    itemSpan  =  max(abs(firstType->left),
-                                    abs(firstType->right));
-                } else {
-                    if (firstType->k == kindScalar)
-                        itemSpan  =  firstType->numen;
-                }
+                if (firstType->k == kindScalar)
+                    itemSpan  =  firstType->numen;
                 itemsEnded  =  (itemSpan < 32000);
                 if (itemsEnded) {
                     form1Insn(KATI+14);
@@ -6214,8 +6240,6 @@ var
     l5typ1z: tptr;
 {
     set145z  =  set145z & (~[12]);
-    if (l4typ3z->k == kindRange)
-        l4typ3z  =  l4typ3z->base;
     curVarKind  =  l4typ3z->k;
     if (s9 in optSflags)
         helperNo  =  100;              /* C/WI */
@@ -6229,7 +6253,7 @@ var
     } else if (l4typ3z == charType) {
         helperNo  =  38;               /* P/WC */
         defWidth  =  1;
-    } else if (curVarKind == kindScalar) {
+    } else if (curVarKind == kindScalar && l4typ3z->start != -1) {
         helperNo  =  41;               /* P/WX */
         dumpEnumNames(l4typ3z);
         defWidth  =  8;
@@ -6244,7 +6268,7 @@ var
             helperNo  =  40;           /* P/A7 */
     } else if (l4typ3z->size == 1) {
         helperNo  =  42;               /* P/WO */
-        defWidth  =  17;
+        defWidth  =  (l4typ3z->bits + 5) / 3;
     } else {
         error(34); /* errTypeIsNotAFileElementType */
     }
@@ -6369,8 +6393,8 @@ var
     t  =  l4exp6z->typ;
     if ((t->k != kindArray) ||
        not t->pck ||
-       not typeCheck(t->base, l4typ1z->base) ||
-       not typeCheck(l4typ1z->range, t->range))
+       (t->base->k != kindScalar) ||
+       (l4typ1z->base->k != kindScalar))
         error(errNeedOtherTypesOfOperands);
     new(curExpr);
     curExpr->typ  =  ptr(procNo + 50);

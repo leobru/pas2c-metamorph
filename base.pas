@@ -957,6 +957,37 @@ var
 }; (* defineRange *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function pow2(bits: integer): integer;
+var
+    w: word;
+{
+    w.m := [47-bits] + intZero;
+    pow2 := w.i;
+}; (* pow2 *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function mkIntScl(bitWid: integer): tptr;
+var
+    res: tptr;
+{
+    if (bitWid < 1) or (40 < bitWid) then {
+        error(errNumberTooLarge);
+        mkIntScl := integerType;
+        exit;
+    };
+    new(res, kindScalar);
+    with res@ do {
+        size := 1;
+        k := kindScalar;
+        start := -1;
+        enums := NIL;
+        numen := pow2(bitWid);
+        bits := bitWid;
+    };
+    mkIntScl := res;
+}; (* mkIntScl *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function getValueOrAllocSymtab(value: integer): integer;
 {
     curVal.i := value MOD 32768;
@@ -1849,9 +1880,7 @@ procedure allocWithTypeCheck;
 { (* typeCheck *)
     rangeMismatch := false;
     if (type1@.k = kindRange) then {
-        baseType := type1@.base;
-    } else {
-        baseType := type1;
+        type1:= type1@.base;
     };
     if not checkTypes or (type1 = type2) then
 1:      typeCheck := true
@@ -1881,14 +1910,6 @@ procedure allocWithTypeCheck;
 %                            or (type2 = charType)
                            ) then
                        goto 1;
-                };
-                kindRange: {
-                    baseMatch := (type1@.base = type2@.base);
-                    baseType := type1@.base;
-                    rangeMismatch := (type1@.left <> type2@.left) or
-                                (type1@.right <> type2@.right);
-                    typeCheck := baseMatch;
-                    exit
                 };
                 kindPtr: {
                     if (type1 = voidPtr) or (type2 = voidPtr) then
@@ -1937,15 +1958,6 @@ procedure allocWithTypeCheck;
                         goto 1;
                 }
                 end (* case *)
-            } else {
-                if (kind1 = kindRange) then {
-                    rangeMismatch := true;
-                    baseType := type2;
-                    if (type1@.base = type2) then
-                        goto 1;
-                } else if (kind2 = kindRange) and
-                          (type1 = type2@.base) then
-                    goto 1;
             };
             typeCheck := false;
         }
@@ -3468,7 +3480,7 @@ var
         size := l2typ13z@.size;
         if (l2typ13z = realType) then {
             work := 1;
-        } else if (curVarKind IN [kindScalar, kindRange]) then
+        } else if (curVarKind = kindScalar) then
             work := 3
         else {
             work := 4;
@@ -4202,7 +4214,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure parseTypeRef(var newtype: tptr; skipTarget: setofsys);
 label
-    12247, 12366, 12476, 12760, 13020;
+    12247, 12366, 12476, 13020;
 type
     pair = record
             first, second: integer
@@ -4216,7 +4228,6 @@ var
     isPacked: boolean;
     cond: boolean;
     cases: caserec;
-    leftBound, rightBound: word;
     numBits, l3int22z, span: integer;
     curEnum, curField: irptr;
     l3typ26z, nestedType, tempType, curType: tptr;
@@ -4403,8 +4414,6 @@ var
             };
             error(errNotDefined)
         };
-        if (selType@.k = kindRange) then
-            selType := selType@.base;
         checkSymAndRead(OFSY);
         cases1 := cases;
         cases2 := cases;
@@ -4464,6 +4473,38 @@ var
     };
     checkSymAndRead(ENDSY);
 }; (* parseRecordDecl*)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function parseRange:tptr;
+var
+    leftBound, rightBound: word;
+    tempType: tptr;
+{
+    parseLiteral(tempType, leftBound, true);
+    if (tempType <> NIL) then {
+        inSymbol;
+        if (SY <> COLON) then {
+% Handle a single value N as a range 0..N-1
+            rightBound.i := leftBound.i - 1C;
+            curType := tempType;
+            if (0 in leftBound.m) then
+                leftBound.i := 0
+            else
+                leftBound.i := 0C;
+        } else {
+            inSymbol;
+            parseLiteral(curType, rightBound, true);
+            inSymbol;
+        };
+        if (curType = tempType) and (curType@.k = kindScalar) then {
+            defineRange(curType, leftBound.i, rightBound.i);
+            parseRange := curType;
+            exit;
+        }
+    };
+    error(64); (* errIncorrectRangeDefinition *)
+    parseRange := booleanType;
+}; (* parseRange *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* parseTypeRef *)
@@ -4540,13 +4581,13 @@ var
             };
             inSymbol;
         }
-    } else
-    if (SY = IDENT) then {
+    } else if (SY = IDENT) then {
         if (hashTravPtr <> NIL) then {
             if (hashTravPtr@.cl = TYPEID) then {
                 curType := hashTravPtr@.typ;
             } else {
-                goto 12760;
+                   error(errNotAType);
+                   curType := integerType;
             }
         } else {
             if (inTypeDef) then {
@@ -4562,6 +4603,17 @@ var
             };
         };
         inSymbol;
+        if (curType = integerType) and (SY = COLON) then {
+            inSymbol;
+            if (SY <> INTCONST) then
+                error(errNumberTooLarge)
+            else {
+                curToken.m := curToken.m + intZero;
+                l3int22z := curToken.i;
+                inSymbol;
+                curType := mkIntScl(l3int22z);
+            }
+        };
     } else {
         if (SY = PACKEDSY) then {
             isPacked := true;
@@ -4589,9 +4641,7 @@ var
             inSymbol;
             checkSymAndRead(LBRACK);
             tempType := NIL;
-12476:      parseTypeRef(nestedType, skipTarget + [OFSY]);
-            if (nestedType@.k <> kindRange) then
-                error(8); (* errNotAnIndexType *)
+12476:      nestedType := parseRange;
             new(l3typ26z, kindArray);
             with l3typ26z@ do {
                 size := ord(tempType);
@@ -4676,31 +4726,7 @@ var
                 elsize := l3int22z;
             }
         } else {
-12760:      ;
-            parseLiteral(tempType, leftBound, true);
-            if (tempType <> NIL) then {
-                inSymbol;
-                if (SY <> COLON) then {
-% Handle a single value N as a range 0..N-1
-                    rightBound.i := leftBound.i - 1C;
-                    curType := tempType;
-                    if (0 in leftBound.m) then
-                        leftBound.i := 0
-                    else
-                        leftBound.i := 0C;
-                } else {
-                    inSymbol;
-                    parseLiteral(curType, rightBound, true);
-                    inSymbol;
-                };
-                if (curType = tempType) and
-                   (curType@.k = kindScalar) then {
-                    defineRange(curType, leftBound.i, rightBound.i);
-                    goto 13020;
-                }
-            };
-            error(64); (* errIncorrectRangeDefinition *)
-            curType := booleanType;
+            curType := parseRange;
         };
     };
 13020:
@@ -5285,7 +5311,7 @@ var ex1: eptr;
     } else  {
         if not areTypesCompatible(ex2) and
            ((arg1Type <> integerType) or
-           not (arg2Type@.k IN [kindScalar, kindRange]) or
+            (arg2Type@.k <> kindScalar) or
            (oper <> INOP)) then {
             error(errNeedOtherTypesOfOperands);
         }
@@ -5367,8 +5393,6 @@ var
         exit;
     };
     arg1Type := curExpr@.vt.typ;
-    if (arg1Type@.k = kindRange) then
-        arg1Type := arg1Type@.base;
     argKind := arg1Type@.k;
     if (arg1Type = realType) then
         checkMode := chkREAL
@@ -5513,7 +5537,7 @@ var
                     expression;
                     if (l4var12z) then {
                         l4typ11z := curExpr@.vt.typ;
-                        if not (l4typ11z@.k IN [kindScalar, kindRange]) then
+                        if (l4typ11z@.k <> kindScalar) then
                             error(23); (* errTypeIdInsteadOfVar *)
                     } else {
                         if not typeCheck(l4typ11z, curExpr@.vt.typ) then
@@ -5878,22 +5902,13 @@ var
     minValue, unused2, maxValue: word;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function max(a, b: integer): integer;
-{
-    if (b < a) then
-        max := a
-    else
-        max := b;
-}; (* max *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* caseStatement *)
     startLine := lineCnt;
     parentExpression;
     exprtype := curExpr@.vt.typ;
     otherSeen := false;
     if (exprtype = alfaType) or
-       (exprtype@.k IN [kindScalar, kindRange]) then
+       (exprtype@.k = kindScalar) then
         formOperator(LOAD)
     else
         error(25); (* errExprNotOfADiscreteType *)
@@ -5993,13 +6008,8 @@ function max(a, b: integer): integer;
             } else {
                 itemSpan := 34000;
                 P0715(0, l4var17z);
-                if (firstType@.k = kindRange) then {
-                    itemSpan := max(abs(firstType@.left),
-                                    abs(firstType@.right));
-                } else {
-                    if (firstType@.k = kindScalar) then
-                        itemSpan := firstType@.numen;
-                };
+                if (firstType@.k = kindScalar) then
+                    itemSpan := firstType@.numen;
                 itemsEnded := itemSpan < 32000;
                 if (itemsEnded) then {
                     form1Insn(KATI+14);
@@ -6423,8 +6433,6 @@ var
     l5typ1z: tptr;
 {
     set145z := set145z - [12];
-    if (l4typ3z@.k = kindRange) then
-        l4typ3z := l4typ3z@.base;
     curVarKind := l4typ3z@.k;
     if (s9 IN optSflags.m) then
         helperNo := 100               (* C/WI *)
@@ -6438,7 +6446,7 @@ var
     } else if (l4typ3z = charType) then {
         helperNo := 38;               (* P/WC *)
         defWidth := 1;
-    } else if (curVarKind = kindScalar) then {
+    } else if (curVarKind = kindScalar) and (l4typ3z@.start <> -1) then {
         helperNo := 41;               (* P/WX *)
         dumpEnumNames(l4typ3z);
         defWidth := 8;
@@ -6577,8 +6585,8 @@ var
     t := l4exp6z@.vt.typ;
     if (t@.k <> kindArray) or
        not t@.pck or
-       not typeCheck(t@.base, l4typ1z@.base) or
-       not typeCheck(l4typ1z@.range, t@.range) then
+        (t@.base@.k <> kindScalar) or
+        (l4typ1z@.base@.k <> kindScalar) then
         error(errNeedOtherTypesOfOperands);
     new(curExpr);
     curExpr@.vt.c := chr(procNo + 50);
@@ -7709,8 +7717,6 @@ procedure exitScope(var arg: hashArray);
             (* 22663 -> 22620 *) until done;
             checkSymAndRead(COLON);
             parseTypeRef(l2typ13z, skipToSet + [IDENT,SEMICOLON]);
-            if l2typ13z@.k = kindRange then
-               error(48);
             jj := l2typ13z@.size;
             while workidr <> NIL do with workidr@ do {
                 curIdRec := list;
