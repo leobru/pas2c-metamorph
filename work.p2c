@@ -126,7 +126,6 @@ const
     I14 =       070000000;      /* temp register */
     SP =        074000000;      /* stack pointer, reg 15 */
 //
-    intZero = 0;
     halfWord  =  077777777U;
     all1 = 07777777777777777U;
     extSymMask  =  043000000U;
@@ -947,8 +946,8 @@ var
     new(temp, kindRange);
     with temp@ do {
         base  =  typ;
-        left  =  l | intZero;
-        right  =  r | intZero;
+        left  =  l;
+        right  =  r;
         defineRange  =  temp;
     }
 } /* defineRange */
@@ -1007,10 +1006,10 @@ var
             } else isLarge  =  false;
             insn  =  objBuffer[arg];
             if (isLarge) {
-                curVal.i  = (insn >> 24) & 077777U | intZero;
+                curVal.i  = (insn >> 24) & 077777U;
                 insn  =  insn & 07770000077777777U | leftHalf;
             } else {
-                curVal.i  =  intZero | insn & 077777U;
+                curVal.i  =  insn & 077777U;
                 insn  =  insn & 07777777777700000U | addr;
             }
             objBuffer[arg]  =  insn;
@@ -1393,8 +1392,7 @@ var
                         curToken.r  =  curToken.r / expValue;
                     else
                         curToken.r  =  curToken.r * expValue;
-                } else
-                    curToken.i  =  curToken.i & (~intZero);
+                }
                 exit lexer;
             } /* INTCONST */ /*=m+*/
             CHARCONST: {
@@ -2192,12 +2190,12 @@ void addJumpInsn(opcode: int);
     for (l4var4z = 1; l4var4z <= insnBufIdx; l4var4z=l4var4z+1)
 (iter) {
         curInsn  =  insnBuf[l4var4z];
-        tempInsn  =  curInsn & ([23:32] | intZero);
+        tempInsn  =  curInsn & [23:32];
         if (tempInsn == KATX+SP) {
             i  =  l4var4z + 1;
             while (insnBufIdx + 1 != i) {
-                curVal.i  =  insnBuf[i] & ([23, 28:35] | intZero);
-                tempInsn  =  curVal.i & ([23, 28:32] | intZero);
+                curVal.i  =  insnBuf[i] & [23, 28:35];
+                tempInsn  =  curVal.i & [23, 28:32];
                 if (curVal.i == KXTA) {
                     insnBuf[i]  =
                         insnBuf[i] ^ [32, 34, 35];
@@ -2256,9 +2254,9 @@ void addJumpInsn(opcode: int);
             l4inl7z->offset  =  moduleOffset;
         } else {
             curInsn  =  curInsn - macro;
-            curVal.i  =  curInsn & ([28:32] | intZero);
+            curVal.i  =  curInsn & [28:32];
             jumpType  =  curVal.i;
-            curVal.i  =  curInsn & ([33:47] | intZero);
+            curVal.i  =  curInsn & [33:47];
             l4inl7z  =  ptr(curVal.i);
             formJump(&l4inl7z->code);
             jumpType  =  KUJ;
@@ -2935,7 +2933,7 @@ var
         insnList  =  getEltInsns[curDim];
         l5ilm28z  =  insnList->ilm;
         if (l5ilm28z == ilCONST) {
-            curVal.i  =  insnList->payload | intZero;
+            curVal.i  =  insnList->payload;
             if ((curVal.i < l5var7z) ||
                (insnCopy.typ->aright < curVal.i))
                 error(29); /* errIndexOutOfBounds */
@@ -3036,8 +3034,6 @@ var
                     prepLoad();
                     if (l5var7z != 0) {
                         curVal.i  =  0 - l5var7z;
-                        if (not typeCheck(insnList->typ, intType))
-                            curVal.i  =  curVal.i & (~intZero);
                         addToInsnList(KADD+I8 + getFCSToffset());
                         insnList->next->mode  =  1;
                     }
@@ -3365,7 +3361,6 @@ void genConstDiv;
     function PASDIV(r: real): real;
         extern;
 {
-    arg2Val.i = arg2Val.i | intZero;
     curVal.r = PASDIV(1.0/arg2Val.i);
     addToInsnList(KMUL+I8 + getFCSToffset());
 } /* genConstDiv */
@@ -3513,12 +3508,8 @@ var
                 PLUSOP:     arg1Val.r  =  arg1Val.r + arg2Val.r;
                 MINUSOP:    arg1Val.r  =  arg1Val.r - arg2Val.r;
                 OROP:       arg1Val.i  =  arg1Val.i || arg2Val.i;
-                IMULOP: {
-                    arg1Val.i = arg1Val.i | intZero;
-                    arg2Val.i = arg2Val.i | intZero;
+                IMULOP:
                     arg1Val.i = arg1Val.i * arg2Val.i;
-                    arg1Val.i = arg1Val.i & (~intZero);
-                }
                 SETAND:     arg1Val.i  =  arg1Val.i & arg2Val.i;
                 SETXOR:     arg1Val.i  =  arg1Val.i ^ arg2Val.i;
                 INTPLUS:    arg1Val.i  =  arg1Val.i + arg2Val.i;
@@ -3565,10 +3556,6 @@ var
                             curVal.i  =  all1 >> (minel(arg2Val.i)+1);
                             addToInsnList(KAAX+I8 +getFCSToffset());
                             l3int3z  =  0;
-                        } else if (card(arg2Val.i) == 4) {
-                            curVal.i = intZero|(all1 >> (minel(arg2Val.i & (~intZero))+1));
-                            addToInsnList(KAAX+I8 +getFCSToffset());
-                            l3int3z  =  0;
                         } else {
                             addToInsnList(macro + mcPUSH);
                             genConstDiv();
@@ -3613,7 +3600,6 @@ var
                         genHelper();
                     } else {
                         prepLoad();
-                        arg2Val.i = arg2Val.i | intZero;
                         if (curOP == SHRIGHT)
                             addToInsnList(ASN64+arg2Val.i);
                         else
@@ -5330,8 +5316,6 @@ var
                         error(errNoConstant);
                     l4var4z  =  l4exp5z->num1;
                     l4var3z  =  curExpr->num1;
-                    l4var4z  =  l4var4z & (~intZero);
-                    l4var3z  =  l4var3z & (~intZero);
                     l4var1z  =  l4var1z |
                     // [l4var4z..l4var3z];
                     ((all1 >> l4var4z) ^ (all1 >> 1 >> l4var3z));
@@ -5340,7 +5324,6 @@ var
                 } else {
                     if (l4exp5z->op == GETENUM) {
                         l4var4z  =  l4exp5z->num1;
-                        l4var4z  =  l4var4z & (~intZero);
                         l4var1z  =  l4var1z | (E48 >> l4var4z);
                         curExpr  =  newExpr;
                         goto 14567;
@@ -5787,7 +5770,6 @@ var
                 while (allClauses != NIL) {
                     if (itemsEnded) {
                         curVal.i  =  minValue.i - allClauses->value.i;
-                        curVal.i  =  curVal.i | intZero;
                         form1Insn(getValueOrAllocSymtab(curVal.i) +
                                   (KUTM+I14));
                         form1Insn(KVZM+I14 + allClauses->offset);
@@ -5812,7 +5794,7 @@ var
         P0715(0, l4var17z);
         curVal  =  minValue;
         P0715(-(KU1A+otherOffset), maxValue.i);
-        curVal.i  =  minValue.i | intZero;
+        curVal  =  minValue;
         form1Insn(KATI+14);
         curVal.i  =  moduleOffset + 1 - curVal.i;
         if (curVal.i < 040000) {
@@ -6374,7 +6356,7 @@ var
             if (not typeCheck(intType, curExpr->typ))
                 error(14); /* errExprIsNotInt */
             if (curExpr->op == GETENUM) {
-                ii = curExpr->num1 | intZero; goto 44;
+                ii = curExpr->num1; goto 44;
             } else {
                 formOperator(LOAD);
                 form1Insn(KATI+14);
@@ -7809,7 +7791,7 @@ var
     sizes[8]  =  ptr(int92z);
     sizes[9]  =  ptr(int93z);
     curVal.i  =  moduleOffset - 040000;
-    symTab[074001]  =  [24,29] | curVal.i & (~intZero);
+    symTab[074001]  =  [24,29] | curVal.i;
     reset(FCST);
     while (not eof(FCST)) {
         write(_CHILD_, FCST@);

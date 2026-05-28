@@ -3629,11 +3629,6 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                             curVal.m := [minel(arg2Val.m)+1..47];
                             addToInsnList(KAAX+I8 +getFCSToffset);
                             l3int3z := 0;
-                        } else if card(arg2Val.m) = 4 then {
-                            curVal.m := intZero +
-                                        [minel(arg2Val.m-intZero)+1..47];
-                            addToInsnList(KAAX+I8 +getFCSToffset);
-                            l3int3z := 0;
                         } else {
                             addToInsnList(macro + mcPUSH);
                             genConstDiv;
