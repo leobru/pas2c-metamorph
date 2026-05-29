@@ -3071,9 +3071,9 @@ var
 procedure genEntry;
 var
     l5exp1z, l5exp2z: eptr;
-    l5idr3z, l5idr4z, l5idr5z, l5idr6z: irptr;
-    l5bool7z, l5bool8z, l5bool9z, l5bool10z, l5bool11z: boolean;
-    l5var12z, l5var13z, l5var14z: word;
+    l5idr3z, l5idr4z, l5idr5z, curForml: irptr;
+    isProc, firstArg, isDirect, isFortrn, allByRef: boolean;
+    calleeFl, frameSiz, numArgs: word;
     l5var15z: integer;
     l5var16z, l5var17z, l5var18z, l5var19z: word;
     l5inl20z: @insnltyp;
@@ -3098,18 +3098,18 @@ function allocGlobalObject(l6arg1z: irptr): integer;
 { (* genEntry *)
     l5exp1z := exprToGen@.expr1;
     l5idr5z := exprToGen@.id2;
-    l5bool7z := (l5idr5z@.typ = NIL);
-    l5bool9z := (l5idr5z@.list = NIL);
-    if (l5bool7z) then
-        l5var13z.i := 3 else l5var13z.i := 4;
-    l5var12z.m := l5idr5z@.flags;
-    l5bool10z := (21 in l5var12z.m);
-    l5bool11z := (24 in l5var12z.m);
-    if (l5bool9z) then {
-        l5var14z.i := argCount(l5idr5z);
-        l5idr6z := l5idr5z@.argList;
+    isProc := (l5idr5z@.typ = NIL);
+    isDirect := (l5idr5z@.list = NIL);
+    if (isProc) then
+        frameSiz.i := 3 else frameSiz.i := 4;
+    calleeFl.m := l5idr5z@.flags;
+    isFortrn := (21 in calleeFl.m);
+    allByRef := (24 in calleeFl.m);
+    if (isDirect) then {
+        numArgs.i := argCount(l5idr5z);
+        curForml := l5idr5z@.argList;
     } else {
-        l5var13z.i := l5var13z.i + 2;
+        frameSiz.i := frameSiz.i + 2;
     };
     new(insnList);
     insnList@.next2 := NIL;
@@ -3117,25 +3117,25 @@ function allocGlobalObject(l6arg1z: irptr): integer;
     insnList@.typ := l5idr5z@.typ;
     insnList@.regsused := (l5idr5z@.flags + [7:15]) * [0:8, 10:15];
     insnList@.ilm := il2;
-    if (l5bool10z) then {
-        l5bool8z := not l5bool7z;
+    if (isFortrn) then {
+        firstArg := not isProc;
         if (checkFortran) then {
             addToInsnList(getHelperProc(92)); (* "P/MF" *)
         }
     } else {
-        l5bool8z := true;
-        if (not l5bool9z) and (l5exp1z <> NIL)
-            or (l5bool9z) and (l5var14z.i >= 2) then {
-            addToInsnList(KUTM+SP + l5var13z.i);
+        firstArg := true;
+        if (not isDirect) and (l5exp1z <> NIL)
+            or (isDirect) and (numArgs.i >= 2) then {
+            addToInsnList(KUTM+SP + frameSiz.i);
         };
     };
-    l5var14z.i := 0;
+    numArgs.i := 0;
 (loop)
     while l5exp1z <> NIL do {
         l5exp2z := l5exp1z@.expr2;
         l5exp1z := l5exp1z@.expr1;
         l5op21z := l5exp2z@.op;
-        l5var14z.i := l5var14z.i + 1;
+        numArgs.i := numArgs.i + 1;
         l5inl20z := insnList;
         if (l5op21z = PCALL) or (l5op21z = FCALL) then {
             l5idr4z := l5exp2z@.id2;
@@ -3147,12 +3147,12 @@ function allocGlobalObject(l6arg1z: irptr): integer;
             if (l5idr4z@.list <> NIL) then {
                 addToInsnList(l5idr4z@.offset + insnTemp[XTA] +
                               l5idr4z@.value);
-                if (l5bool10z) then
+                if (isFortrn) then
                     addToInsnList(getHelperProc(19)); (* "P/EA" *)
             } else
 (a)         {
                 if (l5idr4z@.value = 0) then {
-                    if (l5bool10z) and (21 in l5idr4z@.flags) then {
+                    if (isFortrn) and (21 in l5idr4z@.flags) then {
                         addToInsnList(allocGlobalObject(l5idr4z) +
                                       (KVTM+I14));
                         addToInsnList(KITA+14);
@@ -3209,10 +3209,10 @@ function allocGlobalObject(l6arg1z: irptr): integer;
             else
                 l5idc22z := VARID;
         };
-        if not (not l5bool9z or (l5idc22z <> FORMALID) or
-               (l5idr6z@.cl <> VARID)) then
+        if not (not isDirect or (l5idc22z <> FORMALID) or
+               (curForml@.cl <> VARID)) then
             l5idc22z := VARID;
-(loop)      if (l5idc22z = FORMALID) or (l5bool11z) then {
+(loop)      if (l5idc22z = FORMALID) or (allByRef) then {
             setAddrTo(14);
             addToInsnList(KITA+14);
         } else if (l5idc22z = VARID) then {
@@ -3223,26 +3223,26 @@ function allocGlobalObject(l6arg1z: irptr): integer;
                 prepLoad;
             }
         };
-        if not l5bool8z then
+        if not firstArg then
             addxToInsnList(macro + mcPUSH);
-        l5bool8z := false;
+        firstArg := false;
         if (l5inl20z@.next <> NIL) then {
             l5inl20z@.next@.next := insnList@.next2;
             insnList@.next2 := l5inl20z@.next2;
         };
         insnList@.regsused := insnList@.regsused + l5inl20z@.regsused;
-        if not l5bool9z then {
+        if not isDirect then {
             curVal.cl := l5idc22z;
             addToInsnList(KXTS+I8 + getFCSToffset);
         };
-        if l5bool9z and not l5bool11z then
-            l5idr6z := l5idr6z@.list;
+        if isDirect and not allByRef then
+            curForml := curForml@.list;
     }; (* while -> 7061 *)
-    if l5bool10z then {
+    if isFortrn then {
         addToInsnList(KNTR+2);
         insnList@.next@.mode := 4;
     };
-    if l5bool9z then {
+    if isDirect then {
         addToInsnList(allocGlobalObject(l5idr5z) + (KVJM+I13));
         if (20 in l5idr5z@.flags) then {
             l5var17z.i := 1;
@@ -3251,10 +3251,10 @@ function allocGlobalObject(l6arg1z: irptr): integer;
         }
     } else {
         l5var15z := 0;
-        if (l5var14z.i = 0) then {
-            l5var17z.i := l5var13z.i + 1;
+        if (numArgs.i = 0) then {
+            l5var17z.i := frameSiz.i + 1;
         } else {
-            l5var17z.i := -(2 * l5var14z.i + l5var13z.i);
+            l5var17z.i := -(2 * numArgs.i + frameSiz.i);
             l5var15z := 1;
         };
         addInsnAndOffset(macro+16 + l5var15z,
@@ -3265,7 +3265,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
     };
     insnList@.next@.mode := 2;
     if (curProcNesting <> l5var17z.i) then {
-        if not l5bool10z then {
+        if not isFortrn then {
             if (l5var17z.i + 1 = curProcNesting) then {
                 addToInsnList(KMTJ+I7 + curProcNesting);
             } else {
@@ -3286,25 +3286,25 @@ function allocGlobalObject(l6arg1z: irptr): integer;
             }
         }
     };
-    if not l5bool9z or ([20, 21] * l5var12z.m <> []) then {
+    if not isDirect or ([20, 21] * calleeFl.m <> []) then {
         addToInsnList(KVTM+40074001B);
     };
-    set145z := (set145z + l5var12z.m) * [1:15];
-    if l5bool10z then {
+    set145z := (set145z + calleeFl.m) * [1:15];
+    if isFortrn then {
         if (not checkFortran) then
             addToInsnList(KNTR+7)
         else
             addToInsnList(getHelperProc(93));    (* "P/FM" *)
         insnList@.next@.mode := 2;
     } else {
-        if not l5bool7z then
-            addToInsnList(KXTA+SP + l5var13z.i - 1);
+        if not isProc then
+            addToInsnList(KXTA+SP + frameSiz.i - 1);
     };
-    if not l5bool7z then {
+    if not isProc then {
         insnList@.typ := l5idr5z@.typ;
         insnList@.regsused := insnList@.regsused + [0];
         insnList@.ilm := il2;
-        set146z := set146z - l5var12z.m;
+        set146z := set146z - calleeFl.m;
     }
 
 }; (* genEntry *)
