@@ -1864,9 +1864,6 @@ procedure allocWithTypeCheck;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* typeCheck *)
     rangeMismatch := false;
-    if (type1@.k = kindRange) then {
-        type1:= type1@.base;
-    };
     if not checkTypes or (type1 = type2) then
 1:      typeCheck := true
     else
@@ -1894,6 +1891,8 @@ procedure allocWithTypeCheck;
                           ) and ((type2 = booleanType) or (type2 = integerType)
 %                            or (type2 = charType)
                            ) then
+                       goto 1
+                    else if (type1@.enums = NIL) and (type2@.enums = NIL) then
                        goto 1;
                 };
                 kindPtr: {
@@ -1936,10 +1935,6 @@ procedure allocWithTypeCheck;
                 };
                 kindFile: {
                     if typeCheck(type1@.base, type2@.base) then
-                        goto 1;
-                };
-                kindStruct: {
-                    if type1 = type2 then
                         goto 1;
                 }
                 end (* case *)
@@ -3813,11 +3808,11 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     case work of
                     fnABS:   arg1Val.r := abs(arg1Val.r);
                     fnTRUNC: arg1Val.i := trunc(arg1Val.r);
-                    fnORD:   ;
-                    fnCHR:   arg1Val.c := chr(arg1Val.i);
+                    fnPTR,
+                    fnORD,
+                    fnCHR:   arg1Val.m := arg1Val.m * [7..47];
                     fnSUCC:  arg1Val.c := succ(arg1Val.c);
                     fnPRED:  arg1Val.c := pred(arg1Val.c);
-                    fnPTR:   arg1Val.c := chr(arg1Val.i);
                     fnROUND: arg1Val.i := round(arg1Val.r);
                     fnCARD:  arg1Val.i := card(arg1Val.m);
                     fnMINEL: arg1Val.i := minel(arg1Val.m);
@@ -3928,9 +3923,6 @@ var l4exf1z: @extfilerec;
         formAndAlign(getHelperProc(69)); (*"P/CO"*)
         curVal := l4var3z@.id;
         form2Insn(KXTA+I8+getFCSToffset, KATX+I12+26);
-        if (l4int5z <> 0) and (l4var2z <> charType) and
-           typeCheck(l4var2z, integerType) then
-            form2Insn(KXTA+ZERO, KATX+I12+25);
         curExpr := curExpr@.expr1;
     };
     form1Insn(getHelperProc(70)(*"P/IT"*) + (-I13-100000B));
@@ -5415,8 +5407,14 @@ var
             } else
                 case hashTravPtr@.cl of
                 TYPEID: {
-                    error(23); (* errTypeIdInsteadOfVar *)
-                    curExpr := uVarPtr;
+                    l4typ11z := hashTravPtr@.typ;
+                    inSymbol;
+                    if SY <> LPAREN then error(95);
+                    expression;
+                    if curExpr@.vt.typ@.size <> l4typ11z@.size then
+                        error(errNeedOtherTypesOfOperands);
+                    checkSymAndRead(RPAREN);
+                        curExpr@.vt.typ := l4typ11z;
                 };
                 ENUMID: {
                     new(curExpr);
@@ -7984,9 +7982,6 @@ var
     SY := RELOP;
     charClass := INOP;
     regResWord(5156C(*"      IN"*));
-    SY := NOTSY;
-    charClass := NOOP;
-    regResWord(565764C(*"     NOT"*));
     SY := LABELSY;
     charClass := NOOP;
     for idx := 0 to 25 do
@@ -8177,7 +8172,7 @@ procedure initOptions;
     chrClass['_'] := ALNUM;
     funcInsn[fnABS] := KAMX;
     funcInsn[fnTRUNC] := KADD+ZERO;
-    funcInsn[fnORD] := KATX;
+    funcInsn[fnORD] := KAAX+MANTISSA;
     funcInsn[fnCHR] := KAAX+MANTISSA;
     funcInsn[fnSUCC] := KARX+E1;
     funcInsn[fnPRED] := KSUB+E1;
