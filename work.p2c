@@ -3457,15 +3457,43 @@ var
     endLab = int94z;
     int94z = int94z + 1;
 
-    /* Build the condition sub-chain: <cond chain> + "UZA elseLab".
-       The genFullExpr call constructs a fresh insnList for the condition;
-       prepLoad finishes its materialization as a value in ACC (no-op for
-       il2 results, expands il3 via mcCOND2INT, etc.); finally we append
-       the forward UZA macro that will jump to elseLab when ACC = 0. */
+    /* Build the condition sub-chain: <cond chain> + branch-to-elseLab-if-false.
+       We set forValue := false before generating the condition so that
+       genComparison / genBoolAnd leave the chain in il3 form (deferred
+       conditional), avoiding the wasteful mcCOND2INT sequence that would
+       first materialize a 0/1 in ACC and then re-test it.
+       Direction = (16 in regsused) follows the convention used by
+       formOperator(BRANCH): when set, the embedded condition is "negated"
+       and a true-condition path is selected by U1A (macro+1); otherwise
+       UZA (macro+0) jumps when ACC>=0 (sign clear), i.e., on FALSE. */
+    forValue = false;
     curExpr = exprToGen->expr1;
     genFullExpr(curExpr);
-    prepLoad();
-    addInsnAndOffset(macro + 0, elseLab);
+    if ((insnList->ilm == il3) && (insnList->payload != 0)) {
+        /* Compound boolean (a && b, a || b, ...): the chain already has an
+           embedded forward jump to label `payload`. */
+        if (16 in insnList->regsused)
+            /* direction=true: embedded jumps fire on FALSE -> reuse them
+               as our elseLab jumps; no extra instruction needed. */
+            elseLab = insnList->payload;
+        else
+            /* direction=false: embedded jumps fire on TRUE -> emit
+               "UJ elseLab" and define payload at this point so the
+               original jumps fall through to the then-branch. */
+            addInsnAndOffset(macro + 2,
+                             elseLab * 010000 + insnList->payload);
+    } else {
+        /* Simple il3 (single comparison, payload=0), or il1/il2/ilCONST:
+           prepLoad with forValue=false is a no-op for il3, and materializes
+           an lvalue/constant to ACC otherwise. Then emit a single deferred
+           UZA/U1A to elseLab. */
+        prepLoad();
+        if (16 in insnList->regsused)
+            addInsnAndOffset(macro + 1, elseLab);
+        else
+            addInsnAndOffset(macro + 0, elseLab);
+    }
+    forValue = true;
     condChain = insnList;
 
     /* Build the then-branch sub-chain:
