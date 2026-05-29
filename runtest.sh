@@ -1,4 +1,7 @@
 #!/bin/sh
+rm -f tmpsrc.bin tmpsrc.txt
+sed 's/{/<:/g;s/}/:>/g' < $1 > tmpsrc.utxt
+echo '                                                                                 ' >> tmpsrc.utxt
 cat << EOF > tmp$$
 *NAME work
 *disc:1/local
@@ -14,11 +17,6 @@ cat << EOF > tmp$$
 *call pashelp
 P 2 0 1000440000B .
 *call *pascom
-EOF
-echo '/*=s9*/' > tmpsrc.utxt
-sed 's/{/<:/g;s/}/:>/g' < $1 >> tmpsrc.utxt
-echo '                                                                                 ' >> tmpsrc.utxt
-cat << EOF >> tmp$$
 *copy:0,000000,000000
 *no load list
 *libra:43
@@ -26,7 +24,6 @@ cat << EOF >> tmp$$
 *end file
 EOF
 if [ "$1" = "-d" ]; then ln -f tmp$$ run.dub ; fi
-rm -f tmpsrc.bin
 ulimit -t 3
 dubna tmp$$ | tee runbase.lst
 if [ $? -ne 0 ]; then

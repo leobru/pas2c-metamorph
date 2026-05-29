@@ -1,4 +1,4 @@
-/*=p-,t-,s8,s9,y+,m+,l0*/
+/*=p-,t-,s8,y+,m+,l0*/
 extern _output_;
 //
 var a, b, c: int;
