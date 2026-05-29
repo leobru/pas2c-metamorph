@@ -265,11 +265,6 @@ types = record
                  alt:       tptr)
     end;
 %
-typechain = record
-    next:         @typechain;
-    type1, type2: tptr;
-end;
-
 charmap   = packed array ['_000'..'_176'] of char;
 textmap   = packed array ['_052'..'_177'] of '_000'..'_077';
 %
@@ -421,7 +416,6 @@ var
    arg2Type: tptr;
    numLabs: array [1..20] of numLabel;
    numLabTop: integer;
-   chain: @typechain;
    curToken: word;
    curVal: word;
    O77777: bitset;
@@ -1847,21 +1841,8 @@ label
 var
     baseMatch: boolean;
     kind1, kind2: kind;
-    link: @typechain;
-    basetyp1, basetyp2: tptr;
     enums1, enums2: irptr;
     span1, span2: integer;
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure allocWithTypeCheck;
-{
-    new(link);
-    link@ := [chain, basetyp1, basetyp2];
-    chain := link;
-    typeCheck := typeCheck(basetyp1, basetyp2);
-}; (* allocWithTypeCheck *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* typeCheck *)
     rangeMismatch := false;
     if not checkTypes or (type1 = type2) then
@@ -1896,28 +1877,9 @@ procedure allocWithTypeCheck;
                        goto 1;
                 };
                 kindPtr: {
-                    if (type1 = voidPtr) or (type2 = voidPtr) then
+                    if (type1 = voidPtr) or (type2 = voidPtr) or
+                       typeCheck(type1@.base, type2@.base) then
                         goto 1;
-                    basetyp1 := type1@.base;
-                    basetyp2 := type2@.base;
-                    if (chain <> NIL) then {
-                        link := chain;
-                        while (link <> NIL) do with link@ do {
-                            if (type1 = basetyp1) and
-                               (type2 = basetyp2) or
-                               (type2 = basetyp1) and
-                               (type1 = basetyp2) then
-                                goto 1;
-                            link := next;
-                        };
-                        allocWithTypeCheck;
-                    } else {
-                        setup(type1);
-                        allocWithTypeCheck;
-                        chain := NIL;
-                        myrollup(ord(type1));
-                        exit
-                    }
                 };
                 kindArray: {
                     span1 := type1@.aright - type1@.aleft;
@@ -8093,7 +8055,6 @@ procedure initOptions;
     litFortran.i := 46576264624156C;
     fileBufSize := 1;
     charEncoding := 2;
-    chain := NIL;
     litOct.i := 574364C;
     longSymCnt := 0;
     pasinfor.errors@ := true;

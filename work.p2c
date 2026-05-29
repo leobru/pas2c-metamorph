@@ -278,10 +278,6 @@ types = struct {
                  alt:       tptr}
 };
 //
-typechain = struct {
-    next:         @typechain;
-    type1, type2: tptr;
-};
 charmap   = __packed array ['\000'..'\176'] of char;
 textmap   = __packed array ['\052'..'\177'] of int:6;
 //
@@ -432,7 +428,6 @@ var
     arg2Type: tptr;
     numLabs: array [1..20] of numLabel;
     numLabTop: int;
-    chain: @typechain;
     curToken: word;
     curVal: word;
     leftInsn: int;
@@ -1840,21 +1835,8 @@ function typeCheck(type1, type2: tptr): int;
 var
     baseMatch: int;
     kind1, kind2: kind;
-    link: @typechain;
-    basetyp1, basetyp2: tptr;
     enums1, enums2: irptr;
     span1, span2: int;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void allocWithTypeCheck;
-{
-    new(link);
-    link@  =  [chain, basetyp1, basetyp2];
-    chain  =  link;
-    typeCheck  =  typeCheck(basetyp1, basetyp2);
-} /* allocWithTypeCheck */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* typeCheck */
     rangeMismatch  =  false;
     if (!checkTypes || type1 == type2)
@@ -1887,28 +1869,9 @@ void allocWithTypeCheck;
                     }
                 }
                 kindPtr: {
-                    if (type1 == voidPtr || type2 == voidPtr)
+                    if (type1 == voidPtr || type2 == voidPtr ||
+                        typeCheck(type1->base, type2->base))
                         goto 1;
-                    basetyp1  =  type1->base;
-                    basetyp2  =  type2->base;
-                    if (chain != NIL) {
-                        link  =  chain;
-                        while (link != NIL) with link@ do {
-                            if (type1 == basetyp1 &&
-                                type2 == basetyp2 ||
-                                type2 == basetyp1 &&
-                                type1 == basetyp2)
-                                goto 1;
-                            link  =  next;
-                        }
-                        allocWithTypeCheck();
-                    } else {
-                        setup(type1);
-                        allocWithTypeCheck();
-                        chain  =  NIL;
-                        myrollup(int(type1));
-                        exit;
-                    }
                 }
                 kindArray: {
                     span1  =  type1->aright - type1->aleft;
@@ -7800,7 +7763,6 @@ void initOptions;
     allowCompat  =  false;
     fileBufSize  =  1;
     charEncoding  =  2;
-    chain  =  NIL;
     longSymCnt  =  0;
     pasinfor.errors@  =  true;
     symTabCnt  =  0;
