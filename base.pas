@@ -41,10 +41,10 @@ const
     errEOFEncountered = 52;
     errFirstDigitInCharLiteralGreaterThan3 = 60;
 %
-    precNone = 0;   precOr = 1;      precAnd = 2;
-    precBitOr = 3;  precBitXor = 4;  precBitAnd = 5;
-    precEq = 6;     precRel = 7;     precShift = 8;
-    precAdd = 9;    precMul = 10;
+    precNone = 0;   precCond = 1;    precOr = 2;     precAnd = 3;
+    precBitOr = 4;  precBitXor = 5;  precBitAnd = 6;
+    precEq = 7;     precRel = 8;     precShift = 9;
+    precAdd = 10;   precMul = 11;
 %
     macro = 100000000B;
     mcACC2ADDR = 6;
@@ -168,8 +168,8 @@ operator = (
     MUL,        RDIVOP,     ANDOP,     IDIVOP,     IMODOP,
     PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
-    IMULOP,     INTPLUS,    INTMINUS,   badop27,    badop30,
-    badop31,    unused32,    ASSIGNOP,   GETELT,     GETVAR,
+    IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
+    badop31,    unused32,   ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
     FILEPTR,    op44,       ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
@@ -2611,6 +2611,8 @@ var
     arg1Val, arg2Val: word;
     curOP: operator;
     work: integer;
+    altExpr: eptr;
+    elseLab, endLab, condSlot: integer;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure P5155;
@@ -3500,6 +3502,43 @@ arg1Val.m := arg1Val.m - intZero;
         exit;
 7567:
     curOP := exprToGen@.op;
+    if (curOP = CONDOP) then {
+        altExpr := exprToGen@.expr2;
+        condSlot := localSize;
+        localSize := localSize + 1;
+        if (l2int21z < localSize) then
+            l2int21z := localSize;
+        curExpr := exprToGen@.expr1;
+        jumpTarget := 0;
+        formOperator(BRANCH);
+        elseLab := jumpTarget;
+        genFullExpr(altExpr@.expr1);
+        prepLoad;
+        addInsnAndOffset(curFrameRegTemplate, condSlot);
+        genOneOp;
+        endLab := 0;
+        jumpType := insnTemp[UJ];
+        formJump(endLab);
+        P0715(0, elseLab);
+        genFullExpr(altExpr@.expr2);
+        prepLoad;
+        addInsnAndOffset(curFrameRegTemplate, condSlot);
+        genOneOp;
+        P0715(0, endLab);
+        new(insnList);
+        with insnList@ do {
+            next := NIL;
+            next2 := NIL;
+            typ := exprToGen@.vt.typ;
+            regsused := [];
+            ilm := il1;
+            payload.i := curFrameRegTemplate;
+            disp := condSlot;
+            st := st0;
+            addrmd := 18;
+        };
+        exit;
+    };
     if (curOP < GETELT) then {
         genFullExpr(exprToGen@.expr2);
         otherIns := insnList;
@@ -5268,6 +5307,43 @@ var finalExpr: eptr;
 }; (* bldLogOp *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure bldCondOp(condExpr, thenExpr: eptr);
+var altExpr, condOpExpr: eptr;
+    resType: tptr;
+{
+    if (condExpr@.vt.typ@.k > kindPtr) then {
+        error(errBooleanNeeded);
+        exit;
+    };
+    arg1Type := thenExpr@.vt.typ;
+    arg2Type := curExpr@.vt.typ;
+    if not typeCheck(arg1Type, arg2Type) then {
+        error(errNeedOtherTypesOfOperands);
+        exit;
+    };
+    resType := arg1Type;
+    if (resType@.size <> 1) then {
+        error(errNeedOtherTypesOfOperands);
+        exit;
+    };
+    new(altExpr);
+    with altExpr@ do {
+        vt.typ := resType;
+        op := ALTERN;
+        expr1 := thenExpr;
+        expr2 := curExpr;
+    };
+    new(condOpExpr);
+    with condOpExpr@ do {
+        vt.typ := resType;
+        op := CONDOP;
+        expr1 := condExpr;
+        expr2 := altExpr;
+    };
+    curExpr := condOpExpr;
+}; (* bldCondOp *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure factor;
 label
     14567;
@@ -5592,7 +5668,7 @@ var
 procedure parsePrc(minPrec: integer);
 var
     oper: operator;
-    leftExpr: eptr;
+    leftExpr, thenExpr: eptr;
     curPrec: integer;
     match: boolean;
 {
@@ -5614,27 +5690,39 @@ var
         inSymbol;
         leftExpr := curExpr;
 
-        (* Recursively parse right operand with higher precedence *)
-        (* For left-associative: use curPrec + 1 *)
-        parsePrc(curPrec + 1);
+        if (oper = CONDOP) then {
+            (* Right-associative ternary: cond ? thenExpr : elseExpr *)
+            parsePrc(precCond + 1);
+            if (SY <> COLON) then
+                requiredSymErr(COLON)
+            else
+                inSymbol;
+            thenExpr := curExpr;
+            parsePrc(precCond);
+            bldCondOp(leftExpr, thenExpr);
+        } else {
+            (* Recursively parse right operand with higher precedence *)
+            (* For left-associative: use curPrec + 1 *)
+            parsePrc(curPrec + 1);
 
-        (* Build AST node based on operator type *)
-        arg1Type := curExpr@.vt.typ;
-        arg2Type := leftExpr@.vt.typ;
-        match := typeCheck(arg1Type, arg2Type);
+            (* Build AST node based on operator type *)
+            arg1Type := curExpr@.vt.typ;
+            arg2Type := leftExpr@.vt.typ;
+            match := typeCheck(arg1Type, arg2Type);
 
-        case curPrec of
-            precMul: bldArithOp(oper, leftExpr, match);
-            precAdd: bldArithOp(oper, leftExpr, match);
-            precRel,
-            precEq: bldRelOp(oper, leftExpr);
-            precShift,
-            precBitAnd,
-            precBitXor,
-            precBitOr: bldBitOp(oper, leftExpr);
-            precAnd,
-            precOr: bldLogOp(oper, leftExpr, match);
-        end;
+            case curPrec of
+                precMul: bldArithOp(oper, leftExpr, match);
+                precAdd: bldArithOp(oper, leftExpr, match);
+                precRel,
+                precEq: bldRelOp(oper, leftExpr);
+                precShift,
+                precBitAnd,
+                precBitXor,
+                precBitOr: bldBitOp(oper, leftExpr);
+                precAnd,
+                precOr: bldLogOp(oper, leftExpr, match);
+            end;
+        }
     }
 }; (* parsePrc *)
 %
@@ -5656,7 +5744,7 @@ procedure expression;
         inSymbol
     else
         readNext := true;
-    parsePrc(precOr);
+    parsePrc(precCond);
 }; (* expression *)
 procedure assignStatement(doLHS: boolean); forward;
 %
@@ -8162,6 +8250,7 @@ procedure initOptions;
     chrClass['>'] := GTOP;
     chrClass['<'] := LTOP;
     chrClass['!'] := NEOP;
+    chrClass['?'] := CONDOP;
     charSym['+'] := ADDOP;
     charSym['-'] := ADDOP;
     charSym['|'] := ADDOP;
@@ -8182,47 +8271,52 @@ procedure initOptions;
     charSym[':'] := COLON;
     charSym['!'] := NOTSY;
     charSym['~'] := NOTSY;
+    charSym['?'] := RELOP;
     helperMap := 0:102;
 %
     (* Initialize operator precedence table *)
     opPrec := precNone:48;
     opAssoc := leftAs:48;
 %
-    (* Logical OR operators - precedence 1 (lowest) *)
+    (* Conditional ternary operator - precedence 1 (lowest), right-assoc *)
+    opPrec[CONDOP] := precCond;
+    opAssoc[CONDOP] := rightAs;
+%
+    (* Logical OR operators - precedence 2 *)
     opPrec[OROP] := precOr;
 %
-    (* Logical AND operators - precedence 2 *)
+    (* Logical AND operators - precedence 3 *)
     opPrec[ANDOP] := precAnd;
 %
-    (* Bitwise OR - precedence 3 *)
+    (* Bitwise OR - precedence 4 *)
     opPrec[SETOR] := precBitOr;
 %
-    (* Bitwise XOR - precedence 4 *)
+    (* Bitwise XOR - precedence 5 *)
     opPrec[SETXOR] := precBitXor;
 %
-    (* Bitwise AND - precedence 5 *)
+    (* Bitwise AND - precedence 6 *)
     opPrec[SETAND] := precBitAnd;
 %
-    (* Equality operators - precedence 6 *)
+    (* Equality operators - precedence 7 *)
     opPrec[NEOP] := precEq;
     opPrec[EQOP] := precEq;
 %
-    (* Relational operators - precedence 7 *)
+    (* Relational operators - precedence 8 *)
     opPrec[LTOP] := precRel;
     opPrec[GEOP] := precRel;
     opPrec[GTOP] := precRel;
     opPrec[LEOP] := precRel;
     opPrec[INOP] := precRel;
 %
-    (* Shift operators - precedence 8 *)
+    (* Shift operators - precedence 9 *)
     opPrec[SHLEFT] := precShift;
     opPrec[SHRIGHT] := precShift;
 %
-    (* Additive operators - precedence 9 *)
+    (* Additive operators - precedence 10 *)
     opPrec[PLUSOP] := precAdd;
     opPrec[MINUSOP] := precAdd;
 %
-    (* Multiplicative operators - precedence 10 (highest) *)
+    (* Multiplicative operators - precedence 11 (highest) *)
     opPrec[MUL] := precMul;
     opPrec[RDIVOP] := precMul;
     opPrec[IDIVOP] := precMul;
