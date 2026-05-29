@@ -5387,7 +5387,7 @@ var
     with newExpr@ do
         if (stProcNo = fnSIZEOF) then {
             op := GETENUM;
-            lit.i := arg1Type@.size;
+            lit.c := chr(arg1Type@.size);
             vt.typ := integerType;
         } else {
             op := STANDPROC;

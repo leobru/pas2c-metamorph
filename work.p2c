@@ -7,7 +7,7 @@ const
     boilerplate = ' PASCAL 2 C METAMORPHOSIS (2025)';
 //
     fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
-    fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  /* 9 */
+    fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
     fnORD   = 10; fnCHR  = 11; fnSUCC = 12; fnPRED  = 13; fnEOF  = 14;
     fnREF   = 15; fnEOLN = 16; /*   17   */ fnROUND = 18; fnCARD = 19;
     fnMINEL = 20; fnPTR  = 21; fnABSI = 22;
@@ -1590,12 +1590,12 @@ var
     sym: symbol;
 {
     sym  =  SY;
-    while (sym != ENDSY || SY != PERIOD) {
+    while ((CH != '\000') && ((sym != ENDSY) || (SY != PERIOD))) {
         sym  =  SY;
         inSymbol();
     }
     if (CH == 'D')
-        while (SY != ENDSY)
+        while ((CH != '\000') && (SY != ENDSY))
             inSymbol();
     goto 9999;
 }
@@ -2320,7 +2320,7 @@ var
     valueType: tptr;
     l4var5z: kind;
     l4st6z: state;
-    l4bool7z, l4bool8z, l4bool9z: int;
+    isSimple, needsMask: int;
 {
     valueType  =  insnList->typ;
     with insnList@ do {
@@ -2358,11 +2358,9 @@ var
                 l4var5z  =  valueType->k;
                 if (l4var5z < kindArray ||
                    (l4var5z == kindStruct && s6 in optSflags)) {
-                    l4bool7z  =  true;
-                    l4bool8z  =  false;
+                    isSimple  =  true;
                 } else {
-                    l4bool7z  =  false;
-                    l4bool8z  =  false;
+                    isSimple  =  false;
                 }
                 if (l4st6z == st1) {
                     if (l4int3z != l4int2z ||
@@ -2372,19 +2370,19 @@ var
                                          l4int3z);
                     l4int3z  =  insnList->shift;
                     l4int2z  =  insnList->width;
-                    l4bool9z  =  true;
+                    needsMask  =  true;
                     helper  =  l4int3z + l4int2z;
-                    if (l4bool7z) {
+                    if (isSimple) {
                         if (30 < l4int3z) {
                             addToInsnList(ASN64-48 + l4int3z);
                             addToInsnList(KYTA);
                             if (helper == 48)  /* P/RDR */
-                                l4bool9z  =  false;
+                                needsMask  =  false;
                         } else {
                             if (l4int3z != 0)
                                 addToInsnList(ASN64 + l4int3z);
                         }
-                        if (l4bool9z) {
+                        if (needsMask) {
                             curVal.i  =  all1 >> (48 - l4int2z);
                             addToInsnList(KAAX+I8 + getFCSToffset());
                         }
@@ -2394,11 +2392,9 @@ var
                         curVal.i  =  all1 << (48 - l4int2z);
                         addToInsnList(KAAX+I8 + getFCSToffset());
                     }
-                    if (l4bool8z)
-                        addToInsnList(KAEX+ZERO);
                 } else {
-                    if (l4bool7z)
-                        helper  =  (l4bool8z|0)+74; /* P/LDAR[IN] */
+                    if (isSimple)
+                        helper  =  74; /* P/LDAR */
                     else
                         helper  =  56; /* P/RR */
                     addToInsnList(getHelperProc(helper));
@@ -5181,19 +5177,25 @@ var
         checkMode  =  0U;
     }
     asBitset  =  E48 >> stProcNo;
-    if ((asBitset & checkMode) == 0U)
+    if ((stProcNo != fnSIZEOF) && ((asBitset & checkMode) == 0U))
         error(errNeedOtherTypesOfOperands);
-    if ((asBitset & [fnABS, fnSUCC, fnPRED]) == 0U) {
+    if ((asBitset & (E48>>fnABS | E48>>fnSUCC | E48>>fnPRED | E48>>fnSIZEOF)) == 0U) {
         arg1Type  =  routine->typ;
     } else if ((arg1Type == intType) && (stProcNo == fnABS)) {
         stProcNo  =  fnABSI;
     }
     new(newExpr);
-    newExpr->op  =  STANDPROC;
-    newExpr->expr1  =  curExpr;
-    newExpr->num2  =  stProcNo;
+    if (stProcNo == fnSIZEOF) {
+        newExpr->op  =  GETENUM;
+        newExpr->num1  =  arg1Type->size;
+        newExpr->typ  =  intType;
+    } else {
+        newExpr->op  =  STANDPROC;
+        newExpr->expr1  =  curExpr;
+        newExpr->num2  =  stProcNo;
+        newExpr->typ  =  arg1Type;
+    }
     curExpr  =  newExpr;
-    curExpr->typ  =  arg1Type;
     checkSymAndRead(RPAREN);
 } /* stdCall */
 //
@@ -6767,9 +6769,9 @@ var
     do {
         statement();
         if (curProcNesting == 1)
-            l2bool8z = eof(pasinput) || (SY == PERIOD);
+            l2bool8z = (SY == PERIOD) || (CH == '\000');
         else
-            l2bool8z = (SY IN blockBegSys);
+            l2bool8z = (SY IN blockBegSys) || (CH == '\000');
         if (not l2bool8z) {
            if (curProcNesting == 1)
                requiredSymErr(PERIOD);
@@ -7021,7 +7023,7 @@ void defExtern;
     regSysProc('     ABS');
     temptype  =  intType;
     regSysProc('   TRUNC');
-    regSysProc('wasodd  ');
+    regSysProc('  SIZEOF');
     regSysProc('     ORD');
     temptype  =  charType;
     regSysProc('     CHR');
@@ -7600,9 +7602,11 @@ void exitScope(arg: @hashArray);
             }
             curIdRec->flags  =  curIdRec->flags | curVal.i;
         } else {
-            do {
+            (loop) do {
                 setup(scopeBound);
                 programme(&l2int18z, curIdRec);
+                if (CH == '\000')
+                    exit loop;
                 if (not (SY IN [FUNCSY,VOIDSY,BEGINSY]))
                     errAndSkip(errBadSymbol, skipToSet);
             } while (not (SY IN [FUNCSY,VOIDSY,BEGINSY]));
@@ -7623,6 +7627,8 @@ void exitScope(arg: @hashArray);
         curFrameRegTemplate  =  curFrameRegTemplate - indexreg[1];
         curProcNesting  =  curProcNesting - 1;
     }
+    if (CH == '\000')
+        exit;
     if ((SY != BEGINSY) &&
        (not allowCompat || not (SY IN blockBegSys)))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
