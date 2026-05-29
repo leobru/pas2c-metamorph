@@ -306,7 +306,6 @@ numLabel = struct {
     line:       int;
     frame:      int;
     offset:     int;
-    next:       @numLabel;
     defined:    int;
 };
 //
@@ -419,7 +418,8 @@ var
     alfaType: tptr;
     arg1Type: tptr;
     arg2Type: tptr;
-    numLabList: @numLabel;
+    numLabs: array [1..20] of numLabel;
+    numLabTop: int;
     chain: @typechain;
     curToken: word;
     curVal: word;
@@ -979,7 +979,6 @@ function getValueOrAllocSymtab(value: int): int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void P0715(mode, arg: int);
-label 1;
 var
     addr, insn, leftHalf: int;
     isLarge: int;
@@ -1789,7 +1788,6 @@ void P3363(arg:int);
 //              PROGRAMME                 %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void programme(retSizePtr: @int; l2idr2z: irptr);
-label 22420, 22421, 23301;
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
     isPredefined, l2bool8z, inTypeDef: int;
@@ -1797,7 +1795,7 @@ var
     l2int11z: int;
     l2var12z: int;
     l2typ13z, l2typ14z: tptr;
-    labIter, labFence: @numLabel;
+    labFence: int;
     strLabList: @strLabel;
 //
     l2int18z, ii, localSize, sizeCount, jj: int;
@@ -1831,8 +1829,6 @@ var it: irptr;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function typeCheck(type1, type2: tptr): int;
-label
-    1;
 var
     baseMatch: int;
     kind1, kind2: kind;
@@ -1950,8 +1946,6 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genOneOp;
-label
-    3556;
 var
     insnBufIdx: int;
     i, l4var3z, l4var4z: int;
@@ -4764,12 +4758,74 @@ var
 } /* parseDecls */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void labCheckAndDefine(upto: int; mode: int);
+var
+    labIdx: int;
+{
+    labIdx  =  numLabTop;
+    while ((labIdx > upto) && (numLabs[labIdx].id != curToken.i))
+        labIdx  =  labIdx - 1;
+    if ((mode == 1) && (labIdx > upto)) {
+1:      errLine  =  numLabs[labIdx].line;
+        error(17); /* errLblAlreadyDefinedInLine */
+        exit;
+    }
+    if (labIdx == upto) {
+        if (mode IN [1,2,3]) {
+            if (numLabTop >= 20) {
+                error(50); /* errSymbolTableOverflow */
+                exit;
+            }
+            numLabTop  =  numLabTop + 1;
+            with numLabs[numLabTop] do {
+                id  =  curToken.i;
+                frame  =  curFrameRegTemplate;
+                offset  =  0;
+                line  =  lineCnt;
+                defined  =  false;
+            }
+            labIdx  =  numLabTop;
+        } else
+            exit;
+    }
+    with numLabs[labIdx] do {
+        if (mode == 2) {
+            if (defined)
+                goto 1;
+            line  =  lineCnt;
+            defined  =  true;
+            if (offset == 0) {
+                /* empty */
+            } else if (offset >= 074000) {
+                curVal.i  =  (moduleOffset - 040000);
+                symTab[offset]  =  [24,29] | (curVal.i & 077777U);
+            } else
+                P0715(0, offset);
+            offset  =  moduleOffset;
+        } else if (mode == 3) {
+            if (curFrameRegTemplate == frame) {
+                if (offset >= 040000)
+                    form1Insn(KUJ + offset);
+                else
+                    formJump(&offset);
+            } else {
+                if (offset == 0) {
+                    offset  =  symTabPos;
+                    putToSymTab(0U);
+                }
+                form3Insn(frame + (KMTJ + 13), KVTM+I14 + offset,
+                          getHelperProc(18/*"P/RC"*/) + (-064100000));
+            }
+        }
+    }
+} /* labCheckAndDefine */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void statement;
 label
     8888;
 var
     boundary: eptr;
-    l3var2z: @numLabel;
     l3var3z: @strLabel;
     l3var4z: int;
     l3bool5z: int;
@@ -5037,7 +5093,6 @@ var finalExpr: eptr;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void bldArithOp(oper: operator; leftExpr: eptr; match: int);
-label 1;
 var
     finalExpr: eptr;
     k1, k2: kind;
@@ -5074,7 +5129,6 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void bldRelOp(oper: operator; ex2: eptr);
-label 1;
 var ex1: eptr;
 {
     if (typeCheck(arg1Type, arg2Type)) {
@@ -6498,38 +6552,9 @@ var
     }
     if (SY == INTCONST) {
         set146z  =  0U;
-        l3var2z  =  numLabList;
         disableNorm();
-        l3bool5z  =  true;
         padToLeft();
-        while (l3var2z != labFence) { with l3var2z@ do
-            if (id != curToken.i) {
-                l3var2z  =  next;
-            } else {
-                l3bool5z  =  false;
-                if (defined) {
-                    curVal.i  =  line;
-                    error(17); /* errLblAlreadyDefinedInLine */;
-                } else {
-                    l3var2z->line  =  lineCnt;
-                    l3var2z->defined  =  true;
-                    padToLeft();
-                    if (l3var2z->offset == 0) {
-                        /* empty */
-                    } else if (l3var2z->offset >= 074000) {
-                        curVal.i  =  (moduleOffset - 040000);
-                        symTab[l3var2z->offset]  =  [24,29] |
-                                                     curVal.i & 077777U;
-                    } else {
-                        P0715(0, l3var2z->offset);
-                    }
-                    l3var2z->offset  =  moduleOffset;
-                }
-                l3var2z  =  labFence;
-            }
-        } /* while 20346 */
-        if (l3bool5z)
-            error(16); /* errLblNotDefinedInBlock */;
+        labCheckAndDefine(labFence, 2);
         inSymbol();
         checkSymAndRead(COLON);
     }
@@ -6605,30 +6630,7 @@ var
                 goto 8888;
         }
         disableNorm();
-        l3var2z  =  numLabList;
-(loop)  if (l3var2z != NIL)  with l3var2z@ do {
-            if (id != curToken.i) {
-                l3var2z  =  next;
-            } else {
-                if (curFrameRegTemplate == frame) {
-                    if (offset >= 040000) {
-                        form1Insn(KUJ + offset);
-                    } else {
-                        formJump(&offset);
-                    }
-                } else {
-                    if (offset == 0) {
-                        offset  =  symTabPos;
-                        putToSymTab(0U);
-                    }
-                    form3Insn(frame + (KMTJ + 13), KVTM+I14 + offset,
-                              getHelperProc(18/*"P/RC"*/) + (-064100000));
-                }
-                exit loop;
-            }
-            goto loop;
-        } else
-            error(18); /* errLblNotDefined */
+        labCheckAndDefine(0, 3);
         inSymbol();
     } else if (SY == IFSY) {
         ifWhileStatement();
@@ -7256,7 +7258,7 @@ void exitScope(arg: @hashArray);
     l2int11z  =  0;
     strLabList  =  NIL;
     lineNesting  =  lineNesting + 1;
-    labFence  =  numLabList;
+    labFence  =  numLabTop;
     do {
     if (SY == LABELSY) {
         do {
@@ -7265,27 +7267,8 @@ void exitScope(arg: @hashArray);
                 requiredSymErr(INTCONST);
                 goto 22421;
             }
-            labIter  =  numLabList;
-            while (labIter != labFence) {
-                if (labIter->id != curToken.i) {
-                    labIter  =  labIter->next;
-                } else {
-                    errLine  =  labIter->line;
-                    error(17); /* errLblAlreadyDefinedInLine */
-                    goto 22420;
-                }
-            }
-            new(labIter);
-            with labIter@ do {
-                id  =  curToken.i;
-                frame  =  curFrameRegTemplate;
-                offset  =  0;
-                line  =  lineCnt;
-                defined  =  false;
-                next  =  numLabList;
-            }
-            numLabList  =  labIter;
-22420:      inSymbol();
+            labCheckAndDefine(labFence, 1);
+            inSymbol();
 22421:      if (not (SY IN [COMMA,SEMICOLON]))
                 errAndSkip(1, skipToSet | [COMMA,SEMICOLON]);
         } while (SY == COMMA);
@@ -7642,12 +7625,12 @@ void exitScope(arg: @hashArray);
         writeLN;
     }
     defineRoutine();
-    while (numLabList != labFence) {
-        if (not (numLabList->defined)) {
-            write(' ', numLabList->id:0, ':');
+    while (numLabTop > labFence) {
+        if (not numLabs[numLabTop].defined) {
+            write(' ', numLabs[numLabTop].id:0, ':');
             l2bool8z  =  false;
         }
-        numLabList  =  numLabList->next;
+        numLabTop  =  numLabTop - 1;
     }
     if (not l2bool8z) {
         printTextWord(l2idr2z->id);
@@ -7761,7 +7744,7 @@ var
     for (jdx = 1; jdx <= 10; jdx=jdx+1)
         put(_CHILD_);
     regKeywords();
-    numLabList  =  NIL;
+    numLabTop  =  0;
     totalErrors  =  0;
     heapCallsCnt  =  0;
     putLeft  =  true;

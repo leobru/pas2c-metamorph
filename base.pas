@@ -306,7 +306,6 @@ numLabel = record
     line:       integer;
     frame:      integer;
     offset:     integer;
-    next:       @numLabel;
     defined:    boolean;
 end;
 %
@@ -420,7 +419,8 @@ var
    alfaType: tptr;
    arg1Type: tptr;
    arg2Type: tptr;
-   numLabList: @numLabel;
+   numLabs: array [1..20] of numLabel;
+   numLabTop: integer;
    chain: @typechain;
    curToken: word;
    curVal: word;
@@ -509,7 +509,7 @@ var
     l2int11z: integer;
     l2var12z: word;
     l2typ13z, l2typ14z: tptr;
-    labIter, labFence: @numLabel;
+    labFence: integer;
     strLabList: @strLabel;
 %
     l2int18z, ii, localSize, l2int21z, jj: integer;
@@ -4872,41 +4872,43 @@ var
 }; (* parseDecls *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure labCheckAndDefine(upto: @numlabel; mode: integer);
+procedure labCheckAndDefine(upto: integer; mode: integer);
 label 1;
+var
+    labIdx: integer;
 {
 % mode 1 - LABEL declaration
 % mode 2 - definition
 % mode 3 - goto
-    labIter := numLabList;
-    while (labIter <> upto) and (labIter@.id <> curToken) do
-        labIter := labIter@.next;
-    if (mode = 1) and (labIter <> upto) then {
-1:      errLine := labIter@.line;
+% upto = 0 searches all labels; else labels (upto+1)..numLabTop
+    labIdx := numLabTop;
+    while (labIdx > upto) and (numLabs[labIdx].id <> curToken) do
+        labIdx := labIdx - 1;
+    if (mode = 1) and (labIdx > upto) then {
+1:      errLine := numLabs[labIdx].line;
         error(17); (* errLblAlreadyDefinedInLine *)
         exit;
     };
-    if (labIter = upto) then {
-        if (mode = 1) then {
-            new(labIter);
-            with labIter@ do {
+    if (labIdx = upto) then {
+        if (mode IN [1..3]) then {
+            if (numLabTop >= 20) then {
+                error(50); (* errSymbolTableOverflow *)
+                exit;
+            };
+            numLabTop := numLabTop + 1;
+            with numLabs[numLabTop] do {
                 id := curToken;
                 frame := curFrameRegTemplate;
                 offset := 0;
                 line := lineCnt;
                 defined := false;
-                next := numLabList;
             };
-            numLabList := labIter;
+            labIdx := numLabTop;
         } else {
-            if (mode = 2) then
-                error(16) (* errLblNotDefinedInBlock *)
-            else
-                error(18); (* errLblNotDefined *)
             exit;
         }
     };
-    with labIter@ do {
+    with numLabs[labIdx] do {
         if (mode = 2) then {
             if defined then goto 1;
             line := lineCnt;
@@ -6827,7 +6829,7 @@ procedure setStrLab(forGoto: boolean);
                     goto 8888;
             };
             disableNorm;
-            labCheckAndDefine(NIL, 3);
+            labCheckAndDefine(0, 3);
             inSymbol;
         } else  if (SY = IFSY) then {
             ifWhileStatement;
@@ -7502,7 +7504,7 @@ procedure exitScope(var arg: hashArray);
     l2int11z := 0;
     strLabList := NIL;
     lineNesting := lineNesting + 1;
-    labFence := numLabList;
+    labFence := numLabTop;
     repeat
     if (SY = LABELSY) then {
 
@@ -7871,12 +7873,12 @@ procedure exitScope(var arg: hashArray);
         writeLN;
     };
     defineRoutine;
-    while (numLabList <> labFence) do {
-        if not (numLabList@.defined) then {
-            write(' ', numLabList@.id.i:0, ':');
+    while (numLabTop > labFence) do {
+        if not (numLabs[numLabTop].defined) then {
+            write(' ', numLabs[numLabTop].id.i:0, ':');
             done := false;
         };
-        numLabList := numLabList@.next;
+        numLabTop := numLabTop - 1;
     };
     if not done then {
         printTextWord(l2idr2z@.id);
@@ -8004,7 +8006,7 @@ var
     for jdx to 10 do
         put(CHILD);
     regKeywords;
-    numLabList := NIL;
+    numLabTop := 0;
     totalErrors := 0;
     heapCallsCnt := 0;
     putLeft := true;
