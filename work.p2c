@@ -40,10 +40,10 @@ const
     errEOFEncountered = 52;
     errFirstDigitInCharLiteralGreaterThan3 = 60;
 //
-    precNone = 0;   precOr = 1;      precAnd = 2;
-    precBitOr = 3;  precBitXor = 4;  precBitAnd = 5;
-    precEq = 6;     precRel = 7;     precShift = 8;
-    precAdd = 9;    precMul = 10;
+    precNone = 0;   precCond = 1;    precOr = 2;     precAnd = 3;
+    precBitOr = 4;  precBitXor = 5;  precBitAnd = 6;
+    precEq = 7;     precRel = 8;     precShift = 9;
+    precAdd = 10;   precMul = 11;
 //
     macro = 0100000000;
     mcJUMP = 2;
@@ -181,7 +181,7 @@ operator = enum {
     MUL,        RDIVOP,     ANDOP,     IDIVOP,     IMODOP,
     PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
-    IMULOP,     INTPLUS,    INTMINUS,   badop27,    badop30,
+    IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
     badop31,    unused32,   ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
     FILEPTR,    op44,       ALNUM,      PCALL,      FCALL,
@@ -467,8 +467,8 @@ var
     symHash, fieldHash: hashArray;
     helperMap: array [1..102] of int;
     helperNames: array [1..102] of int;
-    opPrec: array [SHLEFT..INOP] of int;
-    opAssoc: array [SHLEFT..INOP] of assoc;
+    opPrec: array [SHLEFT..ALTERN] of int;
+    opAssoc: array [SHLEFT..ALTERN] of assoc;
 //
     symTab: array [074000 .. 075500] of int;
     systemProcNames: array [23] of int;
@@ -3027,9 +3027,9 @@ function allocGlobalObject(arg: irptr): int;
 void genEntry;
 var
     l5exp1z, l5exp2z: eptr;
-    l5idr3z, l5idr4z, l5idr5z, l5idr6z: irptr;
-    l5bool7z, l5bool8z, l5bool9z, l5bool10z, l5bool11z: int;
-    l5var12z, l5var13z, l5var14z: int;
+    l5idr3z, l5idr4z, l5idr5z, curForml: irptr;
+    isProc, firstArg, isDirect, isFortrn, allByRef: int;
+    calleeFl, frameSiz, numArgs: int;
     l5var15z: int;
     l5var16z, l5var17z, l5var18z, l5var19z: int;
     l5inl20z: @insnltyp;
@@ -3038,20 +3038,20 @@ var
 { /* genEntry */
     l5exp1z  =  exprToGen->expr1;
     l5idr5z  =  exprToGen->id2;
-    l5bool7z  =  (l5idr5z->typ == NIL);
-    l5bool9z  =  (l5idr5z->list == NIL);
-    if (l5bool7z)
-        l5var13z  =  3;
+    isProc  =  (l5idr5z->typ == NIL);
+    isDirect  =  (l5idr5z->list == NIL);
+    if (isProc)
+        frameSiz  =  3;
     else
-        l5var13z  =  4;
-    l5var12z  =  l5idr5z->flags;
-    l5bool10z  =  (21 in l5var12z);
-    l5bool11z  =  (24 in l5var12z);
-    if (l5bool9z) {
-        l5var14z  =  argCount(l5idr5z);
-        l5idr6z  =  l5idr5z->argList;
+        frameSiz  =  4;
+    calleeFl  =  l5idr5z->flags;
+    isFortrn  =  (21 in calleeFl);
+    allByRef  =  (24 in calleeFl);
+    if (isDirect) {
+        numArgs  =  argCount(l5idr5z);
+        curForml  =  l5idr5z->argList;
     } else {
-        l5var13z  =  l5var13z + 2;
+        frameSiz  =  frameSiz + 2;
     }
     new(insnList);
     insnList->next2  =  NIL;
@@ -3059,25 +3059,25 @@ var
     insnList->typ  =  l5idr5z->typ;
     insnList->regsused  =  (l5idr5z->flags | [7:15]) & [0:8, 10:15];
     insnList->ilm  =  il2;
-    if (l5bool10z) {
-        l5bool8z  =  ! l5bool7z;
+    if (isFortrn) {
+        firstArg  =  ! isProc;
         if (checkFortran) {
             addToInsnList(getHelperProc(92)); /* "P/MF" */
         }
     } else {
-        l5bool8z  =  true;
-        if ((! l5bool9z) && (l5exp1z != NIL)
-            || (l5bool9z) && (l5var14z >= 2)) {
-            addToInsnList(KUTM+SP + l5var13z);
+        firstArg  =  true;
+        if ((! isDirect) && (l5exp1z != NIL)
+            || (isDirect) && (numArgs >= 2)) {
+            addToInsnList(KUTM+SP + frameSiz);
         }
     }
-    l5var14z  =  0;
+    numArgs  =  0;
 (loop)
     while (l5exp1z != NIL) {
         l5exp2z  =  l5exp1z->expr2;
         l5exp1z  =  l5exp1z->expr1;
         l5op21z  =  l5exp2z->op;
-        l5var14z  =  l5var14z + 1;
+        numArgs  =  numArgs + 1;
         l5inl20z  =  insnList;
         if ((l5op21z == PCALL) || (l5op21z == FCALL)) {
             l5idr4z  =  l5exp2z->id2;
@@ -3089,12 +3089,12 @@ var
             if (l5idr4z->list != NIL) {
                 addToInsnList(l5idr4z->offset + KXTA +
                               l5idr4z->value);
-                if (l5bool10z)
+                if (isFortrn)
                     addToInsnList(getHelperProc(19)); /* "P/EA" */
             } else
 (a)         {
                 if (l5idr4z->value == 0) {
-                    if ((l5bool10z) && (21 in l5idr4z->flags)) {
+                    if ((isFortrn) && (21 in l5idr4z->flags)) {
                         addToInsnList(allocGlobalObject(l5idr4z) +
                                       (KVTM+I14));
                         addToInsnList(KITA+14);
@@ -3150,10 +3150,10 @@ var
             } else
                 l5idc22z  =  VARID;
         }
-        if (! (! l5bool9z || (l5idc22z != FORMALID) ||
-               (l5idr6z->cl != VARID)))
+        if (! (! isDirect || (l5idc22z != FORMALID) ||
+               (curForml->cl != VARID)))
             l5idc22z  =  VARID;
-(loop)      if ((l5idc22z == FORMALID) || (l5bool11z)) {
+(loop)      if ((l5idc22z == FORMALID) || (allByRef)) {
             setAddrTo(14);
             addToInsnList(KITA+14);
         } else if (l5idc22z == VARID) {
@@ -3164,26 +3164,26 @@ var
                 prepLoad();
             }
         }
-        if (! l5bool8z)
+        if (! firstArg)
             addxToInsnList(macro + mcPUSH);
-        l5bool8z  =  false;
+        firstArg  =  false;
         if (l5inl20z->next != NIL) {
             l5inl20z->next->next  =  insnList->next2;
             insnList->next2  =  l5inl20z->next2;
         }
         insnList->regsused  =  insnList->regsused | l5inl20z->regsused;
-        if (! l5bool9z) {
+        if (! isDirect) {
             curVal.cl  =  l5idc22z;
             addToInsnList(KXTS+I8 + getFCSToffset());
         }
-        if (l5bool9z && ! l5bool11z)
-            l5idr6z  =  l5idr6z->list;
+        if (isDirect && ! allByRef)
+            curForml  =  curForml->list;
     } /* while -> 7061 */
-    if (l5bool10z) {
+    if (isFortrn) {
         addToInsnList(KNTR+2);
         insnList->next->mode  =  4;
     }
-    if (l5bool9z) {
+    if (isDirect) {
         addToInsnList(allocGlobalObject(l5idr5z) + (KVJM+I13));
         if (20 in l5idr5z->flags) {
             l5var17z  =  1;
@@ -3192,10 +3192,10 @@ var
         }
     } else {
         l5var15z  =  0;
-        if (l5var14z == 0) {
-            l5var17z  =  l5var13z + 1;
+        if (numArgs == 0) {
+            l5var17z  =  frameSiz + 1;
         } else {
-            l5var17z  =  -(2 * l5var14z + l5var13z);
+            l5var17z  =  -(2 * numArgs + frameSiz);
             l5var15z  =  1;
         }
         addInsnAndOffset(macro+16 + l5var15z,
@@ -3206,7 +3206,7 @@ var
     }
     insnList->next->mode  =  2;
     if (curProcNesting != l5var17z) {
-        if (! l5bool10z) {
+        if (! isFortrn) {
             if (l5var17z + 1 == curProcNesting) {
                 addToInsnList(KMTJ+I7 + curProcNesting);
             } else {
@@ -3223,25 +3223,25 @@ var
             }
         }
     }
-    if (! l5bool9z || [20, 21] & l5var12z) {
+    if (! isDirect || [20, 21] & calleeFl) {
         addToInsnList(KVTM+040074001);
     }
-    set145z  =  (set145z | l5var12z) & [1:15];
-    if (l5bool10z) {
+    set145z  =  (set145z | calleeFl) & [1:15];
+    if (isFortrn) {
         if (! checkFortran)
             addToInsnList(KNTR+7);
         else
             addToInsnList(getHelperProc(93));    /* "P/FM" */
         insnList->next->mode  =  2;
     } else {
-        if (! l5bool7z)
-            addToInsnList(KXTA+SP + l5var13z - 1);
+        if (! isProc)
+            addToInsnList(KXTA+SP + frameSiz - 1);
     }
-    if (! l5bool7z) {
+    if (! isProc) {
         insnList->typ  =  l5idr5z->typ;
         insnList->regsused  =  insnList->regsused | E48;
         insnList->ilm  =  il2;
-        set146z  =  set146z & (~l5var12z);
+        set146z  =  set146z & (~calleeFl);
     }
 } /* genEntry */
 //
@@ -3406,11 +3406,128 @@ var
 } /* genComparison */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void genCondOp;
+/*
+ * Code generation for the ternary conditional operator
+ *      exprToGen = CONDOP{cond, ALTERN{then, else}}
+ *
+ * Strategy: build a single deferred insnList that, when committed by the
+ * surrounding expression via genOneOp, emits the full branching sequence
+ * and leaves the result in the accumulator. The runtime BESM-6 hardware
+ * stack (reg 15, SP) is used to carry the value across the branches; no
+ * frame slot is allocated.
+ *
+ * The emitted layout will be:
+ *
+ *      <cond chain>             ; ACC := condition value
+ *      UZA  elseLab             ; if ACC = 0 jump to elseLab
+ *      <then chain>             ; ACC := then-value
+ *      ATX  SP                  ; push ACC onto stack
+ *      UJ   endLab
+ *  elseLab:
+ *      <else chain>             ; ACC := else-value
+ *      ATX  SP                  ; push ACC onto stack
+ *  endLab:
+ *      XTA  SP                  ; pop top of stack into ACC
+ *
+ * Building this deferred chain reuses the same macro machinery that
+ * genBoolAnd / genComparison use to express forward jumps and labels:
+ *
+ *   macro + 0, label           -> UZA forward jump to label
+ *   macro + 2, hi*010000 + lo  -> UJ to label `hi` AND define label `lo` here
+ *   macro + 21, label          -> define label here (no jump)
+ *   macro + mcPUSH             -> push ACC to stack (with XTA->XTS peephole)
+ *
+ * Labels are simply unique integers drawn from int94z. When genOneOp later
+ * processes a macro+0/1/2 entry, addJumpInsn looks up an existing label
+ * record by `mode = label`; if found (F3413), the new jump is linked into
+ * that record's chain in the object buffer, so several jumps to the same
+ * logical label share one record and are all patched together by P0715.
+ */
+var
+    altExpr: eptr;
+    elseLab, endLab: int;
+    condChain, thenChain: @insnltyp;
+{
+    altExpr = exprToGen->expr2;
+    /* Allocate two unique forward-label identifiers from the global
+       counter used by genBoolAnd. */
+    elseLab = int94z;
+    int94z = int94z + 1;
+    endLab = int94z;
+    int94z = int94z + 1;
+
+    /* Build the condition sub-chain: <cond chain> + "UZA elseLab".
+       The genFullExpr call constructs a fresh insnList for the condition;
+       prepLoad finishes its materialization as a value in ACC (no-op for
+       il2 results, expands il3 via mcCOND2INT, etc.); finally we append
+       the forward UZA macro that will jump to elseLab when ACC = 0. */
+    curExpr = exprToGen->expr1;
+    genFullExpr(curExpr);
+    prepLoad();
+    addInsnAndOffset(macro + 0, elseLab);
+    condChain = insnList;
+
+    /* Build the then-branch sub-chain:
+           <then chain> + "PUSH ACC" + "UJ endLab; elseLab:"
+       The combined macro+2 entry does two things at commit time:
+       it emits the unconditional jump to endLab (so the then-path skips
+       over the else-path), and it defines elseLab at the current emit
+       position so the earlier UZA forward jump can be patched here. */
+    curExpr = altExpr->expr1;
+    genFullExpr(curExpr);
+    prepLoad();
+    addToInsnList(macro + mcPUSH);
+    addInsnAndOffset(macro + 2, endLab * 010000 + elseLab);
+    thenChain = insnList;
+
+    /* Build the else-branch sub-chain:
+           <else chain> + "PUSH ACC" + "endLab:"
+       macro+21 is a pure label-definition marker: it requires F3413 to
+       find an existing label record for endLab (the macro+2 above already
+       created it via addJumpInsn) and patches the UJ jump to land here. */
+    curExpr = altExpr->expr2;
+    genFullExpr(curExpr);
+    prepLoad();
+    addToInsnList(macro + mcPUSH);
+    addInsnAndOffset(macro + 21, endLab);
+
+    /* Concatenate the three sub-chains head-to-tail in evaluation order:
+       cond -> then -> else. After this, condChain is the single chain
+       that represents the complete deferred ternary computation. */
+    condChain->next->next = thenChain->next2;
+    condChain->next = thenChain->next;
+    condChain->next->next = insnList->next2;
+    condChain->next = insnList->next;
+
+    /* Union the regsused sets of all three sub-chains so the surrounding
+       expression sees the full set of registers/conditions that the
+       ternary touches. Add reg 0 (ACC) since the result lives there. */
+    condChain->regsused = condChain->regsused | thenChain->regsused
+                          | insnList->regsused | [0];
+
+    /* Finalize the result insnList: an il2 (rvalue-in-ACC) whose only
+       extra deferred instruction is "XTA SP" -- the pop that retrieves
+       the pushed branch result into the accumulator. With this shape,
+       tryFlip / genCopy / genEntry can integrate the ternary value into
+       the surrounding expression exactly like any other il2 chain. */
+    insnList = condChain;
+    addToInsnList(KXTA+SP);
+    insnList->typ = exprToGen->typ;
+    insnList->ilm = il2;
+    insnList->st = st0;
+} /* genCondOp */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* genFullExpr */;
     if (exprToGen == NIL)
         exit;
 7567:
     curOP  =  exprToGen->op;
+    if (curOP == CONDOP) {
+        genCondOp();
+        exit;
+    }
     if (curOP < GETELT) {
         genFullExpr(exprToGen->expr2);
         otherIns  =  insnList;
@@ -5127,6 +5244,43 @@ var finalExpr: eptr;
 } /* bldLogOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void bldCondOp(condExpr, thenExpr: eptr);
+var altExpr, condOpExpr: eptr;
+    resType: tptr;
+{
+    if (condExpr->typ->k > kindPtr) {
+        error(errBooleanNeeded);
+        exit;
+    }
+    arg1Type = thenExpr->typ;
+    arg2Type = curExpr->typ;
+    if (!typeCheck(arg1Type, arg2Type)) {
+        error(errNeedOtherTypesOfOperands);
+        exit;
+    }
+    resType = arg1Type;
+    if (resType->size != 1) {
+        error(errNeedOtherTypesOfOperands);
+        exit;
+    }
+    new(altExpr);
+    with altExpr@ do {
+        typ = resType;
+        op = ALTERN;
+        expr1 = thenExpr;
+        expr2 = curExpr;
+    }
+    new(condOpExpr);
+    with condOpExpr@ do {
+        typ = resType;
+        op = CONDOP;
+        expr1 = condExpr;
+        expr2 = altExpr;
+    }
+    curExpr = condOpExpr;
+} /* bldCondOp */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void factor;
 var
     l4var1z, l4var2z, l4var3z, l4var4z: int;
@@ -5424,7 +5578,7 @@ var
 void parsePrc(minPrec: int);
 var
     oper: operator;
-    leftExpr: eptr;
+    leftExpr, thenExpr: eptr;
     curPrec: int;
     match: int;
 {
@@ -5446,26 +5600,38 @@ var
         inSymbol();
         leftExpr = curExpr;
 
-        /* Recursively parse right operand with higher precedence */
-        /* For left-associative: use curPrec + 1 */
-        parsePrc(curPrec + 1);
+        if (oper == CONDOP) {
+            /* Right-associative ternary: cond ? thenExpr : elseExpr */
+            parsePrc(precCond + 1);
+            if (SY != COLON)
+                requiredSymErr(COLON);
+            else
+                inSymbol();
+            thenExpr = curExpr;
+            parsePrc(precCond);
+            bldCondOp(leftExpr, thenExpr);
+        } else {
+            /* Recursively parse right operand with higher precedence */
+            /* For left-associative: use curPrec + 1 */
+            parsePrc(curPrec + 1);
 
-        /* Build AST node based on operator type */
-        arg1Type = curExpr->typ;
-        arg2Type = leftExpr->typ;
-        match = typeCheck(arg1Type, arg2Type);
+            /* Build AST node based on operator type */
+            arg1Type = curExpr->typ;
+            arg2Type = leftExpr->typ;
+            match = typeCheck(arg1Type, arg2Type);
 
-        switch (curPrec) {
-            precMul: bldArithOp(oper, leftExpr, match);
-            precAdd: bldArithOp(oper, leftExpr, match);
-            precRel,
-            precEq: bldRelOp(oper, leftExpr);
-            precShift,
-            precBitAnd,
-            precBitXor,
-            precBitOr: bldBitOp(oper, leftExpr);
-            precAnd,
-            precOr: bldLogOp(oper, leftExpr, match);
+            switch (curPrec) {
+                precMul: bldArithOp(oper, leftExpr, match);
+                precAdd: bldArithOp(oper, leftExpr, match);
+                precRel,
+                precEq: bldRelOp(oper, leftExpr);
+                precShift,
+                precBitAnd,
+                precBitXor,
+                precBitOr: bldBitOp(oper, leftExpr);
+                precAnd,
+                precOr: bldLogOp(oper, leftExpr, match);
+            }
         }
     }
 } /* parsePrc */
@@ -5488,7 +5654,7 @@ void expression;
         inSymbol();
     else
         readNext  =  true;
-    parsePrc(precOr);
+    parsePrc(precCond);
 } /* expression */
 //
 void assignStatement(doLHS: int); forward;
@@ -7860,6 +8026,7 @@ void initOptions;
     chrClass['<']  =  LTOP;
     chrClass['!']  =  NEOP;
     chrClass['~']  =  BITNEGOP;
+    chrClass['?']  =  CONDOP;
     charSym['+']  =  ADDOP;
     charSym['-']  =  ADDOP;
     charSym['|']  =  ADDOP;
@@ -7880,46 +8047,51 @@ void initOptions;
     charSym[':']  =  COLON;
     charSym['!']  =  NOTSY;
     charSym['~']  =  NOTSY;
+    charSym['?']  =  RELOP;
 
     /* Initialize operator precedence table */
     opPrec = precNone:48;
     opAssoc = leftAs:48;
 
-    /* Logical OR operators - precedence 1 (lowest) */
+    /* Conditional ternary operator - precedence 1 (lowest), right-assoc */
+    opPrec[CONDOP] = precCond;
+    opAssoc[CONDOP] = rightAs;
+
+    /* Logical OR operators - precedence 2 */
     opPrec[OROP] = precOr;
 
-    /* Logical AND operators - precedence 2 */
+    /* Logical AND operators - precedence 3 */
     opPrec[ANDOP] = precAnd;
 
-    /* Bitwise OR - precedence 3 */
+    /* Bitwise OR - precedence 4 */
     opPrec[SETOR] = precBitOr;
 
-    /* Bitwise XOR - precedence 4 */
+    /* Bitwise XOR - precedence 5 */
     opPrec[SETXOR] = precBitXor;
 
-    /* Bitwise AND - precedence 5 */
+    /* Bitwise AND - precedence 6 */
     opPrec[SETAND] = precBitAnd;
 
-    /* Equality operators - precedence 6 */
+    /* Equality operators - precedence 7 */
     opPrec[NEOP] = precEq;
     opPrec[EQOP] = precEq;
 
-    /* Relational operators - precedence 7 */
+    /* Relational operators - precedence 8 */
     opPrec[LTOP] = precRel;
     opPrec[GEOP] = precRel;
     opPrec[GTOP] = precRel;
     opPrec[LEOP] = precRel;
     opPrec[INOP] = precRel;
 
-    /* Shift operators - precedence 8 */
+    /* Shift operators - precedence 9 */
     opPrec[SHLEFT] = precShift;
     opPrec[SHRIGHT] = precShift;
 
-    /* Additive operators - precedence 9 */
+    /* Additive operators - precedence 10 */
     opPrec[PLUSOP] = precAdd;
     opPrec[MINUSOP] = precAdd;
 
-    /* Multiplicative operators - precedence 10 (highest) */
+    /* Multiplicative operators - precedence 11 (highest) */
     opPrec[MUL] = precMul;
     opPrec[RDIVOP] = precMul;
     opPrec[IDIVOP] = precMul;

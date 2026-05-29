@@ -2611,8 +2611,6 @@ var
     arg1Val, arg2Val: word;
     curOP: operator;
     work: integer;
-    altExpr: eptr;
-    elseLab, endLab, condSlot: integer;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure P5155;
@@ -3476,6 +3474,119 @@ var
 }; (* genComparison *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure genCondOp;
+(*
+ * Code generation for the ternary conditional operator
+ *      exprToGen = CONDOP{cond, ALTERN{then, else}}
+ *
+ * Strategy: build a single deferred insnList that, when committed by the
+ * surrounding expression via genOneOp, emits the full branching sequence
+ * and leaves the result in the accumulator. The runtime BESM-6 hardware
+ * stack (reg 15, SP) is used to carry the value across the branches; no
+ * frame slot is allocated.
+ *
+ * The emitted layout will be:
+ *
+ *      <cond chain>             ; ACC := condition value
+ *      UZA  elseLab             ; if ACC = 0 jump to elseLab
+ *      <then chain>             ; ACC := then-value
+ *      ATX  SP                  ; push ACC onto stack
+ *      UJ   endLab
+ *  elseLab:
+ *      <else chain>             ; ACC := else-value
+ *      ATX  SP                  ; push ACC onto stack
+ *  endLab:
+ *      XTA  SP                  ; pop top of stack into ACC
+ *
+ * Building this deferred chain reuses the same macro machinery that
+ * genBoolAnd / genComparison use to express forward jumps and labels:
+ *
+ *   macro + 0, label           -> UZA forward jump to label
+ *   macro + 2, hi*10000B + lo  -> UJ to label `hi` AND define label `lo` here
+ *   macro + 21, label          -> define label here (no jump)
+ *   macro + mcPUSH             -> push ACC to stack (with XTA->XTS peephole)
+ *
+ * Labels are simply unique integers drawn from int94z. When genOneOp later
+ * processes a macro+0/1/2 entry, addJumpInsn looks up an existing label
+ * record by `mode = label`; if found (F3413), the new jump is linked into
+ * that record's chain in the object buffer, so several jumps to the same
+ * logical label share one record and are all patched together by P0715.
+ *)
+var
+    altExpr: eptr;
+    elseLab, endLab: integer;
+    condChain, thenChain: @insnltyp;
+{
+    altExpr := exprToGen@.expr2;
+    (* Allocate two unique forward-label identifiers from the global
+       counter used by genBoolAnd. *)
+    elseLab := int94z;
+    int94z := int94z + 1;
+    endLab := int94z;
+    int94z := int94z + 1;
+
+    (* Build the condition sub-chain: <cond chain> + "UZA elseLab".
+       The genFullExpr call constructs a fresh insnList for the condition;
+       prepLoad finishes its materialization as a value in ACC (no-op for
+       il2 results, expands il3 via mcCOND2INT, etc.); finally we append
+       the forward UZA macro that will jump to elseLab when ACC = 0. *)
+    curExpr := exprToGen@.expr1;
+    genFullExpr(curExpr);
+    prepLoad;
+    addInsnAndOffset(macro + 0, elseLab);
+    condChain := insnList;
+
+    (* Build the then-branch sub-chain:
+           <then chain> + "PUSH ACC" + "UJ endLab; elseLab:"
+       The combined macro+2 entry does two things at commit time:
+       it emits the unconditional jump to endLab (so the then-path skips
+       over the else-path), and it defines elseLab at the current emit
+       position so the earlier UZA forward jump can be patched here. *)
+    curExpr := altExpr@.expr1;
+    genFullExpr(curExpr);
+    prepLoad;
+    addToInsnList(macro + mcPUSH);
+    addInsnAndOffset(macro + 2, endLab * 10000B + elseLab);
+    thenChain := insnList;
+
+    (* Build the else-branch sub-chain:
+           <else chain> + "PUSH ACC" + "endLab:"
+       macro+21 is a pure label-definition marker: it requires F3413 to
+       find an existing label record for endLab (the macro+2 above already
+       created it via addJumpInsn) and patches the UJ jump to land here. *)
+    curExpr := altExpr@.expr2;
+    genFullExpr(curExpr);
+    prepLoad;
+    addToInsnList(macro + mcPUSH);
+    addInsnAndOffset(macro + 21, endLab);
+
+    (* Concatenate the three sub-chains head-to-tail in evaluation order:
+       cond -> then -> else. After this, condChain is the single chain
+       that represents the complete deferred ternary computation. *)
+    condChain@.next@.next := thenChain@.next2;
+    condChain@.next := thenChain@.next;
+    condChain@.next@.next := insnList@.next2;
+    condChain@.next := insnList@.next;
+
+    (* Union the regsused sets of all three sub-chains so the surrounding
+       expression sees the full set of registers/conditions that the
+       ternary touches. Add reg 0 (ACC) since the result lives there. *)
+    condChain@.regsused := condChain@.regsused + thenChain@.regsused
+                           + insnList@.regsused + [0];
+
+    (* Finalize the result insnList: an il2 (rvalue-in-ACC) whose only
+       extra deferred instruction is "XTA SP" -- the pop that retrieves
+       the pushed branch result into the accumulator. With this shape,
+       tryFlip / genCopy / genEntry can integrate the ternary value into
+       the surrounding expression exactly like any other il2 chain. *)
+    insnList := condChain;
+    addToInsnList(KXTA+SP);
+    insnList@.typ := exprToGen@.vt.typ;
+    insnList@.ilm := il2;
+    insnList@.st := st0;
+}; (* genCondOp *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function shift(val:bitset; amt:integer):bitset;
 var i    : integer; ret: word;
 {
@@ -3503,40 +3614,7 @@ arg1Val.m := arg1Val.m - intZero;
 7567:
     curOP := exprToGen@.op;
     if (curOP = CONDOP) then {
-        altExpr := exprToGen@.expr2;
-        condSlot := localSize;
-        localSize := localSize + 1;
-        if (l2int21z < localSize) then
-            l2int21z := localSize;
-        curExpr := exprToGen@.expr1;
-        jumpTarget := 0;
-        formOperator(BRANCH);
-        elseLab := jumpTarget;
-        genFullExpr(altExpr@.expr1);
-        prepLoad;
-        addInsnAndOffset(curFrameRegTemplate, condSlot);
-        genOneOp;
-        endLab := 0;
-        jumpType := insnTemp[UJ];
-        formJump(endLab);
-        P0715(0, elseLab);
-        genFullExpr(altExpr@.expr2);
-        prepLoad;
-        addInsnAndOffset(curFrameRegTemplate, condSlot);
-        genOneOp;
-        P0715(0, endLab);
-        new(insnList);
-        with insnList@ do {
-            next := NIL;
-            next2 := NIL;
-            typ := exprToGen@.vt.typ;
-            regsused := [];
-            ilm := il1;
-            payload.i := curFrameRegTemplate;
-            disp := condSlot;
-            st := st0;
-            addrmd := 18;
-        };
+        genCondOp;
         exit;
     };
     if (curOP < GETELT) then {
