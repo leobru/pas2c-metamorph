@@ -1,0 +1,23 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var a, b, x, y, z: int;
+{
+    a = 5;
+    b = 10;
+    x = (a < b) ? a : b;
+    writeln(' min(5,10) = ', x:0);
+    y = (a > b) ? a : b;
+    writeln(' max(5,10) = ', y:0);
+    z = (a == 5) ? 100 : 200;
+    writeln(' z = ', z:0);
+    z = ((a < b) ? a : b) + ((a > b) ? a : b);
+    writeln(' sum = ', z:0);
+    z = (a < b) ? ((a == 5) ? 1 : 2) : 3;
+    writeln(' nested z = ', z:0);
+    z = 100 - ((a < b) ? a : b);
+    writeln(' rsub = ', z:0);
+    z = ((a == 5) ? 7 : 8) * ((b == 10) ? 3 : 4);
+    writeln(' mul = ', z:0);
+}
+.

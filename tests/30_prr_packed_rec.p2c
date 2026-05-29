@@ -1,0 +1,22 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+
+type
+    pair = struct {
+        lo, hi: int
+    };
+
+var
+    tab: __packed array [1..4] of pair;
+    i: int;
+    p: pair;
+
+{
+    tab[1].lo = 10;
+    tab[1].hi = 20;
+    tab[2].lo = 30;
+    tab[2].hi = 40;
+    i = 2;
+    p = tab[i];
+    writeln('lo=', p.lo:0, ' hi=', p.hi:0);
+}

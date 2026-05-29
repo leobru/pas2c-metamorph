@@ -1,0 +1,272 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+
+var
+    grdval: int;
+    arspan: int;
+
+// expected words: ceil(arspan * bitW / 48)
+function wrdsExp(bitW: int): int;
+{
+    if (bitW > 24)
+        wrdsExp = arspan;
+    else
+        wrdsExp = (arspan * bitW + 47) / 48;
+}
+
+function chkWords(tag: int; got: int; exp: int): int;
+{
+    if (got != exp) {
+        writeln('FAIL size tag=', tag:0, ' got=', got:0,
+                ' exp=', exp:0);
+        chkWords = 1;
+    } else {
+        writeln('OK size tag=', tag:0, ' words=', got:0);
+        chkWords = 0;
+    }
+}
+
+function tsz08: int;
+var a: __packed array [1..12] of int:8;
+{
+    tsz08 = chkWords(8, sizeof(a), wrdsExp(8));
+}
+
+function tsz16: int;
+var b: __packed array [1..12] of int:16;
+{
+    tsz16 = chkWords(16, sizeof(b), wrdsExp(16));
+}
+
+function tsz24: int;
+var c: __packed array [1..12] of int:24;
+{
+    tsz24 = chkWords(24, sizeof(c), wrdsExp(24));
+}
+
+function tsz32: int;
+var d: __packed array [1..12] of int:32;
+{
+    tsz32 = chkWords(32, sizeof(d), wrdsExp(32));
+}
+
+function tsz40: int;
+var e: __packed array [1..12] of int:40;
+{
+    tsz40 = chkWords(40, sizeof(e), wrdsExp(40));
+}
+
+function trw08: int;
+var buf: __packed array [0..13] of int:8;
+var i: int;
+    lo: int;
+    hi: int;
+    fail: int;
+    v: int:8;
+    maxv: int:8;
+    g: int:8;
+{
+    trw08 = 0;
+    fail = 0;
+    lo = 3;
+    hi = 9;
+    v = 200;
+    maxv = 255;
+    for (i = 0; i <= arspan + 1; i = i + 1) {
+        g = grdval + i;
+        buf[i] = g;
+    }
+    buf[lo] = v;
+    if (buf[lo] != v) {
+        writeln('FAIL int:8 store read back');
+        fail = 1;
+    }
+    for (i = 0; i < lo; i = i + 1) {
+        g = grdval + i;
+        if (buf[i] != g) {
+            writeln('FAIL int:8 low guard i=', i:0);
+            fail = 1;
+        }
+    }
+    for (i = lo + 1; i <= arspan + 1; i = i + 1) {
+        g = grdval + i;
+        if (buf[i] != g) {
+            writeln('FAIL int:8 high guard i=', i:0);
+            fail = 1;
+        }
+    }
+    buf[hi] = maxv;
+    if (buf[hi] != maxv) {
+        writeln('FAIL int:8 max at hi');
+        fail = 1;
+    }
+    if (buf[lo] != v) {
+        writeln('FAIL int:8 neighbor after hi write');
+        fail = 1;
+    }
+    if (fail == 0) {
+        writeln('OK int:8 rw guards');
+    } else {
+        trw08 = 1;
+    }
+}
+
+function trw16: int;
+var buf: __packed array [0..13] of int:16;
+var i: int;
+    lo: int;
+    fail: int;
+    v: int:16;
+    maxv: int:16;
+    g: int:16;
+{
+    trw16 = 0;
+    fail = 0;
+    lo = 5;
+    v = 4660;
+    maxv = 65535;
+    for (i = 0; i <= arspan + 1; i = i + 1) {
+        g = grdval + i;
+        buf[i] = g;
+    }
+    buf[lo] = v;
+    if (buf[lo] != v) {
+        writeln('FAIL int:16 store read');
+        fail = 1;
+    }
+    buf[lo + 1] = maxv;
+    if (buf[lo] != v) {
+        writeln('FAIL int:16 low corrupted');
+        fail = 1;
+    }
+    if (buf[lo + 1] != maxv) {
+        writeln('FAIL int:16 hi read');
+        fail = 1;
+    }
+    for (i = 0; i < lo; i = i + 1) {
+        g = grdval + i;
+        if (buf[i] != g) {
+            writeln('FAIL int:16 guard i=', i:0);
+            fail = 1;
+        }
+    }
+    if (fail == 0) {
+        writeln('OK int:16 rw guards');
+    } else {
+        trw16 = 1;
+    }
+}
+
+function trw24: int;
+var buf: __packed array [0..13] of int:24;
+var i: int;
+    lo: int;
+    fail: int;
+    v: int:24;
+    g: int:24;
+{
+    trw24 = 0;
+    fail = 0;
+    lo = 4;
+    v = 1000000;
+    for (i = 0; i <= arspan + 1; i = i + 1) {
+        g = grdval + i;
+        buf[i] = g;
+    }
+    buf[lo] = v;
+    if (buf[lo] != v) {
+        writeln('FAIL int:24 store read');
+        fail = 1;
+    }
+    g = grdval + lo - 1;
+    if (buf[lo - 1] != g) {
+        writeln('FAIL int:24 guard below');
+        fail = 1;
+    }
+    g = grdval + lo + 1;
+    if (buf[lo + 1] != g) {
+        writeln('FAIL int:24 guard above');
+        fail = 1;
+    }
+    if (fail == 0) {
+        writeln('OK int:24 rw guards');
+    } else {
+        trw24 = 1;
+    }
+}
+
+function tdense: int;
+var a: __packed array [1..48] of int:1;
+var i: int;
+    fail: int;
+    one: int:1;
+    zero: int:1;
+{
+    tdense = 0;
+    fail = 0;
+    one = 1;
+    zero = 0;
+    if (sizeof(a) != 1) {
+        writeln('FAIL int:1 dense words got=', sizeof(a):0);
+        fail = 1;
+    }
+    for (i = 1; i <= 48; i = i + 1) {
+        a[i] = one;
+    }
+    for (i = 1; i <= 48; i = i + 1) {
+        if (a[i] != one) {
+            writeln('FAIL int:1 dense at i=', i:0);
+            fail = 1;
+        }
+    }
+    a[25] = zero;
+    if (a[24] != one) {
+        writeln('FAIL int:1 dense neighbor');
+        fail = 1;
+    }
+    if (a[26] != one) {
+        writeln('FAIL int:1 dense neighbor hi');
+        fail = 1;
+    }
+    if (fail == 0) {
+        writeln('OK int:1 dense 48 x 1 bit');
+    } else {
+        tdense = 1;
+    }
+}
+
+//
+{
+    grdval = 100;
+    arspan = 12;
+    writeln('packed int:<bits> tests arspan=', arspan:0);
+    if (tsz08() != 0) {
+        writeln('abort sizes');
+    }
+    if (tsz16() != 0) {
+        writeln('abort sizes');
+    }
+    if (tsz24() != 0) {
+        writeln('abort sizes');
+    }
+    if (tsz32() != 0) {
+        writeln('abort sizes');
+    }
+    if (tsz40() != 0) {
+        writeln('abort sizes');
+    }
+    if (trw08() != 0) {
+        writeln('abort rw8');
+    }
+    if (trw16() != 0) {
+        writeln('abort rw16');
+    }
+    if (trw24() != 0) {
+        writeln('abort rw24');
+    }
+    if (tdense() != 0) {
+        writeln('abort dense');
+    }
+    writeln('done');
+}
+.

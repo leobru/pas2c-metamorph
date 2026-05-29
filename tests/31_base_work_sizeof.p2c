@@ -1,0 +1,9 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+
+var
+    words: array [1..8] of int;
+
+{
+    writeln('RESULT ', sizeof(words):0);
+}
