@@ -575,10 +575,7 @@ var res: tptr;
         new(res, kindArray);
         with res@ do {
             size  =  (strLen + 5) / 6;
-            if (size == 1)
-                bits  =  strLen * 8;
-            else
-                bits  =  0;
+            bits  =  (size == 1) ? strLen * 8 : 0;
             k  =  kindArray;
             base  =  charType;
             pck  =  true;
@@ -637,10 +634,7 @@ var
         } while (high >= low);
         addCurValToFCST  =  FcstCnt;
         if (FcstCountTo500 != 500) {
-            if (curval.a < constVals[mid])
-                high  =  mid;
-            else
-                high  =  mid + 1;
+            high  =  (curval.a < constVals[mid]) ? mid : mid + 1;
             for (mid  =  FcstCountTo500; mid >= high; mid=mid-1) {
                 low  =  mid + 1;
                 constVals[low]  =  constVals[mid];
@@ -777,10 +771,7 @@ void disableNorm;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function getObjBufIdxPlus: int;
 {
-   if (putLeft)
-       getObjBufIdxPlus  =  objBufIdx + 4096;
-   else
-       getObjBufIdxPlus  =  objBufIdx;
+   getObjBufIdxPlus  =  putLeft ? objBufIdx + 4096 : objBufIdx;
 } /* getObjBufIdxPlus */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -895,10 +886,7 @@ var
         } while (high > low);
         allocSymtab  =  symTabPos;
         if (symTabCnt != 80) {
-            if (value.a < symTabArray[mid].a)
-                high  =  mid;
-            else
-                high  =  mid + 1;
+            high  =  (value.a < symTabArray[mid].a) ? mid : mid + 1;
             for (low  =  symTabCnt; low > high; low=low-1) {
                 mid  =  low - 1;
                 symTabArray[low]  =  symTabArray[mid];
@@ -976,11 +964,8 @@ function getValueOrAllocSymtab(value: int): int;
 {
     curVal.i  =  value;
     curVal.i  =  curVal.i % 32768;
-    if (040000 >= curVal.i)
-        getValueOrAllocSymtab  =  curVal.i;
-    else
-        getValueOrAllocSymtab  =
-            allocSymtab((curVal.i | 040000000U) & halfWord);
+    getValueOrAllocSymtab  =  (040000 >= curVal.i) ? curVal.i
+        : allocSymtab((curVal.i | 040000000U) & halfWord);
 } /* getValueOrAllocSymtab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1361,10 +1346,8 @@ var
                             expLiteral  =  10 * expLiteral + CH - '0';
                             nextCH();
                         } while (charSym[CH] == INTCONST);
-                    if (expSign)
-                        expMagnitude  =  expMagnitude - expLiteral;
-                    else
-                        expMagnitude  =  expMagnitude + expLiteral;
+                    expMagnitude  =  expSign ? expMagnitude - expLiteral
+                                             : expMagnitude + expLiteral;
                 }
                 if (expMagnitude) {
                     expValue  =  1.0;
@@ -2350,10 +2333,7 @@ var
                         addToInsnList(KAAX+I8 + getFCSToffset());
                     }
                 } else {
-                    if (isSimple)
-                        helper  =  P_LDAR;
-                    else
-                        helper  =  P_RR;
+                    helper  =  isSimple ? P_LDAR : P_RR;
                     addToInsnList(getHelperProc(helper));
                     insnList->next->mode  =  1;
                 }
@@ -3040,10 +3020,7 @@ var
     l5idr5z  =  exprToGen->id2;
     isProc  =  (l5idr5z->typ == NIL);
     isDirect  =  (l5idr5z->list == NIL);
-    if (isProc)
-        frameSiz  =  3;
-    else
-        frameSiz  =  4;
+    frameSiz  =  isProc ? 3 : 4;
     calleeFl  =  l5idr5z->flags;
     isFortrn  =  (21 in calleeFl);
     allByRef  =  (24 in calleeFl);
@@ -3139,10 +3116,7 @@ var
                 else
                     addToInsnList(getHelperProc(64)); /* "P/PB" */
             }
-            if (l5op21z == PCALL)
-                l5idc22z  =  ROUTINEID;
-            else
-                l5idc22z  =  ENUMID;
+            l5idc22z  =  (l5op21z == PCALL) ? ROUTINEID : ENUMID;
         } else {
             genFullExpr(l5exp2z);
             if (insnList->ilm == il1) {
@@ -3797,10 +3771,7 @@ var
                     goto 10122;
                  } else {
                     addToInsnList(KAVX+MINUS1);
-                    if (curOP == RNEGOP)
-                        l3int3z  =  3;
-                    else
-                        l3int3z  =  1;
+                    l3int3z  =  (curOP == RNEGOP) ? 3 : 1;
                     goto 10122;
                 }
             }
@@ -4106,10 +4077,7 @@ var l4exf1z: @extfilerec;
                         forValue  =  true;
                     }
                     genOneOp();
-                    if (direction)
-                        nextInsn  =  KU1A;
-                    else
-                        nextInsn  =  KUZA;
+                    nextInsn  =  direction ? KU1A : KUZA;
                     if (noTarget) {
                         jumpType  =  nextInsn;
                         formJump(&l3int3z);
@@ -4425,12 +4393,9 @@ var
         inSymbol();
         if (SY != COLON) {
 // Handle a single value N as a range 0..N-1
-            rightBound = leftBound - 1U;
+            rightBound = leftBound - 1;
             curType = tempType;
-            if (E48 & leftBound)
-                leftBound = 0;
-            else
-                leftBound = 0U;
+            leftBound = 0;
         } else {
             inSymbol();
             curType = parseLiteral(&rightBound, true);
@@ -4620,10 +4585,7 @@ var
                     perword  =  l3int22z;
                     pcksize  =  48 / l3int22z;
                     l3int22z  =  span * pcksize;
-                    if (l3int22z % 48 == 0)
-                        numBits  =  0;
-                    else
-                        numBits  =  1;
+                    numBits  =  (l3int22z % 48 == 0) ? 0 : 1;
                     size  =  l3int22z / 48 + numBits;
                     if (size == 1)
                         bits  =  l3int22z;
@@ -5240,10 +5202,7 @@ var ex1: eptr;
         if (oper IN [GTOP, LEOP]) {
             expr1 = curExpr;
             expr2 = ex2;
-            if (oper == GTOP)
-                op = LTOP;
-            else
-                op = GEOP;
+            op = (oper == GTOP) ? LTOP : GEOP;
         } else {
             expr1 = ex2;
             expr2 = curExpr;
@@ -5537,10 +5496,7 @@ var
 {
     oper = NOOP;
     if (SY == NOTSY) {
-        if (charClass == BITNEGOP)
-            oper = BITNEGOP;
-        else
-            oper = NOTOP;
+        oper = (charClass == BITNEGOP) ? BITNEGOP : NOTOP;
         inSymbol();
     } else if (charClass IN [PLUSOP, MINUSOP]) {
         if (charClass != PLUSOP)
@@ -7279,10 +7235,7 @@ var
             parClass  =  ROUTINEID;
         }
         l3var3z  =  NIL;
-        if (SY == VOIDSY)
-            expType  =  NIL;
-        else
-            expType  =  intType;
+        expType  =  (SY == VOIDSY) ? NIL : intType;
         l3var6z  =  0;
         if (SY != IDENT) {
             int93z  =  0;
@@ -7639,16 +7592,10 @@ void exitScope(arg: @hashArray);
                 value  =  0;
                 argList  =  NIL;
                 preDefLink  =  NIL;
-                if (declExternal)
-                    flags  =  [0:15,22];
-                else
-                    flags  =  [0:15];
+                flags  =  declExternal ? [0:15,22] : [0:15];
                 pos  =  0;
                 curFrameRegTemplate  =  curFrameRegTemplate + frameRegTemplate;
-                if (l2bool8z)
-                    l2int18z  =  3;
-                else
-                    l2int18z  =  4;
+                l2int18z  =  l2bool8z ? 3 : 4;
             }
             curProcNesting  =  curProcNesting + 1;
             inSymbol();
