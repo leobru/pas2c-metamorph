@@ -3411,32 +3411,33 @@ void genCondOp;
  * Code generation for the ternary conditional operator
  *      exprToGen = CONDOP{cond, ALTERN{then, else}}
  *
- * Strategy: build a single deferred insnList that, when committed by the
- * surrounding expression via genOneOp, emits the full branching sequence
- * and leaves the result in the accumulator. The runtime BESM-6 hardware
- * stack (reg 15, SP) is used to carry the value across the branches; no
- * frame slot is allocated.
+ * Strategy: build a single deferred il2 insnList that, when committed by
+ * the surrounding expression via genOneOp, emits the full branching
+ * sequence and leaves the result in the accumulator. Both branches simply
+ * leave their value in ACC -- no PUSH/POP is needed inside genCondOp,
+ * because the framework (tryFlip / genCopy / genEntry) takes care of
+ * spilling ACC to the hardware stack only when the surrounding expression
+ * actually contends for reg 0.
  *
- * The emitted layout will be:
+ * The emitted layout is:
  *
- *      <cond chain>             ; ACC := condition value
- *      UZA  elseLab             ; if ACC = 0 jump to elseLab
+ *      <cond chain>             ; sets ACC, leaving sign per direction
+ *      UZA/U1A elseLab          ; jump to elseLab on FALSE
  *      <then chain>             ; ACC := then-value
- *      ATX  SP                  ; push ACC onto stack
  *      UJ   endLab
  *  elseLab:
  *      <else chain>             ; ACC := else-value
- *      ATX  SP                  ; push ACC onto stack
  *  endLab:
- *      XTA  SP                  ; pop top of stack into ACC
+ *                               ; result of CONDOP is in ACC
  *
  * Building this deferred chain reuses the same macro machinery that
  * genBoolAnd / genComparison use to express forward jumps and labels:
  *
- *   macro + 0, label           -> UZA forward jump to label
+ *   macro + 0, label           -> UZA forward jump to label (jump on FALSE)
+ *   macro + 1, label           -> U1A forward jump to label (jump on TRUE-side
+ *                                 of an inverted/negated condition)
  *   macro + 2, hi*010000 + lo  -> UJ to label `hi` AND define label `lo` here
  *   macro + 21, label          -> define label here (no jump)
- *   macro + mcPUSH             -> push ACC to stack (with XTA->XTS peephole)
  *
  * Labels are simply unique integers drawn from int94z. When genOneOp later
  * processes a macro+0/1/2 entry, addJumpInsn looks up an existing label
@@ -3497,27 +3498,27 @@ var
     condChain = insnList;
 
     /* Build the then-branch sub-chain:
-           <then chain> + "PUSH ACC" + "UJ endLab; elseLab:"
-       The combined macro+2 entry does two things at commit time:
-       it emits the unconditional jump to endLab (so the then-path skips
-       over the else-path), and it defines elseLab at the current emit
-       position so the earlier UZA forward jump can be patched here. */
+           <then chain> + "UJ endLab; elseLab:"
+       prepLoad materializes the then-value into ACC. The combined macro+2
+       entry then does two things at commit time: it emits the unconditional
+       jump to endLab (so the then-path skips over the else-path), and it
+       defines elseLab at the current emit position so the earlier UZA/U1A
+       forward jump can be patched here. */
     curExpr = altExpr->expr1;
     genFullExpr(curExpr);
     prepLoad();
-    addToInsnList(macro + mcPUSH);
     addInsnAndOffset(macro + 2, endLab * 010000 + elseLab);
     thenChain = insnList;
 
     /* Build the else-branch sub-chain:
-           <else chain> + "PUSH ACC" + "endLab:"
-       macro+21 is a pure label-definition marker: it requires F3413 to
-       find an existing label record for endLab (the macro+2 above already
-       created it via addJumpInsn) and patches the UJ jump to land here. */
+           <else chain> + "endLab:"
+       prepLoad materializes the else-value into ACC. macro+21 is a pure
+       label-definition marker: it requires F3413 to find an existing
+       label record for endLab (the macro+2 above already created it via
+       addJumpInsn) and patches the UJ jump to land here. */
     curExpr = altExpr->expr2;
     genFullExpr(curExpr);
     prepLoad();
-    addToInsnList(macro + mcPUSH);
     addInsnAndOffset(macro + 21, endLab);
 
     /* Concatenate the three sub-chains head-to-tail in evaluation order:
@@ -3534,13 +3535,13 @@ var
     condChain->regsused = condChain->regsused | thenChain->regsused
                           | insnList->regsused | [0];
 
-    /* Finalize the result insnList: an il2 (rvalue-in-ACC) whose only
-       extra deferred instruction is "XTA SP" -- the pop that retrieves
-       the pushed branch result into the accumulator. With this shape,
-       tryFlip / genCopy / genEntry can integrate the ternary value into
-       the surrounding expression exactly like any other il2 chain. */
+    /* Finalize the result insnList as an il2 (rvalue-in-ACC). Both branches
+       leave their value in ACC and the chains rejoin at endLab, so the
+       composite chain already meets the il2 contract without any extra
+       PUSH/POP. tryFlip / genCopy / genEntry integrate this value into
+       the surrounding expression exactly like any other il2 chain, spilling
+       ACC to the hardware stack only when actually needed. */
     insnList = condChain;
-    addToInsnList(KXTA+SP);
     insnList->typ = exprToGen->typ;
     insnList->ilm = il2;
     insnList->st = st0;
