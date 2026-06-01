@@ -33,7 +33,6 @@ const
     errNeedOtherTypesOfOperands = 21;
     errWrongVarTypeBefore = 22;
     errUsingVarAfterIndexingPackedArray = 28;
-    errNoSimpleVarForLoop = 30;
     errTooManyArguments = 38;
     errNoCommaOrParenOrTooFewArgs = 41;
     errNumberTooLarge = 43;
@@ -3369,7 +3368,7 @@ procedure genConstDiv;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure genComparison;
 label
-    7475, 7504, 7514, 7530;
+    7504, 7514;
 var
     negate: boolean;
     l5set2z: bitset;
@@ -3422,22 +3421,12 @@ var
             insnList@.ilm := il2;
             negate := not negate;
         } else  if l3int3z = 0 then {
-            if work = 0 then {
-                nextInsn := 15;         (* P/CP *)
-7475:           genHelper;
-                insnList@.ilm := il2;
-            } else {
-                nextInsn := insnTemp[AEX];
-                tryFlip(true);
-7504:           insnList@.ilm := il3;
-                insnList@.payload.i := 0;
-            };
+            nextInsn := insnTemp[AEX];
+            tryFlip(true);
+7504:       insnList@.ilm := il3;
+            insnList@.payload.i := 0;
         } else {
             case work of
-            0: {
-                nextInsn := 16;         (* P/AB *)
-                goto 7475;
-            };
             1: {
                 mode := 3;
 7514:           nextInsn := insnTemp[SUB];
@@ -3449,20 +3438,16 @@ var
                 };
                 goto 7504;
             };
-            2: { (* work = 2 unused *)
-                nextInsn := insnTemp[AAX];
-7530:           prepLoad;
-                addToInsnList(KAEX+ALLONES);
-                tryFlip(true);
-                goto 7504;
-            };
             3: {
                 mode := 1;
                 goto 7514;
             };
             4: {
                 nextInsn := insnTemp[ARX];
-                goto 7530;
+                prepLoad;
+                addToInsnList(KAEX+ALLONES);
+                tryFlip(true);
+                goto 7504;
             };
             end; (* case *)
         };
@@ -3850,9 +3835,6 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 genFullExpr(exprToGen@.expr1);
                 genDeref;
             } else
-            if (curOP = op36) then {
-                startInsnList(il1);
-            } else
             if (curOP = op37) then {
                 startInsnList(il1);
                 genDeref;
@@ -4107,11 +4089,6 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
         }; (* with *)
         helpExpr@.expr2 := curExpr;
     }; (* SETREG *)
-    gen0: {
-        prepLoad;
-        if (insnCount > 1) then
-            P5117(op36)
-    };
     STORE: {
         prepStore;
         genOneOp
@@ -8284,7 +8261,7 @@ procedure initOptions;
     halfWord := [24:47];
     hashMask := 203407C;
     statEndSys := [SEMICOLON, ENDSY, ELSESY, WHILESY];
-    lvalOpSet := [GETELT, GETVAR, op36, op37, GETFIELD, DEREF, FILEPTR];
+    lvalOpSet := [GETELT, GETVAR, op37, GETFIELD, DEREF, FILEPTR];
     symHash := NIL:128;
     fieldHash := NIL:128;
     kwordHash := NIL:128;
