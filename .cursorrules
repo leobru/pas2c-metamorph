@@ -5,3 +5,4 @@ In work.p2c, use constants false and true for int variables with Boolean meaning
 Line length in base.pas must not exceed 80 characters.
 
 Output of test programs is all uppercase.
+The input language is case-insensitive.

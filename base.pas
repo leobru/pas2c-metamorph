@@ -337,7 +337,7 @@ extfilerec = record
     location,
     line: integer
 end;
-numberFormat = (decimal, octal, fullword);
+numberFormat = (decimal, octal, fullword, hex);
 %
 var
    numFormat: numberFormat;
@@ -1345,6 +1345,26 @@ procedure readOptFlag(var res: boolean);
                 until charSym[CH] <> INTCONST;
 (octdec)        {
                     if (numstr[1].i = 0) and (CH <> '.') then {
+                        if (tokenLen = 1) and (CH = 'X') then {
+                            (* Hex literal: 0Xhhh[U] *)
+                            numFormat := hex;
+                            nextCH;
+                            curToken.i := 0C;
+                            while (charSym[CH] = INTCONST)
+                               or (('A' <= CH) and (CH <= 'F')) do {
+                                curToken := curToken;
+                                besm(ASN64-4);
+                                curToken := ;
+                                if charSym[CH] = INTCONST
+                                then curVal.c := CH
+                                else curVal.i := ord(CH)-55;
+                                curToken.m := curToken.m + curVal.m * [44:47];
+                                nextCH;
+                            };
+                            if CH = 'U' then
+                                nextCH;
+                            exit lexer;
+                        };
                         numFormat := OCTAL;
                         if CH = 'U' then {
                             numFormat := FULLWORD;

@@ -348,7 +348,7 @@ extfilerec = struct {
     location,
     line: int
 };
-NumberFormat = enum {DECIMAL, OCTAL, FULLWORD};
+NumberFormat = enum {DECIMAL, OCTAL, FULLWORD, HEX};
 hashArray = array [128] of irptr;
 //
 var
@@ -633,7 +633,7 @@ var
         } while (high >= low);
         addCurValToFCST  =  FcstCnt;
         if (FcstCountTo500 != 500) {
-            high  =  (curval.a < constVals[mid]) ? mid : mid + 1;
+            high  =  curval.a < constVals[mid] ? mid : mid + 1;
             for (mid  =  FcstCountTo500; mid >= high; mid=mid-1) {
                 low  =  mid + 1;
                 constVals[low]  =  constVals[mid];
@@ -727,9 +727,7 @@ var
                 prevOpcode  =  opcode;
                 half1 = (insn & 077777U) << 24;
                 half2 = (objBuffer[pos] >> 24) & 077777U;
-                /* 15 24 00000 00 30 00000 */
-                objBuffer[pos]  =  06640000003000000U |
-                    half1 | half2;
+                objBuffer[pos]  =  (KVTM+I13) << 24 | KUJ | half1 | half2;
                 exit;
             }
         }
@@ -1269,6 +1267,21 @@ var
                 } while (charSym[CH] == INTCONST);
 (octdec)        {
                     if ((numstr[0].i == 0) && (CH != '.')) {
+                        if (tokenLen == 0 && CH == 'X') {
+                            /* Hex literal: 0Xhhh[U] */
+                            numFormat = hex;
+                            nextCH();
+                            curToken.i = 0;
+                            while (charSym[CH] == INTCONST
+                               || ('A' <= CH) && (CH <= 'F')) {
+                                curToken.i = curToken.i << 4 |
+                                    CH - (charSym[CH] == INTCONST ? 48 : 55);
+                                nextCH();
+                            };
+                            if (CH == 'U')
+                                nextCH();
+                            exit lexer;
+                        };
                         numFormat  =  OCTAL;
                         if (CH == 'U') {
                             numFormat = FULLWORD;
@@ -1285,7 +1298,7 @@ var
                             error(20); /* errDigitGreaterThan7 */
                         }
                         curToken.i = (curToken.i << 3) |
-                            numstr[tokenIdx].i & [45..47];
+                            numstr[tokenIdx].i & 7;
                     }
                     exit lexer;
                 } /* octdec */
