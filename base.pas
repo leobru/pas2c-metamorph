@@ -134,15 +134,13 @@ type
 (*10B*) LBRACK,     MULOP,      ADDOP,      RELOP,
         RPAREN,     RBRACK,     COMMA,      SEMICOLON,
 (*20B*) PERIOD,     ARROW,      COLON,      BECOMES,
-        BEGINSY,    ENDSY,
-        CONSTSY,    TYPESY,     VARSY,
-(*32B*) FUNCSY,     VOIDSY,     ENUMSY,     PACKEDSY,
-        ARRAYSY,    STRUCTSY,   FILESY,
-(*41B*) IFSY,       SWITCHSY,   WHILESY,
-        FORSY,      WITHSY,     GOTOSY,
-(*47B*) ELSESY,     OFSY,       DOSY,
-(*52B*) EXTERNSY,  BREAKSY, CONTSY, CASESY, DEFAULTSY,
-        NOSY
+        BEGINSY,    ENDSY,      CONSTSY,    TYPESY,
+(*30B*) VARSY,      FUNCSY,     VOIDSY,     ENUMSY,
+        PACKEDSY,   ARRAYSY,    STRUCTSY,   FILESY,
+(*40B*) IFSY,       SWITCHSY,   WHILESY,    FORSY,
+        WITHSY,     GOTOSY,     ELSESY,     OFSY,
+(*50B*) DOSY,       EXTERNSY,   BREAKSY,    CONTSY,
+        CASESY,     DEFAULTSY,  NOSY
 );
 %
 idclass = (
@@ -3150,7 +3148,6 @@ function allocGlobalObject(l6arg1z: irptr): integer;
         };
     };
     numArgs.i := 0;
-(loop)
     while l5exp1z <> NIL do {
         l5exp2z := l5exp1z@.expr2;
         l5exp1z := l5exp1z@.expr1;
@@ -5995,45 +5992,22 @@ var
     structBranch := true;
     if (SY = IDENT) or not isGoto then {
         curLab := strLabList;
-        ii := 1;
         while (curLab <> NIL) do {
             with curLab@ do {
-                if (ident.m = []) then {
-                    ii := ii - 1;
-                } else {
-                    if (ident = curIdent) then {
-                        if (ii = 1) then {
-                            if (isGoto and (offset <> -1)) then {
-                                form1Insn(insnTemp[UJ] + offset);
-                                writeln(' goto ', offset oct);
-                            } else {
-                                formJump(curLab@.exitTarget);
-                                writeln(' formjump ', curLab@.exitTarget);
-                            };
-                        } else {
-                            form1Insn(getValueOrAllocSymtab(ii) +
-                                      (KVTM+I13));
-                            if (isGoto) then {
-                                form1Insn(KVTM+I10 + curLab@.offset);
-                            } else {
-                                jumpType := KVTM+I10;
-                                formJump(curLab@.exitTarget);
-                                jumpType := insnTemp[UJ];
-                            };
-                            form1Insn(getHelperProc(60) +
-                                      6437777713700000C); (* P/ZAM *)
-                        };
-                        exit
-                    }
+                if (ident = curIdent) then {
+                    if (isGoto and (offset <> -1)) then {
+                        form1Insn(insnTemp[UJ] + offset);
+                        writeln(' goto ', offset oct);
+                    } else {
+                        formJump(curLab@.exitTarget);
+                        writeln(' formjump ', curLab@.exitTarget);
+                    };
+                    exit
                 };
                 curLab := curLab@.next;
             }
         };
         if not isGoto and (SY <> IDENT) then {
-            if (ii <> 1) then {
-                form1Insn(getValueOrAllocSymtab(ii) + (KVTM+I13));
-                form1Insn(getHelperProc(60)); (* P/ZAM *)
-            };
             formJump(exitTarget);
         } else {
             error(errNotDefined);
@@ -8535,7 +8509,7 @@ procedure initOptions;
         6017434500000000C      (*"P/CE    "*),
         6017646200000000C      (*"P/TR    "*),
         6017546600000000C      (*"P/LV    "*),
-(*60*)  6017724155000000C      (*"P/ZAM  u"*),
+(*60*)  0000000000000000C      (*" unused "*),
         0000000000000000C      (*"P/PI obs"*),
         6017426000000000C      (*"P/BP    "*),
         6017422600000000C      (*"P/B6    "*),

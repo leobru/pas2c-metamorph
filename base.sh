@@ -17,7 +17,7 @@ cat << EOF >> tmp$$
 *end file
 EOF
 # The compilation must finish within 3 seconds
-ulimit -t 10
+ulimit -t 3
 rm -f base.o
 if [ "$1" = "-d" ]; then ln -f tmp$$ base.dub ; fi
 length=`dubna tmp$$ | tail -n +31 | tee base.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`

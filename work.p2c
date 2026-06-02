@@ -155,14 +155,13 @@ type
 /*10B*/ LBRACK,     MULOP,      ADDOP,      RELOP,
         RPAREN,     RBRACK,     COMMA,      SEMICOLON,
 /*20B*/ PERIOD,     ARROW,      COLON,      BECOMES,
-        BEGINSY,    ENDSY,
-        CONSTSY,    TYPESY,     VARSY,
-/*32B*/ FUNCSY,     VOIDSY,     ENUMSY,     PACKEDSY,
-        ARRAYSY,    STRUCTSY,   FILESY,
-/*41B*/ IFSY,       SWITCHSY,     WHILESY,
-        FORSY,      WITHSY,     GOTOSY,
-/*47B*/ ELSESY,     OFSY,       DOSY,
-/*52B*/ EXTERNSY,   CASESY,     DEFAULTSY,  NOSY
+        BEGINSY,    ENDSY,      CONSTSY,    TYPESY,
+/*31B*/ VARSY,      FUNCSY,     VOIDSY,     ENUMSY,
+        PACKEDSY,   ARRAYSY,    STRUCTSY,   FILESY,
+/*40B*/ IFSY,       SWITCHSY,   WHILESY,    FORSY,
+        WITHSY,     GOTOSY,     ELSESY,     OFSY,
+/*50B*/ DOSY,       EXTERNSY,   BREAKSY,    CONTSY,
+        CASESY,     DEFAULTSY,  NOSY
 };
 //
 idclass = enum {
@@ -1458,13 +1457,12 @@ var
                     } else {
                         curToken.i  =  FcstCnt;
                         tokenLen  =  6;
-                        (loop) {
+                        while (1) {
                             toFCST();
                             tokenLen  =  tokenLen + 6;
                             if (tokenIdx < tokenLen)
                                 exit lexer;
                             pck(localBuf[tokenLen], curVal.a);
-                            goto loop;
                         }
                     }
                 }
@@ -2116,7 +2114,7 @@ void addJumpInsn(opcode: int);
             }
 /* one word shorter
 (loop)      while (l4var3z >= 1) {
-                tempInsn  =  insnBuf[l4var3z] * [28:32];
+                tempInsn  =  insnBuf[l4var3z] & 03700000U;
                 if ((tempInsn != CUTC) && (tempInsn != CWTC))
                     exit loop;
                 l4var3z  =  l4var3z-1;
@@ -3061,7 +3059,6 @@ var
         }
     }
     numArgs  =  0;
-(loop)
     while (l5exp1z != NIL) {
         l5exp2z  =  l5exp1z->expr2;
         l5exp1z  =  l5exp1z->expr1;
@@ -5775,42 +5772,20 @@ var
     structBranch  =  true;
     if ((SY == IDENT) || ! isGoto) {
         curLab  =  strLabList;
-        ii  =  1;
         while (curLab != NIL) {
             with curLab@ do {
-                if (ident == 0U) {
-                    ii  =  ii - 1;
-                } else {
-                    if (ident == curIdent) {
-                        if (ii == 1) {
-                            if (isGoto) {
-                                form1Insn(KUJ + offset);
-                            } else {
-                                formJump(&curLab->exitTarget);
-                            }
-                        } else {
-                            form1Insn(getValueOrAllocSymtab(ii) +
-                                      (KVTM+I13));
-                            if (isGoto) {
-                                form1Insn(KVTM+I10 + curLab->offset);
-                            } else {
-                                jumpType  =  KVTM+I10;
-                                formJump(&curLab->exitTarget);
-                                jumpType  =  KUJ;
-                            }
-                            form1Insn(getHelperProc(60) + (-064100000)); /* P/ZAM */
-                        }
-                        exit;
+                if (ident == curIdent) {
+                    if (isGoto) {
+                        form1Insn(KUJ + offset);
+                    } else {
+                        formJump(&curLab->exitTarget);
                     }
+                    exit;
                 }
                 curLab  =  curLab->next;
             }
         }
         if (! isGoto && (SY != IDENT)) {
-            if (ii != 1) {
-                form1Insn(getValueOrAllocSymtab(ii) + (KVTM+I13));
-                form1Insn(getHelperProc(60)); /* P/ZAM */
-            }
             formJump(&exitTarget);
         } else {
             error(errNotDefined);
@@ -5839,7 +5814,6 @@ var
     expected: word;
     startLine, l4var17z, endOfStmt: int;
     minValue, maxValue: word;
-    jb8888: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* caseStatement */
@@ -5903,7 +5877,7 @@ var
                     }
                     inSymbol();
                 }
-                itemsEnded  =  (SY != COMMA);
+                itemsEnded  =  SY != COMMA;
                 if (! itemsEnded)
                     inSymbol();
             } while (! itemsEnded);
@@ -5912,7 +5886,7 @@ var
             goodMode  =  goodMode && (arithMode == 1);
             formJump(&endOfStmt);
         }
-        itemsEnded  =  (SY == ENDSY);
+        itemsEnded  =  SY == ENDSY;
         if (SY == SEMICOLON)
             inSymbol();
     } while (! itemsEnded);
@@ -5945,7 +5919,7 @@ var
                 P0715(0, l4var17z);
                 if (firstType->k == kindScalar)
                     itemSpan  =  firstType->numen;
-                itemsEnded  =  (itemSpan < 32000);
+                itemsEnded  =  itemSpan < 32000;
                 if (itemsEnded) {
                     form1Insn(KATI+14);
                 } else {
@@ -8005,6 +7979,8 @@ void initOptions;
         '      OF',
         '      DO',
         '  EXTERN',
+        '   BREAK',
+        'CONTINUE',
         '    CASE',
         ' DEFAULT';
 /*=A2*/
@@ -8178,7 +8154,7 @@ void initOptions;
         'P/CE    ',
         'P/TR    ',
         'P/LV    ',
-/*60*/  'P/ZAM  u',
+/*60*/  '        ',
         '        ', // was P/SS, not needed anymore
         'P/BP    ',
         'P/B6    ',
