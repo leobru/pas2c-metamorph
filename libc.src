@@ -127,3 +127,42 @@ C ONE WORD LONGER THAN ,CALL,P/CW BUT FASTER (AS IN THE ORIGINAL)
             1   , aax , 14b
             13  , uj  ,
                 , end ,
+ c/rc    :      , name,
+                , ntr , 3
+            12  , base, area
+                , atx , ret
+                , ita , 14
+                , atx , dest
+                , ita , 13
+                , atx , frame
+ *0003b  :      , ita , 7
+                , aex , frame
+                , uza , *0014b
+             7  , xta , 1
+                , aax , e30to16 . =77 7770 0000
+                , uza , *0011b
+                , asn , 64+15
+                , ati , 13
+            13  , utc ,
+            13  , vjm ,
+ *0011b  :  12  , vtm , area
+             7  , mtj , 15
+             7  , xta ,
+                , ati , 7
+                , uj  , *0003b
+ *0014b  :      , ita , 15
+             1  , a-x , 6
+                , uza , *0020b
+             1  , wtc , 6
+                , xta ,
+             1  , atx , 6
+                , uj  , *0014b
+ *0020b  :      , xta , ret
+                , wtc , dest
+                , uj  ,
+ area    :      , bss ,
+ dest    :      , log ,
+ frame   :      , log ,
+ ret     :      , log ,
+ e30to16 :      , log , 77 7770 0000
+                , end ,

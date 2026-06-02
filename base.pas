@@ -175,7 +175,7 @@ operator = (
 %
 opgen = (
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
-    SETREG9,  STOREAT9,  gen7,  SETREG12,  DFLTWDTH,
+    SETREG9,  STOREAT9,  DOIT,  SETREG12,  DFLTWDTH,
     FRACWIDTH, gen11, gen12, FILEACCESS, FILEINIT,
     BRANCH, PCKUNPCK, LITINSN
 );
@@ -2318,7 +2318,7 @@ procedure addInsnAndOffset(insn, l4arg2z: integer);
 }; (* addInsnAndOffset *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure addxToInsnList(insn: integer);
+procedure prependToInsnList(insn: integer);
 var
     elt: oiptr;
 {
@@ -2333,7 +2333,7 @@ var
         insnList@.tail := elt;
     };
     insnList@.head := elt;
-}; (* addxToInsnList *)
+}; (* prependToInsnList *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure prepLoad;
@@ -2547,7 +2547,7 @@ var
     l4bool4z := 0 in insnList@.regsused;
     addrState := insnList@.st;
     if (addrState <> st0) or l4bool4z then
-        addxToInsnList(macro + mcPUSH);
+        prependToInsnList(macro + mcPUSH);
     if (addrState = st0) then {
         if (l4bool4z) then {
             addInsnAndOffset(insnList@.payload.i + insnTemp[UTC],
@@ -2566,10 +2566,10 @@ var
             l4int3z := l4int2z + insnList@.width;
             if l4bool5z then {
                 if (l4int2z <> 0) then
-                    addxToInsnList(ASN64 - l4int2z);
+                    prependToInsnList(ASN64 - l4int2z);
             } else {
                 if (l4int3z <> 48) then
-                    addxToInsnList(ASN64 + 48 - l4int3z);
+                    prependToInsnList(ASN64 + 48 - l4int3z);
             };
             addInsnAndOffset(insnTemp[UTC] + insnList@.payload.i,
                              insnList@.disp);
@@ -2579,9 +2579,9 @@ var
             if not l4bool5z then {
                 l4int2z := (insnList@.width - l4int1z);
                 if (l4int2z <> 0) then
-                    addxToInsnList(ASN64 - l4int2z);
-                addxToInsnList(insnTemp[YTA]);
-                addxToInsnList(ASN64 - l4int1z);
+                    prependToInsnList(ASN64 - l4int2z);
+                prependToInsnList(insnTemp[YTA]);
+                prependToInsnList(ASN64 - l4int1z);
             };
             addToInsnList(getHelperProc(77)); (* "P/STAR" *)
             insnList@.tail@.mode := 1;
@@ -3241,7 +3241,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
             }
         };
         if not firstArg then
-            addxToInsnList(macro + mcPUSH);
+            prependToInsnList(macro + mcPUSH);
         firstArg := false;
         if (l5inl20z@.tail <> NIL) then {
             l5inl20z@.tail@.next := insnList@.head;
@@ -4116,7 +4116,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
         genFullExpr(curExpr);
     };
     case l3arg1z of
-    gen7: genOneOp;
+    DOIT: genOneOp;
     SETREG: {
         with insnList@ do {
             l3int3z := insnCount;
@@ -4195,13 +4195,13 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
     };
     FRACWIDTH: {
         prepLoad;
-        addxToInsnList(macro + mcPUSH);
+        prependToInsnList(macro + mcPUSH);
         genOneOp;
     };
     gen11, gen12: {
         setAddrTo(11);
         if (l3arg1z = gen12) then
-            addxToInsnList(macro + mcPUSH);
+            prependToInsnList(macro + mcPUSH);
         genOneOp;
         set145z := set145z + [12];
     };
@@ -5912,7 +5912,7 @@ var
     checkSymAndRead(LPAREN);
     if (SY <> SEMICOLON) then {
         assignStatement(true); (* eventually: expression *)
-        formOperator(gen7);
+        formOperator(DOIT);
     };
     checkSymAndRead(SEMICOLON);
     padToLeft;
@@ -5935,7 +5935,7 @@ var
     statement;
     if (loopExpr <> NIL) then {
         curExpr := loopExpr;
-        formOperator(gen7);
+        formOperator(DOIT);
     };
     formJump(toLoop);
     if (leave <> 0) then {
@@ -6543,7 +6543,7 @@ procedure P17037;
             l4exp6z@.expr1 := l4exp7z;
         };
         curExpr := l4exp6z;
-        formOperator(gen7);
+        formOperator(DOIT);
         callHelperWithArg;
     }
 }; (* P17037 *)
@@ -6973,7 +6973,7 @@ procedure setStrLab(forGoto: boolean);
                         goto 8888;
                     }
                 };
-                formOperator(gen7);
+                formOperator(DOIT);
                 checkSymAndRead(SEMICOLON);
             } else {
                 error(errNotDefined);

@@ -18,6 +18,7 @@ cat << EOF >> tmp$$
 *copy:0,000000,000000
 *libra:23
 *call dtran(program)
+*call setftn:one,long
 *assem
 *read:1
 *no lo
