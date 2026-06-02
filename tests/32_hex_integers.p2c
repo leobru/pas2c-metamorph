@@ -1,0 +1,27 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var i: int;
+{
+    i = 0X0;
+    writeln(' 0X0      = ', i:0);
+    i = 0XA;
+    writeln(' 0XA      = ', i:0);
+    i = 0XFF;
+    writeln(' 0XFF     = ', i:0);
+    i = 0X100;
+    writeln(' 0X100    = ', i:0);
+    i = 0XDEAD;
+    writeln(' 0XDEAD   = ', i:0);
+    i = 0XBEEF;
+    writeln(' 0XBEEF   = ', i:0);
+    i = 0XABCDEF;
+    writeln(' 0XABCDEF = ', i:0);
+    i = 0X10 + 0XF;
+    writeln(' 0X10+0XF = ', i:0);
+    i = 0XFF & 0X0F;
+    writeln(' 0XFF&0F  = ', i:0);
+    i = 0XFFFFFFFFFFFFU;
+    writeln(' 0XFFFFFFFFFFFFU  =', i oct);
+}
+.

@@ -1,0 +1,32 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var jb: int;
+var n: int;
+//
+void inner;
+{
+    writeln(' inner: about to longjmp');
+    longjmp(jb);
+    writeln(' inner: unreachable');
+}
+//
+void middle;
+{
+    writeln(' middle: calling inner');
+    inner();
+    writeln(' middle: unreachable');
+}
+//
+{
+    n = setjmp(jb);
+    writeln(' setjmp returned ', n:0);
+    if (n == 0) {
+        middle();
+        writeln(' main: unreachable');
+    } else {
+        writeln(' main: resumed via longjmp');
+    }
+    writeln(' done');
+}
+.
