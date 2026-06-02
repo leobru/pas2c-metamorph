@@ -32,7 +32,7 @@ EOF
 if [ "$1" = "-d" ]; then ln -f tmp$$ run.dub ; fi
 rm -f tmpsrc.bin
 ulimit -t 3
-dubna tmp$$ | tail -n +41 | tee runbase.lst
+dubna tmp$$ | sed 1,/METAMORPH/d | tee runbase.lst
 if [ $? -ne 0 ]; then
 echo '[1;31mFAILURE[22;39m'
 exit 1

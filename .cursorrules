@@ -6,3 +6,4 @@ Line length in base.pas must not exceed 80 characters.
 
 Output of test programs is all uppercase.
 The input language is case-insensitive.
+Do not increase time limits in shell scripts.

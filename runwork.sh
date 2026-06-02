@@ -21,13 +21,14 @@ cat << EOF >> tmp$$
 *call setftn:one,long
 *assem
 *read:1
+*libra:43
 *no lo
 *execute
 *end file
 EOF
 if [ "$1" = "-d" ]; then ln -f tmp$$ run.dub ; fi
 ulimit -t 3
-dubna tmp$$ | tee runwork.lst
+dubna tmp$$ | sed 1,/METAMORPH/d | tee runwork.lst
 if [ $? -ne 0 ]; then
 echo '[1;31mFAILURE[22;39m'
 exit 1
