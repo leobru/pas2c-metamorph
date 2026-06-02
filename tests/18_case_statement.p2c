@@ -5,9 +5,9 @@ var x: int;
 {
     for (x = 0; x < 5; x = x + 1)
     switch (x) {
-        1: writeln('One');
-        2: writeln('Two');
-        3: writeln('Three');
+        case 1: writeln('One');
+        case 2: writeln('Two');
+        case 3: writeln('Three');
     default:
         writeln('Other');
     }

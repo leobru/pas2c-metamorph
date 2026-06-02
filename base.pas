@@ -135,14 +135,14 @@ type
         RPAREN,     RBRACK,     COMMA,      SEMICOLON,
 (*20B*) PERIOD,     ARROW,      COLON,      BECOMES,
         BEGINSY,    ENDSY,
-        LABELSY,    CONSTSY,    TYPESY,     VARSY,
+        CONSTSY,    TYPESY,     VARSY,
 (*32B*) FUNCSY,     VOIDSY,     ENUMSY,     PACKEDSY,
         ARRAYSY,    STRUCTSY,   FILESY,
 (*41B*) IFSY,       SWITCHSY,   WHILESY,
         FORSY,      WITHSY,     GOTOSY,
 (*47B*) ELSESY,     OFSY,       DOSY,
-(*52B*) EXTERNSY,  BREAKSY, CONTSY, DEFAULTSY,
-                 ASSNOP, NOSY
+(*52B*) EXTERNSY,  BREAKSY, CONTSY, CASESY, DEFAULTSY,
+        NOSY
 );
 %
 idclass = (
@@ -223,7 +223,7 @@ ilmode = (ilCONST, il1, il2, il3);
 state = (st0, st1, st2);
 %
 insnltyp  = record
-    next, next2: oiptr;
+    tail, head: oiptr;
     typ: tptr;
     regsused: bitset;
     ilm: ilmode;
@@ -494,7 +494,7 @@ var
 %              PROGRAMME                 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure programme(var l2arg1z: integer; l2idr2z: irptr);
-label 22420, 22421, 23301;
+label 23301;
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
     isPredefined, done, inTypeDef: boolean;
@@ -2040,7 +2040,7 @@ procedure addJumpInsn(opcode: integer);
     if insnList = NIL
         then exit;
     set145z := set145z + insnList@.regsused;
-    l4oi212z := insnList@.next2;
+    l4oi212z := insnList@.head;
     l4var9z := 370007B;
     insnBufIdx := 1;
     if l4oi212z = NIL then
@@ -2304,11 +2304,11 @@ var elt: oiptr;
         offset := 0;
     };
     with insnList@ do {
-        if next = NIL then
-            next2 := elt
+        if tail = NIL then
+            head := elt
         else
-            next@.next := elt;
-        next := elt
+            tail@.next := elt;
+        tail := elt
     }
 }; (* addToInsnList *)
 %
@@ -2316,7 +2316,7 @@ var elt: oiptr;
 procedure addInsnAndOffset(insn, l4arg2z: integer);
 {
     addToInsnList(insn);
-    insnlist@.next@.offset := l4arg2z
+    insnlist@.tail@.offset := l4arg2z
 }; (* addInsnAndOffset *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2326,15 +2326,15 @@ var
 {
     new(elt);
     with elt@ do {
-        next := insnList@.next2;
+        next := insnList@.head;
         mode := 0;
         code := insn;
         offset := 0;
     };
-    if (insnList@.next2 = NIL) then {
-        insnList@.next := elt;
+    if (insnList@.head = NIL) then {
+        insnList@.tail := elt;
     };
-    insnList@.next2 := elt;
+    insnList@.head := elt;
 }; (* addxToInsnList *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2423,7 +2423,7 @@ var
                     else
                         helper := 56; (* P/RR *)
                     addToInsnList(getHelperProc(helper));
-                    insnList@.next@.mode := 1;
+                    insnList@.tail@.mode := 1;
                 }
             };
             goto 4545;
@@ -2502,12 +2502,12 @@ procedure P4613;
         } else if (l4int2z = 17) then {
             P4613;
             l4var4z := insnList@.disp;
-            l4var5z := insnList@.next@.code - insnTemp[UTC];
+            l4var5z := insnList@.tail@.code - insnTemp[UTC];
             if (l4var4z <> 0) then {
                 l4var1z.i := macro * l4var5z + l4var4z;
                 l4var5z := allocSymtab(l4var1z.m * [12:47]);
             };
-            insnList@.next@.code := regField + l4var5z + opCode;
+            insnList@.tail@.code := regField + l4var5z + opCode;
         } else if (l4int2z = 16) then {
             P4613;
             if (l4var4z <> 0) then
@@ -2586,7 +2586,7 @@ var
                 addxToInsnList(ASN64 - l4int1z);
             };
             addToInsnList(getHelperProc(77)); (* "P/STAR" *)
-            insnList@.next@.mode := 1;
+            insnList@.tail@.mode := 1;
         }
     }
 }; (* prepStore *)
@@ -2612,7 +2612,7 @@ var
     cur: oiptr;
 {
     cnt := 0;
-    cur := insnList@.next2;
+    cur := insnList@.head;
     while (cur <> NIL) do {
         cur := cur@.next;
         cnt := cnt + 1;
@@ -2665,7 +2665,7 @@ var
         } else {
             if (l5var1z.i = 17) then {
                 if (l5var2z.i = 0) then {
-                    insnList@.next@.code := insnList@.next@.code +
+                    insnList@.tail@.code := insnList@.tail@.code +
                                                 insnTemp[XTA];
                 } else
                     goto 5220;
@@ -2682,7 +2682,7 @@ var
         if (doPtrCheck) then {
             addToInsnList(KVTM+I14 + lineCnt);
             addToInsnList(getHelperProc(7)); (* "P/CA"*)
-            insnList@.next@.mode := 1;
+            insnList@.tail@.mode := 1;
         };
         addToInsnList(macro + mcACC2ADDR);
     };
@@ -2700,8 +2700,8 @@ procedure genHelper;
     prepLoad;
     addToInsnList(getHelperProc(nextInsn));
     insnList@.regsused := insnList@.regsused + saved@.regsused + [11:14];
-    saved@.next@.next := insnList@.next2;
-    insnList@.next2 := saved@.next2;
+    saved@.tail@.next := insnList@.head;
+    insnList@.head := saved@.head;
 }; (* genHelper *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2724,8 +2724,8 @@ var
         addToInsnList(KATI+12);
     };
     l5var2z@.regsused := insnList@.regsused + l5var2z@.regsused;
-    l5var2z@.next@.next := insnList@.next2;
-    l5var2z@.next := insnList@.next;
+    l5var2z@.tail@.next := insnList@.head;
+    l5var2z@.tail := insnList@.tail;
     insnList := l5var2z;
 }; (* prepMultiWord *)
 %
@@ -2788,9 +2788,9 @@ var
         insnList := l5var2z;
     };
     end; (* case *)
-    insnList@.next@.mode := 0;
-    saved@.next@.next := insnList@.next2;
-    insnList@.next2 := saved@.next2;
+    insnList@.tail@.mode := 0;
+    saved@.tail@.next := insnList@.head;
+    insnList@.head := saved@.head;
     insnList@.regsused := insnList@.regsused + [0];
 }; (* tryFlip *)
 %
@@ -2895,8 +2895,8 @@ var
             }
         };
         insnList@.regsused := l5var9z.m - [16];
-        l5ins8z@.next@.next := insnList@.next2;
-        insnList@.next2 := l5ins8z@.next2;
+        l5ins8z@.tail@.next := insnList@.head;
+        insnList@.head := l5ins8z@.head;
         insnList@.ilm := il3;
         insnList@.payload.i := l5var5z;
         forValue := true;
@@ -2979,7 +2979,7 @@ var
                     l5var4z := KYTA+64-40;
                 };
                 addToInsnList(insnCopy.typ@.perword);
-                insnList@.next@.mode := 1;
+                insnList@.tail@.mode := 1;
                 if (l5var7z >= 0) then
                     addToInsnList(l5var4z)
                 else
@@ -3000,8 +3000,8 @@ var
                         prepLoad;
                         curInsnTemplate := insnTemp[XTA];
                     };
-                    insnCopy.next := insnList@.next;
-                    insnCopy.next2 := insnList@.next2;
+                    insnCopy.tail := insnList@.tail;
+                    insnCopy.head := insnList@.head;
                 } else {
                     if (insnCopy.addrmd >= 15) then {
                         l5var1z :=  minel(l5var22z.m);
@@ -3026,8 +3026,8 @@ var
                     };
                     if (l5var1z IN insnList@.regsused) then {
                          P4606;
-                         insnList@.next@.next := insnCopy.next2;
-                         insnCopy.next2 := insnList@.next2;
+                         insnList@.tail@.next := insnCopy.head;
+                         insnCopy.head := insnList@.head;
                          insnList := copyPtr;
                          addInsnAndOffset(macro+mcADDSTK2REG, l5var1z);
                     } else {
@@ -3039,8 +3039,8 @@ var
                              curInsnTemplate := insnTemp[XTA];
                              addToInsnList(indexreg[l5var1z] + insnTemp[UTM]);
                          };
-                         insnCopy.next@.next := insnList@.next2;
-                         insnCopy.next := insnList@.next;
+                         insnCopy.tail@.next := insnList@.head;
+                         insnCopy.tail := insnList@.tail;
                      }
                 };
            } else {
@@ -3050,7 +3050,7 @@ var
                         curVal.i := 0 - l5var7z;
                         curVal.m := curVal.m - intZero;
                         addToInsnList(KADD+I8 + getFCSToffset);
-                        insnList@.next@.mode := 1;
+                        insnList@.tail@.mode := 1;
                     };
                     l5var24z := 0 in insnCopy.regsused;
                     if (l5var24z) then
@@ -3073,8 +3073,8 @@ var
                         helperNames[76] + curVal.m)+(KVTM+I11));
                     insnCopy.addrmd := 16;
                     insnCopy.shift := 0;
-                    saved@.next@.next := insnCopy.next2;
-                    insnCopy.next2 := saved@.next2;
+                    saved@.tail@.next := insnCopy.head;
+                    insnCopy.head := saved@.head;
                 } else {
                     error(errUsingVarAfterIndexingPackedArray);
                 }
@@ -3132,8 +3132,8 @@ function allocGlobalObject(l6arg1z: irptr): integer;
         frameSiz.i := frameSiz.i + 2;
     };
     new(insnList);
-    insnList@.next2 := NIL;
-    insnList@.next := NIL;
+    insnList@.head := NIL;
+    insnList@.tail := NIL;
     insnList@.typ := l5idr5z@.typ;
     insnList@.regsused := (l5idr5z@.flags + [7:15]) * [0:8, 10:15];
     insnList@.ilm := il2;
@@ -3160,8 +3160,8 @@ function allocGlobalObject(l6arg1z: irptr): integer;
         if (l5op21z = PCALL) or (l5op21z = FCALL) then {
             l5idr4z := l5exp2z@.id2;
             new(insnList);
-            insnList@.next2 := NIL;
-            insnList@.next := NIL;
+            insnList@.head := NIL;
+            insnList@.tail := NIL;
             insnList@.regsused := [];
             set145z := set145z + l5idr4z@.flags;
             if (l5idr4z@.list <> NIL) then {
@@ -3246,9 +3246,9 @@ function allocGlobalObject(l6arg1z: irptr): integer;
         if not firstArg then
             addxToInsnList(macro + mcPUSH);
         firstArg := false;
-        if (l5inl20z@.next <> NIL) then {
-            l5inl20z@.next@.next := insnList@.next2;
-            insnList@.next2 := l5inl20z@.next2;
+        if (l5inl20z@.tail <> NIL) then {
+            l5inl20z@.tail@.next := insnList@.head;
+            insnList@.head := l5inl20z@.head;
         };
         insnList@.regsused := insnList@.regsused + l5inl20z@.regsused;
         if not isDirect then {
@@ -3260,7 +3260,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
     }; (* while -> 7061 *)
     if isFortrn then {
         addToInsnList(KNTR+2);
-        insnList@.next@.mode := 4;
+        insnList@.tail@.mode := 4;
     };
     if isDirect then {
         addToInsnList(allocGlobalObject(l5idr5z) + (KVJM+I13));
@@ -3283,7 +3283,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
         addToInsnList(macro+18);
         l5var17z.i := 1;
     };
-    insnList@.next@.mode := 2;
+    insnList@.tail@.mode := 2;
     if (curProcNesting <> l5var17z.i) then {
         if not isFortrn then {
             if (l5var17z.i + 1 = curProcNesting) then {
@@ -3315,7 +3315,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
             addToInsnList(KNTR+7)
         else
             addToInsnList(getHelperProc(93));    (* "P/FM" *)
-        insnList@.next@.mode := 2;
+        insnList@.tail@.mode := 2;
     } else {
         if not isProc then
             addToInsnList(KXTA+SP + frameSiz.i - 1);
@@ -3333,8 +3333,8 @@ function allocGlobalObject(l6arg1z: irptr): integer;
 procedure startInsnList(l5arg1z: ilmode);
 {
     new(insnList);
-    insnList@.next := NIL;
-    insnList@.next2 := NIL;
+    insnList@.tail := NIL;
+    insnList@.head := NIL;
     insnList@.typ := exprToGen@.vt.typ;
     insnList@.regsused := [];
     insnList@.ilm := l5arg1z;
@@ -3452,10 +3452,10 @@ var
                 mode := 3;
 7514:           nextInsn := insnTemp[SUB];
                 tryFlip(false);
-                insnList@.next@.mode := mode;
+                insnList@.tail@.mode := mode;
                 if mode = 3 then {
                     addToInsnList(KNTR+23B);
-                    insnList@.next@.mode := 2;
+                    insnList@.tail@.mode := 2;
                 };
                 goto 7504;
             };
@@ -3598,10 +3598,10 @@ var
     (* Concatenate the three sub-chains head-to-tail in evaluation order:
        cond -> then -> else. After this, condChain is the single chain
        that represents the complete deferred ternary computation. *)
-    condChain@.next@.next := thenChain@.next2;
-    condChain@.next := thenChain@.next;
-    condChain@.next@.next := insnList@.next2;
-    condChain@.next := insnList@.next;
+    condChain@.tail@.next := thenChain@.head;
+    condChain@.tail := thenChain@.tail;
+    condChain@.tail@.next := insnList@.head;
+    condChain@.tail := insnList@.tail;
 
     (* Union the regsused sets of all three sub-chains so the surrounding
        expression sees the full set of registers/conditions that the
@@ -3734,7 +3734,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                         } else {
                             addToInsnList(macro + mcPUSH);
                             genConstDiv;
-                            insnList@.next@.mode := 1;
+                            insnList@.tail@.mode := 1;
                             curVal.m := arg2Val.m - [1, 3];
                             addToInsnList(KMUL+I8 + getFCSToffset);
                             addToInsnList(KYTA+64);
@@ -3762,7 +3762,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                         addToInsnList(KAEX+E48);
                     };
                     tryFlip(true);
-                    insnList@.next@.mode := 1;
+                    insnList@.tail@.mode := 1;
                     if (fixMult) then
                         addToInsnList(macro + mcMULTI)
                     else
@@ -3789,7 +3789,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     }
                 }
                 end; (* case 10122 *)
-10122:          insnList@.next@.mode := l3int3z;
+10122:          insnList@.tail@.mode := l3int3z;
             }
         }
     } else {
@@ -3798,8 +3798,8 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 new(insnList);
                 curIdRec := exprToGen@.id1;
                 with insnList@ do {
-                    next := NIL;
-                    next2 := NIL;
+                    tail := NIL;
+                    head := NIL;
                     regsused := [];
                     ilm := il1;
                     payload.i := curIdRec@.offset;
@@ -3947,8 +3947,8 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 P0715(0, sjDone);
                 new(insnList);
                 with insnList@ do {
-                    next := NIL;
-                    next2 := NIL;
+                    tail := NIL;
+                    head := NIL;
                     typ := integerType;
                     regsused := [0];
                     ilm := il2;
@@ -4027,8 +4027,8 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     new(insnList);
                     with insnList@ do {
                         typ := exprToGen@.expr2@.vt.typ;
-                        next := NIL;
-                        next2 := ;
+                        tail := NIL;
+                        head := ;
                         regsused := [];
                         ilm := il1;
                         addrmd := 18;
@@ -6096,6 +6096,7 @@ var
                 otherSeen := true;
                 otherOffset := moduleOffset;
             } else  repeat
+                checkSymAndRead(CASESY);
                 parseLiteral(itemtype, itemvalue, true);
                 if (itemtype <> NIL) then {
                     if (firstType = NIL) then {
@@ -7722,22 +7723,6 @@ procedure exitScope(var arg: hashArray);
     lineNesting := lineNesting + 1;
     labFence := numLabTop;
     repeat
-    if (SY = LABELSY) then {
-
-        repeat
-            inSymbol;
-            if (SY <> INTCONST) then {
-                requiredSymErr(INTCONST);
-                goto 22421;
-            };
-            labCheckAndDefine(labFence, 1);
-22420:      inSymbol;
-22421:      if not (SY IN [COMMA,SEMICOLON]) then
-                errAndSkip(1, skipToSet + [COMMA,SEMICOLON]);
-        until SY <> COMMA;
-        if SY = SEMICOLON then
-            inSymbol;
-    };
     if (SY = CONSTSY) then {
         parseDecls(0);
         while  (SY = IDENT) do {
@@ -8200,7 +8185,7 @@ var
     SY := RELOP;
     charClass := INOP;
     regResWord(5156C(*"      IN"*));
-    SY := LABELSY;
+    SY := CONSTSY;
     charClass := NOOP;
     for idx := 0 to 25 do
         regResWord(resWordName[idx]);
@@ -8338,7 +8323,7 @@ procedure initOptions;
     frameRegTemplate := 04000000B;
     constRegTemplate := I8;
     disNormTemplate :=  KNTR+7;
-    blockBegSys := [LABELSY, CONSTSY, TYPESY, VARSY, FUNCSY, VOIDSY, BEGINSY];
+    blockBegSys := [CONSTSY, TYPESY, VARSY, FUNCSY, VOIDSY, BEGINSY];
     statBegSys :=  [BEGINSY, IFSY, SWITCHSY, DOSY, WHILESY, FORSY, WITHSY,
                     GOTOSY];
     O77777 := [33:47];
@@ -8353,7 +8338,6 @@ procedure initOptions;
     fieldHash := NIL:128;
     kwordHash := NIL:128;
     resWordName :=
-        5441424554C             (*"   LABEL"*),
         4357566364C             (*"   CONST"*),
         64716045C               (*"    TYPE"*),
         664162C                 (*"     VAR"*),
@@ -8376,6 +8360,7 @@ procedure initOptions;
         457064456256C           (*"  EXTERN"*),
         4262454153C             (*"   BREAK"*),
         4357566451566545C       (*"CONTINUE"*),
+        43416345C               (*"    CASE"*),
         44454641655464C         (*" DEFAULT"*);
 %
     charSym := NOSY:128;

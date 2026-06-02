@@ -67,7 +67,7 @@ Then the new instruction-list buffer is allocated:
 
 ```pascal
     new(insnList);
-    insnList@.next2 := NIL;
+    insnList@.head := NIL;
     insnList@.next := NIL;
     insnList@.typ := l5idr5z@.typ;
     insnList@.regsused := (l5idr5z@.flags + [7:15]) * [0:8, 10:15];
@@ -137,7 +137,7 @@ normal **value/lvalue expression**.
 ```pascal
             l5idr4z := l5exp2z@.id2;
             new(insnList);
-            insnList@.next2 := NIL;
+            insnList@.head := NIL;
             insnList@.next := NIL;
             insnList@.regsused := [];
             set145z := set145z + l5idr4z@.flags;
@@ -282,8 +282,8 @@ For a direct call, if the actual would be passed as a reference (`FORMALID`)
             addxToInsnList(macro + mcPUSH);
         l5bool8z := false;
         if (l5inl20z@.next <> NIL) then {
-            l5inl20z@.next@.next := insnList@.next2;
-            insnList@.next2 := l5inl20z@.next2;
+            l5inl20z@.next@.next := insnList@.head;
+            insnList@.head := l5inl20z@.head;
         };
         insnList@.regsused := insnList@.regsused + l5inl20z@.regsused;
         if not l5bool9z then {

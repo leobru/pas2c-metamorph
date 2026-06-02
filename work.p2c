@@ -156,13 +156,13 @@ type
         RPAREN,     RBRACK,     COMMA,      SEMICOLON,
 /*20B*/ PERIOD,     ARROW,      COLON,      BECOMES,
         BEGINSY,    ENDSY,
-        LABELSY,    CONSTSY,    TYPESY,     VARSY,
+        CONSTSY,    TYPESY,     VARSY,
 /*32B*/ FUNCSY,     VOIDSY,     ENUMSY,     PACKEDSY,
         ARRAYSY,    STRUCTSY,   FILESY,
 /*41B*/ IFSY,       SWITCHSY,     WHILESY,
         FORSY,      WITHSY,     GOTOSY,
 /*47B*/ ELSESY,     OFSY,       DOSY,
-/*52B*/ EXTERNSY,  DEFAULTSY,  NOSY
+/*52B*/ EXTERNSY,   CASESY,     DEFAULTSY,  NOSY
 };
 //
 idclass = enum {
@@ -234,7 +234,7 @@ assoc = enum {
 };
 //
 insnltyp  = struct {
-    next, next2: oiptr;
+    next, head: oiptr;
     typ: tptr;
     regsused: int;
     ilm: ilmode;
@@ -1092,27 +1092,27 @@ void readOptFlag(res: @int);
         nextCH();
         badOpt  =  true;
         switch (CH) {
-        'D': {
+        case 'D': {
             curVal.i = readOptVal(15);
             optSflags  =  optSflags & [0..40] | curVal.i & [41..47];
         }
-        'Y': readOptFlag(&allowCompat);
-        'E': readOptFlag(&declExternal);
-        'S': {
+        case 'Y': readOptFlag(&allowCompat);
+        case 'E': readOptFlag(&declExternal);
+        case 'S': {
             curVal.i = readOptVal(8);
             if (curVal.i == 3)  lineCnt  =  1;
             else if (curVal.i in [4..8])
                 optSflags  =  optSflags | (E48 >> (curVal.i - 3));
         }
-        'F': readOptFlag(&checkFortran);
-        'L': PASINFOR.listMode = readOptVal(3);
-        'P': readOptFlag(&doPMD);
-        'T': readOptFlag(&checkBounds);
-        'A': charEncoding = readOptVal(3);
-        'C': readOptFlag(&checkTypes);
-        'M': readOptFlag(&fixMult);
-        'B': fileBufSize = readOptVal(4);
-        'K': heapSize = readOptVal(23);
+        case 'F': readOptFlag(&checkFortran);
+        case 'L': PASINFOR.listMode = readOptVal(3);
+        case 'P': readOptFlag(&doPMD);
+        case 'T': readOptFlag(&checkBounds);
+        case 'A': charEncoding = readOptVal(3);
+        case 'C': readOptFlag(&checkTypes);
+        case 'M': readOptFlag(&fixMult);
+        case 'B': fileBufSize = readOptVal(4);
+        case 'K': heapSize = readOptVal(23);
         }
         if (badOpt) {
             error(54); /* errErrorInPseudoComment */
@@ -1155,7 +1155,7 @@ var
             longjmp(jb9999);
         }
 1473:
-        while ((CH == ' ') && !atEOL)
+        while (CH == ' ' && !atEOL)
             nextCH();
         if (atEOL) {
             endOfLine();
@@ -1168,7 +1168,7 @@ var
 (lexer)
         if (SY != NOSY) {
             switch (SY) {
-            IDENT: {
+            case IDENT: {
 1:              curToken.i  = 0U;
                 tokenLen  =  1;
                 do {
@@ -1194,7 +1194,7 @@ var
                 isDefined  =  false;
                 SY  =  IDENT;
                 switch (int93z) {
-                0: {
+                case 0: {
                     hashTravPtr  =  symHash[bucket];
                     while (hashTravPtr != NIL) {
                         if (hashTravPtr->offset == curFrameRegTemplate)
@@ -1209,7 +1209,7 @@ var
                             exit lexer;
                     }
                 }
-                1: {
+                case 1: {
 2:                  hashTravPtr  =  symHash[bucket];
                     while (hashTravPtr != NIL) {
                         if (hashTravPtr->id != curIdent)
@@ -1218,7 +1218,7 @@ var
                             exit lexer;
                     }
                 }
-                2: {
+                case 2: {
                     if (expr63z == NIL)
                         goto 2;
                     expr62z  =  expr63z;
@@ -1238,7 +1238,7 @@ var
                     }
                     goto 2;
                 }
-                3: {
+                case 3: {
                     hashTravPtr  =  fieldHash[bucket];
                     while (hashTravPtr != NIL) {
                         with hashTravPtr@ do {
@@ -1251,7 +1251,7 @@ var
                 }
                 }
             } /* IDENT */
-            INTCONST: { /*=m-*/
+            case INTCONST: { /*=m-*/
                 SY  =  INTCONST;
                 tokenLen  =  -1;
                 do {
@@ -1383,7 +1383,7 @@ var
                 }
                 exit lexer;
             } /* INTCONST */ /*=m+*/
-            CHARCONST: {
+            case CHARCONST: {
 (loop)          {
                     for (tokenIdx = 6;
                          tokenIdx <= 130; tokenIdx=tokenIdx+1) {
@@ -1450,7 +1450,7 @@ var
                     curVal  = ;
                     if (strLen <= 6)
                         exit lexer;
-                    else if ((charEncoding == 3) && (strLen == 8)) {
+                    else if (charEncoding == 3 && strLen == 8) {
                         pack(localbuf, 6, curToken.t);
                         curVal = ;
                         SY = INTCONST;
@@ -1469,55 +1469,55 @@ var
                     }
                 }
             } /* CHARCONST */
-            LTSY: {
+            case LTSY: {
                 SY  =  RELOP;
                 nextCH();
                 switch (CH) {
-                '=': {
+                case '=': {
                     charClass = LEOP;
                     nextCH();
                 }
-                '<': {
+                case '<': {
                     SY = MULOP;
                     charClass = SHLEFT;
                     nextCH();
                 }
-                ':': {
+                case ':': {
                     SY = BEGINSY;
                     nextCH();
                 }
                 }
             } /* LTOP */
-            GTSY: {
+            case GTSY: {
                 SY  =  RELOP;
                 nextCH();
                 switch (CH) {
-                '>': {
+                case '>': {
                     SY = MULOP;
                     charClass = SHRIGHT;
                     nextCH();
                 }
-                '=':  {
+                case '=':  {
                     charClass  =  GEOP;
                     nextCH();
                 }
                 }
             } /* GTOP */
-            BECOMES: {
+            case BECOMES: {
                 nextCH();
                 if (CH == '=') {
                     nextCH();
                     SY = RELOP;
                 }
             }
-            COLON: {
+            case COLON: {
                 nextCH();
                 if (CH == '>') {
                     SY = ENDSY;
                     nextCH();
                 }
             }
-            NOTSY: {
+            case NOTSY: {
                 if (charClass == NEOP) {
                     nextCH();
                     if (CH == '=') {
@@ -1527,7 +1527,7 @@ var
                 } else
                     nextCH();
             }
-            ADDOP: {
+            case ADDOP: {
                 if (charClass == OROP) {
                     nextCH();
                     if (CH == '|') nextCH();
@@ -1538,7 +1538,7 @@ var
                 } else
                     nextCH();
             }
-            MULOP: {
+            case MULOP: {
                if (charClass == ANDOP) {
                    nextCH();
                    if (CH == '&') nextCH();
@@ -1546,11 +1546,11 @@ var
                } else if (charClass == RDIVOP) {
                    nextCH();
                    switch (CH) {
-                   '*': {
+                   case '*': {
                        parseComment();
                        goto 1473;
                    }
-                   '/': {
+                   case '/': {
                        while (!atEOL) nextCH();
                        goto 1473;
                    }
@@ -1558,11 +1558,11 @@ var
                } else
                    nextCH();
             }
-            LPAREN, LBRACK, RELOP, RPAREN, RBRACK,
-            COMMA, SEMICOLON, ARROW: {
+            case LPAREN, case LBRACK, case RELOP, case RPAREN, case RBRACK,
+            case COMMA, case SEMICOLON, case ARROW: {
                 nextCH();
             }
-            PERIOD: {
+            case PERIOD: {
                 nextCH();
                 if (CH == '.') {
                     nextCH();
@@ -1675,19 +1675,19 @@ var
         }
     } else
         switch (SY) {
-        IDENT: {
+        case IDENT: {
             if (hashTravPtr == NIL || hashTravPtr->cl != ENUMID)
                 goto 99;
             ret  =  hashTravPtr->typ;
             litValue@  =  hashTravPtr->value;
         }
-        INTCONST:
+        case INTCONST:
             ret  =  intType;
-        REALCONST:
+        case REALCONST:
             ret  =  realType;
-        CHARCONST:
+        case CHARCONST:
             ret  =  charType;
-        LTSY:
+        case LTSY:
             ret = makeStringType();
         }; /* switch */
     parseLiteral = ret;
@@ -1841,9 +1841,9 @@ var
             kind2  =  type2->k;
             if (kind1 == kind2) {
                 switch (kind1) {
-                kindReal:
+                case kindReal:
                     /* empty */;
-                kindScalar: {
+                case kindScalar: {
 (chain)             if (type1->numen == type2->numen) {
                         enums1  =  type1->enums;
                         enums2  =  type2->enums;
@@ -1862,12 +1862,12 @@ var
                        goto 1;
                     }
                 }
-                kindPtr: {
+                case kindPtr: {
                     if (type1 == voidPtr || type2 == voidPtr ||
                         typeCheck(type1->base, type2->base))
                         goto 1;
                 }
-                kindArray: {
+                case kindArray: {
                     span1  =  type1->aright - type1->aleft;
                     span2  =  type2->aright - type2->aleft;
                     if (typeCheck(type1->base, type2->base) &&
@@ -1881,7 +1881,7 @@ var
                             goto 1;
                     }
                 }
-                kindFile: {
+                case kindFile: {
                     if (typeCheck(type1->base, type2->base))
                         goto 1;
                 }
@@ -1968,7 +1968,7 @@ void addJumpInsn(opcode: int);
     if (insnList == NIL)
          exit;
     set145z  =  set145z | insnList->regsused;
-    l4oi212z  =  insnList->next2;
+    l4oi212z  =  insnList->head;
     l4var9z  =  KNTR+7;
     insnBufIdx  =  1;
     if (l4oi212z == NIL)
@@ -1979,28 +1979,28 @@ void addJumpInsn(opcode: int);
         l4var4z  =  tempInsn -  macro;
         curInsn  =  l4oi212z->offset;
         switch (l4oi212z->mode) {
-         0: ;
-         1: if (arithMode != 1) {
+         case 0: ;
+         case 1: if (arithMode != 1) {
                 addInsnToBuf(KNTR+7);
                 arithMode  =  1;
             }
-         2: arithMode  =  1;
-         3: if (arithMode != 2) {
+         case 2: arithMode  =  1;
+         case 3: if (arithMode != 2) {
                 addInsnToBuf(KNTR);
                 arithMode  =  2;
             }
-         4: arithMode  =  2;
+         case 4: arithMode  =  2;
         } /* switch */
         l4oi212z  =  l4oi212z->next;
         if (l4var4z >= 0) {
             switch (l4var4z) {
-            mcCARD: {
+            case mcCARD: {
                 addInsnToBuf(KACX);
             }
-            21: goto 3556;
-            0:  addJumpInsn(KUZA);
-            1:  addJumpInsn(KU1A);
-            2: {
+            case 21: goto 3556;
+            case 0:  addJumpInsn(KUZA);
+            case 1:  addJumpInsn(KU1A);
+            case 2: {
                 tempInsn  =  curInsn % 4096;
                 curInsn  =  curInsn / 4096;
                 addJumpInsn(KUJ);
@@ -2010,7 +2010,7 @@ void addJumpInsn(opcode: int);
                 else
                     error(206);
             }
-            3: {
+            case 3: {
                  tempInsn  =  curInsn % 4096;
                  curInsn  =  curInsn / 4096;
                  l4var213z  =   F3413();
@@ -2025,14 +2025,14 @@ void addJumpInsn(opcode: int);
                 else
                     error(207);
             }
-            mcCOND2INT: addInsnToBuf(3*macro + curInsn);
-            mcPOP: {
+            case mcCOND2INT: addInsnToBuf(3*macro + curInsn);
+            case mcPOP: {
                 if ((insnBuf[insnBufIdx-1] & [21:23, 28:35]) == 0U)
                     insnBuf[insnBufIdx-1]  =  insnBuf[insnBufIdx-1] | [35];
                 else
                     addInsnToBuf(KXTA+SP);
             }
-            mcPUSH:
+            case mcPUSH:
 (blk)       {
                 if (l4oi212z != NIL) {
                     tempInsn  =  l4oi212z->code;
@@ -2044,34 +2044,34 @@ void addJumpInsn(opcode: int);
                 }
                 addInsnToBuf(KATX+SP);
             }
-            mcACC2ADDR:  add2InsnsToBuf(KATI+14, KUTC+I14);
-            mcMULTI: {
+            case mcACC2ADDR:  add2InsnsToBuf(KATI+14, KUTC+I14);
+            case mcMULTI: {
                 addInsnToBuf(getHelperProc(12));        /* P/MI */
             }
-            mcADDSTK2REG:  add2InsnsToBuf(KWTC+SP, KUTM+
+            case mcADDSTK2REG:  add2InsnsToBuf(KWTC+SP, KUTM+
                                indexreg[curInsn]);
-            mcADDACC2REG:  add2InsnsToBuf(KATI+14, KJADDM+I14 + curInsn);
-            mcROUND: {
+            case mcADDACC2REG:  add2InsnsToBuf(KATI+14, KJADDM+I14 + curInsn);
+            case mcROUND: {
                 addInsnToBuf(KADD+REAL05);                /* round */
                 add2InsnsToBuf(KNTR+7, KADD+ZERO);
             }
-            14: { add2InsnsToBuf(indexreg[curInsn] + KVTM,
+            case 14: { add2InsnsToBuf(indexreg[curInsn] + KVTM,
                                KITA + curInsn);
             }
-            mcMINEL: {
+            case mcMINEL: {
                 add2InsnsToBuf(KANX, KSUB+E1);
             }
-            16: add2InsnsToBuf(KXTA, KATX+SP + curInsn);
-            17: {
+            case 16: add2InsnsToBuf(KXTA, KATX+SP + curInsn);
+            case 17: {
                 addInsnToBuf(KXTS);
                 add2InsnsToBuf(KATX+SP+1, KUTM+SP + curInsn);
             }
-            18: add2InsnsToBuf(KVTM+I10, getHelperProc(65)); /* P/B7 */
-            mcPOP2ADDR: {
+            case 18: add2InsnsToBuf(KVTM+I10, getHelperProc(65)); /* P/B7 */
+            case mcPOP2ADDR: {
                 addInsnToBuf(KVTM+I14);
                 add2InsnsToBuf(KXTA+SP, KATX+I14);
             }
-            mcPCKSTORE: {
+            case mcPCKSTORE: {
                 add2InsnsToBuf(KVTM+I14, KXTA+I14);
                 curVal.i  =  040077777U;
                 add2InsnsToBuf(allocSymtab(curVal.i) + (KXTS+SP),
@@ -2232,7 +2232,7 @@ var elt: oiptr;
     }
     with insnList@ do {
         if (next == NIL)
-            next2  =  elt;
+            head  =  elt;
         else
             next->next  =  elt;
         next  =  elt;
@@ -2253,15 +2253,15 @@ var
 {
     new(elt);
     with elt@ do {
-        next  =  insnList->next2;
+        next  =  insnList->head;
         mode  =  0;
         code  =  insn;
         offset  =  0;
     }
-    if (insnList->next2 == NIL) {
+    if (insnList->head == NIL) {
         insnList->next  =  elt;
     }
-    insnList->next2  =  elt;
+    insnList->head  =  elt;
 } /* addxToInsnList */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2276,13 +2276,13 @@ var
     valueType  =  insnList->typ;
     with insnList@ do {
         switch (ilm) {
-        ilCONST: {
+        case ilCONST: {
             curVal.i  =  payload;
             if (valueType->size == 1)
                 curVal.i  =  getFCSToffset();
             addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
         }
-        il1: {
+        case il1: {
             helper  =  insnList->addrmd;
             l4int2z  =  insnList->payload;
             l4int3z  =  insnList->disp;
@@ -2351,12 +2351,12 @@ var
             }
             goto 4545;
         }
-        il2: {
+        case il2: {
 4545:       if (forValue && (valueType == boolType) &&
                (16 in insnList->regsused))
                 addToInsnList(KAEX+E1);
         }
-        il3: {
+        case il3: {
             if (forValue)
                 addInsnAndOffset(macro+mcCOND2INT,
                     (16 IN insnList->regsused)*010000 + insnList->payload);
@@ -2534,7 +2534,7 @@ var
     cur: oiptr;
 {
     cnt  =  0;
-    cur  =  insnList->next2;
+    cur  =  insnList->head;
     while (cur != NIL) {
         cur  =  cur->next;
         cnt  =  cnt + 1;
@@ -2617,8 +2617,8 @@ void genHelper;
     prepLoad();
     addToInsnList(getHelperProc(nextInsn));
     insnList->regsused  =  insnList->regsused | saved->regsused | [11:14];
-    saved->next->next  =  insnList->next2;
-    insnList->next2  =  saved->next2;
+    saved->next->next  =  insnList->head;
+    insnList->head  =  saved->head;
 } /* genHelper */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2641,7 +2641,7 @@ var
         addToInsnList(KATI+12);
     }
     l5var2z->regsused  =  insnList->regsused | l5var2z->regsused;
-    l5var2z->next->next  =  insnList->next2;
+    l5var2z->next->next  =  insnList->head;
     l5var2z->next  =  insnList->next;
     insnList  =  l5var2z;
 } /* prepMultiWord */
@@ -2670,7 +2670,7 @@ var
         l5var1z  =  3;
     }
     switch (l5var1z) {
-    0:
+    case 0:
 100: {
         prepLoad();
         saved  =  insnList;
@@ -2679,20 +2679,20 @@ var
         prepLoad();
         curInsnTemplate  =  KXTA;
     }
-    1:
+    case 1:
         if (nextInsn == KSUB) {
             nextInsn  =  KRSUB;
             goto 22;
         } else
             goto 33;
-   2:
+   case 2:
 22: {
         saved  =  insnList;
         insnList  =  otherIns;
         otherIns  =  saved;
         goto 100;
     }
-    3:
+    case 3:
 33: {
         prepLoad();
         addToInsnList(indexreg[15] + nextInsn);
@@ -2704,8 +2704,8 @@ var
     }
     } /* switch */
     insnList->next->mode  =  0;
-    saved->next->next  =  insnList->next2;
-    insnList->next2  =  saved->next2;
+    saved->next->next  =  insnList->head;
+    insnList->head  =  saved->head;
     insnList->regsused  =  insnList->regsused | E48;
 } /* tryFlip */
 //
@@ -2810,8 +2810,8 @@ var
             }
         }
         insnList->regsused  =  l5var9z & (~[16]);
-        l5ins8z->next->next  =  insnList->next2;
-        insnList->next2  =  l5ins8z->next2;
+        l5ins8z->next->next  =  insnList->head;
+        insnList->head  =  l5ins8z->head;
         insnList->ilm  =  il3;
         insnList->payload  =  l5var5z;
         forValue  =  true;
@@ -2873,10 +2873,10 @@ var
                 l5var6z  =  (l5var5z-1-l5var4z % l5var5z) *
                            insnCopy.typ->pcksize;
                 switch (insnCopy.st) {
-                st0: insnCopy.shift  =  l5var6z;
-                st1: insnCopy.shift  =  insnCopy.shift + l5var6z +
+                case st0: insnCopy.shift  =  l5var6z;
+                case st1: insnCopy.shift  =  insnCopy.shift + l5var6z +
                                            insnCopy.typ->bits - 48;
-                st2: error(errUsingVarAfterIndexingPackedArray);
+                case st2: error(errUsingVarAfterIndexingPackedArray);
                 } /* switch */
                 insnCopy.width  =  insnCopy.typ->pcksize;
                 insnCopy.st  =  st1;
@@ -2915,7 +2915,7 @@ var
                         curInsnTemplate  =  KXTA;
                     }
                     insnCopy.next  =  insnList->next;
-                    insnCopy.next2  =  insnList->next2;
+                    insnCopy.head  =  insnList->head;
                 } else {
                     if (insnCopy.addrmd >= 15) {
                         l5var1z  =   minel(l5var22z);
@@ -2940,8 +2940,8 @@ var
                     }
                     if (l5var1z IN insnList->regsused) {
                          push();
-                         insnList->next->next  =  insnCopy.next2;
-                         insnCopy.next2  =  insnList->next2;
+                         insnList->next->next  =  insnCopy.head;
+                         insnCopy.head  =  insnList->head;
                          insnList  =  copyPtr;
                          addInsnAndOffset(macro+mcADDSTK2REG, l5var1z);
                     } else {
@@ -2953,7 +2953,7 @@ var
                              curInsnTemplate  =  KXTA;
                              addToInsnList(indexreg[l5var1z] + KUTM);
                          }
-                         insnCopy.next->next  =  insnList->next2;
+                         insnCopy.next->next  =  insnList->head;
                          insnCopy.next  =  insnList->next;
                      }
                 }
@@ -2986,8 +2986,8 @@ var
                         helperNames[76] | curVal.i)+(KVTM+I11));
                     insnCopy.addrmd  =  16;
                     insnCopy.shift  =  0;
-                    saved->next->next  =  insnCopy.next2;
-                    insnCopy.next2  =  saved->next2;
+                    saved->next->next  =  insnCopy.head;
+                    insnCopy.head  =  saved->head;
                 } else {
                     error(errUsingVarAfterIndexingPackedArray);
                 }
@@ -3030,12 +3030,12 @@ var
 { /* genEntry */
     l5exp1z  =  exprToGen->expr1;
     l5idr5z  =  exprToGen->id2;
-    isProc  =  (l5idr5z->typ == NIL);
-    isDirect  =  (l5idr5z->list == NIL);
+    isProc  =  l5idr5z->typ == NIL;
+    isDirect  =  l5idr5z->list == NIL;
     frameSiz  =  isProc ? 3 : 4;
     calleeFl  =  l5idr5z->flags;
-    isFortrn  =  (21 in calleeFl);
-    allByRef  =  (24 in calleeFl);
+    isFortrn  =  21 in calleeFl;
+    allByRef  =  24 in calleeFl;
     if (isDirect) {
         numArgs  =  argCount(l5idr5z);
         curForml  =  l5idr5z->argList;
@@ -3043,7 +3043,7 @@ var
         frameSiz  =  frameSiz + 2;
     }
     new(insnList);
-    insnList->next2  =  NIL;
+    insnList->head  =  NIL;
     insnList->next  =  NIL;
     insnList->typ  =  l5idr5z->typ;
     insnList->regsused  =  (l5idr5z->flags | [7:15]) & [0:8, 10:15];
@@ -3071,7 +3071,7 @@ var
         if ((l5op21z == PCALL) || (l5op21z == FCALL)) {
             l5idr4z  =  l5exp2z->id2;
             new(insnList);
-            insnList->next2  =  NIL;
+            insnList->head  =  NIL;
             insnList->next  =  NIL;
             insnList->regsused  =  0U;
             set145z  =  set145z | l5idr4z->flags;
@@ -3154,8 +3154,8 @@ var
             addxToInsnList(macro + mcPUSH);
         firstArg  =  false;
         if (l5inl20z->next != NIL) {
-            l5inl20z->next->next  =  insnList->next2;
-            insnList->next2  =  l5inl20z->next2;
+            l5inl20z->next->next  =  insnList->head;
+            insnList->head  =  l5inl20z->head;
         }
         insnList->regsused  =  insnList->regsused | l5inl20z->regsused;
         if (! isDirect) {
@@ -3236,7 +3236,7 @@ void startInsnList(l5arg1z: ilmode);
 {
     new(insnList);
     insnList->next  =  NIL;
-    insnList->next2  =  NIL;
+    insnList->head  =  NIL;
     insnList->typ  =  exprToGen->typ;
     insnList->regsused  =  0U;
     insnList->ilm  =  l5arg1z;
@@ -3347,7 +3347,7 @@ var
             insnList->payload  =  0;
         } else {
             switch (work) {
-            1: {
+            case 1: {
                 mode  =  3;
 7514:           nextInsn  =  KSUB;
                 tryFlip(false);
@@ -3358,11 +3358,11 @@ var
                 }
                 goto 7504;
             }
-            3: {
+            case 3: {
                 mode  =  1;
                 goto 7514;
             }
-            4: {
+            case 4: {
                 nextInsn  =  KARX;
                 prepLoad();
                 addToInsnList(KAEX+ALLONES);
@@ -3461,10 +3461,7 @@ var
            an lvalue/constant to ACC otherwise. Then emit a single deferred
            UZA/U1A to elseLab. */
         prepLoad();
-        if (16 in insnList->regsused)
-            addInsnAndOffset(macro + 1, elseLab);
-        else
-            addInsnAndOffset(macro + 0, elseLab);
+        addInsnAndOffset(macro + (16 in insnList->regsused), elseLab);
     }
     forValue = true;
     condChain = insnList;
@@ -3496,9 +3493,9 @@ var
     /* Concatenate the three sub-chains head-to-tail in evaluation order:
        cond -> then -> else. After this, condChain is the single chain
        that represents the complete deferred ternary computation. */
-    condChain->next->next = thenChain->next2;
+    condChain->next->next = thenChain->head;
     condChain->next = thenChain->next;
-    condChain->next->next = insnList->next2;
+    condChain->next->next = insnList->head;
     condChain->next = insnList->next;
 
     /* Union the regsused sets of all three sub-chains so the surrounding
@@ -3552,25 +3549,25 @@ var
         } else {
             if (arg1Const && arg2Const) {
                 switch (curOP) {
-                MUL:        arg1Val.r  =  arg1Val.r * arg2Val.r;
-                RDIVOP:     arg1Val.r  =  arg1Val.r / arg2Val.r;
-                ANDOP:      arg1Val.i  =  arg1Val.i && arg2Val.i;
-                IDIVOP:     arg1Val.i  =  arg1Val.i / arg2Val.i;
-                IMODOP:     arg1Val.i  =  arg1Val.i % arg2Val.i;
-                PLUSOP:     arg1Val.r  =  arg1Val.r + arg2Val.r;
-                MINUSOP:    arg1Val.r  =  arg1Val.r - arg2Val.r;
-                OROP:       arg1Val.i  =  arg1Val.i || arg2Val.i;
-                IMULOP:
+                case MUL:        arg1Val.r  =  arg1Val.r * arg2Val.r;
+                case RDIVOP:     arg1Val.r  =  arg1Val.r / arg2Val.r;
+                case ANDOP:      arg1Val.i  =  arg1Val.i && arg2Val.i;
+                case IDIVOP:     arg1Val.i  =  arg1Val.i / arg2Val.i;
+                case IMODOP:     arg1Val.i  =  arg1Val.i % arg2Val.i;
+                case PLUSOP:     arg1Val.r  =  arg1Val.r + arg2Val.r;
+                case MINUSOP:    arg1Val.r  =  arg1Val.r - arg2Val.r;
+                case OROP:       arg1Val.i  =  arg1Val.i || arg2Val.i;
+                case IMULOP:
                     arg1Val.i = arg1Val.i * arg2Val.i;
-                SETAND:     arg1Val.i  =  arg1Val.i & arg2Val.i;
-                SETXOR:     arg1Val.i  =  arg1Val.i ^ arg2Val.i;
-                INTPLUS:    arg1Val.i  =  arg1Val.i + arg2Val.i;
-                INTMINUS:   arg1Val.i  =  arg1Val.i - arg2Val.i;
-                SETOR:      arg1Val.i  =  arg1Val.i | arg2Val.i;
-                SHLEFT:     arg1Val.i  =  arg1Val.i << arg2Val.i;
-                SHRIGHT:    arg1Val.i  =  arg1Val.i >> arg2Val.i;
-                NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP,
-                ASSIGNOP:
+                case SETAND:     arg1Val.i  =  arg1Val.i & arg2Val.i;
+                case SETXOR:     arg1Val.i  =  arg1Val.i ^ arg2Val.i;
+                case INTPLUS:    arg1Val.i  =  arg1Val.i + arg2Val.i;
+                case INTMINUS:   arg1Val.i  =  arg1Val.i - arg2Val.i;
+                case SETOR:      arg1Val.i  =  arg1Val.i | arg2Val.i;
+                case SHLEFT:     arg1Val.i  =  arg1Val.i << arg2Val.i;
+                case SHRIGHT:    arg1Val.i  =  arg1Val.i >> arg2Val.i;
+                case NEOP, case EQOP, case LTOP, case GEOP, case GTOP, case LEOP, case INOP,
+                case ASSIGNOP:
                     error(200);
                 } /* switch 7750 */
                 insnList->payload  =  arg1Val.i;
@@ -3578,19 +3575,19 @@ var
                 l3int3z  =  opToMode[curOP];
                 nextInsn  =  opToInsn[curOP];
                 switch (opFlags[curOP]) {
-                opfCOMM:
+                case opfCOMM:
 7760:               tryFlip(curOP in [MUL,PLUSOP,SETOR,SETAND,INTPLUS,IMULOP]);
-                opfHELP:
+                case opfHELP:
                     genHelper();
-                opfASSN: {
+                case opfASSN: {
                     genCopy();
                     exit;
                 }
-                opfAND: {
+                case opfAND: {
                     genBoolAnd();
                     exit;
                 }
-                opfOR: {
+                case opfOR: {
                     negateCond();
                     saved  =  insnList;
                     insnList  =  otherIns;
@@ -3601,7 +3598,7 @@ var
                     negateCond();
                     exit;
                 }
-                opfMOD:
+                case opfMOD:
                     if (arg2Const) {
                         prepLoad();
                         if (card(arg2Val.i) == 1) {
@@ -3621,7 +3618,7 @@ var
                     } else {
                         genHelper();
                     }
-                opfDIV: {
+                case opfDIV: {
                     if (arg2Const) {
                         prepLoad();
                         genConstDiv();
@@ -3629,7 +3626,7 @@ var
                     } else
                         genHelper();
                 }
-                opfMULMSK: {
+                case opfMULMSK: {
                     if (arg1Const) {
                         insnList->payload  =  (arg1Val.i | [0]) & (~[1, 3]);
                     } else {
@@ -3647,7 +3644,7 @@ var
                     else
                         addToInsnList(KYTA+64);
                 }
-                opfSHIFT: {
+                case opfSHIFT: {
                     if (!arg2Const) {
                         genHelper();
                     } else {
@@ -3658,7 +3655,7 @@ var
                             addToInsnList(ASN64-arg2Val.i);
                      }
                  }
-                opfINV: {
+                case opfINV: {
 10075:              saved  =  insnList;
                     insnList  =  otherIns;
                     otherIns  =  saved;
@@ -3677,7 +3674,7 @@ var
                 curIdRec  =  exprToGen->id1;
                 with insnList@ do {
                     next  =  NIL;
-                    next2  =  NIL;
+                    head  =  NIL;
                     regsused  =  0U;
                     ilm  =  il1;
                     payload  =  curIdRec->offset;
@@ -3704,15 +3701,15 @@ var
                     disp  =  disp + curIdRec->offset;
                     if (curIdRec->pckfield) {
                         switch (st) {
-                        st0:
+                        case st0:
                             shift  =  curIdRec->shift;
-                        st1: {
+                        case st1: {
                             shift  =  shift + curIdRec->shift;
                             if (! (S6 IN optSflags))
                                 shift  =  shift +
                                            curIdRec->uptype->bits - 48;
                         }
-                        st2:
+                        case st2:
                             if (! l3bool13z)
                                 error(errUsingVarAfterIndexingPackedArray);
                             else {
@@ -3744,11 +3741,11 @@ var
             if (insnList->ilm == ilCONST) {
                 arg1Val.i  =  insnList->payload;
                 switch (curOP) {
-                TOREAL: arg1Val.r  =  arg1Val.i | [0,1,3];
-                NOTOP:  arg1Val.i  =  ! arg1Val.i;
-                RNEGOP: arg1Val.r  =  -arg1Val.r;
-                INEGOP: arg1Val.i  =  -arg1Val.i;
-                BITNEGOP: arg1Val.i = ~arg1Val.i;
+                case TOREAL: arg1Val.r  =  arg1Val.i | [0,1,3];
+                case NOTOP:  arg1Val.i  =  ! arg1Val.i;
+                case RNEGOP: arg1Val.r  =  -arg1Val.r;
+                case INEGOP: arg1Val.i  =  -arg1Val.i;
+                case BITNEGOP: arg1Val.i = ~arg1Val.i;
                 } /* switch 10345 */
                 insnList->payload  =  arg1Val.i;
             } else if (curOP == NOTOP) {
@@ -3816,7 +3813,7 @@ var
                 new(insnList);
                 with insnList@ do {
                     next  =  NIL;
-                    next2  =  NIL;
+                    head  =  NIL;
                     typ  =  intType;
                     regsused  =  E48;
                     ilm  =  il2;
@@ -3839,17 +3836,17 @@ var
                 arg2Const  =  (insnList->typ == realType);
                 if (arg1Const) {
                     switch (work) {
-                    fnABS:   arg1Val.r  =  abs(arg1Val.r);
-                    fnTRUNC: arg1Val.i  =  trunc(arg1Val.r);
-                    fnSUCC:  arg1Val.c  =  succ(arg1Val.c);
-                    fnPRED:  arg1Val.c  =  pred(arg1Val.c);
-                    fnROUND: arg1Val.i  =  round(arg1Val.r);
-                    fnCARD:  arg1Val.i  =  card(arg1Val.i);
-                    fnMINEL: arg1Val.i  =  minel(arg1Val.i);
-                    fnABSI:  arg1Val.i  =  abs(arg1Val.i);
-                    fnEOF,
-                    fnREF,
-                    fnEOLN:
+                    case fnABS:   arg1Val.r  =  abs(arg1Val.r);
+                    case fnTRUNC: arg1Val.i  =  trunc(arg1Val.r);
+                    case fnSUCC:  arg1Val.c  =  succ(arg1Val.c);
+                    case fnPRED:  arg1Val.c  =  pred(arg1Val.c);
+                    case fnROUND: arg1Val.i  =  round(arg1Val.r);
+                    case fnCARD:  arg1Val.i  =  card(arg1Val.i);
+                    case fnMINEL: arg1Val.i  =  minel(arg1Val.i);
+                    case fnABSI:  arg1Val.i  =  abs(arg1Val.i);
+                    case fnEOF,
+                    case fnREF,
+                    case fnEOLN:
                         error(201);
                     }
                     insnList->payload  =  arg1Val.i;
@@ -3892,7 +3889,7 @@ var
                     with insnList@ do {
                         typ  =  exprToGen->expr2->typ;
                         next  =  NIL;
-                        next2  =  ;
+                        head  =  ;
                         regsused  =  0U;
                         ilm  =  il1;
                         addrmd  =  18;
@@ -3968,8 +3965,8 @@ var l4exf1z: @extfilerec;
     if (! (l3arg1z IN [gen3, gen6, DFLTWDTH, FILEINIT, PCKUNPCK]))
         genFullExpr(curExpr);
     switch (l3arg1z) {
-    gen7: genOneOp();
-    SETREG: {
+    case gen7: genOneOp();
+    case SETREG: {
         with insnList@ do {
             l3int3z  =  insnCount();
             new(l3var5z);
@@ -3977,7 +3974,7 @@ var l4exf1z: @extfilerec;
             expr63z  =  l3var5z;
             l3var5z->op  =  NOOP;
             switch (st) {
-            st0: {
+            case st0: {
                 if (l3int3z == 0) {
                     l3int2z  =  14;
                 } else {
@@ -4003,32 +4000,32 @@ var l4exf1z: @extfilerec;
                 curVal.i  =  l3int2z;
                 l3var5z->typ  =  curVal.tp;
             }
-            st1: {
+            case st1: {
                 curVal.i  =  14;
                 l3var5z->typ  =  curVal.tp;
             }
-            st2:
+            case st2:
                 error(errVarTooComplex);
             } /* switch */
         } /* with */
         l3var5z->expr2  =  curExpr;
     } /* SETREG */
-    STORE: {
+    case STORE: {
         prepStore();
         genOneOp();
     }
-    gen3: {
+    case gen3: {
         curInsnTemplate  =  curVal.i;
         formOperator(LOAD);
         curInsnTemplate  =  KXTA;
     }
-    SETREG9: {
+    case SETREG9: {
         if (insnList->st != st0)
             error(errVarTooComplex);
         setAddrTo(9);
         genOneOp();
     }
-    gen6: {
+    case gen6: {
         l3int1z  =  curVal.i;
         genFullExpr(curExpr);
         prepLoad();
@@ -4037,39 +4034,39 @@ var l4exf1z: @extfilerec;
         genOneOp();
         form1Insn(KATX+I9 + l3int1z);
     }
-    SETREG12: {
+    case SETREG12: {
         setAddrTo(12);
         genOneOp();
     }
-    DFLTWDTH: {
+    case DFLTWDTH: {
         // Write routines need integer exponent on widths
         curVal.i  =  curVal.i | [0, 1, 3];
         form1Insn(KXTA+I8 + getFCSToffset());
     }
-    FRACWIDTH: {
+    case FRACWIDTH: {
         prepLoad();
         addxToInsnList(macro + mcPUSH);
         genOneOp();
     }
-    gen11, gen12: {
+    case gen11, case gen12: {
         setAddrTo(11);
         if (l3arg1z == gen12)
             addxToInsnList(macro + mcPUSH);
         genOneOp();
         set145z  =  set145z | [12];
     }
-    FILEACCESS: {
+    case FILEACCESS: {
         setAddrTo(12);
         genOneOp();
         formAndAlign(jumpTarget);
     }
-    FILEINIT:
+    case FILEINIT:
         formFileInit();
-    LOAD: {
+    case LOAD: {
         prepLoad();
         genOneOp();
     }
-    BRANCH:
+    case BRANCH:
         with insnList@ do {
             noTarget  =  jumpTarget == 0;
             l3int3z  =  jumpTarget;
@@ -4133,7 +4130,7 @@ var l4exf1z: @extfilerec;
                 }
             }
         } /* BRANCH */
-    PCKUNPCK: {
+    case PCKUNPCK: {
         l3var5z  =  curExpr;
         curExpr  =  curExpr->expr1;
         formOperator(gen11);
@@ -4155,7 +4152,7 @@ var l4exf1z: @extfilerec;
         form1Insn(l3int1z);
         formAndAlign(getHelperProc(l3int3z));
    }
-   LITINSN: {
+   case LITINSN: {
         with insnList@ do {
             if (ilm != ilCONST)
                 error(errNoConstant);
@@ -4769,19 +4766,19 @@ var
     l3int1z, frame, l3var3z: int;
 {
     switch (l3arg1z) {
-    0: {
+    case 0: {
         int93z  =  0;
         inSymbol();
         if (SY != IDENT)
             errAndSkip(3, skipToSet | [IDENT]);
     }
-    1: {
+    case 1: {
         prevErrPos  =  0;
         write('IDENT ');
         printTextWord(l2var12z);
         write(' IN LINE ', curIdRec->offset:0);
     }
-    2: {
+    case 2: {
         padToLeft();
         with l2idr2z@ do {
             l3var3z  =  ((E48 >> 22) & flags) >> 25; // 22 IN flags
@@ -5383,13 +5380,13 @@ var
     l4var2z  =  bool47z;
     bool47z  =  false;
     switch (SY) {
-    IDENT: {
+    case IDENT: {
         if (hashTravPtr == NIL) {
             error(errNotDefined);
             curExpr  =  uVarPtr;
         } else
             switch (hashTravPtr->cl) {
-            TYPEID: {
+            case TYPEID: {
                 l4typ11z = hashTravPtr->typ;
                 inSymbol();
                 if (SY != LPAREN)
@@ -5400,7 +5397,7 @@ var
                 checkSymAndRead(RPAREN);
                 curExpr->typ = l4typ11z;
             }
-            ENUMID: {
+            case ENUMID: {
                 new(curExpr);
                 with curExpr@ do {
                     typ  =  hashTravPtr->typ;
@@ -5410,7 +5407,7 @@ var
                 }
                 inSymbol();
             }
-            ROUTINEID: {
+            case ROUTINEID: {
                 routine  =  hashTravPtr;
                 inSymbol();
                 if (routine->offset == 0) {
@@ -5450,22 +5447,22 @@ var
                     id2  =  routine;
                 }
             }
-            VARID, FORMALID, FIELDID:
+            case VARID, case FORMALID, case FIELDID:
                 parseLval();
             } /* switch */
     }
-    LPAREN: {
+    case LPAREN: {
         expression();
         checkSymAndRead(RPAREN);
     }
-    INTCONST, REALCONST, CHARCONST, LTSY: {
+    case INTCONST, case REALCONST, case CHARCONST, case LTSY: {
         new(curExpr);
         curExpr->typ = parseLiteral(&curExpr->num1, false);
         curExpr->num2  =  int(numFormat);
         curExpr->op  =  GETENUM;
         inSymbol();
     }
-    LBRACK: {
+    case LBRACK: {
         new(curExpr);
         inSymbol();
         l4var8z  =  curExpr;
@@ -5651,16 +5648,16 @@ var
             match = typeCheck(arg1Type, arg2Type);
 
             switch (curPrec) {
-                precMul: bldArithOp(oper, leftExpr, match);
-                precAdd: bldArithOp(oper, leftExpr, match);
-                precRel,
-                precEq: bldRelOp(oper, leftExpr);
-                precShift,
-                precBitAnd,
-                precBitXor,
-                precBitOr: bldBitOp(oper, leftExpr);
-                precAnd,
-                precOr: bldLogOp(oper, leftExpr, match);
+                case precMul,
+                case precAdd: bldArithOp(oper, leftExpr, match);
+                case precRel,
+                case precEq: bldRelOp(oper, leftExpr);
+                case precShift,
+                case precBitAnd,
+                case precBitXor,
+                case precBitOr: bldBitOp(oper, leftExpr);
+                case precAnd,
+                case precOr: bldLogOp(oper, leftExpr, match);
             }
         }
     }
@@ -5873,6 +5870,7 @@ var
                 otherSeen  =  true;
                 otherOffset  =  moduleOffset;
             } else do {
+                checkSymAndRead(CASESY);
                 itemtype = parseLiteral(&itemvalue, true);
                 if (itemtype != NIL) {
                     if (firstType == NIL) {
@@ -6509,7 +6507,7 @@ var
     if (procNo < 7)
         jumpTarget  =  getHelperProc(29 + procNo); /* P/PF */
     switch (procNo) {
-    0, 1, 2, 3: { /* put, get, rewrite, reset */
+    case 0, case 1, case 2, case 3: { /* put, get, rewrite, reset */
         if (curVarKind != kindFile)
             error(47); /* errNoVarOfFileType */
         if ((procNo == 3) && (SY == COMMA)) { // reset with file location
@@ -6523,7 +6521,7 @@ var
             formOperator(FILEACCESS);
         }
     }
-    4, 5: { /* new, free */
+    case 4, case 5: { /* new, free */
         if (curVarKind != kindPtr)
             error(13); /* errVarIsNotPointer */
         heapCallsCnt  =  heapCallsCnt + 1;
@@ -6574,15 +6572,15 @@ var
             formOperator(STORE);
         }
     }
-    6: { /* halt */
+    case 6: { /* halt */
         formAndAlign(jumpTarget);
         exit;
     }
-    7: { /* stop */
+    case 7: { /* stop */
         form1Insn(KE74);
         exit;
     }
-    8, 9: { /* setup, rollup */
+    case 8, case 9: { /* setup, rollup */
         if (curVarKind != kindPtr)
             error(13); /* errVarIsNotPointer */
         if (procNo == 8) {
@@ -6593,10 +6591,10 @@ var
             form1Insn(KATX+HEAPPTR);
         }
     }
-    10: { /* write */
+    case 10: { /* write */
         writeProc();
     }
-    11:
+    case 11:
 17753: { /* writeln */
         if (SY == LPAREN) {
             writeProc();
@@ -6605,7 +6603,7 @@ var
             exit;
         }
     }
-    14: { /* exit */
+    case 14: { /* exit */
         l4bool10z  =  (SY == LPAREN);
         if (l4bool10z)
             inSymbol();
@@ -6619,7 +6617,7 @@ var
         if (! l4bool10z)
             exit;
     }
-    15: { /* longjmp(jmpbuf) - inline non-local goto via P/RC */
+    case 15: { /* longjmp(jmpbuf) - inline non-local goto via P/RC */
         if (arg1Type != intType)
             error(errNeedOtherTypesOfOperands);
         formOperator(LOAD);             /* KXTA jmpbuf -> ACC = packed */
@@ -6630,12 +6628,12 @@ var
         form1Insn(getHelperProc(18)     /* P/RC, tail-jump (UJ) form */
                   + (-064100000));
     }
-    16: { /* besm */
+    case 16: { /* besm */
         expression();
         formOperator(LITINSN);
         formAndAlign(curVal.i);
     }
-    18: { /* mapai */
+    case 18: { /* mapai */
         l4typ1z  =  alfaType;
         l4typ2z  =  intType;
         expression();
@@ -6647,7 +6645,7 @@ var
         verifyType(l4typ2z);
         formOperator(STORE);
     }
-    19, 20: { /* pck, unpck */
+    case 19, case 20: { /* pck, unpck */
         inSymbol();
         verifyType(charType);
         checkSymAndRead(COMMA);
@@ -6660,7 +6658,7 @@ var
         if (procNo == 19)
             formOperator(STORE);
     }
-    21: { /* pack */
+    case 21: { /* pack */
         inSymbol();
         checkArrayArg();
         checkSymAndRead(COMMA);
@@ -6668,7 +6666,7 @@ var
         l4exp6z  =  curExpr;
         doPackUnpack();
     }
-    22: { /* unpack */
+    case 22: { /* unpack */
         inSymbol();
         verifyType(NIL);
         l4exp6z  =  curExpr;
@@ -7402,21 +7400,6 @@ void exitScope(arg: @hashArray);
     lineNesting  =  lineNesting + 1;
     labFence  =  numLabTop;
     do {
-    if (SY == LABELSY) {
-        do {
-            inSymbol();
-            if (SY != INTCONST) {
-                requiredSymErr(INTCONST);
-                goto 22421;
-            }
-            labCheckAndDefine(labFence, 1);
-            inSymbol();
-22421:      if (! (SY IN [COMMA,SEMICOLON]))
-                errAndSkip(1, skipToSet | [COMMA,SEMICOLON]);
-        } while (SY == COMMA);
-        if (SY == SEMICOLON)
-            inSymbol();
-    }
     if (SY == CONSTSY) {
         parseDecls(0);
         while  (SY == IDENT) {
@@ -7858,9 +7841,9 @@ var
     SY  =  RELOP;
     charClass  =  INOP;
     regResWord('      IN');
-    SY  =  LABELSY;
+    SY  =  CONSTSY;
     charClass  =  NOOP;
-    for (idx = 0; idx <= 26; idx=idx+1)
+    for (idx = 0; idx < 27; idx=idx+1)
         regResWord(resWordName[idx]);
 } /*=A2 regKeywords */
 //
@@ -7991,7 +7974,7 @@ void initOptions;
     frameRegTemplate  =  04000000;
     constRegTemplate  =  I8;
     disNormTemplate  =   KNTR+7;
-    blockBegSys  =  [LABELSY, CONSTSY, TYPESY, VARSY, FUNCSY, VOIDSY, BEGINSY];
+    blockBegSys  =  [CONSTSY, TYPESY, VARSY, FUNCSY, VOIDSY, BEGINSY];
     statBegSys  =   [BEGINSY, IFSY, SWITCHSY, DOSY, WHILESY, FORSY, WITHSY,
                     GOTOSY];
     hashMask  =  0203407U;
@@ -8002,7 +7985,6 @@ void initOptions;
     kwordHash = NIL:128;
     /*=A3*/
     resWordName  =
-        '   LABEL',
         '   CONST',
         '    TYPE',
         '     VAR',
@@ -8023,6 +8005,7 @@ void initOptions;
         '      OF',
         '      DO',
         '  EXTERN',
+        '    CASE',
         ' DEFAULT';
 /*=A2*/
     charSym  =  NOSY:128;
