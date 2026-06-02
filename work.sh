@@ -26,12 +26,11 @@ EOF
 ulimit -t 5
 rm -f work.o
 if [ "$1" = "-d" ]; then ln -f tmp$$ work.dub ; fi
-length=`dubna tmp$$ | tee work.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
+length=`dubna tmp$$ | sed '1,/METAMORPH/d' | tee work.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))
 grep -q 'LINES STRUCTURE 1' work.lst
 if [ $? -ne 0 ]; then
 echo '[1;31mFAILURE[22;39m'
-grep -A 2 '\*\*\*[1-9]' work.lst
 exit 1
 fi
 echo Module length is $length zones

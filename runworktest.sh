@@ -1,34 +1,33 @@
 #!/bin/sh
+rm -f tmpsrc.bin tmpsrc.txt
+sed 's/{/<:/g;s/}/:>/g' < $1 > tmpsrc.utxt
+echo '                                                                                 ' >> tmpsrc.utxt
 cat << EOF > tmp$$
 *NAME work
 *disc:1/local
 *file:pascom,42
-*file:work,41
 *file:libc,43
+*file:work,41
+*file:tmpsrc,44
 *     *pascom and pasmitxt
 *libra:42
+*libra:43
 *     taking the work compiler module
 *libra:41
-*libra:43
 *libra:22
+*call pashelp
+P 2 0 1000440000B .
 *call *pascom
-EOF
-sed 's/{/<:/g;s/}/:>/g' < $1 >> tmp$$
-cat << EOF >> tmp$$
 *copy:0,000000,000000
-*libra:23
-*call dtran(program)
-*assem
-*read:1
-*no lo
+*no load list
 *execute
 *end file
 EOF
 if [ "$1" = "-d" ]; then ln -f tmp$$ run.dub ; fi
 ulimit -t 3
-dubna tmp$$ | tee runwork.lst
+dubna tmp$$ | tail -n +41 | tee runwork.lst
 if [ $? -ne 0 ]; then
-echo '[1;31mFAILURE[22;39m'
+echo '[1;31mFAILURE[22;39m'
 exit 1
 fi
 rm -f tmp$$

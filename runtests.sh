@@ -15,6 +15,13 @@ TESTS_DIR="tests"
 RESULTS_DIR="test_results"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Default to base compiler; -work selects work compiler
+RUNNER="runtest.sh"
+if [ "$1" = "-work" ]; then
+    RUNNER="runworktest.sh"
+    shift
+fi
+
 # Create results directory
 mkdir -p "$RESULTS_DIR"
 
@@ -43,7 +50,7 @@ run_test() {
     fi
     
     # Run the test with timeout
-    if timeout 10 ./runtest.sh "$test_file" > "$result_file" 2>&1; then
+    if timeout 10 ./$RUNNER "$test_file" > "$result_file" 2>&1; then
         # Extract output after *EXECUTE line
         if grep -q '\*EXECUTE' "$result_file"; then
             # Get everything after *EXECUTE until the separator line
@@ -96,14 +103,14 @@ echo -e "${BLUE}P2C Compiler Test Suite${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
-# Check if runtest.sh exists
-if [ ! -f "runtest.sh" ]; then
-    echo -e "${RED}ERROR: runtest.sh not found${NC}"
+# Check if runner exists
+if [ ! -f "$RUNNER" ]; then
+    echo -e "${RED}ERROR: $RUNNER not found${NC}"
     exit 1
 fi
 
-# Make runtest.sh executable
-chmod +x runtest.sh
+# Make runner executable
+chmod +x "$RUNNER"
 
 # Run all tests if no arguments given, otherwise run specified tests
 if [ $# -eq 0 ]; then

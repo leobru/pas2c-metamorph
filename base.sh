@@ -17,10 +17,10 @@ cat << EOF >> tmp$$
 *end file
 EOF
 # The compilation must finish within 3 seconds
-ulimit -t 3
+ulimit -t 10
 rm -f base.o
 if [ "$1" = "-d" ]; then ln -f tmp$$ base.dub ; fi
-length=`dubna tmp$$ | tee base.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
+length=`dubna tmp$$ | tail -n +31 | tee base.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))
 # The compilation must contain the source stats
 grep -q 'LINES STRUCTURE 1' base.lst

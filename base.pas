@@ -9,7 +9,7 @@ const
     fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
     fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
     fnORD   = 10; fnCHR  = 11; fnSUCC = 12; fnPRED  = 13; fnEOF  = 14;
-    fnREF   = 15; fnEOLN = 16; (*   17   *) fnROUND = 18; fnCARD = 19;
+    fnREF   = 15; fnEOLN = 16; fnSETJMP = 17; fnROUND = 18; fnCARD = 19;
     fnMINEL = 20; fnPTR  = 21; fnABSI = 22;
 %
     S3 = 0;
@@ -2630,6 +2630,7 @@ var
     arg1Val, arg2Val: word;
     curOP: operator;
     work: integer;
+    sjOver, sjDone, sjLabel: integer;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure P5155;
@@ -3904,7 +3905,61 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
         } else if (curOP = STANDPROC) then {
             genFullExpr(exprToGen@.expr1);
             work := exprToGen@.num2;
-            if (100 < work) then {
+            if (work = fnSETJMP) then {
+                (* setjmp(jmpbuf): inline non-local-goto setup.
+                 * Layout emitted:
+                 *      <addr jmpbuf -> M14>
+                 *      UJ sjOver           ; first-call path skips the
+                 *  sjLabel: KVTM+I12 + 1   ;   re-entry point that longjmp
+                 *      KITA + 12           ;   uses (ACC := 1 on resume)
+                 *      UJ sjDone           ;
+                 *  sjOver:
+                 *      KVTM+I12 + sjLabel  ; M12 := &sjLabel (RELOCATED)
+                 *      KITA + 12           ; ACC := sjLabel (low 15 bits)
+                 *      KATX+I14            ; jb := sjLabel
+                 *      KMTJ+13+frameReg    ; M13 := current frame
+                 *      KITA + 13           ; ACC := frame value
+                 *      ASN64-15            ; ACC <<= 15
+                 *      KAOX+I14            ; ACC |= jb  (= sjLabel)
+                 *      KATX+I14            ; jb := frame<<15 | sjLabel
+                 *      KXTA + 0            ; ACC := 0
+                 *  sjDone:                ; result of setjmp
+                 *)
+                setAddrTo(14);
+                genOneOp;
+                sjOver := 0;
+                formJump(sjOver);
+                padToLeft;
+                sjLabel := moduleOffset;
+                form2Insn(KVTM + I12 + 1, KITA + 12);
+                sjDone := 0;
+                formJump(sjDone);
+                P0715(0, sjOver);
+                form2Insn(KVTM + I12 + sjLabel,
+                          KITA + 12);             (* ACC := sjLabel *)
+                form2Insn(KATX + I14,             (* jb := sjLabel *)
+                          curFrameRegTemplate + (KMTJ + 13));
+                form2Insn(KITA + 13,              (* ACC := frame *)
+                          ASN64 - 15);            (* ACC <<= 15 *)
+                form2Insn(KAOX + I14,             (* ACC |= jb *)
+                          KATX + I14);            (* jb := packed *)
+                form1Insn(KXTA + 0);              (* ACC := 0 *)
+                P0715(0, sjDone);
+                new(insnList);
+                with insnList@ do {
+                    next := NIL;
+                    next2 := NIL;
+                    typ := integerType;
+                    regsused := [0];
+                    ilm := il2;
+                    st := st0;
+                    payload.i := 0;
+                    disp := 0;
+                    addrmd := 0;
+                    width := 48;
+                    shift := 0;
+                };
+            } else if (100 < work) then {
                 prepLoad;
                 addToInsnList(getHelperProc(work - 100));
             } else {
@@ -5476,8 +5531,8 @@ var
         goto 8888;
     };
     expression;
-    if (stProcNo >= fnEOF) and
-       (fnEOLN >= stProcNo) and
+    if ((stProcNo >= fnEOF) and (fnEOLN >= stProcNo)
+        or (stProcNo = fnSETJMP)) and
        not (curExpr@.op IN [GETELT..FILEPTR]) then {
         error(27); (* errExpressionWhereVariableExpected *)
         exit;
@@ -5503,7 +5558,8 @@ var
     if (stProcNo <> fnSIZEOF) and not ((checkMode = chkREAL) and
             (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnROUND])
            or ((checkMode = chkINT) and
-            (asBitset <= [fnSQRT:fnABS,fnCHR,fnREF,fnCARD,fnMINEL,fnPTR]))
+            (asBitset <= [fnSQRT:fnABS,fnCHR,fnREF,fnCARD,fnMINEL,fnPTR,
+                          fnSETJMP]))
            or ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) and
             (asBitset <= [fnORD, fnSUCC, fnPRED, fnREF]))
            or ((checkMode = chkFILE) and
@@ -6685,9 +6741,9 @@ var
     l4bool10z := (SY = LPAREN);
     oldOffset := moduleOffset;
     if not l4bool10z and
-       (procNo IN [0:5,8:10,12,16:28]) then
+       (procNo IN [0:5,8:10,12,15:28]) then
         error(45); (* errNoOpenParenForStandProc *)
-    if (procNo IN [0,1,2,3,4,5,8,9]) then {
+    if (procNo IN [0:5,8,9,15]) then {
         inSymbol;
         if (hashTravPtr@.cl < VARID) then
             error(46); (* errNoVarForStandProc *)
@@ -6811,6 +6867,17 @@ var
         };
         if not (l4bool10z) then
             exit
+    };
+    15: { (* longjmp(jmpbuf) - inline non-local goto via P/RC *)
+        if (arg1Type <> integerType) then
+            error(errNeedOtherTypesOfOperands);
+        formOperator(LOAD);             (* KXTA jmpbuf -> ACC = packed *)
+        form1Insn(KATI + 14);           (* M14 := low 15 bits = target *)
+        form1Insn(ASN64 + 15);          (* ACC >>= 15 *)
+        form1Insn(KATI + 13);           (* M13 := next 15 bits = frame *)
+        form1Insn(KXTA + 0);            (* clean ACC before P/RC *)
+        form1Insn(getHelperProc(18)     (* P/RC, tail-jump (UJ) form *)
+                  + (-64100000B));
     };
     16: { (* besm *)
         expression;
@@ -7427,7 +7494,7 @@ var l : integer;
     temptype := booleanType;
     regSysProc(45575456C(*"    EOLN"*));
     temptype := integerType;
-    regSysProc(0C); (* was SQR, unused *)
+    regSysProc(634564525560C(*"  SETJMP"*));
     regSysProc(6257655644C(*"   ROUND"*));
     regSysProc(43416244C(*"    CARD"*));
     regSysProc(5551564554C(*"   MINEL"*));
@@ -8542,7 +8609,7 @@ procedure initOptions;
         0C                     (*"    READ"*),
         0C                     (*"  READLN"*),
         45705164C              (*"    EXIT"*),
-        0C                     (*"   DEBUG"*),
+        54575647525560C        (*" LONGJMP"*),
         42456355C              (*"    BESM"*),
         0C                     (*"   MAPIA"*),
         5541604151C            (*"   MAPAI"*),
