@@ -1,15 +1,13 @@
 /*=l1,p-,t-,s8,y+,k9,l1*/
 extern _output_, _child_, pasinput, pasinfor, paseofcd;
 //
-label 9999;
-//
 const
     boilerplate = ' PASCAL 2 C METAMORPHOSIS (2025)';
 //
     fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
     fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
     /*   10   */  /*   11  */  fnSUCC = 12; fnPRED  = 13; fnEOF  = 14;
-    fnREF   = 15; fnEOLN = 16; /*   17   */ fnROUND = 18; fnCARD = 19;
+    fnREF   = 15; fnEOLN = 16; fnSETJMP = 17; fnROUND = 18; fnCARD = 19;
     fnMINEL = 20; fnABSI = 21;
 //
     S3 = 0;
@@ -458,6 +456,7 @@ var
     frameRegTemplate: int;
     constRegTemplate: int;
     disNormTemplate: int;
+    jb9999: int;
     lineBuf: array [130] of char;
     errMap: array [10] of int;
     chrClass: array ['\200'] of operator;
@@ -689,7 +688,7 @@ var
     lineCnt  =  lineCnt + 1;
     if (eof(pasinput)) {
         error(errEOFEncountered);
-        goto 9999;
+        longjmp(jb9999);
     }
 } /* endOfLine */
 //
@@ -1153,7 +1152,7 @@ var
         if (dataCheck) {
             error(errEOFEncountered);
             readToPos80();
-            goto 9999;
+            longjmp(jb9999);
         }
 1473:
         while ((CH == ' ') && !atEOL)
@@ -1595,7 +1594,7 @@ var
     if (CH == 'D')
         while ((CH != '\000') && (SY != ENDSY))
             inSymbol();
-    goto 9999;
+    longjmp(jb9999);
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2194,7 +2193,7 @@ void addJumpInsn(opcode: int);
             exit iter;
         }
         if (curInsn >= 2*macro) {
-            l4inl7z  =  oiptr(curInsn - (2*macro));
+            l4inl7z  =  oiptr(curInsn - 2*macro);
             P0715(0, l4inl7z->code);
             l4inl7z->offset  =  moduleOffset;
         } else {
@@ -2551,6 +2550,7 @@ var
     arg1Val, arg2Val: word;
     curOP: operator;
     work: int;
+    sjOver, sjDone, sjLabel: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void P5155;
@@ -3773,7 +3773,61 @@ var
         } else if (curOP == STANDPROC) {
             genFullExpr(exprToGen->expr1);
             work  =  exprToGen->num2;
-            if (100 < work) {
+            if (work == fnSETJMP) {
+                /* setjmp(jmpbuf): inline non-local-goto setup.
+                 * Layout emitted:
+                 *      <addr jmpbuf -> M14>
+                 *      UJ sjOver           ; first-call path skips the
+                 *  sjLabel: KVTM+I12 + 1   ;   re-entry point that longjmp
+                 *      KITA + 12           ;   uses (ACC := 1 on resume)
+                 *      UJ sjDone           ;
+                 *  sjOver:
+                 *      KVTM+I12 + sjLabel  ; M12 := &sjLabel (RELOCATED)
+                 *      KITA + 12           ; ACC := sjLabel (low 15 bits)
+                 *      KATX+I14            ; jb := sjLabel
+                 *      KMTJ+13+frameReg    ; M13 := current frame
+                 *      KITA + 13           ; ACC := frame value
+                 *      ASN64-15            ; ACC <<= 15
+                 *      KAOX+I14            ; ACC |= jb  (= sjLabel)
+                 *      KATX+I14            ; jb := frame<<15 | sjLabel
+                 *      KXTA + 0            ; ACC := 0
+                 *  sjDone:                ; result of setjmp
+                 */
+                setAddrTo(14);
+                genOneOp();
+                sjOver  =  0;
+                formJump(&sjOver);
+                padToLeft();
+                sjLabel  =  moduleOffset;
+                form2Insn(KVTM + I12 + 1, KITA + 12);
+                sjDone  =  0;
+                formJump(&sjDone);
+                P0715(0, sjOver);
+                form2Insn(KVTM + I12 + sjLabel,
+                          KITA + 12);             /* ACC := sjLabel */
+                form2Insn(KATX + I14,             /* jb := sjLabel */
+                          curFrameRegTemplate + (KMTJ + 13));
+                form2Insn(KITA + 13,              /* ACC := frame */
+                          ASN64 - 15);            /* ACC <<= 15 */
+                form2Insn(KAOX + I14,             /* ACC |= jb */
+                          KATX + I14);            /* jb := packed */
+                form1Insn(KXTA + 0);              /* ACC := 0 */
+                P0715(0, sjDone);
+                new(insnList);
+                with insnList@ do {
+                    next  =  NIL;
+                    next2  =  NIL;
+                    typ  =  intType;
+                    regsused  =  E48;
+                    ilm  =  il2;
+                    st  =  st0;
+                    payload  =  0;
+                    disp  =  0;
+                    addrmd  =  0;
+                    width  =  48;
+                    shift  =  0;
+                }
+            } else if (100 < work) {
                 prepLoad();
                 addToInsnList(getHelperProc(work - 100));
             } else {
@@ -4840,7 +4894,7 @@ var
             if (offset == 0) {
                 /* empty */
             } else if (offset >= 074000) {
-                curVal.i  =  (moduleOffset - 040000);
+                curVal.i  =  moduleOffset - 040000;
                 symTab[offset]  =  [24,29] | (curVal.i & 077777U);
             } else
                 P0715(0, offset);
@@ -4865,7 +4919,6 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void statement;
-label 8888;
 var
     boundary: eptr;
     l3var3z: @strLabel;
@@ -4877,6 +4930,7 @@ var
     ifWhlTarget, elseJump: int;
     whileExpr: eptr;
     l3idr12z: irptr;
+    jb8888: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void expression; forward;
@@ -5030,7 +5084,7 @@ var
                 inSymbol();
                 if (SY != RPAREN) {
                     error(errTooManyArguments);
-                    goto 8888;
+                    longjmp(jb8888);
                 }
                 curExpr = callExpr;
                 inSymbol();
@@ -5040,7 +5094,7 @@ var
         do {
             if (noArgs && (subroutine == curFormal)) {
                 error(errTooManyArguments);
-                goto 8888;
+                longjmp(jb8888);
             }
             bool47z  =  true;
             expression();
@@ -5280,10 +5334,11 @@ var
     stProcNo  =  routine->low;
     if (SY != LPAREN) {
         requiredSymErr(LPAREN);
-        goto 8888;
+        longjmp(jb8888);
     }
     expression();
-    if ((stProcNo IN [fnEOF..fnEOLN]) && ! (curExpr->op IN lvalOpSet)) {
+    if ((stProcNo IN [fnEOF..fnEOLN,fnSETJMP]) &&
+        ! (curExpr->op IN lvalOpSet)) {
         error(27); /* errExpressionWhereVariableExpected */
         exit;
     }
@@ -5292,7 +5347,7 @@ var
     if (arg1Type == realType)
         checkMode  =  [fnSQRT:fnTRUNC, fnROUND];
     else if (arg1Type == intType)
-        checkMode  =  [fnSQRT:fnABS,fnCARD,fnMINEL];
+        checkMode  =  [fnSQRT:fnABS,fnCARD,fnMINEL,fnSETJMP];
     else if ((arg1Type == charType) || (argKind == kindScalar) || (argKind == kindPtr))
         checkMode  =  [fnSUCC, fnPRED];
     else if (argKind == kindFile)
@@ -5386,7 +5441,7 @@ var
                 new(curExpr);
                 if (! (SY IN [RPAREN, COMMA])) {
                     error(errNoCommaOrParenOrTooFewArgs);
-                    goto 8888;
+                    longjmp(jb8888);
                 }
                 with curExpr@ do {
                     typ  =  routine->typ;
@@ -5473,7 +5528,7 @@ var
     };
     default: {
         error(errBadSymbol);
-        goto 8888;
+        longjmp(jb8888);
     }
     } /* switch */
 } /* factor */
@@ -5787,6 +5842,7 @@ var
     expected: word;
     startLine, l4var17z, endOfStmt: int;
     minValue, maxValue: word;
+    jb8888: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* caseStatement */
@@ -6440,9 +6496,9 @@ var
     l4bool10z  =  (SY == LPAREN);
     l4var14z  =  moduleOffset;
     if (! l4bool10z &&
-       (procNo IN [0:5,8:10,12,16:28]))
+       (procNo IN [0:5,8:10,12,15:28]))
         error(45); /* errNoOpenParenForStandProc */
-    if (procNo IN [0,1,2,3,4,5,8,9]) {
+    if (procNo IN [0,1,2,3,4,5,8,9,15]) {
         inSymbol();
         if (hashTravPtr->cl < VARID)
             error(46); /* errNoVarForStandProc */
@@ -6563,6 +6619,17 @@ var
         if (! l4bool10z)
             exit;
     }
+    15: { /* longjmp(jmpbuf) - inline non-local goto via P/RC */
+        if (arg1Type != intType)
+            error(errNeedOtherTypesOfOperands);
+        formOperator(LOAD);             /* KXTA jmpbuf -> ACC = packed */
+        form1Insn(KATI + 14);           /* M14 := low 15 bits = target */
+        form1Insn(ASN64 + 15);          /* ACC >>= 15 */
+        form1Insn(KATI + 13);           /* M13 := next 15 bits = frame */
+        form1Insn(KXTA + 0);            /* clean ACC before P/RC */
+        form1Insn(getHelperProc(18)     /* P/RC, tail-jump (UJ) form */
+                  + (-064100000));
+    }
     16: { /* besm */
         expression();
         formOperator(LITINSN);
@@ -6639,6 +6706,8 @@ var
     l3var4z  =  (SY IN [BEGINSY,SWITCHSY]);
     if (l3var4z)
         lineNesting  =  lineNesting + 1;
+    if (setjmp(jb8888))
+        goto 8888;
 (ident)
     if (SY == IDENT) {
         if (hashTravPtr != NIL) {
@@ -7113,8 +7182,8 @@ void defExtern;
     regSysProc('     EOF');
     regSysProc('resrv   '); /* was REF, fnREF still used */
     regSysProc('    EOLN');
-    regSysProc('unused  '); /* was SQR, fn17 */
     temptype  =  intType;
+    regSysProc('  SETJMP'); /* fn17 */
     regSysProc('   ROUND');
     regSysProc('    CARD');
     regSysProc('   MINEL');
@@ -7904,6 +7973,7 @@ void initOptions;
 { /* main */
     if (PASINFOR.listMode != 0)
         writeln(boilerplate);
+    if (setjmp(jb9999)) goto 9999;
     initOptions();
     curInsnTemplate  =  0;
     initTables();
@@ -8184,7 +8254,7 @@ void initOptions;
         '        ',  // was READ
         '        ',  // was READLN
         '    EXIT',
-        '        ',  // was DEBUG
+        ' LONGJMP',
         '    BESM',
         '        ',  // was MAPIA, unused
         '   MAPAI',
