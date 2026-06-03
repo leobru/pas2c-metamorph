@@ -987,7 +987,43 @@ function getValueOrAllocSymtab(value: integer): integer;
 }; (* getValueOrAllocSymtab *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure P0715(mode, arg: integer);
+(*
+ * fixup -- address-fixup helper. Behaviour selected by `mode`:
+ *
+ *   mode  =  0     Resolve a forward-jump chain. `arg` is the head index of
+ *                  a linked list of pending UJ/UZA/U1A instructions in
+ *                  objBuffer; each link stores the next index in its 15-bit
+ *                  operand field. Each instruction has its operand patched
+ *                  to the current moduleOffset. Used for if/else, while,
+ *                  for, case, break/continue and goto target resolution.
+ *                  Entries with index > 4096 patch the LEFT half-word of
+ *                  the packed instruction pair instead of the right.
+ *
+ *   mode  >  2     Same as mode = 0, but the patched target address is
+ *                  `mode` itself rather than the current moduleOffset.
+ *                  Used to redirect a deferred jump chain to a previously
+ *                  recorded label (see formOperator/BRANCH).
+ *
+ *   mode  =  1     Emit the 6-instruction range-check / dispatch sequence
+ *                  used by the case statement, invoking helper P/DA (#68).
+ *                  curVal.i holds the low bound; `arg` is the high bound.
+ *
+ *   mode  < -2     Same six-instruction emission as mode = 1, but the
+ *                  helper procedure number is `-mode` instead of P/DA.
+ *                  Used by caseStatement to emit the final dispatch via
+ *                  mode = -(insnTemp[U1A] + otherOffset).
+ *
+ *   mode  =  2     Emit a relocation snippet that loads a helper-procedure
+ *                  descriptor into I7 and shifts it by `arg` bits via ASN.
+ *                  curVal.i is the descriptor address. Used to set up calls
+ *                  to descriptor helpers P/DS (mode=2,arg=34) and P/RDC
+ *                  (mode=2,arg=49) in routine prologue / epilogue.
+ *
+ *   mode  = -1     Emit a one-shot helper call with lineCnt staged into
+ *                  M14. `arg` is the helper procedure number. Used for the
+ *                  P/SC (#95) stack-check call.
+ *)
+procedure fixup(mode, arg: integer);
 label 1;
 var
     addr, insn, leftHalf: bitset;
@@ -1047,7 +1083,7 @@ var
     };
     curVal.i := mode;
     goto 1;
-}; (* P0715 *)
+}; (* fixup *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure endOfLine;
@@ -2256,7 +2292,7 @@ procedure addJumpInsn(opcode: integer);
             if (curInsn.i <> 0) then {
                 if (not F3413) then
                     error(211);
-                P0715(0, l4inl7z@.code);
+                fixup(0, l4inl7z@.code);
             };
             l4var213z := not l4var213z;
             P3363;
@@ -2265,7 +2301,7 @@ procedure addJumpInsn(opcode: integer);
         };
         if (curInsn.i >= 2*macro) then {
             l4inl7z := ptr(curInsn.i - (2*macro));
-            P0715(0, l4inl7z@.code);
+            fixup(0, l4inl7z@.code);
             l4inl7z@.offset := moduleOffset;
         } else {
             curInsn.i := curInsn.i - macro;
@@ -3206,7 +3242,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
                             until (l5idr4z = l5idr3z);
                         };
                         storeObjWord([]);
-                        P0715(0, l5var16z.i);
+                        fixup(0, l5var16z.i);
                     }
                 };
                 addToInsnList(KVTM+I14 + l5idr4z@.value);
@@ -3514,7 +3550,7 @@ procedure genCondOp;
  * processes a macro+0/1/2 entry, addJumpInsn looks up an existing label
  * record by `mode = label`; if found (F3413), the new jump is linked into
  * that record's chain in the object buffer, so several jumps to the same
- * logical label share one record and are all patched together by P0715.
+ * logical label share one record and are all patched together by fixup.
  *)
 var
     altExpr: eptr;
@@ -3926,7 +3962,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 form2Insn(KAOX + SP,              (* ACC |= jb *)
                           KATX + I14);            (* jb := packed *)
                 form1Insn(KXTA + 0);              (* ACC := 0 *)
-                P0715(0, sjLabel);
+                fixup(0, sjLabel);
                 new(insnList);
                 with insnList@ do {
                     tail := NIL;
@@ -4237,13 +4273,13 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                             formJump(l3int3z)
                         else
                             form1Insn(insnTemp[UJ] + l3int3z);
-                        P0715(0, jumpTarget);
+                        fixup(0, jumpTarget);
                         jumpTarget := l3int3z;
                     } else {
                         if (not noTarget) then {
                             if (not putLeft) then
                                 padToLeft;
-                            P0715(l3int3z, jumpTarget);
+                            fixup(l3int3z, jumpTarget);
                         }
                     };
                 } else {
@@ -4852,7 +4888,7 @@ var
         if l3var4z then {
             optSflags.m := (optSflags.m + [S3]);
             curVal.i := 74001B;
-            P0715(2, 34); (*"P/DS"*)
+            fixup(2, 34); (*"P/DS"*)
             curVal := l2idr2z@.id;
             toFCST;
             curVal.i := lineCnt;
@@ -4980,7 +5016,7 @@ var
             form1Insn(insnTemp[XTA]);
             formAndAlign(KVJM+I13 + l2int11z);
             curVal.i := l2int11z;
-            P0715(2, 49 (* "P/RDC" *));
+            fixup(2, 49 (* "P/RDC" *));
         };
         if (curProcNesting = 1) then {
             if (heapCallsCnt <> 0) and
@@ -5050,7 +5086,7 @@ var
                 curVal.i := moduleOffset - 40000B;
                 symTab[offset] := [24,29] + curVal.m * O77777;
             } else {
-                P0715(0, offset);
+                fixup(0, offset);
             };
             offset := moduleOffset;
         } else if (mode = 3) then {
@@ -5938,7 +5974,7 @@ var
     setStrLab(false); (* continue *)
     statement;
     with strLabList@ do if exitTarget <> 0 then
-        P0715(0, strLabList@.exitTarget); (* assigning target for continue *)
+        fixup(0, strLabList@.exitTarget); (* assigning target for continue *)
     strLabList := strLabList@.next; (* removing continue *)
     if (loopExpr <> NIL) then {
         curExpr := loopExpr;
@@ -5947,10 +5983,10 @@ var
     formJump(toLoop);
     if (leave <> 0) then {
         padToLeft;
-        P0715(0, leave);
+        fixup(0, leave);
     };
     with strLabList@ do if exitTarget <> 0 then
-        P0715(0, exitTarget); (* assigning target for break *)
+        fixup(0, exitTarget); (* assigning target for break *)
     strLabList := strLabList@.next; (* removing break *)
 }; (* forStatement *)
 %
@@ -6152,7 +6188,7 @@ var
                 curClause := curClause@.next;
             } else {
                 itemSpan := 34000;
-                P0715(0, l4var17z);
+                fixup(0, l4var17z);
                 if (firstType@.k = kindScalar) then
                     itemSpan := firstType@.numen;
                 itemsEnded := itemSpan < 32000;
@@ -6187,9 +6223,9 @@ var
             otherOffset := moduleOffset;
             formJump(endOfStmt);
         };
-        P0715(0, l4var17z);
+        fixup(0, l4var17z);
         curVal := minValue;
-        P0715(-(insnTemp[U1A]+otherOffset), maxValue.i);
+        fixup(-(insnTemp[U1A]+otherOffset), maxValue.i);
         curVal := minValue;
         curVal.m := curVal.m + intZero;
         form1Insn(KATI+14);
@@ -6206,7 +6242,7 @@ var
             allClauses := allClauses@.next;
         };
         16211:
-        P0715(0, endOfStmt);
+        fixup(0, endOfStmt);
         if (not goodMode) then
            disableNorm;
 
@@ -6984,7 +7020,7 @@ var
             inSymbol;
             checkSymAndRead(RPAREN);
             statement;
-            P0715(0, strLabPtr@.exitTarget);
+            fixup(0, strLabPtr@.exitTarget);
             strLabList := strLabList@.next;
         } else  if (SY = BEGINSY) then
 (rep)   {
@@ -7021,18 +7057,18 @@ var
             if (SY = ELSESY) then {
                 elseJump := 0;
                 formJump(elseJump);
-                P0715(0, ifWhlTarget);
+                fixup(0, ifWhlTarget);
                 curOffset.i := arithMode;
                 arithMode := 1;
                 inSymbol;
                 statement;
-                P0715(0, elseJump);
+                fixup(0, elseJump);
                 if (curOffset.i <> arithMode) then {
                     arithMode := 2;
                     disableNorm;
                 }
             } else {
-                P0715(0, ifWhlTarget);
+                fixup(0, ifWhlTarget);
             }
         } else  if (SY = WHILESY) then {
             set146z := [];
@@ -7045,9 +7081,9 @@ var
             ifWhileStatement;
             disableNorm;
             form1Insn(insnTemp[UJ] + curOffset.i);
-            P0715(0, ifWhlTarget);
+            fixup(0, ifWhlTarget);
             strLabList := strLabList@.next; (* removing continue *)
-            P0715(0, strLabList@.exitTarget); (* assigning target for break *)
+            fixup(0, strLabList@.exitTarget); (* assigning target for break *)
             strLabList := strLabList@.next; (* removing break *)
             arithMode := 1;
         } else if (SY = BREAKSY) or (SY = CONTSY) then {
@@ -7066,7 +7102,7 @@ var
             statement;
             (* assigning target for continue if used *)
             with strLabList@ do if exitTarget <> 0 then {
-                 P0715(0, exitTarget);
+                 fixup(0, exitTarget);
 writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
                                                         };
             strLabList := strLabList@.next; (* removing continue *)
@@ -7093,7 +7129,7 @@ writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
                 formOperator(BRANCH);
             };
             with strLabList@ do if exitTarget <> 0 then {
-            P0715(0, exitTarget); (* assigning target for break *)
+            fixup(0, exitTarget); (* assigning target for break *)
 writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
 };
             strLabList := strLabList@.next; (* removing break *)
@@ -7177,7 +7213,7 @@ var
         }
     };
     if checkBounds or not (NoStackCheck IN optSflags.m) then
-        P0715(-1, 95); (* P/SC *)
+        fixup(-1, 95); (* P/SC *)
     l3var2z.i := lineNesting;
     repeat
         statement;
@@ -7195,7 +7231,7 @@ var
     l2idr2z@.flags := (set145z * [0:15]) + (l2idr2z@.flags - l3var7z.m);
     lineNesting := l3var2z.i - 1;
     if (exitTarget <> 0) then
-        P0715(0, exitTarget);
+        fixup(0, exitTarget);
     if not bool48z and not doPMD and (l2int21z = 3) and
        (curProcNesting <> 1) and (set145z * [1:15] <> [1:15]) then {
         objBuffer[1] := [7:11,21:23,28,31]; (* ,NTR,7; ,UTC, *)

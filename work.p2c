@@ -962,7 +962,8 @@ function getValueOrAllocSymtab(value: int): int;
 } /* getValueOrAllocSymtab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void P0715(mode, arg: int);
+// fixup -- address-fixup helper; see base.pas for full mode docs.
+void fixup(mode, arg: int);
 var
     addr, insn, leftHalf: int;
     isLarge: int;
@@ -1016,7 +1017,7 @@ var
     }
     curVal.i  =  mode;
     goto 1;
-} /* P0715 */
+} /* fixup */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void requiredSymErr(sym: symbol);
@@ -2161,7 +2162,7 @@ void addJumpInsn(opcode: int);
             if (curInsn) {
                 if (! F3413())
                     error(211);
-                P0715(0, l4inl7z->code);
+                fixup(0, l4inl7z->code);
             }
             form1Insn(l4var213z ? KXTA+E1 : KXTA);
             padToLeft();
@@ -2169,7 +2170,7 @@ void addJumpInsn(opcode: int);
         }
         if (curInsn >= 2*macro) {
             l4inl7z  =  oiptr(curInsn - 2*macro);
-            P0715(0, l4inl7z->code);
+            fixup(0, l4inl7z->code);
             l4inl7z->offset  =  moduleOffset;
         } else {
             curInsn  =  curInsn - macro;
@@ -3093,7 +3094,7 @@ var
                             } while (l5idr4z != l5idr3z);
                         }
                         storeObjWord(0U);
-                        P0715(0, l5var16z);
+                        fixup(0, l5var16z);
                     }
                 }
                 addToInsnList(KVTM+I14 + l5idr4z->value);
@@ -3385,7 +3386,7 @@ void genCondOp;
  * processes a macro+0/1/2 entry, addJumpInsn looks up an existing label
  * record by `mode = label`; if found (F3413), the new jump is linked into
  * that record's chain in the object buffer, so several jumps to the same
- * logical label share one record and are all patched together by P0715.
+ * logical label share one record and are all patched together by fixup.
  */
 var
     altExpr: eptr;
@@ -3760,7 +3761,7 @@ var
                 form2Insn(KAOX + SP,              /* ACC |= stack */
                           KATX + I14);            /* jb := packed */
                 form1Insn(KXTA + 0);              /* ACC := 0 */
-                P0715(0, sjLabel);
+                fixup(0, sjLabel);
                 new(insnList);
                 with insnList@ do {
                     next  =  NIL;
@@ -4053,13 +4054,13 @@ var l4exf1z: @extfilerec;
                             formJump(&l3int3z);
                         else
                             form1Insn(KUJ + l3int3z);
-                        P0715(0, jumpTarget);
+                        fixup(0, jumpTarget);
                         jumpTarget  =  l3int3z;
                     } else {
                         if (! noTarget) {
                             if (! putLeft)
                                 padToLeft();
-                            P0715(l3int3z, jumpTarget);
+                            fixup(l3int3z, jumpTarget);
                         }
                     }
                 } else {
@@ -4655,7 +4656,7 @@ var
         if (l3var4z) {
             optSflags  =  optSflags | [S3];
             curVal.i  =  074001;
-            P0715(2, 34); /*"P/DS"*/
+            fixup(2, 34); /*"P/DS"*/
             curVal.i  =  l2idr2z->id;
             toFCST();
             curVal.i  =  lineCnt;
@@ -4780,7 +4781,7 @@ var
             form1Insn(KXTA);
             formAndAlign(KVJM+I13 + l2int11z);
             curVal.i  =  l2int11z;
-            P0715(2, 49 /* "P/RDC" */);
+            fixup(2, 49 /* "P/RDC" */);
         }
         if (curProcNesting == 1) {
             if ((heapCallsCnt != 0) &&
@@ -4845,7 +4846,7 @@ var
                 curVal.i  =  moduleOffset - 040000;
                 symTab[offset]  =  [24,29] | (curVal.i & 077777U);
             } else
-                P0715(0, offset);
+                fixup(0, offset);
             offset  =  moduleOffset;
         } else if (mode == 3) {
             if (curFrameRegTemplate == frame) {
@@ -5669,7 +5670,7 @@ void brContTarget;
 {
     /* assigning target for break/continue if used */
     with strLabList@ do if (exitTarget != 0) {
-        P0715(0, exitTarget);
+        fixup(0, exitTarget);
     }
     strLabList  =  strLabList->next; /* removing break/continue */
 }
@@ -5714,7 +5715,7 @@ var
     formJump(&toLoop);
     if (leave != 0) {
         padToLeft();
-        P0715(0, leave);
+        fixup(0, leave);
     }
     brContTarget();
 } /* forStatement */
@@ -5911,7 +5912,7 @@ var
                 curClause  =  curClause->next;
             } else {
                 itemSpan  =  34000;
-                P0715(0, l4var17z);
+                fixup(0, l4var17z);
                 if (firstType->k == kindScalar)
                     itemSpan  =  firstType->numen;
                 itemsEnded  =  itemSpan < 32000;
@@ -5945,9 +5946,9 @@ var
             otherOffset  =  moduleOffset;
             formJump(&endOfStmt);
         }
-        P0715(0, l4var17z);
+        fixup(0, l4var17z);
         curVal  =  minValue;
-        P0715(-(KU1A+otherOffset), maxValue.i);
+        fixup(-(KU1A+otherOffset), maxValue.i);
         curVal  =  minValue;
         form1Insn(KATI+14);
         curVal.i  =  moduleOffset + 1 - curVal.i;
@@ -5962,7 +5963,7 @@ var
             allClauses  =  allClauses->next;
         }
         16211:
-        P0715(0, endOfStmt);
+        fixup(0, endOfStmt);
         if (! goodMode)
            disableNorm();
     }
@@ -6712,7 +6713,7 @@ var
         inSymbol();
         checkSymAndRead(RPAREN);
         statement();
-        P0715(0, strLabPtr->exitTarget);
+        fixup(0, strLabPtr->exitTarget);
         strLabList  =  strLabList->next;
     } else if (SY == BEGINSY) {
         inSymbol();
@@ -6737,18 +6738,18 @@ var
         if (SY == ELSESY) {
             elseJump  =  0;
             formJump(&elseJump);
-            P0715(0, ifWhlTarget);
+            fixup(0, ifWhlTarget);
             curOffset  =  arithMode;
             arithMode  =  1;
             inSymbol();
             statement();
-            P0715(0, elseJump);
+            fixup(0, elseJump);
             if (curOffset != arithMode) {
                 arithMode  =  2;
                 disableNorm();
             }
         } else {
-            P0715(0, ifWhlTarget);
+            fixup(0, ifWhlTarget);
         }
     } else if (SY == WHILESY) {
         set146z  =  0U;
@@ -6758,7 +6759,7 @@ var
         ifWhileStatement();
         disableNorm();
         form1Insn(KUJ + curOffset);
-        P0715(0, ifWhlTarget);
+        fixup(0, ifWhlTarget);
         strLabList  =  strLabList->next; /* removing continue */
         brContTarget();
         arithMode  =  1;
@@ -6874,7 +6875,7 @@ var
         }
     }
     if (checkBounds || ! (NoStackCheck IN optSflags))
-        P0715(-1, 95); /* P/SC */
+        fixup(-1, 95); /* P/SC */
     l3var2z  =  lineNesting;
     do {
         statement();
@@ -6892,7 +6893,7 @@ var
     l2idr2z->flags  =  (set145z & [0:15]) | (l2idr2z->flags & (~l3var7z));
     lineNesting  =  l3var2z - 1;
     if (exitTarget != 0)
-        P0715(0, exitTarget);
+        fixup(0, exitTarget);
     if (!bool48z && ! doPMD && (sizeCount == 3) &&
        (curProcNesting != 1) && (set145z & [1:15]) != [1:15]) {
         objBuffer[1]  =  (KNTR+7)<< 24 | KUTC;
