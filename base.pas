@@ -5903,6 +5903,21 @@ procedure expression;
 procedure assignStatement(doLHS: boolean); forward;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure setStrLab(forGoto: boolean);
+{
+    new(strLabPtr);
+    padToLeft;
+    disableNorm;
+    with strLabPtr@ do {
+        next := strLabList;
+        ident := curIdent;
+        if forGoto then offset := moduleOffset else offset := -1;
+        exitTarget := 0;
+    };
+    strLabList := strLabPtr;
+};
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure forStatement;
 var
    toLoop, leave : integer;
@@ -5932,7 +5947,14 @@ var
         loopExpr := curExpr;
     };
     checkSymAndRead(RPAREN);
+    curIdent.i := 4262454153C;
+    setStrLab(false); (* break *)
+    curIdent.i := 4357566451566545C;
+    setStrLab(false); (* continue *)
     statement;
+    with strLabList@ do if exitTarget <> 0 then
+        P0715(0, strLabList@.exitTarget); (* assigning target for continue *)
+    strLabList := strLabList@.next; (* removing continue *)
     if (loopExpr <> NIL) then {
         curExpr := loopExpr;
         formOperator(DOIT);
@@ -5941,7 +5963,10 @@ var
     if (leave <> 0) then {
         padToLeft;
         P0715(0, leave);
-    }
+    };
+    with strLabList@ do if exitTarget <> 0 then
+        P0715(0, exitTarget); (* assigning target for break *)
+    strLabList := strLabList@.next; (* removing break *)
 }; (* forStatement *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6910,19 +6935,6 @@ var
     checkSymAndRead(RPAREN);
 
 }; (* standProc *)
-procedure setStrLab(forGoto: boolean);
-{
-    new(strLabPtr);
-    padToLeft;
-    disableNorm;
-    with strLabPtr@ do {
-        next := strLabList;
-        ident := curIdent;
-        if forGoto then offset := moduleOffset else offset := -1;
-        exitTarget := 0;
-    };
-    strLabList := strLabPtr;
-};
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* statement *)
@@ -7045,7 +7057,8 @@ procedure setStrLab(forGoto: boolean);
             curIdent.i := 4262454153C;
             setStrLab(false); (* break *)
             curIdent.i := 4357566451566545C;
-            setStrLab(true); (* continue *)
+            setStrLab(false); (* continue *)
+            strLabList@.exitTarget := moduleOffset;
             curOffset.i := moduleOffset;
             ifWhileStatement;
             disableNorm;
@@ -7055,13 +7068,9 @@ procedure setStrLab(forGoto: boolean);
             P0715(0, strLabList@.exitTarget); (* assigning target for break *)
             strLabList := strLabList@.next; (* removing break *)
             arithMode := 1;
-        } else if (SY = BREAKSY) then {
+        } else if (SY = BREAKSY) or (SY = CONTSY) then {
             SY := IDENT;
             if not structBranch(false) then goto 8888;
-            inSymbol;
-        } else if (SY = CONTSY) then {
-            SY := IDENT;
-            if not structBranch(true) then goto 8888;
             inSymbol;
         } else  if (SY = DOSY) then {
             set146z := [];

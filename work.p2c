@@ -106,9 +106,7 @@ const
     KJADDM =    0450000;
     KE74 =      0740000;
     KUTC =      02200000;
-    CUTC =      02200000U;
     KWTC =      02300000;
-    CWTC =      02300000U;
     KVTM =      02400000;
     KUTM =      02500000;
     KUZA =      02600000;
@@ -530,10 +528,10 @@ var
         }
         errptr  =  pasmitxt(errno);
         unpack(errptr@, errtext, 0);
-(loop)  for (i = 0; i <= 100; i=i+1) {
+        for (i = 0; i <= 100; i=i+1) {
             c  =  pasisoxt(errtext[i]);
             if (c == '*')
-                exit loop;
+                break;
             write(c);
         }
         write(' ');
@@ -2102,24 +2100,12 @@ void addJumpInsn(opcode: int);
          {
             l4var3z  =  l4var4z - 1;
             l4var213z  =  false;
-(loop)      if (l4var3z < 1)
-                exit loop;
-            else {
+            while (l4var3z >= 1) {
                 tempInsn  =  insnBuf[l4var3z] & 03700000U;
-                if (tempInsn == CUTC || tempInsn == CWTC)
-                 {
-                    l4var3z  =  l4var3z-1;
-                    goto loop;
-                }
-            }
-/* one word shorter
-(loop)      while (l4var3z >= 1) {
-                tempInsn  =  insnBuf[l4var3z] & 03700000U;
-                if ((tempInsn != CUTC) && (tempInsn != CWTC))
-                    exit loop;
+                if ((tempInsn != KUTC) && (tempInsn != KWTC))
+                    break;
                 l4var3z  =  l4var3z-1;
             }
-*/
             l4var3z  =  l4var3z + 1;
             if (l4var3z != l4var4z) {
                 for (i = l4var4z-1; i >= l4var3z; i=i-1) {
@@ -3136,7 +3122,7 @@ var
         if (! (! isDirect || (l5idc22z != FORMALID) ||
                (curForml->cl != VARID)))
             l5idc22z  =  VARID;
-(loop)      if ((l5idc22z == FORMALID) || (allByRef)) {
+(loop)  if (l5idc22z == FORMALID || allByRef) {
             setAddrTo(14);
             addToInsnList(KITA+14);
         } else if (l5idc22z == VARID) {
@@ -3211,15 +3197,11 @@ var
     }
     set145z  =  (set145z | calleeFl) & [1:15];
     if (isFortrn) {
-        if (! checkFortran)
-            addToInsnList(KNTR+7);
-        else
-            addToInsnList(getHelperProc(93));    /* "P/FM" */
+        addToInsnList(checkFortran ? getHelperProc(93) /* "P/FM" */
+                                   : KNTR+7);
         insnList->next->mode  =  2;
-    } else {
-        if (! isProc)
-            addToInsnList(KXTA+SP + frameSiz - 1);
-    }
+    } else if (! isProc)
+        addToInsnList(KXTA+SP + frameSiz - 1);
     if (! isProc) {
         insnList->typ  =  l5idr5z->typ;
         insnList->regsused  =  insnList->regsused | E48;
@@ -3636,20 +3618,16 @@ var
                     }
                     tryFlip(true);
                     insnList->next->mode  =  1;
-                    if (fixMult)
-                        addToInsnList(macro + mcMULTI);
-                    else
-                        addToInsnList(KYTA+64);
+                    addToInsnList(fixMult ? macro + mcMULTI : KYTA + 64);
                 }
                 case opfSHIFT: {
                     if (!arg2Const) {
                         genHelper();
                     } else {
                         prepLoad();
-                        if (curOP == SHRIGHT)
-                            addToInsnList(ASN64+arg2Val.i);
-                        else
-                            addToInsnList(ASN64-arg2Val.i);
+                        addToInsnList(curOP == SHRIGHT ?
+                                      ASN64+arg2Val.i :
+                                      ASN64-arg2Val.i);
                      }
                  }
                 case opfINV: {
@@ -3957,7 +3935,7 @@ var l4exf1z: @extfilerec;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* formOperator */
     l3bool13z  =  true;
-    if ((errors && (l3arg1z != SETREG)) || (curExpr == NIL))
+    if (errors && l3arg1z != SETREG || curExpr == NIL)
         exit;
     if (! (l3arg1z IN [gen3, gen6, DFLTWDTH, FILEINIT, PCKUNPCK]))
         genFullExpr(curExpr);
@@ -4915,7 +4893,7 @@ var
 void statement;
 var
     boundary: eptr;
-    l3var3z: @strLabel;
+    strLabPtr: @strLabel;
     l3var4z: int;
     l3bool5z: int;
     l3var6z: idclass;
@@ -5682,6 +5660,44 @@ void expression;
 } /* expression */
 //
 void assignStatement(doLHS: int); forward;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void setStrLab(forGoto: int);
+{
+    new(strLabPtr);
+    padToLeft();
+    disableNorm();
+    with strLabPtr@ do {
+        next  =  strLabList;
+        ident  =  curIdent;
+        if (forGoto)
+            offset  =  moduleOffset;
+        else
+            offset  =  -1;
+        exitTarget  =  0;
+    }
+    strLabList  =  strLabPtr;
+} /* setStrLab */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void setBrCont;
+{
+    /*=A3*/curIdent  =  '   BREAK';
+    setStrLab(false);
+    curIdent  =  'CONTINUE'; /*=A2*/
+    setStrLab(false);
+}
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void brContTarget;
+{
+    /* assigning target for break/continue if used */
+    with strLabList@ do if (exitTarget != 0) {
+        P0715(0, exitTarget);
+    }
+    strLabList  =  strLabList->next; /* removing break/continue */
+}
+//
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void forStatement;
 var
@@ -5712,7 +5728,9 @@ var
         loopExpr = curExpr;
     }
     checkSymAndRead(RPAREN);
+    setBrCont();
     statement();
+    brContTarget();
     if (loopExpr != NIL) {
         curExpr = loopExpr;
         formOperator(gen7);
@@ -5722,6 +5740,7 @@ var
         padToLeft();
         P0715(0, leave);
     }
+    brContTarget();
 } /* forStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5775,7 +5794,7 @@ var
         while (curLab != NIL) {
             with curLab@ do {
                 if (ident == curIdent) {
-                    if (isGoto) {
+                    if (isGoto && (offset != -1)) {
                         form1Insn(KUJ + offset);
                     } else {
                         formJump(&curLab->exitTarget);
@@ -5857,12 +5876,12 @@ var
                     clause->value.i  =  itemvalue;
                     clause->offset  =  moduleOffset;
                     curClause  =  allClauses;
-(loop)              while (curClause != NIL) {
+                    while (curClause != NIL) {
                         if (itemvalue == curClause->value.i) {
                             error(73); /* errCaseLabelsIdentical */
-                            exit loop;
+                            break;
                         } else if (itemvalue < curClause->value.i) {
-                            exit loop;
+                            break;
                         } else {
                             unused  =  curClause;
                             curClause  =  curClause->next;
@@ -6000,21 +6019,19 @@ var
         indCnt  =  0;
         inSymbol();
         l3bool5z  =  false;
-(indices)
-        {
+        while (1) {
             if (SY == COMMA) {
                 indCnt  =  indCnt + 1;
                 inSymbol();
             } else if (SY == RBRACK) {
                 inSymbol();
-                exit indices;
+                break;
             } else {
                 readNext  =  false;
                 expression();
                 curVal.i  =  indCnt;
                 formOperator(gen6);
             }
-            goto indices;
         }
         curExpr  =  NIL;
     } else if ((SY == SEMICOLON) && allowCompat) {
@@ -6119,13 +6136,12 @@ var
     dsize  =  FcstCnt;
     inSymbol();
     setcount  =  0;
-(loop)
     do {
         inSymbol();
         setup(boundary);
         if (SY != IDENT) {
             if (SY == ENDSY)
-                exit loop;
+                break;
             error(errNoIdent);
             curExpr  =  uVarPtr;
         } else {
@@ -6509,7 +6525,8 @@ var
             if (! typeCheck(intType, curExpr->typ))
                 error(14); /* errExprIsNotInt */
             if (curExpr->op == GETENUM) {
-                ii = curExpr->num1; goto 44;
+                ii = curExpr->num1;
+                goto 44;
             } else {
                 formOperator(LOAD);
                 form1Insn(KATI+14);
@@ -6718,20 +6735,11 @@ var
             error(errNoIdent);
             goto 8888;
         }
-        new(l3var3z);
-        padToLeft();
-        disableNorm();
-        with l3var3z@ do {
-            next  =  strLabList;
-            ident  =  curIdent;
-            offset  =  moduleOffset;
-            exitTarget  =  0;
-        }
-        strLabList  =  l3var3z;
+        setStrLab(true);
         inSymbol();
         checkSymAndRead(RPAREN);
         statement();
-        P0715(0, l3var3z->exitTarget);
+        P0715(0, strLabPtr->exitTarget);
         strLabList  =  strLabList->next;
     } else if (SY == BEGINSY) {
         inSymbol();
@@ -6771,21 +6779,27 @@ var
         }
     } else if (SY == WHILESY) {
         set146z  =  0U;
-        disableNorm();
-        padToLeft();
+        setBrCont();
+        strLabList->exitTarget = moduleOffset;
         curOffset  =  moduleOffset;
         ifWhileStatement();
         disableNorm();
         form1Insn(KUJ + curOffset);
         P0715(0, ifWhlTarget);
+        strLabList  =  strLabList->next; /* removing continue */
+        brContTarget();
         arithMode  =  1;
+    } else if (SY == BREAKSY || SY == CONTSY) {
+        SY  =  IDENT;
+        if (! structBranch(false)) goto 8888;
+        inSymbol();
     } else if (SY == DOSY) {
         set146z  =  0U;
-        disableNorm();
-        padToLeft();
+        setBrCont();
         curOffset  =  moduleOffset;
         inSymbol();
         statement();
+        brContTarget();
         if (SY != WHILESY) {
             requiredSymErr(WHILESY);
             stmtName  =  '  DO  ';
@@ -6807,6 +6821,7 @@ var
             }
             formOperator(BRANCH);
         }
+        brContTarget();
     } else if (SY == FORSY) {
         set146z  =  0U;
         forStatement();
@@ -7678,11 +7693,11 @@ void exitScope(arg: @hashArray);
             }
             curIdRec->flags  =  curIdRec->flags | curVal.i;
         } else {
-            (loop) do {
+            do {
                 setup(scopeBound);
                 programme(&l2int18z, curIdRec);
                 if (CH == '\000')
-                    exit loop;
+                    break;
                 if (! (SY IN [FUNCSY,VOIDSY,BEGINSY]))
                     errAndSkip(errBadSymbol, skipToSet);
             } while (! (SY IN [FUNCSY,VOIDSY,BEGINSY]));
