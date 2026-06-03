@@ -6793,6 +6793,7 @@ var
         SY  =  IDENT;
         if (! structBranch(false)) goto 8888;
         inSymbol();
+        checkSymAndRead(SEMICOLON);
     } else if (SY == DOSY) {
         set146z  =  0U;
         setBrCont();

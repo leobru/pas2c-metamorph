@@ -1,7 +1,6 @@
 # Remains to be done
  - `case <type> of` -> `union`
  - `enum`, allow assigning values to elements
- - `break`/`continue`
  - `return`
  - parsing C-style expressions as statements 
  - optimize !x 
@@ -18,6 +17,5 @@
  - operations on pointers to words
  - `char *`, operations of `char *`
  - vararg functions
- - `setjmp`, `longjmp` based on `P/RC`
  - `printf`
  

@@ -7072,6 +7072,7 @@ var
             SY := IDENT;
             if not structBranch(false) then goto 8888;
             inSymbol;
+            checkSymAndRead(SEMICOLON);
         } else  if (SY = DOSY) then {
             set146z := [];
             curIdent.i := 4262454153C;
@@ -7131,7 +7132,6 @@ writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
             goto 8888;
         }
     }
-
 }; (* statement *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

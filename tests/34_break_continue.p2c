@@ -8,6 +8,7 @@ var i, j: int;
         i = i + 1;
         if (i == 3) continue;
         if (i == 7) break;
+        else
         writeln('w ', i:0);
     }
     writeln('after-w ', i:0);
