@@ -184,8 +184,8 @@ operator = enum {
 };
 //
 opgen = enum {
-    gen0,  STORE, LOAD,  gen3,  SETREG,
-    SETREG9,  gen6,  gen7,  SETREG12,  DFLTWDTH,
+    gen0,  STORE, LOAD,  FORMOP,  SETREG,
+    SETREG9,  STOREAT9,  DOIT,  SETREG12,  DFLTWDTH,
     FRACWIDTH, gen11, gen12, FILEACCESS, FILEINIT,
     BRANCH, PCKUNPCK, LITINSN
 };
@@ -1767,15 +1767,6 @@ function leftAlign(val:int): int;
     leftAlign  =  val;
 } /* leftAlign */
 //
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void P3363(arg:int);
-{
-    if (arg)
-        form1Insn(KXTA);
-    else
-        form1Insn(KXTA+E1);
-} /* P3363 */
-//
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PROGRAMME                 %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2079,7 +2070,7 @@ void addJumpInsn(opcode: int);
             if (28 in tempInsn) {
                 addInsnToBuf(getValueOrAllocSymtab(curInsn)+tempInsn);
             } else {
-                curval.i  =  curInsn % 32768;
+                curval.i  =  curInsn & 077777;
                 if (curVal.i < 2048)
                     addInsnToBuf(tempInsn + curInsn);
                 else if (curVal.i >= 28672 || curVal.i < 4096) {
@@ -2145,7 +2136,7 @@ void addJumpInsn(opcode: int);
             exit iter;
         if (curInsn < macro) {
             form1Insn(curInsn);
-            tempInsn  =  curInsn & [28:32];
+            tempInsn  =  curInsn & 03700000U;
             if (tempInsn == 03100000U || /* VJM */
                tempInsn == 0500000U)    /* ELFUN */
              {
@@ -2155,7 +2146,7 @@ void addJumpInsn(opcode: int);
             exit iter;
         }
         if (curInsn >= 3*macro) {
-            curInsn  =  curInsn - (3*macro);
+            curInsn  =  curInsn - 3*macro;
             if (curInsn >= 4096) {
                 l4var213z  =  true;
                 curInsn  =  curInsn - 4096;
@@ -2164,7 +2155,7 @@ void addJumpInsn(opcode: int);
             }
             if (curInsn == 0)
                 form1Insn(KUZA + moduleOffset + 2);
-            P3363(l4var213z);
+            form1Insn(l4var213z ? KXTA : KXTA+E1);
             form1Insn(KUJ + 2 + moduleOffset);
             padToLeft();
             if (curInsn) {
@@ -2172,7 +2163,7 @@ void addJumpInsn(opcode: int);
                     error(211);
                 P0715(0, l4inl7z->code);
             }
-            P3363(! l4var213z);
+            form1Insn(l4var213z ? KXTA+E1 : KXTA);
             padToLeft();
             exit iter;
         }
@@ -2182,9 +2173,9 @@ void addJumpInsn(opcode: int);
             l4inl7z->offset  =  moduleOffset;
         } else {
             curInsn  =  curInsn - macro;
-            curVal.i  =  curInsn & [28:32];
+            curVal.i  =  curInsn & 03700000;
             jumpType  =  curVal.i;
-            curVal.i  =  curInsn & [33:47];
+            curVal.i  =  curInsn & 077777;
             l4inl7z  =  oiptr(curVal.i);
             formJump(&l4inl7z->code);
             jumpType  =  KUJ;
@@ -2231,7 +2222,7 @@ void addInsnAndOffset(insn, l4arg2z: int);
 } /* addInsnAndOffset */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void addxToInsnList(insn: int);
+void prependToInsnList(insn: int);
 var
     elt: oiptr;
 {
@@ -2246,7 +2237,7 @@ var
         insnList->next  =  elt;
     }
     insnList->head  =  elt;
-} /* addxToInsnList */
+} /* prependToInsnList */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void prepLoad;
@@ -2453,7 +2444,7 @@ var
     l4bool4z  =  0 in insnList->regsused;
     l4st6z  =  insnList->st;
     if (l4st6z != st0 || l4bool4z)
-        addxToInsnList(macro + mcPUSH);
+        prependToInsnList(macro + mcPUSH);
     if (l4st6z == st0) {
         if (l4bool4z) {
             addInsnAndOffset(insnList->payload + KUTC,
@@ -2472,10 +2463,10 @@ var
             l4int3z  =  l4int2z + insnList->width;
             if (l4bool5z) {
                 if (l4int2z != 0)
-                    addxToInsnList(ASN64 - l4int2z);
+                    prependToInsnList(ASN64 - l4int2z);
             } else {
                 if (l4int3z != 48)
-                    addxToInsnList(ASN64 + 48 - l4int3z);
+                    prependToInsnList(ASN64 + 48 - l4int3z);
             }
             addInsnAndOffset(KUTC + insnList->payload,
                              insnList->disp);
@@ -2486,9 +2477,9 @@ var
             if (! l4bool5z) {
                 l4int2z  =  (insnList->width - l4int1z);
                 if (l4int2z != 0)
-                    addxToInsnList(ASN64 - l4int2z);
-                addxToInsnList(KYTA);
-                addxToInsnList(ASN64 - l4int1z);
+                    prependToInsnList(ASN64 - l4int2z);
+                prependToInsnList(KYTA);
+                prependToInsnList(ASN64 - l4int1z);
             }
             addToInsnList(getHelperProc(77)); /* "P/STAR" */
             insnList->next->mode  =  1;
@@ -2534,7 +2525,7 @@ var
     arg1Val, arg2Val: word;
     curOP: operator;
     work: int;
-    sjOver, sjDone, sjLabel: int;
+    sjLabel: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void P5155;
@@ -3134,7 +3125,7 @@ var
             }
         }
         if (! firstArg)
-            addxToInsnList(macro + mcPUSH);
+            prependToInsnList(macro + mcPUSH);
         firstArg  =  false;
         if (l5inl20z->next != NIL) {
             l5inl20z->next->next  =  insnList->head;
@@ -3749,42 +3740,27 @@ var
                 /* setjmp(jmpbuf): inline non-local-goto setup.
                  * Layout emitted:
                  *      <addr jmpbuf -> M14>
-                 *      UJ sjOver           ; first-call path skips the
-                 *  sjLabel: KVTM+I12 + 1   ;   re-entry point that longjmp
-                 *      KITA + 12           ;   uses (ACC := 1 on resume)
-                 *      UJ sjDone           ;
-                 *  sjOver:
                  *      KVTM+I12 + sjLabel  ; M12 := &sjLabel (RELOCATED)
                  *      KITA + 12           ; ACC := sjLabel (low 15 bits)
-                 *      KATX+I14            ; jb := sjLabel
-                 *      KMTJ+13+frameReg    ; M13 := current frame
-                 *      KITA + 13           ; ACC := frame value
+                 *      KITS + nesting      ; ACC <= frame value
                  *      ASN64-15            ; ACC <<= 15
-                 *      KAOX+I14            ; ACC |= jb  (= sjLabel)
+                 *      KAOX+SP             ; ACC |= stack  (= sjLabel)
                  *      KATX+I14            ; jb := frame<<15 | sjLabel
                  *      KXTA + 0            ; ACC := 0
-                 *  sjDone:                ; result of setjmp
+                 *  sjLabel:                ; result of setjmp
                  */
                 setAddrTo(14);
                 genOneOp();
-                sjOver  =  0;
-                formJump(&sjOver);
-                padToLeft();
-                sjLabel  =  moduleOffset;
-                form2Insn(KVTM + I12 + 1, KITA + 12);
-                sjDone  =  0;
-                formJump(&sjDone);
-                P0715(0, sjOver);
-                form2Insn(KVTM + I12 + sjLabel,
-                          KITA + 12);             /* ACC := sjLabel */
-                form2Insn(KATX + I14,             /* jb := sjLabel */
-                          curFrameRegTemplate + (KMTJ + 13));
-                form2Insn(KITA + 13,              /* ACC := frame */
+                sjLabel = 0;
+                jumpType = KVTM +I12; formJump(&sjLabel); jumpType = KUJ;
+                form1Insn(KITA + 12);             /* ACC := sjLabel */
+                form2Insn(KITS + curProcNesting,
+                                                  /* ACC <= frame */
                           ASN64 - 15);            /* ACC <<= 15 */
-                form2Insn(KAOX + I14,             /* ACC |= jb */
+                form2Insn(KAOX + SP,              /* ACC |= stack */
                           KATX + I14);            /* jb := packed */
                 form1Insn(KXTA + 0);              /* ACC := 0 */
-                P0715(0, sjDone);
+                P0715(0, sjLabel);
                 new(insnList);
                 with insnList@ do {
                     next  =  NIL;
@@ -3937,10 +3913,10 @@ var l4exf1z: @extfilerec;
     l3bool13z  =  true;
     if (errors && l3arg1z != SETREG || curExpr == NIL)
         exit;
-    if (! (l3arg1z IN [gen3, gen6, DFLTWDTH, FILEINIT, PCKUNPCK]))
+    if (! (l3arg1z IN [FORMOP, STOREAT9, DFLTWDTH, FILEINIT, PCKUNPCK]))
         genFullExpr(curExpr);
     switch (l3arg1z) {
-    case gen7: genOneOp();
+    case DOIT: genOneOp();
     case SETREG: {
         with insnList@ do {
             l3int3z  =  insnCount();
@@ -3989,7 +3965,7 @@ var l4exf1z: @extfilerec;
         prepStore();
         genOneOp();
     }
-    case gen3: {
+    case FORMOP: {
         curInsnTemplate  =  curVal.i;
         formOperator(LOAD);
         curInsnTemplate  =  KXTA;
@@ -4000,7 +3976,7 @@ var l4exf1z: @extfilerec;
         setAddrTo(9);
         genOneOp();
     }
-    case gen6: {
+    case STOREAT9: {
         l3int1z  =  curVal.i;
         genFullExpr(curExpr);
         prepLoad();
@@ -4020,13 +3996,13 @@ var l4exf1z: @extfilerec;
     }
     case FRACWIDTH: {
         prepLoad();
-        addxToInsnList(macro + mcPUSH);
+        prependToInsnList(macro + mcPUSH);
         genOneOp();
     }
     case gen11, case gen12: {
         setAddrTo(11);
         if (l3arg1z == gen12)
-            addxToInsnList(macro + mcPUSH);
+            prependToInsnList(macro + mcPUSH);
         genOneOp();
         set145z  =  set145z | [12];
     }
@@ -5708,7 +5684,7 @@ var
     checkSymAndRead(LPAREN);
     if (SY != SEMICOLON) {
         assignStatement(true);   // eventually: expression
-        formOperator(gen7);
+        formOperator(DOIT);
     }
     checkSymAndRead(SEMICOLON);
     padToLeft();
@@ -5733,7 +5709,7 @@ var
     brContTarget();
     if (loopExpr != NIL) {
         curExpr = loopExpr;
-        formOperator(gen7);
+        formOperator(DOIT);
     }
     formJump(&toLoop);
     if (leave != 0) {
@@ -6030,7 +6006,7 @@ var
                 readNext  =  false;
                 expression();
                 curVal.i  =  indCnt;
-                formOperator(gen6);
+                formOperator(STOREAT9);
             }
         }
         curExpr  =  NIL;
@@ -6309,7 +6285,7 @@ void P17037;
             l4exp6z->expr1  =  l4exp7z;
         }
         curExpr  =  l4exp6z;
-        formOperator(gen7);
+        formOperator(DOIT);
         callHelperWithArg();
     }
 } /* P17037 */
@@ -6612,11 +6588,8 @@ var
         if (arg1Type != intType)
             error(errNeedOtherTypesOfOperands);
         formOperator(LOAD);             /* KXTA jmpbuf -> ACC = packed */
-        form1Insn(KATI + 14);           /* M14 := low 15 bits = target */
-        form1Insn(ASN64 + 15);          /* ACC >>= 15 */
-        form1Insn(KATI + 13);           /* M13 := next 15 bits = frame */
-        form1Insn(KXTA + 0);            /* clean ACC before P/RC */
-        form1Insn(getHelperProc(18)     /* P/RC, tail-jump (UJ) form */
+        form1Insn(KXTS + E1);           /* send 1 */
+        form1Insn(getHelperProc(18)     /* C/RC, tail-jump (UJ) form */
                   + (-064100000));
     }
     case 16: { /* besm */
@@ -6722,7 +6695,7 @@ var
                     goto 8888;
                 }
             }
-            formOperator(gen7);
+            formOperator(DOIT);
             checkSymAndRead(SEMICOLON);
         } else {
             error(errNotDefined);
@@ -8128,7 +8101,7 @@ void initOptions;
         'P/CP    ',
         'P/AB    ',
         'P/DI    ',
-        'P/RC    ',
+        'C/RC    ',
         'P/EA    ',
 /*20*/  'P/NA    ',
         'P/BA    ',

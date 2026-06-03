@@ -130,10 +130,9 @@ C ONE WORD LONGER THAN ,CALL,P/CW BUT FASTER (AS IN THE ORIGINAL)
  c/rc    :      , name,
                 , ntr , 3
             12  , base, area
-                , atx , ret
-                , ita , 14
+                , stx , ret
                 , atx , dest
-                , ita , 13
+                , asn , 64+15
                 , atx , frame
  *0003b  :      , ita , 7
                 , aex , frame

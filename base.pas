@@ -2387,7 +2387,7 @@ var
                     isSimple := false;
                 if addrState = st1 then {
                     if (offsetShift <> baseWidth) or
-                       (helper <> 18) or (* P/RC *)
+                       (helper <> 18) or (* C/RC *)
                        (baseWidth <> 0) then
                         addInsnAndOffset(baseWidth + insnTemp[XTA],
                                          offsetShift);
@@ -2628,7 +2628,7 @@ var
     arg1Val, arg2Val: word;
     curOP: operator;
     work: integer;
-    sjOver, sjDone, sjLabel: integer;
+    sjLabel: integer;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure P5155;
@@ -3906,42 +3906,27 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 (* setjmp(jmpbuf): inline non-local-goto setup.
                  * Layout emitted:
                  *      <addr jmpbuf -> M14>
-                 *      UJ sjOver           ; first-call path skips the
-                 *  sjLabel: KVTM+I12 + 1   ;   re-entry point that longjmp
-                 *      KITA + 12           ;   uses (ACC := 1 on resume)
-                 *      UJ sjDone           ;
-                 *  sjOver:
                  *      KVTM+I12 + sjLabel  ; M12 := &sjLabel (RELOCATED)
                  *      KITA + 12           ; ACC := sjLabel (low 15 bits)
-                 *      KATX+I14            ; jb := sjLabel
-                 *      KMTJ+13+frameReg    ; M13 := current frame
-                 *      KITA + 13           ; ACC := frame value
+                 *      KITS + nesting      ; ACC <= frame value
                  *      ASN64-15            ; ACC <<= 15
-                 *      KAOX+I14            ; ACC |= jb  (= sjLabel)
+                 *      KAOX+SP             ; ACC |= stack  (= sjLabel)
                  *      KATX+I14            ; jb := frame<<15 | sjLabel
                  *      KXTA + 0            ; ACC := 0
-                 *  sjDone:                ; result of setjmp
+                 *  sjLabel:                ; result of setjmp
                  *)
                 setAddrTo(14);
                 genOneOp;
-                sjOver := 0;
-                formJump(sjOver);
-                padToLeft;
-                sjLabel := moduleOffset;
-                form2Insn(KVTM + I12 + 1, KITA + 12);
-                sjDone := 0;
-                formJump(sjDone);
-                P0715(0, sjOver);
-                form2Insn(KVTM + I12 + sjLabel,
-                          KITA + 12);             (* ACC := sjLabel *)
-                form2Insn(KATX + I14,             (* jb := sjLabel *)
-                          curFrameRegTemplate + (KMTJ + 13));
-                form2Insn(KITA + 13,              (* ACC := frame *)
+                sjLabel := 0;
+                jumpType := KVTM +I12; formJump(sjLabel); jumpType := KUJ;
+                form1Insn(KITA + 12);             (* ACC := sjLabel *)
+                form2Insn(KITS + curProcNesting,
+                                                  (* ACC := frame *)
                           ASN64 - 15);            (* ACC <<= 15 *)
-                form2Insn(KAOX + I14,             (* ACC |= jb *)
+                form2Insn(KAOX + SP,              (* ACC |= jb *)
                           KATX + I14);            (* jb := packed *)
                 form1Insn(KXTA + 0);              (* ACC := 0 *)
-                P0715(0, sjDone);
+                P0715(0, sjLabel);
                 new(insnList);
                 with insnList@ do {
                     tail := NIL;
@@ -5081,7 +5066,7 @@ var
                     putToSymTab([]);
                 };
                 form3Insn(frame + (KMTJ + 13), KVTM+I14 + offset,
-                          getHelperProc(18(*"P/RC"*)) + (-64100000B));
+                          getHelperProc(18(*"C/RC"*)) + (-64100000B));
             };
         }
     }
@@ -6868,15 +6853,12 @@ var
         if not (l4bool10z) then
             exit
     };
-    15: { (* longjmp(jmpbuf) - inline non-local goto via P/RC *)
+    15: { (* longjmp(jmpbuf) - inline non-local goto via C/RC *)
         if (arg1Type <> integerType) then
             error(errNeedOtherTypesOfOperands);
         formOperator(LOAD);             (* KXTA jmpbuf -> ACC = packed *)
-        form1Insn(KATI + 14);           (* M14 := low 15 bits = target *)
-        form1Insn(ASN64 + 15);          (* ACC >>= 15 *)
-        form1Insn(KATI + 13);           (* M13 := next 15 bits = frame *)
-        form1Insn(KXTA + 0);            (* clean ACC before P/RC *)
-        form1Insn(getHelperProc(18)     (* P/RC, tail-jump (UJ) form *)
+        form1Insn(KXTS + E1);           (* send 1 to C/RC *)
+        form1Insn(getHelperProc(18)     (* C/RC, tail-jump (UJ) form *)
                   + (-64100000B));
     };
     16: { (* besm *)
@@ -8476,7 +8458,7 @@ procedure initOptions;
         6017436000000000C      (*"P/CP    "*),
         6017414200000000C      (*"P/AB    "*),
         6017445100000000C      (*"P/DI    "*),
-        6017624300000000C      (*"P/RC    "*),
+        4317624300000000C      (*"C/RC    "*),
         6017454100000000C      (*"P/EA    "*),
 (*20*)  6017564100000000C      (*"P/NA    "*),
         6017424100000000C      (*"P/BA    "*),
