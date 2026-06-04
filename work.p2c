@@ -1145,7 +1145,6 @@ var
     numstr: array [17] of word;
     expLiteral, expMagnitude: int;
     val: int;
-    chord: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* inSymbol */

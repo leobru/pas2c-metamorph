@@ -5939,6 +5939,25 @@ procedure setStrLab(forGoto: boolean);
 };
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure setBrCont;
+{
+    curIdent.i := 4262454153C;
+    setStrLab(false); (* break *)
+    curIdent.i := 4357566451566545C;
+    setStrLab(false); (* continue *)
+};
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure brContTarget;
+{
+    (* assigning target for break/continue if used *)
+    with strLabList@ do if (exitTarget <> 0) then {
+        fixup(0, exitTarget);
+    };
+    strLabList  :=  strLabList@.next; (* removing break/continue *)
+};
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure forStatement;
 var
    toLoop, leave : integer;
@@ -5968,14 +5987,9 @@ var
         loopExpr := curExpr;
     };
     checkSymAndRead(RPAREN);
-    curIdent.i := 4262454153C;
-    setStrLab(false); (* break *)
-    curIdent.i := 4357566451566545C;
-    setStrLab(false); (* continue *)
+    setBrCont;
     statement;
-    with strLabList@ do if exitTarget <> 0 then
-        fixup(0, strLabList@.exitTarget); (* assigning target for continue *)
-    strLabList := strLabList@.next; (* removing continue *)
+    brContTarget; (* removing continue *)
     if (loopExpr <> NIL) then {
         curExpr := loopExpr;
         formOperator(DOIT);
@@ -5985,9 +5999,7 @@ var
         padToLeft;
         fixup(0, leave);
     };
-    with strLabList@ do if exitTarget <> 0 then
-        fixup(0, exitTarget); (* assigning target for break *)
-    strLabList := strLabList@.next; (* removing break *)
+    brContTarget; (* removing break *)
 }; (* forStatement *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7073,10 +7085,7 @@ var
             }
         } else  if (SY = WHILESY) then {
             set146z := [];
-            curIdent.i := 4262454153C;
-            setStrLab(false); (* break *)
-            curIdent.i := 4357566451566545C;
-            setStrLab(false); (* continue *)
+            setBrCont;
             strLabList@.exitTarget := moduleOffset;
             curOffset.i := moduleOffset;
             ifWhileStatement;
@@ -7084,8 +7093,7 @@ var
             form1Insn(insnTemp[UJ] + curOffset.i);
             fixup(0, ifWhlTarget);
             strLabList := strLabList@.next; (* removing continue *)
-            fixup(0, strLabList@.exitTarget); (* assigning target for break *)
-            strLabList := strLabList@.next; (* removing break *)
+            brContTarget; (* removing break *)
             arithMode := 1;
         } else if (SY = BREAKSY) or (SY = CONTSY) then {
             SY := IDENT;
@@ -7094,19 +7102,11 @@ var
             checkSymAndRead(SEMICOLON);
         } else  if (SY = DOSY) then {
             set146z := [];
-            curIdent.i := 4262454153C;
-            setStrLab(false); (* break *)
-            curIdent.i := 4357566451566545C;
-            setStrLab(false); (* continue *)
+            setBrCont;
             curOffset.i := moduleOffset;
             inSymbol;
             statement;
-            (* assigning target for continue if used *)
-            with strLabList@ do if exitTarget <> 0 then {
-                 fixup(0, exitTarget);
-writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
-                                                        };
-            strLabList := strLabList@.next; (* removing continue *)
+            brContTarget; (* removing continue *)
             if (SY <> WHILESY) then {
                 requiredSymErr(WHILESY);
                 stmtName := '  DO  ';
@@ -7129,23 +7129,16 @@ writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
                 };
                 formOperator(BRANCH);
             };
-            with strLabList@ do if exitTarget <> 0 then {
-            fixup(0, exitTarget); (* assigning target for break *)
-writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
-};
-            strLabList := strLabList@.next; (* removing break *)
+            brContTarget; (* removing break *)
         } else
         if (SY = FORSY) then {
             set146z := [];
             forStatement;
         } else  if (SY = SWITCHSY) then {
-           curIdent.i := 4262454153C;
-           setStrLab(false);
-           caseStatement;
-           with strLabList@ do if (exitTarget <> 0) then {
-              fixup(0, exitTarget);
-           };
-           strLabList  :=  strLabList@.next;
+            curIdent.i := 4262454153C;
+            setStrLab(false);
+            caseStatement;
+            brContTarget; (* removing break *)
         } else if (SY = WITHSY) then {
             withStatement;
         };
