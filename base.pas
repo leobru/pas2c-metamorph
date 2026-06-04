@@ -337,7 +337,8 @@ end;
 numberFormat = (decimal, octal, fullword, hex);
 %
 var
-   numFormat: numberFormat;
+   curTimes  : integer;
+   numFormat : numberFormat;
    bigSkipSet, statEndSys, blockBegSys, statBegSys,
    skipToSet, lvalOpSet: setofsys;
    bool47z, bool48z, forValue: boolean;
@@ -374,6 +375,7 @@ var
    curExternFile: @extfilerec;
    commentModeCH: char;
    CH: char;
+   prevInsn: word;
    debugLine: integer;
    lineNesting: integer;
    FcstCountTo500: integer;
@@ -453,8 +455,8 @@ var
    kwordHash: array [0..127] of @kword;
    charSym: array ['_000'..'_177'] of symbol;
    symHash, fieldHash: hashArray;
-   helperMap: array [1..102] of integer;
-   helperNames: array [1..102] of bitset;
+   helperMap: array [1..99] of integer;
+   helperNames: array [1..99] of bitset;
    opPrec: array [operator] of integer;
    opAssoc: array [operator] of assoc;
 %
@@ -663,9 +665,17 @@ var
                     half1 + half2;
                 exit;
             }
-       }
+        }
+%    } else if (prevOpcode > 1) and (insn.i mod 4096 <> 0) and
+%    (insn.m mod prevInsn.m = [32]) (* maybe ATX/XTA *) then {
+% Load after store; if the load reg/off is the same as the store,
+% and the store was not a stack push, there is no need to so the read.
+%        if (prevInsn.i <> 74000000B (* not 15,ATX, *)) and
+%            (prevInsn.m * [28, 30..35] = [] (* but still ATX *)) then
+%            exit (* skip the XTA *)
     };
     prevOpcode := opcode.i;
+    prevInsn := insn;
     if (putLeft) then {
         leftInsn := insn.m * halfWord;
         besm(ASN64-24);
@@ -6585,7 +6595,7 @@ procedure checkElementForReadWrite;
 {
     set145z := set145z - [12];
     curVarKind := l4typ3z@.k;
-    helperNo := 100;               (* C/WI *)
+    helperNo := 36;               (* C/WI *)
     if ((l4typ3z = integerType) or (l4typ3z = booleanType)) then
         defWidth := 10
     else if (l4typ3z = realType) then {
@@ -8101,8 +8111,8 @@ var
     };
     opToInsn[MUL] := insnTemp[AMULX];
     opToInsn[RDIVOP] := insnTemp[ADIVX];
-    opToInsn[IDIVOP] := 101; (* C/DI *)
-    opToInsn[IMODOP] := 102; (* C/MD *)
+    opToInsn[IDIVOP] := 17; (* C/DI *)
+    opToInsn[IMODOP] := 11; (* C/MD *)
     opToInsn[PLUSOP] := insnTemp[ADD];
     opToInsn[MINUSOP] := insnTemp[SUB];
     opToInsn[IMULOP] := insnTemp[AMULX];
@@ -8460,13 +8470,13 @@ procedure initOptions;
         6017455700000000C      (*"P/EO    "*), (* fnEOF - 6 *)
         0000000000000000C      (*"P/SS obs"*),
 (*10*)  6017455400000000C      (*"P/EL    "*), (* fnEOLN - 6 *)
-        6017554400000000C      (*"P/MD    "*),
+        4317554400000000C      (*"C/MD    "*),
         6017555100000000C      (*"P/MI    "*),
         6017604100000000C      (*"P/PA    "*),
         6017655600000000C      (*"P/UN    "*),
         6017436000000000C      (*"P/CP    "*),
         6017414200000000C      (*"P/AB    "*),
-        6017445100000000C      (*"P/DI    "*),
+        4317445100000000C      (*"C/DI    "*),
         4317624300000000C      (*"C/RC    "*),
         6017454100000000C      (*"P/EA    "*),
 (*20*)  6017564100000000C      (*"P/NA    "*),
@@ -8485,7 +8495,7 @@ procedure initOptions;
         6017566700000000C      (*"P/NW    "*),
         6017446300000000C      (*"P/DS    "*),
         6017506400000000C      (*"P/HT    "*),
-        6017675100000000C      (*"P/WI    "*),
+        4317675100000000C      (*"C/WI    "*),
         6017676200000000C      (*"P/WR    "*),
         6017674300000000C      (*"P/WC    "*),
         6017412600000000C      (*"P/A6    "*),
@@ -8548,10 +8558,7 @@ procedure initOptions;
         6017444400000000C      (*"P/DD    "*),
         6017624500000000C      (*"P/RE    "*),
         4317635054000000C      (*"C/SHL   "*),
-        4317635062000000C      (*"C/SHR   "*),
-(*100*) 4317675100000000C      (*"C/WI    "*),
-        4317445100000000C      (*"C/DI    "*),
-        4317554400000000C      (*"C/MD    "*);
+        4317635062000000C      (*"C/SHR   "*);
     systemProcNames :=
 (*0*)   606564C                (*"     PUT"*),
         474564C                (*"     GET"*),

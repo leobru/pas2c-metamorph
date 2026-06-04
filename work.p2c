@@ -459,8 +459,8 @@ var
     kwordHash: array [128] of @kword;
     charSym: array ['\200'] of symbol;
     symHash, fieldHash: hashArray;
-    helperMap: array [1..102] of int;
-    helperNames: array [1..102] of int;
+    helperMap: array [1..99] of int;
+    helperNames: array [1..99] of int;
     opPrec: array [SHLEFT..ALTERN] of int;
     opAssoc: array [SHLEFT..ALTERN] of assoc;
 //
@@ -569,7 +569,7 @@ var res: tptr;
         new(res, kindArray);
         with res@ do {
             size  =  (strLen + 5) / 6;
-            bits  =  (size == 1) ? strLen * 8 : 0;
+            bits  =  size == 1 ? strLen << 3 : 0;
             k  =  kindArray;
             base  =  charType;
             pck  =  true;
@@ -1163,7 +1163,9 @@ var
         charClass  =  chrClass[CH];
 (lexer)
         switch (SY) {
-            default: nextCH(); break;
+            default:
+                nextCH();
+                break;
             case IDENT: {
                 curToken.i  = 0U;
                 tokenLen  =  1;
@@ -2070,6 +2072,7 @@ void addJumpInsn(opcode: int);
                 add2InsnsToBuf(allocSymtab(curVal.i) + (KXTS+SP),
                                KAAX+I8 + curInsn);
                 add2InsnsToBuf(KAEX+SP, KATX+I14);
+            case 10: case 12: case 13: // to allow switch optimization
             } /* switch */
         } else {
             if (28 in tempInsn) {
@@ -2731,7 +2734,7 @@ var
                     l5ins8z  =  insnList;
                     insnList  =  otherIns;
                     addInsnAndOffset(macro + mcJUMP,
-                                     010000 * l5var5z + l5var4z);
+                                     (l5var5z << 12) + l5var4z);
                 } else {
                     addInsnAndOffset(l5var6z, l5var4z);
                     l5var5z  =  l5var4z;
@@ -2743,7 +2746,7 @@ var
             if (l5var4z == 0) {
                 if (l5var1z) {
                     addInsnAndOffset(macro + mcJUMP,
-                                     010000 * l5var5z + l5var3z);
+                                     (l5var5z << 12) + l5var3z);
                     l5ins8z  =  insnList;
                     insnList  =  otherIns;
                     prepLoad();
@@ -2759,14 +2762,14 @@ var
                 if (l5var1z) {
                     if (l5var2z) {
                         addInsnAndOffset(macro + mcJUMP,
-                                         010000 * l5var5z + l5var3z);
+                                         (l5var5z << 12) + l5var3z);
                         l5ins8z  =  insnList;
                         insnList  =  otherIns;
                         addInsnAndOffset(macro + mcJUMP,
-                                         010000 * l5var5z + l5var4z);
+                                         (l5var5z << 12) + l5var4z);
                     } else {
                         addInsnAndOffset(macro + mcJUMP,
-                                         010000 * l5var4z + l5var3z);
+                                         (l5var4z << 12) + l5var3z);
                         l5ins8z  =  insnList;
                         insnList  =  otherIns;
                         l5var5z  =  l5var4z;
@@ -2777,10 +2780,10 @@ var
                     l5var5z  =  l5var3z;
                     if (l5var2z)
                         addInsnAndOffset(macro + mcJUMP,
-                                         010000 * l5var3z + l5var4z);
+                                         (l5var3z << 12) + l5var4z);
                     else
                         addInsnAndOffset(macro + 3,
-                                         010000 * l5var3z + l5var4z);
+                                         (l5var3z << 12) + l5var4z);
                 }
             }
         }
@@ -3421,7 +3424,7 @@ var
                "UJ elseLab" and define payload at this point so the
                original jumps fall through to the then-branch. */
             addInsnAndOffset(macro + 2,
-                             elseLab * 010000 + insnList->payload);
+                             (elseLab << 12) + insnList->payload);
     } else {
         /* Simple il3 (single comparison, payload=0), or il1/il2/ilCONST:
            prepLoad with forValue=false is a no-op for il3, and materializes
@@ -3443,7 +3446,7 @@ var
     curExpr = altExpr->expr1;
     genFullExpr(curExpr);
     prepLoad();
-    addInsnAndOffset(macro + 2, endLab * 010000 + elseLab);
+    addInsnAndOffset(macro + 2, (endLab << 12) + elseLab);
     thenChain = insnList;
 
     /* Build the else-branch sub-chain:
@@ -3574,7 +3577,7 @@ var
                     if (arg2Const) {
                         prepLoad();
                         if (card(arg2Val.i) == 1) {
-                            curVal.i  =  all1 >> (minel(arg2Val.i)+1);
+                            curVal.i  =  all1 >> 1 >> minel(arg2Val.i);
                             addToInsnList(KAAX+I8 +getFCSToffset());
                             l3int3z  =  0;
                         } else {
@@ -3627,235 +3630,230 @@ var
 10122:          insnList->tail->mode  =  l3int3z;
             }
         }
-    } else {
-        if (FILEPTR >= curOP) {
-            if (curOP == GETVAR) {
-                new(insnList);
-                curIdRec  =  exprToGen->id1;
-                with insnList@ do {
-                    tail  =  NIL;
-                    head  =  NIL;
-                    regsused  =  0U;
-                    ilm  =  il1;
-                    payload  =  curIdRec->offset;
-                    disp  =  curIdRec->high;
-                    st  =  st0;
-                    addrmd  =  18;
-                }
-                if (curIdRec->cl == FORMALID) {
-                    writeln (' wtf '); halt;
-                    genDeref();
-                } else if (curIdRec->cl == ROUTINEID) {
-                    insnList->disp  =  3;
-                    insnList->payload  =  (insnList->payload + frameRegTemplate);
-                } else if (insnList->disp >= 074000) {
-                    addToInsnList(KUTC + insnList->disp);
-                    insnList->disp  =  0;
-                    insnList->addrmd  =  17;
-                    insnList->payload  =  0;
-                }
-            } else if (curOP == GETFIELD) {
-                genFullExpr(exprToGen->expr1);
-                curIdRec  =  exprToGen->id2;
-                with insnList@ do {
-                    disp  =  disp + curIdRec->offset;
-                    if (curIdRec->pckfield) {
-                        switch (st) {
-                        case st0: {
-                            shift  =  curIdRec->shift;
-                            break;
-                        }
-                        case st1: {
-                            shift  =  shift + curIdRec->shift;
-                            if (! (S6 IN optSflags))
-                                shift  =  shift +
-                                           curIdRec->uptype->bits - 48;
-                            break;
-                        }
-                        case st2:
-                            if (! l3bool13z)
-                                error(errUsingVarAfterIndexingPackedArray);
-                            else {
-                                P5155();
-                                insnList->shift  =  curIdRec->shift;
-                            }
-                        }
-                        insnList->width  =  curIdRec->width;
-                        insnList->st  =  st1;
-                        insnList->regsused  =  insnList->regsused | E48;
-                    }
-                }
-            } else if (curOP == GETELT)
-                genGetElt();
-            else if ((curOP == DEREF) || (curOP == FILEPTR)) {
-                genFullExpr(exprToGen->expr1);
+    } else if (FILEPTR >= curOP) {
+        if (curOP == GETVAR) {
+            new(insnList);
+            curIdRec  =  exprToGen->id1;
+            with insnList@ do {
+                tail  =  NIL;
+                head  =  NIL;
+                regsused  =  0U;
+                ilm  =  il1;
+                payload  =  curIdRec->offset;
+                disp  =  curIdRec->high;
+                st  =  st0;
+                addrmd  =  18;
+            }
+            if (curIdRec->cl == FORMALID) {
+                writeln (' wtf '); halt;
                 genDeref();
-            } else
-            if (curOP == op37) {
-                startInsnList(il1);
-                genDeref();
-            } else
-            if (curOP == GETENUM)
-                startInsnList(ilCONST);
-        } else if (curOP == ALNUM)
-            genEntry();
-        else if (curOP IN [TOREAL..BITNEGOP]) {
+            } else if (curIdRec->cl == ROUTINEID) {
+                insnList->disp  =  3;
+                insnList->payload  =  (insnList->payload + frameRegTemplate);
+            } else if (insnList->disp >= 074000) {
+                addToInsnList(KUTC + insnList->disp);
+                insnList->disp  =  0;
+                insnList->addrmd  =  17;
+                insnList->payload  =  0;
+            }
+        } else if (curOP == GETFIELD) {
             genFullExpr(exprToGen->expr1);
-            if (insnList->ilm == ilCONST) {
-                arg1Val.i  =  insnList->payload;
-                switch (curOP) {
-                case TOREAL: arg1Val.r  =  arg1Val.i; break;
-                case NOTOP:  arg1Val.i  =  ! arg1Val.i; break;
-                case RNEGOP: arg1Val.r  =  -arg1Val.r; break;
-                case INEGOP: arg1Val.i  =  -arg1Val.i; break;
-                case BITNEGOP: arg1Val.i = ~arg1Val.i;
-                } /* switch 10345 */
-                insnList->payload  =  arg1Val.i;
-            } else if (curOP == NOTOP) {
-                negateCond();
-            } else {
-                prepLoad();
-                if (curOP == TOREAL) {
-                    addToInsnList(KAOX+ZERO);
-                    addToInsnList(KAVX);
-                    l3int3z  =  3;
-                    goto 10122;
-                } else if (curOP == BITNEGOP) {
-                    addToInsnList(KAEX+ALLONES);
-                    l3int3z = 1;
-                    goto 10122;
-                 } else {
-                    addToInsnList(KAVX+MINUS1);
-                    l3int3z  =  (curOP == RNEGOP) ? 3 : 1;
-                    goto 10122;
+            curIdRec  =  exprToGen->id2;
+            with insnList@ do {
+                disp  =  disp + curIdRec->offset;
+                if (curIdRec->pckfield) {
+                    switch (st) {
+                    case st0: {
+                        shift  =  curIdRec->shift;
+                        break;
+                    }
+                    case st1: {
+                        shift  =  shift + curIdRec->shift;
+                        if (! (S6 IN optSflags))
+                            shift  =  shift +
+                                       curIdRec->uptype->bits - 48;
+                        break;
+                    }
+                    case st2:
+                        if (! l3bool13z)
+                            error(errUsingVarAfterIndexingPackedArray);
+                        else {
+                            P5155();
+                            insnList->shift  =  curIdRec->shift;
+                        }
+                    }
+                    insnList->width  =  curIdRec->width;
+                    insnList->st  =  st1;
+                    insnList->regsused  =  insnList->regsused | E48;
                 }
             }
-        } else if (curOP == STANDPROC) {
+        } else if (curOP == GETELT)
+            genGetElt();
+        else if (curOP == DEREF || curOP == FILEPTR) {
             genFullExpr(exprToGen->expr1);
-            work  =  exprToGen->num2;
-            if (work == fnSETJMP) {
-                /* setjmp(jmpbuf): inline non-local-goto setup.
-                 * Layout emitted:
-                 *      <addr jmpbuf -> M14>
-                 *      KVTM+I12 + sjLabel  ; M12 := &sjLabel (RELOCATED)
-                 *      KITA + 12           ; ACC := sjLabel (low 15 bits)
-                 *      KITS + nesting      ; ACC <= frame value
-                 *      ASN64-15            ; ACC <<= 15
-                 *      KAOX+SP             ; ACC |= stack  (= sjLabel)
-                 *      KATX+I14            ; jb := frame<<15 | sjLabel
-                 *      KXTA + 0            ; ACC := 0
-                 *  sjLabel:                ; result of setjmp
-                 */
-                setAddrTo(14);
-                genOneOp();
-                sjLabel = 0;
-                jumpType = KVTM +I12; formJump(&sjLabel); jumpType = KUJ;
-                form1Insn(KITA + 12);             /* ACC := sjLabel */
-                form2Insn(KITS + curProcNesting,
-                                                  /* ACC <= frame */
-                          ASN64 - 15);            /* ACC <<= 15 */
-                form3Insn(KAOX + SP,              /* ACC |= stack */
-                          KATX + I14,             /* jb := packed */
-                          KXTA + 0);              /* ACC := 0 */
-                fixup(0, sjLabel);
-                new(insnList);
-                with insnList@ do {
-                    tail  =  NIL;
-                    head  =  NIL;
-                    typ  =  intType;
-                    regsused  =  E48;
-                    ilm  =  il2;
-                    st  =  st0;
-                    payload  =  0;
-                    disp  =  0;
-                    addrmd  =  0;
-                    width  =  48;
-                    shift  =  0;
-                }
-            } else if (100 < work) {
-                prepLoad();
-                addToInsnList(getHelperProc(work - 100));
-            } else {
-                if (insnList->ilm == ilCONST) {
-                    arg1Const  =  true;
-                    arg1Val.i  =  insnList->payload;
-                } else
-                    arg1Const  =  false;
-                arg2Const  =  (insnList->typ == realType);
-                if (arg1Const) {
-                    switch (work) {
-                    case fnABS:   arg1Val.r  =  abs(arg1Val.r); break;
-                    case fnTRUNC: arg1Val.i  =  trunc(arg1Val.r); break;
-                    case fnSUCC:  arg1Val.c  =  succ(arg1Val.c); break;
-                    case fnPRED:  arg1Val.c  =  pred(arg1Val.c); break;
-                    case fnROUND: arg1Val.i  =  round(arg1Val.r); break;
-                    case fnCARD:  arg1Val.i  =  card(arg1Val.i); break;
-                    case fnMINEL: arg1Val.i  =  minel(arg1Val.i); break;
-                    case fnABSI:  arg1Val.i  =  abs(arg1Val.i); break;
-                    case fnEOF:
-                    case fnREF:
-                    case fnEOLN:
-                        error(201);
-                    }
-                    insnList->payload  =  arg1Val.i;
-                } else if (work IN [fnEOF, fnREF, fnEOLN]) {
-                    if (work == fnREF) {
-                        setAddrTo(14);
-                        addToInsnList(KITA+14);
-                    } else {
-                        setAddrTo(12);
-                        addToInsnList(getHelperProc(work - 6));
-                    }
-                    with insnList@ do {
-                        ilm  =  il2;
-                        regsused  =  regsused | E48;
-                    }
-                } else {
-                    prepLoad();
-                    if (work == fnTRUNC) {
-                        l3int3z  =  2;
-                        addToInsnList(getHelperProc(P_TR));
-                        goto 10122;
-                    }
-                    if (work IN [fnSQRT:fnEXP,
-                                 fnSUCC, fnCARD]) {
-                        l3int3z  =  0;
-                    } else if (work == fnABS)
-                        l3int3z  =  3;
-                    else {
-                        l3int3z  =  1;
-                    }
-                    addToInsnList(funcInsn[work]);
-                    goto 10122;
-                }
-            }
+            genDeref();
+        } else
+        if (curOP == op37) {
+            startInsnList(il1);
+            genDeref();
+        } else
+        if (curOP == GETENUM)
+            startInsnList(ilCONST);
+    } else if (curOP == ALNUM)
+        genEntry();
+    else if (curOP IN [TOREAL..BITNEGOP]) {
+        genFullExpr(exprToGen->expr1);
+        if (insnList->ilm == ilCONST) {
+            arg1Val.i  =  insnList->payload;
+            switch (curOP) {
+            case TOREAL: arg1Val.r  =  arg1Val.i; break;
+            case NOTOP:  arg1Val.i  =  ! arg1Val.i; break;
+            case RNEGOP: arg1Val.r  =  -arg1Val.r; break;
+            case INEGOP: arg1Val.i  =  -arg1Val.i; break;
+            case BITNEGOP: arg1Val.i = ~arg1Val.i;
+            } /* switch 10345 */
+            insnList->payload  =  arg1Val.i;
+        } else if (curOP == NOTOP) {
+            negateCond();
         } else {
-            if (curOP == NOOP) {
-                curVal.tp  =  exprToGen->typ;
-                if (curVal.i IN set146z) {
-                    new(insnList);
-                    with insnList@ do {
-                        typ  =  exprToGen->expr2->typ;
-                        tail  =  NIL;
-                        head  =  ;
-                        regsused  =  0U;
-                        ilm  =  il1;
-                        addrmd  =  18;
-                        payload  =  indexreg[curVal.i];
-                        disp  =  0;
-                        st  =  st0;
-                    }
-                } else {
-                    curVal.i  =  14;
-                    exprToGen->typ  =  curVal.tp;
-                    exprToGen  =  exprToGen->expr2;
-                    goto 7567;
-                }
-                exit;
-            } else {
-                error(220);
+            prepLoad();
+            if (curOP == TOREAL) {
+                addToInsnList(KAOX+ZERO);
+                addToInsnList(KAVX);
+                l3int3z  =  3;
+                goto 10122;
+            } else if (curOP == BITNEGOP) {
+                addToInsnList(KAEX+ALLONES);
+                l3int3z = 1;
+                goto 10122;
+             } else {
+                addToInsnList(KAVX+MINUS1);
+                l3int3z  =  (curOP == RNEGOP) ? 3 : 1;
+                goto 10122;
             }
         }
+    } else if (curOP == STANDPROC) {
+        genFullExpr(exprToGen->expr1);
+        work  =  exprToGen->num2;
+        if (work == fnSETJMP) {
+            /* setjmp(jmpbuf): inline non-local-goto setup.
+             * Layout emitted:
+             *      <addr jmpbuf -> M14>
+             *      KVTM+I12 + sjLabel  ; M12 := &sjLabel (RELOCATED)
+             *      KITA + 12           ; ACC := sjLabel (low 15 bits)
+             *      KITS + nesting      ; ACC <= frame value
+             *      ASN64-15            ; ACC <<= 15
+             *      KAOX+SP             ; ACC |= stack  (= sjLabel)
+             *      KATX+I14            ; jb := frame<<15 | sjLabel
+             *      KXTA + 0            ; ACC := 0
+             *  sjLabel:                ; result of setjmp
+             */
+            setAddrTo(14);
+            genOneOp();
+            sjLabel = 0;
+            jumpType = KVTM + I12; formJump(&sjLabel); jumpType = KUJ;
+            form3Insn(KITA + 12,              /* ACC := sjLabel */
+                      KITS + curProcNesting,  /* ACC <= frame */
+                      ASN64 - 15);            /* ACC <<= 15 */
+            form3Insn(KAOX + SP,              /* ACC |= stack */
+                      KATX + I14,             /* jb := packed */
+                      KXTA + 0);              /* ACC := 0 */
+            fixup(0, sjLabel);
+            new(insnList);
+            with insnList@ do {
+                tail  =  NIL;
+                head  =  NIL;
+                typ  =  intType;
+                regsused  =  E48;
+                ilm  =  il2;
+                st  =  st0;
+                payload  =  0;
+                disp  =  0;
+                addrmd  =  0;
+                width  =  48;
+                shift  =  0;
+            }
+        } else if (100 < work) {
+            prepLoad();
+            addToInsnList(getHelperProc(work - 100));
+        } else {
+            if (insnList->ilm == ilCONST) {
+                arg1Const  =  true;
+                arg1Val.i  =  insnList->payload;
+            } else
+                arg1Const  =  false;
+            arg2Const  =  (insnList->typ == realType);
+            if (arg1Const) {
+                switch (work) {
+                case fnABS:   arg1Val.r  =  abs(arg1Val.r); break;
+                case fnTRUNC: arg1Val.i  =  trunc(arg1Val.r); break;
+                case fnSUCC:  arg1Val.c  =  succ(arg1Val.c); break;
+                case fnPRED:  arg1Val.c  =  pred(arg1Val.c); break;
+                case fnROUND: arg1Val.i  =  round(arg1Val.r); break;
+                case fnCARD:  arg1Val.i  =  card(arg1Val.i); break;
+                case fnMINEL: arg1Val.i  =  minel(arg1Val.i); break;
+                case fnABSI:  arg1Val.i  =  abs(arg1Val.i); break;
+                case fnEOF:
+                case fnREF:
+                case fnEOLN:
+                    error(201);
+                }
+                insnList->payload  =  arg1Val.i;
+            } else if (work IN [fnEOF, fnREF, fnEOLN]) {
+                if (work == fnREF) {
+                    setAddrTo(14);
+                    addToInsnList(KITA+14);
+                } else {
+                    setAddrTo(12);
+                    addToInsnList(getHelperProc(work - 6));
+                }
+                with insnList@ do {
+                    ilm  =  il2;
+                    regsused  =  regsused | E48;
+                }
+            } else {
+                prepLoad();
+                if (work == fnTRUNC) {
+                    l3int3z  =  2;
+                    addToInsnList(getHelperProc(P_TR));
+                    goto 10122;
+                }
+                if (work IN [fnSQRT:fnEXP,
+                             fnSUCC, fnCARD]) {
+                    l3int3z  =  0;
+                } else if (work == fnABS)
+                    l3int3z  =  3;
+                else {
+                    l3int3z  =  1;
+                }
+                addToInsnList(funcInsn[work]);
+                goto 10122;
+            }
+        }
+    } else if (curOP == NOOP) {
+        curVal.tp  =  exprToGen->typ;
+        if (curVal.i IN set146z) {
+            new(insnList);
+            with insnList@ do {
+                typ  =  exprToGen->expr2->typ;
+                tail  =  NIL;
+                head  =  ;
+                regsused  =  0U;
+                ilm  =  il1;
+                addrmd  =  18;
+                payload  =  indexreg[curVal.i];
+                disp  =  0;
+                st  =  st0;
+            }
+        } else {
+            curVal.i  =  14;
+            exprToGen->typ  =  curVal.tp;
+            exprToGen  =  exprToGen->expr2;
+            goto 7567;
+        }
+        exit;
+    } else {
+        error(220);
     }
     insnList->typ  =  exprToGen->typ;
 } /* genFullExpr */
@@ -4690,7 +4688,7 @@ var
                         curVal.i  =  0400000;
                     else if (l3var5z == kindScalar) {
                         dumpEnumNames(l3typ1z);
-                        curVal.i  =  01000000 * l3typ1z->start + 0300000;
+                        curVal.i  =  (l3typ1z->start << 18) + 0300000;
                     } else if (l3var5z == kindFile)
                         curVal.i  =  0600000;
                     else {
@@ -4755,7 +4753,7 @@ var
             frame  =  4;
         }
         if (l3var3z)
-            form2Insn((KVTM+I14) + l3arg1z + (frame - 3) * 01000,
+            form2Insn((KVTM+I14) + l3arg1z + ((frame - 3) << 9),
                       getHelperProc(94 /*"P/NN"*/) - 010000000);
         if (1 < l3arg1z) {
             frame  =  getValueOrAllocSymtab(-(frame+l3arg1z));
@@ -4784,8 +4782,7 @@ var
             fixup(2, 49 /* "P/RDC" */);
         }
         if (curProcNesting == 1) {
-            if ((heapCallsCnt != 0) &&
-               (heapSize == 0))
+            if (heapCallsCnt != 0 && heapSize == 0)
                 error(65 /*errCannotHaveK0AndNew*/);
             l3var3z  =  (heapSize == 0) ||
                 (heapCallsCnt == 0) && (heapSize == 100);
@@ -5791,8 +5788,7 @@ type
         offset: int;
     };
 var
-    allClauses, curClause, clause, unused: @casechain;
-    isIntCase: int;
+    allClauses, curClause, clause, chain: @casechain;
     otherSeen: int;
     otherOffset: int;
     itemsEnded, goodMode: int;
@@ -5800,7 +5796,7 @@ var
     itemvalue: int;
     itemSpan: int;
     expected: word;
-    startLine, l4var17z, endOfStmt: int;
+    startLine, decoder, endOfStmt: int;
     minValue, maxValue: word;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5809,15 +5805,15 @@ var
     parentExpression();
     exprtype  =  curExpr->typ;
     otherSeen  =  false;
-    if (exprtype == alfaType || exprtype->k == kindScalar)
+    if (exprtype->k == kindScalar)
         formOperator(LOAD);
     else
         error(25); /* errExprNotOfADiscreteType */
     disableNorm();
-    l4var17z  =  0;
+    decoder  =  0;
     endOfStmt  =  0;
     allClauses  =  NIL;
-    formJump(&l4var17z);
+    formJump(&decoder);
     checkSymAndRead(BEGINSY);
     firstType  =  NIL;
     goodMode  =  true;
@@ -5852,7 +5848,7 @@ var
                         } else if (itemvalue < curClause->value.i) {
                             break;
                         } else {
-                            unused  =  curClause;
+                            chain  =  curClause;
                             curClause  =  curClause->next;
                         }
                     }
@@ -5861,7 +5857,7 @@ var
                         allClauses  =  clause;
                     } else {
                         clause->next  =  curClause;
-                        unused->next  =  clause;
+                        chain->next  =  clause;
                     }
                     inSymbol();
                 }
@@ -5887,14 +5883,12 @@ var
     }
     formJump(&endOfStmt);
     padToLeft();
-    isIntCase  =  typeCheck(exprtype, intType);
     if (allClauses != NIL) {
         expected  =  allClauses->value;
         minValue  =  expected;
         curClause  =  allClauses;
         while (curClause != NIL) {
-            if ((expected == curClause->value) &&
-               (exprtype->k == kindScalar)) {
+            if (expected == curClause->value) {
                 maxValue  =  expected;
                 curVal  =  expected;
                 curVal.c  =  succ(curVal.c);
@@ -5902,9 +5896,9 @@ var
                 curClause  =  curClause->next;
             } else {
                 itemSpan  =  34000;
-                fixup(0, l4var17z);
+                fixup(0, decoder);
                 if (firstType->k == kindScalar)
-                    itemSpan  =  firstType->numen;
+                    itemSpan  =  exprType->numen;
                 itemsEnded  =  itemSpan < 32000;
                 if (itemsEnded) {
                     form1Insn(KATI+14);
@@ -5936,7 +5930,7 @@ var
             otherOffset  =  moduleOffset;
             formJump(&endOfStmt);
         }
-        fixup(0, l4var17z);
+        fixup(0, decoder);
         curVal  =  minValue;
         fixup(-(KU1A+otherOffset), maxValue.i);
         curVal  =  minValue;
@@ -6286,7 +6280,7 @@ void checkElement;
 {
     set145z  =  set145z & (~[12]);
     curVarKind  =  l4typ3z->k;
-    helperNo  =  100;              /* C/WI */
+    helperNo  =  36;              /* C/WI */
     if (l4typ3z == intType || l4typ3z == boolType)
         defWidth  =  10;
     else if (l4typ3z == realType) {
@@ -6625,6 +6619,7 @@ var
         checkSymAndRead(COMMA);
         checkArrayArg();
         doPackUnpack();
+    case 12: case 13: case 17: // unused, listed for completeness
     }
     if (procNo in [0,1,2,3,5,10,11,12,13,21,22])
         arithMode  =  1;
@@ -7724,7 +7719,7 @@ var
     op: operator;
 {
     for (idx = 1; idx < 16; idx=idx+1)
-        indexreg[idx]  =  idx * frameRegTemplate;
+        indexreg[idx]  =  idx << 20;
     jumpType  =  KUJ;
     for (op = MUL; op <= ASSIGNOP; op=succ(op)) {
         opFlags[op]  =  opfCOMM;
@@ -7741,8 +7736,8 @@ var
     }
     opToInsn[MUL]  =  KMUL;
     opToInsn[RDIVOP]  =  KDIV;
-    opToInsn[IDIVOP]  =  101; /* C/DI */
-    opToInsn[IMODOP]  =  102; /* C/MD */
+    opToInsn[IDIVOP]  =  17; /* C/DI */
+    opToInsn[IMODOP]  =  11; /* C/MD */
     opToInsn[PLUSOP]  =  KADD;
     opToInsn[MINUSOP]  =  KSUB;
     opToInsn[IMULOP]  =  KMUL;
@@ -7847,11 +7842,11 @@ var
         write(_CHILD_, FCST@);
         get(FCST);
     }
-    curVal.i  =  (symTabPos - 070000) * 0100000000;
+    curVal.i  =  (symTabPos - 070000) << 24;
     for (cnt = 1; cnt <= longSymCnt; cnt=cnt+1) {
         idx  =  longSym[cnt];
-        symTab[idx]  =  (symTab[idx] | (curVal.i & [9:23]));
-        curVal.i  =  (curVal.i + 0100000000);
+        symTab[idx]  =  symTab[idx] | curVal.i & [9:23];
+        curVal.i  =  curVal.i + 0100000000;
     }
     symTabPos  =  symTabPos - 1;
     for (cnt  =  074000; cnt <= symTabPos; cnt=cnt+1)
@@ -8086,13 +8081,13 @@ void initOptions;
         'P/EO    ',
         '        ', // was P/SS, not needed anymore
 /*10*/  'P/EL    ',
-        'P/MD    ',
+        'C/MD    ',
         'P/MI    ',
         'P/PA    ',
         'P/UN    ',
         'P/CP    ',
         'P/AB    ',
-        'P/DI    ',
+        'C/DI    ',
         'C/RC    ',
         'P/EA    ',
 /*20*/  'P/NA    ',
@@ -8111,7 +8106,7 @@ void initOptions;
         'P/NW    ',
         'P/DS    ',
         'P/HT    ',
-        'P/WI    ',
+        'C/WI    ',
         'P/WR    ',
         'P/WC    ',
         'P/A6    ',
@@ -8174,10 +8169,7 @@ void initOptions;
         'P/DD    ',
         'P/RE    ',
         'C/SHL   ',
-        'C/SHR   ',
-/*100*/ 'C/WI    ',
-        'C/DI    ',
-        'C/MD    ';
+        'C/SHR   ';
     systemProcNames  =
 /*0*/   '     PUT',
         '     GET',

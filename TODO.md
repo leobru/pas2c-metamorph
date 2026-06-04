@@ -11,11 +11,10 @@
  - C style of function declarations
  - `main` as a regular function
  - starting routine calling `main`
- - C style of statement terminators
  - `sizeof`
  - function pointers
  - operations on pointers to words
  - `char *`, operations of `char *`
  - vararg functions
  - `printf`
- 
+ - nested case labels (Duff's device)
