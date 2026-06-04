@@ -1090,29 +1090,27 @@ void readOptFlag(res: @int);
         nextCH();
         badOpt  =  true;
         switch (CH) {
-        case 'D': {
+        case 'D':
             curVal.i = readOptVal(15);
             optSflags  =  optSflags & [0..40] | curVal.i & [41..47];
             break;
-        }
-        case 'Y': { readOptFlag(&allowCompat); break; }
-        case 'E': { readOptFlag(&declExternal); break; }
-        case 'S': {
+        case 'Y': readOptFlag(&allowCompat); break;
+        case 'E': readOptFlag(&declExternal); break;
+        case 'S':
             curVal.i = readOptVal(8);
             if (curVal.i == 3)  lineCnt  =  1;
             else if (curVal.i in [4..8])
                 optSflags  =  optSflags | (E48 >> (curVal.i - 3));
             break;
-        }
-        case 'F': { readOptFlag(&checkFortran); break; }
-        case 'L': { PASINFOR.listMode = readOptVal(3); break; }
-        case 'P': { readOptFlag(&doPMD); break; }
-        case 'T': { readOptFlag(&checkBounds); break; }
-        case 'A': { charEncoding = readOptVal(3); break; }
-        case 'C': { readOptFlag(&checkTypes); break; }
-        case 'M': { readOptFlag(&fixMult); break; }
-        case 'B': { fileBufSize = readOptVal(4); break; }
-        case 'K': { heapSize = readOptVal(23); break; }
+        case 'F': readOptFlag(&checkFortran); break;
+        case 'L': PASINFOR.listMode = readOptVal(3); break;
+        case 'P': readOptFlag(&doPMD); break;
+        case 'T': readOptFlag(&checkBounds); break;
+        case 'A': charEncoding = readOptVal(3); break;
+        case 'C': readOptFlag(&checkTypes); break;
+        case 'M': readOptFlag(&fixMult); break;
+        case 'B': fileBufSize = readOptVal(4); break;
+        case 'K': heapSize = readOptVal(23); break;
         }
         if (badOpt) {
             error(54); /* errErrorInPseudoComment */
@@ -1165,8 +1163,8 @@ var
         SY  =  charSym[CH];
         charClass  =  chrClass[CH];
 (lexer)
-        if (SY != NOSY) {
-            switch (SY) {
+        switch (SY) {
+            default: nextCH(); break;
             case IDENT: {
                 curToken.i  = 0U;
                 tokenLen  =  1;
@@ -1193,7 +1191,7 @@ var
                 isDefined  =  false;
                 SY  =  IDENT;
                 switch (int93z) {
-                case 0: {
+                case 0:
                     hashTravPtr  =  symHash[bucket];
                     while (hashTravPtr != NIL) {
                         if (hashTravPtr->offset == curFrameRegTemplate)
@@ -1208,7 +1206,6 @@ var
                             exit lexer;
                     }
                     break;
-                }
                 case 2:
                 if (expr63z != NIL) {
                     expr62z  =  expr63z;
@@ -1228,7 +1225,7 @@ var
                     }
                 }
                 // FALLTHRU
-                case 1: {
+                case 1:
                     hashTravPtr  =  symHash[bucket];
                     while (hashTravPtr != NIL) {
                         if (hashTravPtr->id != curIdent)
@@ -1237,8 +1234,7 @@ var
                             exit lexer;
                     }
                     break;
-                }
-                case 3: {
+                case 3:
                     hashTravPtr  =  fieldHash[bucket];
                     while (hashTravPtr != NIL) {
                         with hashTravPtr@ do {
@@ -1248,7 +1244,6 @@ var
                             hashTravPtr  =  next;
                        }
                    }
-                }
                 }
                 break;
             } /* IDENT */
@@ -1474,58 +1469,51 @@ var
                 SY  =  RELOP;
                 nextCH();
                 switch (CH) {
-                case '=': {
+                case '=':
                     charClass = LEOP;
                     nextCH();
                     break;
-                }
-                case '<': {
+                case '<':
                     SY = MULOP;
                     charClass = SHLEFT;
                     nextCH();
                     break;
-                }
-                case ':': {
+                case ':':
                     SY = BEGINSY;
                     nextCH();
                 }
-                }
                 break;
-            } /* LTOP */
+            } /* LTSY */
             case GTSY: {
                 SY  =  RELOP;
                 nextCH();
                 switch (CH) {
-                case '>': {
+                case '>':
                     SY = MULOP;
                     charClass = SHRIGHT;
                     nextCH();
                     break;
-                }
-                case '=':  {
+                case '=':
                     charClass  =  GEOP;
                     nextCH();
                 }
-                }
                 break;
-            } /* GTOP */
-            case BECOMES: {
+            } /* GTSY */
+            case BECOMES:
                 nextCH();
                 if (CH == '=') {
                     nextCH();
                     SY = RELOP;
                 }
                 break;
-            }
-            case COLON: {
+            case COLON:
                 nextCH();
                 if (CH == '>') {
                     SY = ENDSY;
                     nextCH();
                 }
                 break;
-            }
-            case NOTSY: {
+            case NOTSY:
                 if (charClass == NEOP) {
                     nextCH();
                     if (CH == '=') {
@@ -1535,8 +1523,7 @@ var
                 } else
                     nextCH();
                 break;
-            }
-            case ADDOP: {
+            case ADDOP:
                 if (charClass == OROP) {
                     nextCH();
                     if (CH == '|') nextCH();
@@ -1547,8 +1534,7 @@ var
                 } else
                     nextCH();
                 break;
-            }
-            case MULOP: {
+            case MULOP:
                if (charClass == ANDOP) {
                    nextCH();
                    if (CH == '&') nextCH();
@@ -1568,13 +1554,11 @@ var
                } else
                    nextCH();
                break;
-            }
-            case LPAREN, case LBRACK, case RELOP, case RPAREN, case RBRACK,
-            case COMMA, case SEMICOLON, case ARROW: {
+            case LPAREN: case LBRACK: case RELOP: case RPAREN: case RBRACK:
+            case COMMA: case SEMICOLON: case ARROW:
                 nextCH();
                 break;
-            }
-            case PERIOD: {
+            case PERIOD:
                 nextCH();
                 if (CH == '.') {
                     nextCH();
@@ -1584,10 +1568,7 @@ var
                     if (prevSY == ENDSY)
                         dataCheck  =  true;
                 }
-            }
-            } /* switch */
-        } else
-            nextCH();
+        } /* switch */
         prevSY  =  SY;
         commentModeCH  =  ' ';
         int93z  =  int92z;
@@ -1687,25 +1668,21 @@ var
         }
     } else
         switch (SY) {
-        case IDENT: {
+        case IDENT:
             if (hashTravPtr == NIL || hashTravPtr->cl != ENUMID)
                 goto 99;
             ret  =  hashTravPtr->typ;
             litValue@  =  hashTravPtr->value;
             break;
-        }
-        case INTCONST: {
+        case INTCONST:
             ret  =  intType;
             break;
-        }
-        case REALCONST: {
+        case REALCONST:
             ret  =  realType;
             break;
-        }
-        case CHARCONST: {
+        case CHARCONST:
             ret  =  charType;
             break;
-        }
         case LTSY:
             ret = makeStringType();
         }; /* switch */
@@ -1853,7 +1830,7 @@ var
                 switch (kind1) {
                 case kindReal:
                     /* empty */ break;
-                case kindScalar: {
+                case kindScalar:
 (chain)             if (type1->numen == type2->numen) {
                         enums1  =  type1->enums;
                         enums2  =  type2->enums;
@@ -1872,14 +1849,12 @@ var
                        goto 1;
                     }
                     break;
-                }
-                case kindPtr: {
+                case kindPtr:
                     if (type1 == voidPtr || type2 == voidPtr ||
                         typeCheck(type1->base, type2->base))
                         goto 1;
                     break;
-                }
-                case kindArray: {
+                case kindArray:
                     span1  =  type1->aright - type1->aleft;
                     span2  =  type2->aright - type2->aleft;
                     if (typeCheck(type1->base, type2->base) &&
@@ -1893,12 +1868,10 @@ var
                             goto 1;
                     }
                     break;
-                }
-                case kindFile: {
+                case kindFile:
                     if (typeCheck(type1->base, type2->base))
                         goto 1;
                     break;
-                }
                 } /* switch */
             }
             typeCheck  =  false;
@@ -1994,46 +1967,42 @@ void addJumpInsn(opcode: int);
         curInsn  =  l4oi212z->offset;
         switch (l4oi212z->mode) {
          case 0: break;
-         case 1: {
+         case 1:
              if (arithMode != 1) {
                  addInsnToBuf(KNTR+7);
                  arithMode  =  1;
              }
              break;
-         }
-         case 2: { arithMode  =  1; break; }
-         case 3: {
+         case 2: arithMode  =  1; break;
+         case 3:
              if (arithMode != 2) {
                  addInsnToBuf(KNTR);
                  arithMode  =  2;
              }
              break;
-         }
          case 4: arithMode  =  2;
         } /* switch */
         l4oi212z  =  l4oi212z->next;
         if (l4var4z >= 0) {
             switch (l4var4z) {
-            case mcCARD: {
+            case mcCARD:
                 addInsnToBuf(KACX);
                 break;
-            }
-            case 0:  { addJumpInsn(KUZA); break; }
-            case 1:  { addJumpInsn(KU1A); break; }
-            case 2: {
+            case 0: addJumpInsn(KUZA); break;
+            case 1: addJumpInsn(KU1A); break;
+            case 2:
                 tempInsn  =  curInsn % 4096;
                 curInsn  =  curInsn / 4096;
                 addJumpInsn(KUJ);
                 curInsn  =  tempInsn;
-            } // FALLTHRU
-            case 21: {
+            // FALLTHRU
+            case 21:
                 if (F3413())
                     addInsnToBuf(2*macro+int(l4inl7z));
                 else
                     error(206);
                 break;
-            }
-            case 3: {
+            case 3:
                  tempInsn  =  curInsn % 4096;
                  curInsn  =  curInsn / 4096;
                  l4var213z  =   F3413();
@@ -2048,20 +2017,16 @@ void addJumpInsn(opcode: int);
                 else
                     error(207);
                 break;
-            }
-            case mcCOND2INT: {
+            case mcCOND2INT:
                 addInsnToBuf(3*macro + curInsn);
                 break;
-            }
-            case mcPOP: {
+            case mcPOP:
                 if ((insnBuf[insnBufIdx-1] & [21:23, 28:35]) == 0U)
                     insnBuf[insnBufIdx-1]  =  insnBuf[insnBufIdx-1] | [35];
                 else
                     addInsnToBuf(KXTA+SP);
                 break;
-            }
             case mcPUSH:
-            {
                 if (l4oi212z != NIL) {
                     tempInsn  =  l4oi212z->code;
                     if ((tempInsn & [21:23, 28:35]) == [32]) {
@@ -2072,63 +2037,50 @@ void addJumpInsn(opcode: int);
                 }
                 addInsnToBuf(KATX+SP);
                 break;
-            }
-            case mcACC2ADDR: {
+            case mcACC2ADDR:
                 add2InsnsToBuf(KATI+14, KUTC+I14);
                 break;
-            }
-            case mcMULTI: {
+            case mcMULTI:
                 addInsnToBuf(getHelperProc(12));        /* P/MI */
                 break;
-            }
-            case mcADDSTK2REG: {
+            case mcADDSTK2REG:
                 add2InsnsToBuf(KWTC+SP, KUTM+
                                indexreg[curInsn]);
                 break;
-            }
-            case mcADDACC2REG: {
+            case mcADDACC2REG:
                 add2InsnsToBuf(KATI+14, KJADDM+I14 + curInsn);
                 break;
-            }
-            case mcROUND: {
+            case mcROUND:
                 addInsnToBuf(KADD+REAL05);                /* round */
                 add2InsnsToBuf(KNTR+7, KADD+ZERO);
                 break;
-            }
-            case 14: {
+            case 14:
                 add2InsnsToBuf(indexreg[curInsn] + KVTM,
                                KITA + curInsn);
                 break;
-            }
-            case mcMINEL: {
+            case mcMINEL:
                 add2InsnsToBuf(KANX, KSUB+E1);
                 break;
-            }
-            case 16: {
+            case 16:
                 add2InsnsToBuf(KXTA, KATX+SP + curInsn);
                 break;
-            }
-            case 17: {
+            case 17:
                 addInsnToBuf(KXTS);
                 add2InsnsToBuf(KATX+SP+1, KUTM+SP + curInsn);
                 break;
-            }
-            case 18: {
+            case 18:
                 add2InsnsToBuf(KVTM+I10, getHelperProc(65)); /* P/B7 */
                 break;
-            }
-            case mcPOP2ADDR: {
+            case mcPOP2ADDR:
                 addInsnToBuf(KVTM+I14);
                 add2InsnsToBuf(KXTA+SP, KATX+I14);
                 break;
-            }
-            case mcPCKSTORE: {
+            case mcPCKSTORE:
                 add2InsnsToBuf(KVTM+I14, KXTA+I14);
                 curVal.i  =  040077777U;
                 add2InsnsToBuf(allocSymtab(curVal.i) + (KXTS+SP),
                                KAAX+I8 + curInsn);
                 add2InsnsToBuf(KAEX+SP, KATX+I14);
-            }
             } /* switch */
         } else {
             if (28 in tempInsn) {
@@ -2315,13 +2267,12 @@ var
     valueType  =  insnList->typ;
     with insnList@ do {
         switch (ilm) {
-        case ilCONST: {
+        case ilCONST:
             curVal.i  =  payload;
             if (valueType->size == 1)
                 curVal.i  =  getFCSToffset();
             addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
             break;
-        }
         case il1: {
             helper  =  insnList->addrmd;
             l4int2z  =  insnList->payload;
@@ -2390,18 +2341,16 @@ var
                 }
             }
             // FALLTHRU
-        }
-        case il2: {
+        } /* il1 */
+        case il2:
             if (forValue && (valueType == boolType) &&
                (16 in insnList->regsused))
                 addToInsnList(KAEX+E1);
             break;
-        }
-        case il3: {
+        case il3:
             if (forValue)
                 addInsnAndOffset(macro+mcCOND2INT,
                     (16 IN insnList->regsused)*010000 + insnList->payload);
-        }
         } /* switch */
 4602:
     } /* with */
@@ -2712,13 +2661,12 @@ var
     }
     switch (l5var1z) {
     case 2:
-22: {
+22:
         saved  =  insnList;
         insnList  =  otherIns;
         otherIns  =  saved;
-    } // FALLTHRU
+    // FALLTHRU
     case 0:
-    {
         prepLoad();
         saved  =  insnList;
         insnList  =  otherIns;
@@ -2726,16 +2674,13 @@ var
         prepLoad();
         curInsnTemplate  =  KXTA;
         break;
-    }
-    case 1: {
+    case 1:
         if (nextInsn == KSUB) {
             nextInsn  =  KRSUB;
             goto 22;
         }
         // FALLTHRU
-    }
     case 3:
-    {
         prepLoad();
         addToInsnList(indexreg[15] + nextInsn);
         l5var2z  =  insnList;
@@ -2743,7 +2688,6 @@ var
         push();
         saved  =  insnList;
         insnList  =  l5var2z;
-    }
     } /* switch */
     insnList->next->mode  =  0;
     saved->next->next  =  insnList->head;
@@ -2915,9 +2859,9 @@ var
                 l5var6z  =  (l5var5z-1-l5var4z % l5var5z) *
                            insnCopy.typ->pcksize;
                 switch (insnCopy.st) {
-                case st0: { insnCopy.shift  =  l5var6z; break; }
-                case st1: { insnCopy.shift  =  insnCopy.shift + l5var6z +
-                                           insnCopy.typ->bits - 48; break; }
+                case st0: insnCopy.shift  =  l5var6z; break;
+                case st1: insnCopy.shift  =  insnCopy.shift + l5var6z +
+                                           insnCopy.typ->bits - 48; break;
                 case st2: error(errUsingVarAfterIndexingPackedArray);
                 } /* switch */
                 insnCopy.width  =  insnCopy.typ->pcksize;
@@ -3384,7 +3328,7 @@ var
             insnList->payload  =  0;
         } else {
             switch (work) {
-            case 1: {
+            case 1:
                 mode  =  3;
 7514:           nextInsn  =  KSUB;
                 tryFlip(false);
@@ -3394,18 +3338,15 @@ var
                     insnList->next->mode  =  2;
                 }
                 goto 7504;
-            }
-            case 3: {
+            case 3:
                 mode  =  1;
                 goto 7514;
-            }
-            case 4: {
+            case 4:
                 nextInsn  =  KARX;
                 prepLoad();
                 addToInsnList(KAEX+ALLONES);
                 tryFlip(true);
                 goto 7504;
-            }
             } /* switch */
         }
         insnList->regsused  =  insnList->regsused & (~[16]);
@@ -3586,24 +3527,23 @@ var
         } else {
             if (arg1Const && arg2Const) {
                 switch (curOP) {
-                case MUL:      { arg1Val.r  =  arg1Val.r * arg2Val.r; break; }
-                case RDIVOP:   { arg1Val.r  =  arg1Val.r / arg2Val.r; break; }
-                case ANDOP:    { arg1Val.i  =  arg1Val.i && arg2Val.i; break; }
-                case IDIVOP:   { arg1Val.i  =  arg1Val.i / arg2Val.i; break; }
-                case IMODOP:   { arg1Val.i  =  arg1Val.i % arg2Val.i; break; }
-                case PLUSOP:   { arg1Val.r  =  arg1Val.r + arg2Val.r; break; }
-                case MINUSOP:  { arg1Val.r  =  arg1Val.r - arg2Val.r; break; }
-                case OROP:     { arg1Val.i  =  arg1Val.i || arg2Val.i; break; }
-                case IMULOP: {
-                    arg1Val.i = arg1Val.i * arg2Val.i; break; }
-                case SETAND:   { arg1Val.i  =  arg1Val.i & arg2Val.i; break; }
-                case SETXOR:   { arg1Val.i  =  arg1Val.i ^ arg2Val.i; break; }
-                case INTPLUS:  { arg1Val.i  =  arg1Val.i + arg2Val.i; break; }
-                case INTMINUS: { arg1Val.i  =  arg1Val.i - arg2Val.i; break; }
-                case SETOR:    { arg1Val.i  =  arg1Val.i | arg2Val.i; break; }
-                case SHLEFT:   { arg1Val.i  =  arg1Val.i << arg2Val.i; break; }
-                case SHRIGHT:  { arg1Val.i  =  arg1Val.i >> arg2Val.i; break; }
-                case NEOP, case EQOP, case LTOP, case GEOP, case GTOP, case LEOP, case INOP,
+                case MUL:      arg1Val.r  =  arg1Val.r * arg2Val.r; break;
+                case RDIVOP:   arg1Val.r  =  arg1Val.r / arg2Val.r; break;
+                case ANDOP:    arg1Val.i  =  arg1Val.i && arg2Val.i; break;
+                case IDIVOP:   arg1Val.i  =  arg1Val.i / arg2Val.i; break;
+                case IMODOP:   arg1Val.i  =  arg1Val.i % arg2Val.i; break;
+                case PLUSOP:   arg1Val.r  =  arg1Val.r + arg2Val.r; break;
+                case MINUSOP:  arg1Val.r  =  arg1Val.r - arg2Val.r; break;
+                case OROP:     arg1Val.i  =  arg1Val.i || arg2Val.i; break;
+                case IMULOP:   arg1Val.i  =  arg1Val.i * arg2Val.i; break;
+                case SETAND:   arg1Val.i  =  arg1Val.i & arg2Val.i; break;
+                case SETXOR:   arg1Val.i  =  arg1Val.i ^ arg2Val.i; break;
+                case INTPLUS:  arg1Val.i  =  arg1Val.i + arg2Val.i; break;
+                case INTMINUS: arg1Val.i  =  arg1Val.i - arg2Val.i; break;
+                case SETOR:    arg1Val.i  =  arg1Val.i | arg2Val.i; break;
+                case SHLEFT:   arg1Val.i  =  arg1Val.i << arg2Val.i; break;
+                case SHRIGHT:  arg1Val.i  =  arg1Val.i >> arg2Val.i; break;
+                case NEOP: case EQOP: case LTOP: case GEOP: case GTOP: case LEOP: case INOP:
                 case ASSIGNOP:
                     error(200);
                 } /* switch 7750 */
@@ -3612,30 +3552,26 @@ var
                 l3int3z  =  opToMode[curOP];
                 nextInsn  =  opToInsn[curOP];
                 switch (opFlags[curOP]) {
-                case opfINV: {
+                case opfINV:
                     saved  =  insnList;
                     insnList  =  otherIns;
                     otherIns  =  saved;
                     prepLoad();
                     addToInsnList(KAEX+ALLONES);
-                } // FALLTHRU
-                case opfCOMM: {
+                // FALLTHRU
+                case opfCOMM:
                     tryFlip(curOP in [MUL,PLUSOP,SETOR,SETAND,INTPLUS,IMULOP]);
                     break;
-                }
-                case opfHELP: {
+                case opfHELP:
                     genHelper();
                     break;
-                }
-                case opfASSN: {
+                case opfASSN:
                     genCopy();
                     exit;
-                }
-                case opfAND: {
+                case opfAND:
                     genBoolAnd();
                     exit;
-                }
-                case opfOR: {
+                case opfOR:
                     negateCond();
                     saved  =  insnList;
                     insnList  =  otherIns;
@@ -3645,8 +3581,7 @@ var
                     genBoolAnd();
                     negateCond();
                     exit;
-                }
-                case opfMOD: {
+                case opfMOD:
                     if (arg2Const) {
                         prepLoad();
                         if (card(arg2Val.i) == 1) {
@@ -3663,12 +3598,10 @@ var
                             addToInsnList(KRSUB+SP);
                             l3int3z  =  1;
                         }
-                    } else {
+                    } else
                         genHelper();
-                    }
                     break;
-                }
-                case opfDIV: {
+                case opfDIV:
                     if (arg2Const) {
                         prepLoad();
                         genConstDiv();
@@ -3676,8 +3609,7 @@ var
                     } else
                         genHelper();
                     break;
-                }
-                case opfMULMSK: {
+                case opfMULMSK:
                     if (arg1Const) {
                         insnList->payload  =  (arg1Val.i | [0]) & (~[1, 3]);
                     } else {
@@ -3692,8 +3624,7 @@ var
                     insnList->next->mode  =  1;
                     addToInsnList(fixMult ? macro + mcMULTI : KYTA + 64);
                     break;
-                }
-                case opfSHIFT: {
+                case opfSHIFT:
                     if (!arg2Const) {
                         genHelper();
                     } else {
@@ -3703,7 +3634,6 @@ var
                                       ASN64-arg2Val.i);
                     }
                     break;
-                }
                 } /* switch 10122 */
 10122:          insnList->next->mode  =  l3int3z;
             }
@@ -3785,10 +3715,10 @@ var
             if (insnList->ilm == ilCONST) {
                 arg1Val.i  =  insnList->payload;
                 switch (curOP) {
-                case TOREAL: { arg1Val.r  =  arg1Val.i | [0,1,3]; break; }
-                case NOTOP:  { arg1Val.i  =  ! arg1Val.i; break; }
-                case RNEGOP: { arg1Val.r  =  -arg1Val.r; break; }
-                case INEGOP: { arg1Val.i  =  -arg1Val.i; break; }
+                case TOREAL: arg1Val.r  =  arg1Val.i; break;
+                case NOTOP:  arg1Val.i  =  ! arg1Val.i; break;
+                case RNEGOP: arg1Val.r  =  -arg1Val.r; break;
+                case INEGOP: arg1Val.i  =  -arg1Val.i; break;
                 case BITNEGOP: arg1Val.i = ~arg1Val.i;
                 } /* switch 10345 */
                 insnList->payload  =  arg1Val.i;
@@ -3865,16 +3795,16 @@ var
                 arg2Const  =  (insnList->typ == realType);
                 if (arg1Const) {
                     switch (work) {
-                    case fnABS:   { arg1Val.r  =  abs(arg1Val.r); break; }
-                    case fnTRUNC: { arg1Val.i  =  trunc(arg1Val.r); break; }
-                    case fnSUCC:  { arg1Val.c  =  succ(arg1Val.c); break; }
-                    case fnPRED:  { arg1Val.c  =  pred(arg1Val.c); break; }
-                    case fnROUND: { arg1Val.i  =  round(arg1Val.r); break; }
-                    case fnCARD:  { arg1Val.i  =  card(arg1Val.i); break; }
-                    case fnMINEL: { arg1Val.i  =  minel(arg1Val.i); break; }
-                    case fnABSI:  { arg1Val.i  =  abs(arg1Val.i); break; }
-                    case fnEOF,
-                    case fnREF,
+                    case fnABS:   arg1Val.r  =  abs(arg1Val.r); break;
+                    case fnTRUNC: arg1Val.i  =  trunc(arg1Val.r); break;
+                    case fnSUCC:  arg1Val.c  =  succ(arg1Val.c); break;
+                    case fnPRED:  arg1Val.c  =  pred(arg1Val.c); break;
+                    case fnROUND: arg1Val.i  =  round(arg1Val.r); break;
+                    case fnCARD:  arg1Val.i  =  card(arg1Val.i); break;
+                    case fnMINEL: arg1Val.i  =  minel(arg1Val.i); break;
+                    case fnABSI:  arg1Val.i  =  abs(arg1Val.i); break;
+                    case fnEOF:
+                    case fnREF:
                     case fnEOLN:
                         error(201);
                     }
@@ -3994,7 +3924,9 @@ var l4exf1z: @extfilerec;
     if (! (l3arg1z IN [FORMOP, STOREAT9, DFLTWDTH, FILEINIT, PCKUNPCK]))
         genFullExpr(curExpr);
     switch (l3arg1z) {
-    case DOIT: { genOneOp(); break; }
+    case DOIT:
+        genOneOp();
+        break;
     case SETREG: {
         with insnList@ do {
             l3int3z  =  insnCount();
@@ -4003,7 +3935,7 @@ var l4exf1z: @extfilerec;
             expr63z  =  l3var5z;
             l3var5z->op  =  NOOP;
             switch (st) {
-            case st0: {
+            case st0:
                 if (l3int3z == 0) {
                     l3int2z  =  14;
                 } else {
@@ -4029,12 +3961,10 @@ var l4exf1z: @extfilerec;
                 curVal.i  =  l3int2z;
                 l3var5z->typ  =  curVal.tp;
                 break;
-            }
-            case st1: {
+            case st1:
                 curVal.i  =  14;
                 l3var5z->typ  =  curVal.tp;
                 break;
-            }
             case st2:
                 error(errVarTooComplex);
             } /* switch */
@@ -4042,25 +3972,22 @@ var l4exf1z: @extfilerec;
         l3var5z->expr2  =  curExpr;
         break;
     } /* SETREG */
-    case STORE: {
+    case STORE:
         prepStore();
         genOneOp();
         break;
-    }
-    case FORMOP: {
+    case FORMOP:
         curInsnTemplate  =  curVal.i;
         formOperator(LOAD);
         curInsnTemplate  =  KXTA;
         break;
-    }
-    case SETREG9: {
+    case SETREG9:
         if (insnList->st != st0)
             error(errVarTooComplex);
         setAddrTo(9);
         genOneOp();
         break;
-    }
-    case STOREAT9: {
+    case STOREAT9:
         l3int1z  =  curVal.i;
         genFullExpr(curExpr);
         prepLoad();
@@ -4069,47 +3996,39 @@ var l4exf1z: @extfilerec;
         genOneOp();
         form1Insn(KATX+I9 + l3int1z);
         break;
-    }
-    case SETREG12: {
+    case SETREG12:
         setAddrTo(12);
         genOneOp();
         break;
-    }
-    case DFLTWDTH: {
+    case DFLTWDTH:
         // Write routines need integer exponent on widths
         curVal.i  =  curVal.i | [0, 1, 3];
         form1Insn(KXTA+I8 + getFCSToffset());
         break;
-    }
-    case FRACWIDTH: {
+    case FRACWIDTH:
         prepLoad();
         prependToInsnList(macro + mcPUSH);
         genOneOp();
         break;
-    }
-    case gen11, case gen12: {
+    case gen11: case gen12:
         setAddrTo(11);
         if (l3arg1z == gen12)
             prependToInsnList(macro + mcPUSH);
         genOneOp();
         set145z  =  set145z | [12];
         break;
-    }
-    case FILEACCESS: {
+    case FILEACCESS:
         setAddrTo(12);
         genOneOp();
         formAndAlign(jumpTarget);
         break;
-    }
-    case FILEINIT: {
+    case FILEINIT:
         formFileInit();
         break;
-    }
-    case LOAD: {
+    case LOAD:
         prepLoad();
         genOneOp();
         break;
-    }
     case BRANCH:
         with insnList@ do {
             noTarget  =  jumpTarget == 0;
@@ -4175,7 +4094,7 @@ var l4exf1z: @extfilerec;
             }
             break;
         } /* BRANCH */
-    case PCKUNPCK: {
+    case PCKUNPCK:
         l3var5z  =  curExpr;
         curExpr  =  curExpr->expr1;
         formOperator(gen11);
@@ -4197,8 +4116,7 @@ var l4exf1z: @extfilerec;
         form1Insn(l3int1z);
         formAndAlign(getHelperProc(l3int3z));
         break;
-   }
-   case LITINSN: {
+   case LITINSN:
         with insnList@ do {
             if (ilm != ilCONST)
                 error(errNoConstant);
@@ -4206,7 +4124,6 @@ var l4exf1z: @extfilerec;
                 error(errConstOfOtherTypeNeeded);
             curVal.i  =  insnList->payload;
         }
-    }
     } /* switch */
 } /* formOperator */
 //
@@ -4812,21 +4729,19 @@ var
     l3int1z, frame, l3var3z: int;
 {
     switch (l3arg1z) {
-    case 0: {
+    case 0:
         int93z  =  0;
         inSymbol();
         if (SY != IDENT)
             errAndSkip(3, skipToSet | [IDENT]);
         break;
-    }
-    case 1: {
+    case 1:
         prevErrPos  =  0;
         write('IDENT ');
         printTextWord(l2var12z);
         write(' IN LINE ', curIdRec->offset:0);
         break;
-    }
-    case 2: {
+    case 2:
         padToLeft();
         with l2idr2z@ do {
             l3var3z  =  ((E48 >> 22) & flags) >> 25; // 22 IN flags
@@ -4895,7 +4810,6 @@ var
         }
         if (doPMD)
             formPMD();
-    }
     } /* switch */
 } /* parseDecls */
 //
@@ -5434,7 +5348,7 @@ var
             curExpr  =  uVarPtr;
         } else
             switch (hashTravPtr->cl) {
-            case TYPEID: {
+            case TYPEID:
                 l4typ11z = hashTravPtr->typ;
                 inSymbol();
                 if (SY != LPAREN)
@@ -5445,8 +5359,7 @@ var
                 checkSymAndRead(RPAREN);
                 curExpr->typ = l4typ11z;
                 break;
-            }
-            case ENUMID: {
+            case ENUMID:
                 new(curExpr);
                 with curExpr@ do {
                     typ  =  hashTravPtr->typ;
@@ -5456,8 +5369,7 @@ var
                 }
                 inSymbol();
                 break;
-            }
-            case ROUTINEID: {
+            case ROUTINEID:
                 routine  =  hashTravPtr;
                 inSymbol();
                 if (routine->offset == 0) {
@@ -5497,25 +5409,22 @@ var
                     id2  =  routine;
                 }
                 break;
-            }
-            case VARID, case FORMALID, case FIELDID:
+            case VARID: case FORMALID: case FIELDID:
                 parseLval();
             } /* switch */
         break;
-    }
-    case LPAREN: {
+    } /* IDENT */
+    case LPAREN:
         expression();
         checkSymAndRead(RPAREN);
         break;
-    }
-    case INTCONST, case REALCONST, case CHARCONST, case LTSY: {
+    case INTCONST: case REALCONST: case CHARCONST: case LTSY:
         new(curExpr);
         curExpr->typ = parseLiteral(&curExpr->num1, false);
         curExpr->num2  =  int(numFormat);
         curExpr->op  =  GETENUM;
         inSymbol();
         break;
-    }
     case LBRACK: {
         new(curExpr);
         inSymbol();
@@ -5577,11 +5486,10 @@ var
             num1  =  l4var1z;
         }
         break;
-    };
-    default: {
+    }; /* LBRACK */
+    default:
         error(errBadSymbol);
         longjmp(jb8888);
-    }
     } /* switch */
 } /* factor */
 //
@@ -5703,16 +5611,23 @@ var
             match = typeCheck(arg1Type, arg2Type);
 
             switch (curPrec) {
-                case precMul,
-                case precAdd: { bldArithOp(oper, leftExpr, match); break; }
-                case precRel,
-                case precEq: { bldRelOp(oper, leftExpr); break; }
-                case precShift,
-                case precBitAnd,
-                case precBitXor,
-                case precBitOr: { bldBitOp(oper, leftExpr); break; }
-                case precAnd,
-                case precOr: bldLogOp(oper, leftExpr, match);
+            case precMul:
+            case precAdd:
+                bldArithOp(oper, leftExpr, match);
+                break;
+            case precRel:
+            case precEq:
+                bldRelOp(oper, leftExpr);
+                break;
+            case precShift:
+            case precBitAnd:
+            case precBitXor:
+            case precBitOr:
+                bldBitOp(oper, leftExpr);
+                break;
+            case precAnd:
+            case precOr:
+                bldLogOp(oper, leftExpr, match);
             }
         }
     }
@@ -5942,7 +5857,7 @@ var
                 inSymbol();
                 otherSeen  =  true;
                 otherOffset  =  moduleOffset;
-            } else do {
+            } else {
                 checkSymAndRead(CASESY);
                 itemtype = parseLiteral(&itemvalue, true);
                 if (itemtype != NIL) {
@@ -5976,14 +5891,11 @@ var
                     }
                     inSymbol();
                 }
-                itemsEnded  =  SY != COMMA;
-                if (! itemsEnded)
-                    inSymbol();
-            } while (! itemsEnded);
+            }
             checkSymAndRead(COLON);
-            statement();
+            while (!(SY in [CASESY,DEFAULTSY,ENDSY]))
+                statement();
             goodMode  =  goodMode && (arithMode == 1);
-//            formJump(&endOfStmt);
         }
         itemsEnded  =  SY == ENDSY;
         if (SY == SEMICOLON)
@@ -6578,7 +6490,7 @@ var
     if (procNo < 7)
         jumpTarget  =  getHelperProc(29 + procNo); /* P/PF */
     switch (procNo) {
-    case 0, case 1, case 2, case 3: { /* put, get, rewrite, reset */
+    case 0: case 1: case 2: case 3: /* put, get, rewrite, reset */
         if (curVarKind != kindFile)
             error(47); /* errNoVarOfFileType */
         if ((procNo == 3) && (SY == COMMA)) { // reset with file location
@@ -6592,8 +6504,7 @@ var
             formOperator(FILEACCESS);
         }
         break;
-    }
-    case 4, case 5: { /* new, free */
+    case 4: case 5: /* new, free */
         if (curVarKind != kindPtr)
             error(13); /* errVarIsNotPointer */
         heapCallsCnt  =  heapCallsCnt + 1;
@@ -6645,16 +6556,13 @@ var
             formOperator(STORE);
         }
         break;
-    }
-    case 6: { /* halt */
+    case 6: /* halt */
         formAndAlign(jumpTarget);
         exit;
-    }
-    case 7: { /* stop */
+    case 7: /* stop */
         form1Insn(KE74);
         exit;
-    }
-    case 8, case 9: { /* setup, rollup */
+    case 8: case 9: /* setup, rollup */
         if (curVarKind != kindPtr)
             error(13); /* errVarIsNotPointer */
         if (procNo == 8) {
@@ -6665,12 +6573,10 @@ var
             form1Insn(KATX+HEAPPTR);
         }
         break;
-    }
-    case 10: { /* write */
+    case 10: /* write */
         writeProc();
         break;
-    }
-    case 11: { /* writeln */
+    case 11: /* writeln */
         if (SY == LPAREN) {
             writeProc();
             break;
@@ -6678,8 +6584,7 @@ var
             formAndAlign(getHelperProc(54)); /*"P/WOLN"*/
             exit;
         }
-    }
-    case 14: { /* exit */
+    case 14: /* exit */
         l4bool10z  =  (SY == LPAREN);
         if (l4bool10z)
             inSymbol();
@@ -6693,8 +6598,7 @@ var
         if (! l4bool10z)
             exit;
         break;
-    }
-    case 15: { /* longjmp(jmpbuf) - inline non-local goto via P/RC */
+    case 15: /* longjmp(jmpbuf) - inline non-local goto via P/RC */
         if (arg1Type != intType)
             error(errNeedOtherTypesOfOperands);
         formOperator(LOAD);             /* KXTA jmpbuf -> ACC = packed */
@@ -6702,14 +6606,12 @@ var
         form1Insn(getHelperProc(18)     /* C/RC, tail-jump (UJ) form */
                   + (-064100000));
         break;
-    }
-    case 16: { /* besm */
+    case 16: /* besm */
         expression();
         formOperator(LITINSN);
         formAndAlign(curVal.i);
         break;
-    }
-    case 18: { /* mapai */
+    case 18: /* mapai */
         l4typ1z  =  alfaType;
         l4typ2z  =  intType;
         expression();
@@ -6721,8 +6623,7 @@ var
         verifyType(l4typ2z);
         formOperator(STORE);
         break;
-    }
-    case 19, case 20: { /* pck, unpck */
+    case 19: case 20: /* pck, unpck */
         inSymbol();
         verifyType(charType);
         checkSymAndRead(COMMA);
@@ -6735,8 +6636,7 @@ var
         if (procNo == 19)
             formOperator(STORE);
         break;
-    }
-    case 21: { /* pack */
+    case 21: /* pack */
         inSymbol();
         checkArrayArg();
         checkSymAndRead(COMMA);
@@ -6744,15 +6644,13 @@ var
         l4exp6z  =  curExpr;
         doPackUnpack();
         break;
-    }
-    case 22: { /* unpack */
+    case 22: /* unpack */
         inSymbol();
         verifyType(NIL);
         l4exp6z  =  curExpr;
         checkSymAndRead(COMMA);
         checkArrayArg();
         doPackUnpack();
-    }
     }
     if (procNo in [0,1,2,3,5,10,11,12,13,21,22])
         arithMode  =  1;

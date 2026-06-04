@@ -1275,8 +1275,8 @@ procedure readOptFlag(var res: boolean);
         SY := charSym[CH];
         charClass := chrClass[CH];
 (lexer)
-        if SY <> NOSY then {
-            case SY of
+        case SY of
+            NOSY: nextCH;
             IDENT: {
 1:              curToken.m := [];
                 tokenLen := 1;
@@ -1697,9 +1697,6 @@ procedure readOptFlag(var res: boolean);
 %writeln(' ASSNOP');
 %                 nextCH;
 %           }
-        } else {
-            nextCH;
-        };
         prevSY := SY;
         commentModeCH := ' ';
         int93z := int92z;
@@ -6127,7 +6124,7 @@ var
                 inSymbol;
                 otherSeen := true;
                 otherOffset := moduleOffset;
-            } else  repeat
+            } else {
                 checkSymAndRead(CASESY);
                 parseLiteral(itemtype, itemvalue, true);
                 if (itemtype <> NIL) then {
@@ -6160,15 +6157,12 @@ var
                         prev@.next := clause;
                     };
                     inSymbol;
-                };
-                itemsEnded := (SY <> COMMA);
-                if not itemsEnded then
-                    inSymbol;
-            until itemsEnded;
+                }
+            };
             checkSymAndRead(COLON);
-            statement;
+            while not (SY in [CASESY,DEFAULTSY,ENDSY]) do
+                statement;
             goodMode := goodMode and (arithMode = 1);
-%            formJump(endOfStmt);
         };
         itemsEnded := (SY = ENDSY);
         if SY = SEMICOLON then
