@@ -296,7 +296,6 @@ end;
 numLabel = record
     id:         word;
     line:       integer;
-    frame:      integer;
     offset:     integer;
     defined:    boolean;
 end;
@@ -5036,25 +5035,14 @@ var
 }; (* parseDecls *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure labCheckAndDefine(upto: integer; mode: integer);
-label 1;
+procedure labCheckAndDefine(isDef: boolean);
 var
     labIdx: integer;
 {
-% mode 1 - LABEL declaration
-% mode 2 - definition
-% mode 3 - goto
-% upto = 0 searches all labels; else labels (upto+1)..numLabTop
     labIdx := numLabTop;
-    while (labIdx > upto) and (numLabs[labIdx].id <> curToken) do
+    while (labIdx > labFence) and (numLabs[labIdx].id <> curToken) do
         labIdx := labIdx - 1;
-    if (mode = 1) and (labIdx > upto) then {
-1:      errLine := numLabs[labIdx].line;
-        error(17); (* errLblAlreadyDefinedInLine *)
-        exit;
-    };
-    if (labIdx = upto) then {
-        if (mode IN [1..3]) then {
+    if (labIdx = labFence) then {
             if (numLabTop >= 20) then {
                 error(50); (* errSymbolTableOverflow *)
                 exit;
@@ -5062,19 +5050,19 @@ var
             numLabTop := numLabTop + 1;
             with numLabs[numLabTop] do {
                 id := curToken;
-                frame := curFrameRegTemplate;
                 offset := 0;
                 line := lineCnt;
                 defined := false;
             };
             labIdx := numLabTop;
-        } else {
-            exit;
-        }
     };
     with numLabs[labIdx] do {
-        if (mode = 2) then {
-            if defined then goto 1;
+        if (isDef) then {
+            if defined then {
+                errLine := numLabs[labIdx].line;
+                error(17); (* errLblAlreadyDefinedInLine *)
+                exit;
+            };
             line := lineCnt;
             defined := true;
             if offset = 0 then {
@@ -5086,21 +5074,12 @@ var
                 fixup(0, offset);
             };
             offset := moduleOffset;
-        } else if (mode = 3) then {
-            if (curFrameRegTemplate = frame) then {
+        } else {
                 if (offset >= 40000B) then {
                     form1Insn(insnTemp[UJ] + offset);
                 } else {
                     formJump(offset);
                 }
-            } else {
-                if offset = 0 then {
-                    offset := symTabPos;
-                    putToSymTab([]);
-                };
-                form3Insn(frame + (KMTJ + 13), KVTM+I14 + offset,
-                          getHelperProc(18(*"C/RC"*)) + (-64100000B));
-            };
         }
     }
 };
@@ -6978,7 +6957,7 @@ var
             disableNorm;
             flag := true;
             padToLeft;
-            labCheckAndDefine(labFence, 2);
+            labCheckAndDefine(true);
             inSymbol;
             checkSymAndRead(COLON);
         }; (* 20355*)
@@ -7057,7 +7036,7 @@ var
                     goto 8888;
             };
             disableNorm;
-            labCheckAndDefine(0, 3);
+            labCheckAndDefine(false);
             inSymbol;
         } else  if (SY = IFSY) then {
             ifWhileStatement;
@@ -8069,7 +8048,7 @@ procedure exitScope(var arg: hashArray);
         writeLN;
     };
     defineRoutine;
-    while (numLabTop > labFence) do {
+    while (numLabTop > 0) do {
         if not (numLabs[numLabTop].defined) then {
             write(' ', numLabs[numLabTop].id.i:0, ':');
             done := false;
