@@ -6156,7 +6156,7 @@ var
             checkSymAndRead(COLON);
             statement;
             goodMode := goodMode and (arithMode = 1);
-            formJump(endOfStmt);
+%            formJump(endOfStmt);
         };
         itemsEnded := (SY = ENDSY);
         if SY = SEMICOLON then
@@ -6172,6 +6172,7 @@ var
         error(88); (* errDifferentTypesOfLabelsAndExpr *);
         exit
     };
+    formJump(endOfStmt);
     padToLeft;
     isIntCase := typeCheck(exprtype, integerType);
     if (allClauses <> NIL) then {
@@ -7138,7 +7139,13 @@ writeln(' target for ', strLabList@.exitTarget, ' is ', moduleOffset oct);
             set146z := [];
             forStatement;
         } else  if (SY = SWITCHSY) then {
-            caseStatement
+           curIdent.i := 4262454153C;
+           setStrLab(false);
+           caseStatement;
+           with strLabList@ do if (exitTarget <> 0) then {
+              fixup(0, exitTarget);
+           };
+           strLabList  :=  strLabList@.next;
         } else if (SY = WITHSY) then {
             withStatement;
         };
