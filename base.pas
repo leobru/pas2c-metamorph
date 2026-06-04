@@ -1161,7 +1161,7 @@ procedure readToPos80;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure inSymbol;
 label
-    1473, 1, 2, 2175, 2233, 2320;
+    1473;
 var
     localBuf: array [0..130] of char;
     tokenLen, tokenIdx: integer;
@@ -1266,24 +1266,10 @@ procedure readOptFlag(var res: boolean);
 }; (* parseComment *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ (* inSymbol *)
-        if dataCheck then {
-            error(errEOFEncountered);
-            readToPos80;
-            goto 9999;
-        };
-1473:
-        while (CH = ' ') and not atEOL do
-            nextCH;
-        if atEOL then {
-            endOfLine;
-            nextCH;
-            goto 1473;
-        };
-        hashTravPtr := NIL;
-        SY := charSym[CH];
-        charClass := chrClass[CH];
-(lexer)
+procedure lexer;
+label
+    1, 2, 2175, 2233, 2320;
+{
         case SY of
             NOSY: nextCH;
             IDENT: {
@@ -1308,7 +1294,7 @@ procedure readOptFlag(var res: boolean);
                     if keywordHashPtr@.w = curToken then {
                         SY := keywordHashPtr@.sym;
                         charClass := keywordHashPtr@.op;
-                        exit lexer;
+                        exit;
                     };
                     keywordHashPtr := keywordHashPtr@.next;
                 };
@@ -1324,10 +1310,10 @@ procedure readOptFlag(var res: boolean);
                                 hashTravPtr := hashTravPtr@.next
                             else {
                                 isDefined := true;
-                                exit lexer;
+                                exit;
                             }
                         } else
-                            exit lexer;
+                            exit;
                     };
                 };
                 1: {
@@ -1336,7 +1322,7 @@ procedure readOptFlag(var res: boolean);
                         if hashTravPtr@.id <> curIdent then
                             hashTravPtr := hashTravPtr@.next
                         else
-                            exit lexer;
+                            exit;
                     };
                 };
                 2: {
@@ -1351,7 +1337,7 @@ procedure readOptFlag(var res: boolean);
                             while hashTravPtr <> NIL do {
                                 if (hashTravPtr@.id = curIdent)
                                 and (hashTravPtr@.value = l3int162z) then
-                                    exit lexer;
+                                    exit;
                                 hashTravPtr := hashTravPtr@.next;
                             };
                             expr62z := expr62z@.expr1;
@@ -1366,7 +1352,7 @@ procedure readOptFlag(var res: boolean);
                             if (id = curIdent) and
                                (typ121z = uptype)
                             then
-                                exit lexer;
+                                exit;
                             hashTravPtr := next;
                        }
                    }
@@ -1406,7 +1392,7 @@ procedure readOptFlag(var res: boolean);
                             };
                             if CH = 'U' then
                                 nextCH;
-                            exit lexer;
+                            exit;
                         };
                         numFormat := OCTAL;
                         if CH = 'U' then {
@@ -1427,7 +1413,7 @@ procedure readOptFlag(var res: boolean);
                         curToken.m := numstr[tokenIdx].m * [45..47] +
                         curToken.m;
                     };
-                    exit lexer;
+                    exit;
                 }; (* octdec *)
                 curToken.i := 0;
                 for tokenIdx to tokenLen do {
@@ -1443,14 +1429,14 @@ procedure readOptFlag(var res: boolean);
                     curToken.m := curToken.m - [0,1,3];
                     numFormat := FULLWORD;
                     nextCH;
-                    exit lexer;
+                    exit;
                 };
                 expMagnitude := 0;
                 if CH = '.' then {
                     nextCH;
                     if CH = '.' then {
                         CH := ':';
-                        exit lexer
+                        exit
                     };
                     curToken.r := curToken.i;
                     SY := REALCONST;
@@ -1511,7 +1497,7 @@ procedure readOptFlag(var res: boolean);
                         curToken.r := curToken.r * expValue;
                 } else
                     curToken.m := curToken.m - intZero;
-                exit lexer
+                exit
             }; (* INTCONST *) (*=m+*)
             CHARCONST: {
 (loop)          {
@@ -1569,7 +1555,7 @@ procedure readOptFlag(var res: boolean);
                     curToken.c := chr(0);
                     unpck(localBuf[0], curToken.a);
                     pck(localBuf[tokenLen], curToken.a);
-                    exit lexer;
+                    exit;
                 } else 2320: {
                     curVal.a := '      ';
                     SY := LTSY;
@@ -1577,12 +1563,12 @@ procedure readOptFlag(var res: boolean);
                     pck(localBuf[6], curToken.a);
                     curVal :=;
                     if strLen <= 6 then
-                        exit lexer
+                        exit
                     else if (charEncoding = 3) and (strLen = 8) then {
                         pack(localbuf, 6, curToken.t);
                         curVal := ;
                         SY := INTCONST;
-                        exit lexer
+                        exit
                     } else {
                         curToken.i := FcstCnt;
                         tokenLen := 6;
@@ -1590,7 +1576,7 @@ procedure readOptFlag(var res: boolean);
                             toFCST;
                             tokenLen := tokenLen + 6;
                             if tokenIdx < tokenLen then
-                                exit lexer;
+                                exit;
                             pck(localBuf[tokenLen], curVal.a);
                             goto loop
                         }
@@ -1701,6 +1687,27 @@ procedure readOptFlag(var res: boolean);
                 }
             };
             end; (* case *)
+}; (* lexer *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{ (* inSymbol *)
+        if dataCheck then {
+            error(errEOFEncountered);
+            readToPos80;
+            goto 9999;
+        };
+1473:
+        while (CH = ' ') and not atEOL do
+            nextCH;
+        if atEOL then {
+            endOfLine;
+            nextCH;
+            goto 1473;
+        };
+        hashTravPtr := NIL;
+        SY := charSym[CH];
+        charClass := chrClass[CH];
+        lexer;
 %           if (CH = '=') and (SY IN [ADDOP,MULOP])  then {
 %                 SY := ASSNOP;
 %writeln(' ASSNOP');

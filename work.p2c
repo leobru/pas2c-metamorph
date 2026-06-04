@@ -197,7 +197,7 @@ opflg = enum {
 };
 //
 kind = enum {
-    kindReal, kindScalar, kindRange, kindPtr,
+    kindReal, kindScalar, kindPtr,
     kindArray, kindStruct, kindFile,
     kindCases
 };
@@ -248,9 +248,6 @@ types = struct {
     k:      kind;
     switch kind of
     kindReal:   {};
-    kindRange:  {base:      tptr;
-                 left,
-                 right:     int};
     kindArray:  {abase,
                  rbase:     tptr;
                  pck:       int;
@@ -259,7 +256,7 @@ types = struct {
     kindScalar: {enums:     irptr;
                  numen,
                  start:     int};
-    kindPtr:    {sbase:      tptr};
+    kindPtr:    {base:      tptr};
     kindFile:   {fbase:      tptr;
                  elsize:    int};
     kindStruct: {ptr1,
@@ -916,20 +913,6 @@ function nrOfBits(value: int): int;
 } /* nrOfBits */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function defineRange(typ: tptr; l, r: int):tptr;
-var
-    temp: tptr;
-{
-    new(temp, kindRange);
-    with temp@ do {
-        base  =  typ;
-        left  =  l;
-        right  =  r;
-        defineRange  =  temp;
-    }
-} /* defineRange */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function mkIntScl(bitWid: int): tptr;
 var
     res: tptr;
@@ -1142,26 +1125,11 @@ var
     numstr: array [17] of word;
     expLiteral, expMagnitude: int;
     val: int;
+    jb1473: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* inSymbol */
-        if (dataCheck) {
-            error(errEOFEncountered);
-            readToPos80();
-            longjmp(jb9999);
-        }
-1473:
-        while (CH == ' ' && !atEOL)
-            nextCH();
-        if (atEOL) {
-            endOfLine();
-            nextCH();
-            goto 1473;
-        }
-        hashTravPtr  =  NIL;
-        SY  =  charSym[CH];
-        charClass  =  chrClass[CH];
-(lexer)
+void lexer;
+{
         switch (SY) {
             default:
                 nextCH();
@@ -1185,7 +1153,7 @@ var
                     if (keywordHashPtr->w == curToken.i) {
                         SY  =  keywordHashPtr->sym;
                         charClass  =  keywordHashPtr->op;
-                        exit lexer;
+                        exit;
                     }
                     keywordHashPtr  =  keywordHashPtr->next;
                 }
@@ -1201,10 +1169,10 @@ var
                                 hashTravPtr  =  hashTravPtr->next;
                             else {
                                 isDefined  =  true;
-                                exit lexer;
+                                exit;
                             }
                         } else
-                            exit lexer;
+                            exit;
                     }
                     break;
                 case 2:
@@ -1218,7 +1186,7 @@ var
                             while (hashTravPtr != NIL) {
                                 if ((hashTravPtr->id == curIdent)
                                 && (hashTravPtr->value == val))
-                                    exit lexer;
+                                    exit;
                                 hashTravPtr  =  hashTravPtr->next;
                             }
                             expr62z  =  expr62z->expr1;
@@ -1232,7 +1200,7 @@ var
                         if (hashTravPtr->id != curIdent)
                             hashTravPtr  =  hashTravPtr->next;
                         else
-                            exit lexer;
+                            exit;
                     }
                     break;
                 case 3:
@@ -1241,7 +1209,7 @@ var
                         with hashTravPtr@ do {
                             if ((id == curIdent) &&
                                (typ121z == uptype))
-                                exit lexer;
+                                exit;
                             hashTravPtr  =  next;
                        }
                    }
@@ -1261,7 +1229,7 @@ var
                     }
                     nextCH();
                 } while (charSym[CH] == INTCONST);
-(octdec)        {
+/* octdec */    do {
                     if ((numstr[0].i == 0) && (CH != '.')) {
                         if (tokenLen == 0 && CH == 'X') {
                             /* Hex literal: 0Xhhh[U] */
@@ -1276,7 +1244,7 @@ var
                             };
                             if (CH == 'U')
                                 nextCH();
-                            exit lexer;
+                            exit;
                         };
                         numFormat  =  OCTAL;
                         if (CH == 'U') {
@@ -1285,7 +1253,7 @@ var
                         }
                     } else {
                         numFormat  =  DECIMAL;
-                        exit octdec;
+                        break;  /* octdec */
                     }
                     curToken.i  =  0;
                     for (tokenIdx = 0;
@@ -1296,8 +1264,8 @@ var
                         curToken.i = (curToken.i << 3) |
                             numstr[tokenIdx].i & 7;
                     }
-                    exit lexer;
-                } /* octdec */
+                    exit;
+                } while (0);
                 curToken.i  =  0;
                 for (tokenIdx = 0;
                      tokenIdx <= tokenLen; tokenIdx=tokenIdx+1) {
@@ -1313,14 +1281,14 @@ var
                     curToken.i = curToken.i & [7..47];
                     numFormat = FULLWORD;
                     nextCH();
-                    exit lexer;
+                    exit;
                 }
                 expMagnitude  =  0;
                 if (CH == '.') {
                     nextCH();
                     if (CH == '.') {
                         CH  =  ':';
-                        exit lexer;
+                        exit;
                     }
                     curToken.r  =  curToken.i;
                     SY  =  REALCONST;
@@ -1378,7 +1346,7 @@ var
                     else
                         curToken.r  =  curToken.r * expValue;
                 }
-                exit lexer;
+                exit;
             } /* INTCONST */ /*=m+*/
             case CHARCONST: {
 (loop)          {
@@ -1438,7 +1406,7 @@ var
                     curToken.i  =  0;
                     unpck(localBuf[0], curToken.a);
                     pck(localBuf[tokenLen], curToken.a);
-                    exit lexer;
+                    exit;
                 } else 2320: {
                     curVal.a  =  '      ';
                     SY  =  LTSY;
@@ -1446,12 +1414,12 @@ var
                     pck(localBuf[6], curToken.a);
                     curVal  = ;
                     if (strLen <= 6)
-                        exit lexer;
+                        exit;
                     else if (charEncoding == 3 && strLen == 8) {
                         pack(localbuf, 6, curToken.t);
                         curVal = ;
                         SY = INTCONST;
-                        exit lexer;
+                        exit;
                     } else {
                         curToken.i  =  FcstCnt;
                         tokenLen  =  6;
@@ -1459,7 +1427,7 @@ var
                             toFCST();
                             tokenLen  =  tokenLen + 6;
                             if (tokenIdx < tokenLen)
-                                exit lexer;
+                                exit;
                             pck(localBuf[tokenLen], curVal.a);
                         }
                     }
@@ -1545,11 +1513,11 @@ var
                    switch (CH) {
                    case '*': {
                        parseComment();
-                       goto 1473;
+                       longjmp(jb1473);
                    }
                    case '/': {
                        while (!atEOL) nextCH();
-                       goto 1473;
+                       longjmp(jb1473);
                    }
                    }
                } else
@@ -1570,6 +1538,27 @@ var
                         dataCheck  =  true;
                 }
         } /* switch */
+} /* lexer */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{ /* inSymbol */
+        if (dataCheck) {
+            error(errEOFEncountered);
+            readToPos80();
+            longjmp(jb9999);
+        }
+1473:   if(setjmp(jb1473));
+        while (CH == ' ' && !atEOL)
+            nextCH();
+        if (atEOL) {
+            endOfLine();
+            nextCH();
+            goto 1473;
+        }
+        hashTravPtr  =  NIL;
+        SY  =  charSym[CH];
+        charClass  =  chrClass[CH];
+        lexer();
         prevSY  =  SY;
         commentModeCH  =  ' ';
         int93z  =  int92z;
@@ -1822,12 +1811,12 @@ var
                 case kindReal:
                     /* empty */ break;
                 case kindScalar:
-(chain)             if (type1->numen == type2->numen) {
+                    if (type1->numen == type2->numen) {
                         enums1  =  type1->enums;
                         enums2  =  type2->enums;
                         while ((enums1 != NIL) && (enums2 != NIL)) {
                             if (enums1->id != enums2->id)
-                                exit chain;
+                                break;
                             enums1  =  enums1->list;
                             enums2  =  enums2->list;
                         }
@@ -4374,32 +4363,26 @@ var
 } /* parseRecordDecl*/
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function parseRange: tptr;
-var
-    leftBound, rightBound: int;
-    tempType: tptr;
+void parseRange(aleft, aright: @int; rbase: @tptr);
 {
-    tempType = parseLiteral(&leftBound, true);
-    if (tempType != NIL) {
+    curType = parseLiteral(aleft, true);
+    if (curType != NIL && curType->k == kindScalar) {
+        rbase@ = curType;
         inSymbol();
         if (SY != COLON) {
 // Handle a single value N as a range 0..N-1
-            rightBound = leftBound - 1;
-            curType = tempType;
-            leftBound = 0;
-        } else {
-            inSymbol();
-            curType = parseLiteral(&rightBound, true);
-            inSymbol();
-        }
-        if ((curType == tempType) &&
-           (curType->k == kindScalar)) {
-            parseRange = defineRange(curType, leftBound, rightBound);
+            aright@ = aleft@ - 1;
+            aleft@ = 0;
             exit;
         }
+        inSymbol();
+        curType = parseLiteral(aright, true);
+        inSymbol();
+        if (curType == rbase@)
+            exit;
     }
     error(64); /* errIncorrectRangeDefinition */
-    parseRange = boolType;
+    rbase@ = boolType;
 } /* parseRange */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4534,15 +4517,13 @@ var
             inSymbol();
             checkSymAndRead(LBRACK);
             tempType  =  NIL;
-12476:      nestedType = parseRange();
+12476:
             new(arrayType, kindArray);
             with arrayType@ do {
                 size  =  int(tempType);
                 bits  =  48;
                 k  =  kindArray;
-                aleft  =  nestedType->left;
-                aright  =  nestedType->right;
-                rbase  =  nestedType->base;
+                parseRange(&aleft, &aright, &rbase);
             }
             if (tempType == NIL)
                 curType  =  arrayType;
@@ -7284,12 +7265,10 @@ var
         if (l3sym7z != VOIDSY) {
             checkSymAndRead(COLON);
             expType = parseTypeRef(skipToSet | [IDENT,RPAREN]);
-            if (l3sym7z != VARSY) {
                 if (isFileType(expType))
                 error(5); /*errSimpleTypeReq */
                 else if (expType->size != 1)
                      l3var5z  =  l3var6z * expType->size + l3var5z;
-            }
             if (l3var3z != NIL)
                 while (l3var3z != curIdRec) with l3var3z@ do {
                     typ  =  expType;
