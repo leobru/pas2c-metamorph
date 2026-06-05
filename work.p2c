@@ -1532,10 +1532,6 @@ void lexer;
                } else
                    nextCH();
                break;
-            case LPAREN: case LBRACK: case RELOP: case RPAREN: case RBRACK:
-            case COMMA: case SEMICOLON: case ARROW:
-                nextCH();
-                break;
             case PERIOD:
                 nextCH();
                 if (CH == '.') {
