@@ -6028,23 +6028,20 @@ procedure reportStmtType;
 }; (* reportStmtType *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function structBranch: boolean;
+procedure structBranch;
 var
     curLab: @strLabel;
 {
-    structBranch := true;
     curLab := strLabList;
     while (curLab <> NIL) do {
-        with curLab@ do {
-            if ident = curIdent then {
-                formJump(curLab@.exitTarget);
-                exit
-            };
-            curLab := curLab@.next;
-        }
+        if curLab@.ident = curIdent then {
+            formJump(curLab@.exitTarget);
+            exit
+        };
+        curLab := curLab@.next;
     };
     error(errNotDefined);
-    structBranch := false;
+    goto 8888;
 }; (* structBranch *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6863,7 +6860,38 @@ var
             exit
         }
     };
-    14: { (* return *)
+    14: { (* return [expr] *)
+        if not (SY IN statEndSys) then {
+            (* return expr: assign expr to function result, then jump *)
+            if (l2idr2z@.typ = NIL) then
+                error(errNeedOtherTypesOfOperands)
+            else {
+                new(l4exp6z);
+                with l4exp6z@ do {
+                    vt.typ := l2idr2z@.typ;
+                    op := GETVAR;
+                    id1 := l2idr2z;
+                };
+                readNext := false;
+                expression;
+                if (typeCheck(l2idr2z@.typ, curExpr@.vt.typ)) then
+                    (* OK *)
+                else if (l2idr2z@.typ = realType) and
+                        typeCheck(integerType, curExpr@.vt.typ) then
+                    castToReal(curExpr)
+                else
+                    error(33); (* errIllegalTypesForAssignment *)
+                new(workExpr);
+                with workExpr@ do {
+                    vt.typ := l2idr2z@.typ;
+                    op := ASSIGNOP;
+                    expr1 := l4exp6z;
+                    expr2 := curExpr;
+                };
+                curExpr := workExpr;
+                formOperator(DOIT);
+            }
+        };
         formJump(exitTarget);
         exit
     };
@@ -7045,7 +7073,7 @@ var
             brContTarget; (* removing break *)
             arithMode := 1;
         } else if (SY = BREAKSY) or (SY = CONTSY) then {
-            if not structBranch then goto 8888;
+            structBranch;
             inSymbol;
             checkSymAndRead(SEMICOLON);
         } else  if (SY = DOSY) then {

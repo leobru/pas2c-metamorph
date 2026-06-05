@@ -616,8 +616,7 @@ var
         do {
             mid  =  (low + high) / 2;
             if (curVal.a == constVals[mid]) {
-                addCurValToFCST  =  constNums[mid];
-                return;
+                return constNums[mid];
             }
             if (curval.a < constVals[mid])
                 high  =  mid - 1;
@@ -830,8 +829,7 @@ var i: int;
     if (curVal.i & halfWord) {
         for (i = 1; i <= longSymCnt; i=i+1)
             if (curVal.i == longSyms[i]) {
-                allocExtSymbol  =  longSym[i];
-                return;
+                return longSym[i];
             }
         longSymCnt  =  longSymCnt + 1;
         if (longSymCnt >= 90) {
@@ -874,8 +872,7 @@ var
         do {
             mid  =  (low + high) / 2;
             if (value == symTabArray[mid]) {
-                allocSymtab  =  symtbidx[mid];
-                return;
+                return symtbidx[mid];
             }
             if ( value.a < symTabArray[mid].a)
                  high  =  mid;
@@ -903,15 +900,13 @@ function getFCSToffset: int;
 var
     offset: int;
 {
-    getFCSToffset  =  addCurValToFCST();
-    offset  = ;
+    offset  =  addCurValToFCST();
     if (offset < 2048) {
-        /* empty */
+        return offset;
     } else if (offset >= 4096)
         error(204);
     else {
-        getFCSToffset  =  allocSymtab(offset | 040000000U) - 070000;
-        return;
+        return allocSymtab(offset | 040000000U) - 070000;
     }
 } /* getFCSToffset */
 //
@@ -928,8 +923,7 @@ var
 {
     if (bitWid < 1 || 40 < bitWid) {
         error(errNumberTooLarge);
-        mkIntScl = intType;
-        return;
+        return intType;
     }
     new(res, kindScalar);
     with res@ do {
@@ -940,7 +934,7 @@ var
         numen = 1 << bitWid;
         bits = bitWid;
     }
-    mkIntScl = res;
+    return res;
 } /* mkIntScl */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1792,12 +1786,11 @@ var it: irptr;
 {
     for(it = typelist; it != NIL; it = it->next) {
         if (it->id == curIdent) {
-            knownInType  =  true;
             rec@ = it;
-            return;
+            return true;
         }
     }
-    knownInType  =  false;
+    return false;
 } /* knownInType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1913,16 +1906,15 @@ function F3413: int;
     l4inl7z  =  l4inl6z;
     while (l4inl7z != NIL) {
         if (l4inl7z->mode == curInsn) {
-            F3413  =  true;
             while (l4inl7z->code == macro) {
                 l4inl7z  =  oiptr(l4inl7z->offset);
             }
-            return;
+            return true;
         } else {
             l4inl7z  =  l4inl7z->next;
         }
     }
-    F3413  =  false;
+    return false;
 } /* F3413 */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4962,16 +4954,14 @@ function areTypesCompatible(l4arg1z: @eptr): int;
     if (arg1Type == realType) {
         if (typeCheck(intType, arg2Type)) {
             castToReal(l4arg1z);
-            areTypesCompatible  =  true;
-            return;
+            return true;
         }
     } else if ((arg2Type == realType) &&
                typeCheck(intType, arg1Type)) {
         castToReal(&curExpr);
-        areTypesCompatible  =  true;
-        return;
+        return true;
     }
-    areTypesCompatible  =  false;
+    return false;
 } /* areTypesCompatible */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5012,7 +5002,7 @@ var
             }
         }
         do {
-            if (noArgs && (subroutine == curFormal)) {
+            if (noArgs && subroutine == curFormal) {
                 error(errTooManyArguments);
                 longjmp(jb8888);
             }
@@ -5756,23 +5746,20 @@ void reportStmtType;
 } /* reportStmtType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function structBranch: int;
+void structBranch;
 var
     curLab: @strLabel;
 {
-    structBranch  =  true;
     curLab  =  strLabList;
     while (curLab != NIL) {
-        with curLab@ do {
-            if (ident == curIdent) {
-                formJump(&curLab->exitTarget);
-                return;
-            }
-            curLab  =  curLab->next;
+        if (curLab->ident == curIdent) {
+            formJump(&curLab->exitTarget);
+            return;
         }
+        curLab  =  curLab->next;
     }
     error(errNotDefined);
-    structBranch  =  false;
+    longjmp(jb8888);
 } /* structBranch */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6554,6 +6541,37 @@ var
             return;
         }
     case 14: /* return */
+        if (! (SY IN statEndSys)) {
+            /* return expr: assign expr to function result, then jump */
+            if (l2idr2z->typ == NIL)
+                error(errNeedOtherTypesOfOperands);
+            else {
+                new(l4exp6z);
+                with l4exp6z@ do {
+                    typ = l2idr2z->typ;
+                    op = GETVAR;
+                    id1 = l2idr2z;
+                }
+                readNext = false;
+                expression();
+                if (typeCheck(l2idr2z->typ, curExpr->typ)) {
+                    /* OK */
+                } else if (l2idr2z->typ == realType &&
+                        typeCheck(intType, curExpr->typ))
+                    castToReal(&curExpr);
+                else
+                    error(33); /* errIllegalTypesForAssignment */
+                new(workExpr);
+                with workExpr@ do {
+                    typ = l2idr2z->typ;
+                    op = ASSIGNOP;
+                    expr1 = l4exp6z;
+                    expr2 = curExpr;
+                }
+                curExpr = workExpr;
+                formOperator(DOIT);
+            }
+        }
         formJump(&exitTarget);
         return;
     case 15: /* longjmp(jmpbuf) - inline non-local goto via P/RC */
@@ -6723,7 +6741,7 @@ var
         arithMode  =  1;
         break;
     case BREAKSY: case CONTSY:
-        if (! structBranch()) goto 8888;
+        structBranch();
         inSymbol();
         checkSymAndRead(SEMICOLON);
         break;
@@ -6881,7 +6899,7 @@ var
             jj  =  27;    /* P/E */
         else
             jj  =  28;   /* P/EF */
-        form1Insn(getHelperProc(jj) + (-I13-0100000));
+        form1Insn(getHelperProc(jj) - (KVJM+I13-KUJ));
         if (curProcNesting == 1) {
             parseDecls(2);
             if ((E48 >> S3) & optSflags)
