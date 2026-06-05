@@ -289,7 +289,6 @@ end;
 strLabel = record
     next:       @strLabel;
     ident:      word;
-    offset:     integer;
     exitTarget: integer;
 end;
 %
@@ -380,7 +379,7 @@ var
    lineNesting: integer;
    FcstCountTo500: integer;
    objBufIdx: integer;
-   int92z, int93z, int94z: integer;
+   int92z, int93z, condLabCnt: integer;
    prevOpcode: integer;
    charEncoding: integer;
    errLine: integer;
@@ -2858,8 +2857,8 @@ var
     } else {
         l5var1z := 16 in insnList@.regsused;
         l5var2z := 16 in otherIns@.regsused;
-        l5var5z := int94z;
-        int94z := int94z + 1;
+        l5var5z := condLabCnt;
+        condLabCnt := condLabCnt + 1;
         forValue := false;
         l5var6z := ord(l5var1z) + macro;
         l5var7z := ord(l5var2z) + macro;
@@ -3559,7 +3558,7 @@ procedure genCondOp;
  *   macro + 2, hi*10000B + lo  -> UJ to label `hi` AND define label `lo` here
  *   macro + 21, label          -> define label here (no jump)
  *
- * Labels are simply unique integers drawn from int94z. When genOneOp later
+ * Labels are simply unique integers drawn from condLabCnt. When genOneOp later
  * processes a macro+0/1/2 entry, addJumpInsn looks up an existing label
  * record by `mode = label`; if found (F3413), the new jump is linked into
  * that record's chain in the object buffer, so several jumps to the same
@@ -3573,10 +3572,10 @@ var
     altExpr := exprToGen@.expr2;
     (* Allocate two unique forward-label identifiers from the global
        counter used by genBoolAnd. *)
-    elseLab := int94z;
-    int94z := int94z + 1;
-    endLab := int94z;
-    int94z := int94z + 1;
+    elseLab := condLabCnt;
+    condLabCnt := condLabCnt + 1;
+    endLab := condLabCnt;
+    condLabCnt := condLabCnt + 1;
 
     (* Build the condition sub-chain: <cond chain> + branch-to-elseLab-if-false.
        We set forValue := false before generating the condition so that
@@ -3680,15 +3679,6 @@ var i    : integer; ret: word;
 };
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure constmul;
-{
-arg1Val.m := arg1Val.m + intZero;
-arg2Val.m := arg2Val.m + intZero;
-arg1Val.i := arg1Val.i * arg2Val.i;
-arg1Val.m := arg1Val.m - intZero;
-};
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* genFullExpr *);
     if exprToGen = NIL then
         exit;
@@ -3724,13 +3714,13 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 case curOP of
                 MUL:        arg1Val.r := arg1Val.r * arg2Val.r;
                 RDIVOP:     arg1Val.r := arg1Val.r / arg2Val.r;
-                ANDOP:     arg1Val.b := arg1Val.b and arg2Val.b;
-                IDIVOP:     arg1Val.i := arg1Val.i DIV arg2Val.i;
-                IMODOP:     arg1Val.i := arg1Val.i MOD arg2Val.i;
+                ANDOP:      arg1Val.b := arg1Val.b and arg2Val.b;
+                IDIVOP:     arg1Val.c := chr(ord(arg1Val.c) DIV ord(arg2Val.c));
+                IMODOP:     arg1Val.c := chr(ord(arg1Val.c) MOD ord(arg2Val.c));
                 PLUSOP:     arg1Val.r := arg1Val.r + arg2Val.r;
                 MINUSOP:    arg1Val.r := arg1Val.r - arg2Val.r;
                 OROP:       arg1Val.b := arg1Val.b or arg2Val.b:
-                IMULOP:     constmul;
+                IMULOP:     arg1Val.c := chr(ord(arg1Val.c) * ord(arg2Val.c));
                 SETAND:     arg1Val.m := arg1Val.m * arg2Val.m;
                 SETXOR:     arg1Val.m := arg1Val.m MOD arg2Val.m;
                 INTPLUS:    arg1Val.i := arg1Val.i + arg2Val.i;
@@ -5917,7 +5907,7 @@ procedure expression;
 procedure assignStatement(doLHS: boolean); forward;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure setStrLab(forGoto: boolean);
+procedure setStrLab;
 {
     new(strLabPtr);
     padToLeft;
@@ -5925,7 +5915,6 @@ procedure setStrLab(forGoto: boolean);
     with strLabPtr@ do {
         next := strLabList;
         ident := curIdent;
-        if forGoto then offset := moduleOffset else offset := -1;
         exitTarget := 0;
     };
     strLabList := strLabPtr;
@@ -5935,9 +5924,9 @@ procedure setStrLab(forGoto: boolean);
 procedure setBrCont;
 {
     curIdent.i := 4262454153C;
-    setStrLab(false); (* break *)
+    setStrLab; (* break *)
     curIdent.i := 4357566451566545C;
-    setStrLab(false); (* continue *)
+    setStrLab; (* continue *)
 };
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6036,35 +6025,23 @@ procedure reportStmtType;
 }; (* reportStmtType *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function structBranch(isGoto: boolean): boolean;
+function structBranch: boolean;
 var
     curLab: @strLabel;
 {
     structBranch := true;
-    if (SY = IDENT) or not isGoto then {
-        curLab := strLabList;
-        while (curLab <> NIL) do {
-            with curLab@ do {
-                if (ident = curIdent) then {
-                    if (isGoto and (offset <> -1)) then {
-                        form1Insn(insnTemp[UJ] + offset);
-                        writeln(' goto ', offset oct);
-                    } else {
-                        formJump(curLab@.exitTarget);
-                        writeln(' formjump ', curLab@.exitTarget);
-                    };
-                    exit
-                };
-                curLab := curLab@.next;
-            }
-        };
-        if not isGoto and (SY <> IDENT) then {
-            formJump(exitTarget);
-        } else {
-            error(errNotDefined);
+    curLab := strLabList;
+    while (curLab <> NIL) do {
+        with curLab@ do {
+            if ident = curIdent then {
+                formJump(curLab@.exitTarget);
+                exit
+            };
+            curLab := curLab@.next;
         }
-    } else
-        structBranch := false;
+    };
+    error(errNotDefined);
+    structBranch := false;
 }; (* structBranch *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6884,18 +6861,8 @@ var
         }
     };
     14: { (* exit *)
-        l4bool10z := (SY = LPAREN);
-        if (l4bool10z) then
-            inSymbol;
-        if (SY = IDENT) then {
-            if not structBranch(false) then
-                error(1); (* errCommaOrSemicolonNeeded *)
-            inSymbol;
-        } else {
-            formJump(exitTarget);
-        };
-        if not (l4bool10z) then
-            exit
+        formJump(exitTarget);
+        exit
     };
     15: { (* longjmp(jmpbuf) - inline non-local goto via C/RC *)
         if (arg1Type <> integerType) then
@@ -7017,19 +6984,6 @@ var
                 error(errNotDefined);
 8888:           skip(skipToSet + statEndSys);
             };
-        } else  if (SY = LPAREN) then {
-            set146z := [];
-            inSymbol;
-            if (SY <> IDENT) then {
-                error(errNoIdent);
-                goto 8888;
-            };
-            setStrLab(true);
-            inSymbol;
-            checkSymAndRead(RPAREN);
-            statement;
-            fixup(0, strLabPtr@.exitTarget);
-            strLabList := strLabList@.next;
         } else  if (SY = BEGINSY) then
 (rep)   {
             inSymbol;
@@ -7051,11 +7005,8 @@ var
         } else  if (SY = GOTOSY) then {
             inSymbol;
             if (SY <> INTCONST) then {
-                if structBranch(true) then {
-                    inSymbol;
-                    exit;
-                } else
-                    goto 8888;
+                error(62); (* errIntegerNeeded *)
+                goto 8888;
             };
             disableNorm;
             labCheckAndDefine(false);
@@ -7091,8 +7042,7 @@ var
             brContTarget; (* removing break *)
             arithMode := 1;
         } else if (SY = BREAKSY) or (SY = CONTSY) then {
-            SY := IDENT;
-            if not structBranch(false) then goto 8888;
+            if not structBranch then goto 8888;
             inSymbol;
             checkSymAndRead(SEMICOLON);
         } else  if (SY = DOSY) then {
@@ -7131,7 +7081,7 @@ var
             forStatement;
         } else  if (SY = SWITCHSY) then {
             curIdent.i := 4262454153C;
-            setStrLab(false);
+            setStrLab;
             caseStatement;
             brContTarget; (* removing break *)
         } else if (SY = WITHSY) then {
@@ -8271,7 +8221,7 @@ procedure initOptions;
     int92z := 1;
     moduleOffset := 16384;
     lineStartOffset := ;
-    int94z := 1;
+    condLabCnt := 1;
     bool47z := false;
     dataCheck := ;
     heapSize := 100;
