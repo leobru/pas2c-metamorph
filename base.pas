@@ -352,7 +352,7 @@ var
    symTabPos: integer;
    entryPtCnt: integer;
    fileBufSize: integer;
-   expr62z, expr63z: eptr;
+   withIter, withList: eptr;
    curInsnTemplate: integer;
    linePos: integer;
    prevErrPos: integer;
@@ -1325,13 +1325,13 @@ label
                     };
                 };
                 2: {
-                    if expr63z = NIL then
+                    if withList = NIL then
                         goto 2;
-                    expr62z := expr63z;
+                    withIter := withList;
                     chain := fieldHash[bucket];
                     if chain <> NIL then {
-                        while expr62z <> NIL do {
-                            l3int162z := expr62z@.typ2@.size;
+                        while withIter <> NIL do {
+                            l3int162z := withIter@.typ2@.size;
                             hashTravPtr := chain;
                             while hashTravPtr <> NIL do {
                                 if (hashTravPtr@.id = curIdent)
@@ -1339,7 +1339,7 @@ label
                                     exit;
                                 hashTravPtr := hashTravPtr@.next;
                             };
-                            expr62z := expr62z@.expr1;
+                            withIter := withIter@.expr1;
                         };
                     };
                     goto 2;
@@ -1765,16 +1765,6 @@ procedure skip(toset: setofsys);
     while not (SY IN toset) do
         inSymbol;
 }; (* skip *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure test1(sym: symbol; toset: setofsys);
-{
-    if (SY <> sym) then {
-        requiredSymErr(sym);
-        skip(toset)
-    } else
-        inSymbol;
-}; (* test1 *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure errAndSkip(errno: integer; toset: setofsys);
@@ -3989,7 +3979,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     arg1Val := insnList@.payload;
                 } else
                     arg1Const := false;
-                arg2Const := (insnList@.typ = realType);
+                arg2Const := insnList@.typ = realType;
                 if (arg1Const) then {
                     case work of
                     fnABS:   arg1Val.r := abs(arg1Val.r);
@@ -4145,8 +4135,8 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
         with insnList@ do {
             l3int3z := insnCount;
             new(helpExpr);
-            helpExpr@.expr1 := expr63z;
-            expr63z := helpExpr;
+            helpExpr@.expr1 := withList;
+            withList := helpExpr;
             helpExpr@.op := NOOP;
             case st of
             st0: {
@@ -5128,7 +5118,7 @@ var
     l4var4z: kind;
 {
     if (hashTravPtr@.cl = FIELDID) then {
-        curExpr := expr62z;
+        curExpr := withIter;
         goto 13530;
     } else {
         new(curExpr);
@@ -5762,12 +5752,9 @@ var
         else
             oper := NOTOP;
         inSymbol;
-    } else if (charClass IN [PLUSOP, MINUSOP]) then {
+    } else if (charClass IN [PLUSOP, MINUSOP, MUL, SETAND]) then {
         if (charClass <> PLUSOP) then
             oper := charClass;
-        inSymbol;
-    } else if (charClass = SETAND) then {
-        oper := SETAND;
         inSymbol;
     };
     factor;
@@ -5777,7 +5764,8 @@ var
         with leftExpr@ do {
             vt.typ := arg1Type;
             expr1 := curExpr;
-            if oper = MINUSOP then {
+            case oper of
+            MINUSOP: {
                 if arg1Type = realType then {
                     op := RNEGOP;
                 } else if typeCheck(arg1Type, integerType) then {
@@ -5787,7 +5775,8 @@ var
                     error(69); (* errUnaryMinusNeedRealOrInteger *)
                     exit
                 };
-            } else if oper = BITNEGOP then {
+            };
+            BITNEGOP: {
                 if typeCheck(arg1Type, integerType) then {
                     leftExpr@.op := BITNEGOP;
                     leftExpr@.vt.typ := integerType;
@@ -5795,28 +5784,42 @@ var
                     error(62); (* errIntegerNeeded *)
                     exit
                 };
-            } else if oper = NOTOP then {
-                leftExpr@.vt.typ := booleanType;
+            };
+            NOTOP: with leftExpr@ do {
+                vt.typ := booleanType;
                 if (arg1Type = booleanType) then {
-                    leftExpr@.op := NOTOP;
+                    op := NOTOP;
                 } else if (arg1Type = integerType) then {
-                    leftExpr@.op := EQOP;
-                    new(leftExpr@.expr2);
-                    leftExpr@.expr2@ := [integerType, GETENUM, 0C];
+                    op := EQOP;
+                    new(expr2);
+                    expr2@ := [integerType, GETENUM, 0C];
                 } else {
                     error(errNeedOtherTypesOfOperands);
                     exit
                 };
-            } else if oper = SETAND then {
+            };
+            MUL: with leftExpr@ do {
+                    if (arg1Type@.k = kindPtr) then {
+                        vt.typ := arg1Type@.base;
+                        op := DEREF;
+                    } else if (arg1Type@.k = kindFile) then {
+                        vt.typ := arg1Type@.base;
+                        op := FILEPTR;
+                    } else {
+                        stmtName := 'unary*';
+                        error(errWrongVarTypeBefore);
+                    }
+            };
+            SETAND: {
                 if not (curExpr@.op IN lvalOpSet) then
                     error(27); (* errExpressionWhereVariableExpected *)
                 with leftExpr@ do {
                     vt.typ := voidPtr;
                     op := STANDPROC;
-                    expr1 := curExpr;
                     num2 := fnREF;
                 }
-            };
+            }
+            end;
             curExpr := leftExpr;
         }
     };
@@ -5987,11 +5990,11 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure withStatement;
 var
-    l4exp1z: eptr;
+    oldWith: eptr;
     l4var2z, l4var3z: bitset;
     l4var4z: integer;
 {
-    l4exp1z := expr63z;
+    oldWith := withList;
     l4var4z := localSize;
     l4var2z := set147z;
     l4var3z := [];
@@ -6012,7 +6015,7 @@ var
     until (SY <> COMMA);
     checkSymAndRead(DOSY);
     statement;
-    expr63z := l4exp1z;
+    withList := oldWith;
     localSize := l4var4z;
     set147z := l4var2z;
     set145z := set145z + l4var3z;
@@ -6860,7 +6863,7 @@ var
             exit
         }
     };
-    14: { (* exit *)
+    14: { (* return *)
         formJump(exitTarget);
         exit
     };
@@ -7125,7 +7128,7 @@ var
     lineStartOffset := moduleOffset;
     l3var1z := ;
     int92z := 2;
-    expr63z := NIL;
+    withList := NIL;
     arithMode := 1;
     set146z := [];
     set147z := [curProcNesting+1..6];
@@ -8536,7 +8539,7 @@ procedure initOptions;
         67625164455456C        (*" WRITELN"*),
         0C                     (*"    READ"*),
         0C                     (*"  READLN"*),
-        45705164C              (*"    EXIT"*),
+        624564656256C          (*"  RETURN"*),
         54575647525560C        (*" LONGJMP"*),
         42456355C              (*"    BESM"*),
         0C                     (*"   MAPIA"*),
