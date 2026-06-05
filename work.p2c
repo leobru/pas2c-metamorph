@@ -380,6 +380,7 @@ var
     curExternFile: pextf;
     commentModeCH: char;
     CH: char;
+    prevInsn: int;
     debugLine: int;
     lineNesting: int;
     FcstCountTo500: int;
@@ -723,8 +724,16 @@ var
                 exit;
             }
         }
+    } else if (prevOpcode > 1 && insn & 07777 &&
+        (insn ^ prevInsn) == (KATX ^ KXTA) /* maybe ATX/XTA */) {
+// Load after store; if the load reg/off is the same as the store,
+// and the store was not a stack push, there is no need to do the read.
+        if (prevInsn != KATX+SP &&
+            (prevInsn & [28, 30..35]) == KATX /* but still ATX */)
+            exit; /* skip the XTA */
     }
     prevOpcode  =  opcode;
+    prevInsn  =  insn;
     if (putLeft) {
         leftInsn  =  (insn & halfWord) << 24;
         putLeft  =  false;
@@ -2992,7 +3001,7 @@ var
     l5var15z: int;
     l5var16z, l5var17z, l5var18z, l5var19z: int;
     l5inl20z: @insnltyp;
-    l5op21z: operator; l5idc22z: idclass;
+    l5op21z: operator; paramClass: idclass;
 //
 { /* genEntry */
     l5exp1z  =  exprToGen->expr1;
@@ -3034,7 +3043,7 @@ var
         l5op21z  =  l5exp2z->op;
         numArgs  =  numArgs + 1;
         l5inl20z  =  insnList;
-        if ((l5op21z == PCALL) || (l5op21z == FCALL)) {
+        if (l5op21z == PCALL || l5op21z == FCALL) {
             l5idr4z  =  l5exp2z->id2;
             new(insnList);
             insnList->head  =  NIL;
@@ -3049,7 +3058,7 @@ var
             } else
 (a)         {
                 if (l5idr4z->value == 0) {
-                    if ((isFortrn) && (21 in l5idr4z->flags)) {
+                    if (isFortrn && (21 in l5idr4z->flags)) {
                         addToInsnList(allocGlobalObject(l5idr4z) +
                                       (KVTM+I14));
                         addToInsnList(KITA+14);
@@ -3076,11 +3085,11 @@ var
                             allocGlobalObject(l5idr4z) + KUJ);
                         if (l5idr3z != NIL) {
                             do {
-                                l5idc22z  =  l5idr3z->cl;
-                                if ((l5idc22z == ROUTINEID) &&
+                                paramClass  =  l5idr3z->cl;
+                                if ((paramClass == ROUTINEID) &&
                                    (l5idr3z->typ != NIL))
-                                    l5idc22z  =  ENUMID;
-                                form2Insn(0, int(l5idc22z));
+                                    paramClass  =  ENUMID;
+                                form2Insn(0, int(paramClass));
                                 l5idr3z  =  l5idr3z->list;
                             } while (l5idr4z != l5idr3z);
                         }
@@ -3094,23 +3103,23 @@ var
                 else
                     addToInsnList(getHelperProc(64)); /* "P/PB" */
             }
-            l5idc22z  =  (l5op21z == PCALL) ? ROUTINEID : ENUMID;
+            paramClass  =  (l5op21z == PCALL) ? ROUTINEID : ENUMID;
         } else {
             genFullExpr(l5exp2z);
             if (insnList->ilm == il1) {
-                l5idc22z  =  FORMALID;
+                paramClass  =  FORMALID;
             } else
-                l5idc22z  =  VARID;
+                paramClass  =  VARID;
         }
-        if (! (! isDirect || (l5idc22z != FORMALID) ||
+        if (! (! isDirect || (paramClass != FORMALID) ||
                (curForml->cl != VARID)))
-            l5idc22z  =  VARID;
-(loop)  if (l5idc22z == FORMALID || allByRef) {
+            paramClass  =  VARID;
+(loop)  if (paramClass == FORMALID || allByRef) {
             setAddrTo(14);
             addToInsnList(KITA+14);
-        } else if (l5idc22z == VARID) {
+        } else if (paramClass == VARID) {
             if (insnList->typ->size != 1) {
-                l5idc22z  =  FORMALID;
+                paramClass  =  FORMALID;
                 goto loop;
             } else {
                 prepLoad();
@@ -3125,7 +3134,7 @@ var
         }
         insnList->regsused  =  insnList->regsused | l5inl20z->regsused;
         if (! isDirect) {
-            curVal.cl  =  l5idc22z;
+            curVal.cl  =  paramClass;
             addToInsnList(KXTS+I8 + getFCSToffset());
         }
         if (isDirect && ! allByRef)
@@ -6633,8 +6642,8 @@ var
         lineNesting  =  lineNesting + 1;
     if (setjmp(jb8888))
         goto 8888;
-(ident)
-    if (SY == IDENT) {
+    switch (SY) {
+    case IDENT:
         if (hashTravPtr != NIL) {
             l3var6z  =  hashTravPtr->cl;
             if (l3var6z >= VARID) {
@@ -6647,7 +6656,7 @@ var
                         if (l3idr12z->offset == 0) {
                             standProc();
                             checkSymAndRead(SEMICOLON);
-                            exit ident;
+                            break;
                         }
                         parseCallArgs(l3idr12z);
                     } else {
@@ -6664,7 +6673,8 @@ var
             error(errNotDefined);
 8888:       skip(skipToSet | statEndSys);
         }
-    } else if (SY == LPAREN) {
+        break;
+    case LPAREN:
         set146z  =  0U;
         inSymbol();
         if (SY != IDENT) {
@@ -6677,13 +6687,15 @@ var
         statement();
         fixup(0, strLabPtr->exitTarget);
         strLabList  =  strLabList->next;
-    } else if (SY == BEGINSY) {
+        break;
+    case BEGINSY:
         inSymbol();
         while (SY != ENDSY) {
             statement();
         }
         inSymbol();
-    } else if (SY == GOTOSY) {
+        break;
+    case GOTOSY:
         inSymbol();
         if (SY != INTCONST) {
             if (structBranch(true)) {
@@ -6695,7 +6707,8 @@ var
         disableNorm();
         labCheckAndDefine(false);
         inSymbol();
-    } else if (SY == IFSY) {
+        break;
+    case IFSY:
         ifWhileStatement();
         if (SY == ELSESY) {
             elseJump  =  0;
@@ -6710,10 +6723,10 @@ var
                 arithMode  =  2;
                 disableNorm();
             }
-        } else {
+        } else
             fixup(0, ifWhlTarget);
-        }
-    } else if (SY == WHILESY) {
+        break;
+    case WHILESY:
         set146z  =  0U;
         setBrCont();
         strLabList->exitTarget = moduleOffset;
@@ -6725,12 +6738,14 @@ var
         strLabList  =  strLabList->next; /* removing continue */
         brContTarget();
         arithMode  =  1;
-    } else if (SY == BREAKSY || SY == CONTSY) {
+        break;
+    case BREAKSY: case CONTSY:
         SY  =  IDENT;
         if (! structBranch(false)) goto 8888;
         inSymbol();
         checkSymAndRead(SEMICOLON);
-    } else if (SY == DOSY) {
+        break;
+    case DOSY:
         set146z  =  0U;
         setBrCont();
         curOffset  =  moduleOffset;
@@ -6759,15 +6774,18 @@ var
             formOperator(BRANCH);
         }
         brContTarget();
-    } else if (SY == FORSY) {
+        break;
+    case FORSY:
         set146z  =  0U;
         forStatement();
-    } else if (SY == SWITCHSY) {
+        break;
+    case SWITCHSY:
         /*=A3*/curIdent  =  '   BREAK';
         setStrLab(false);/*=A2*/
         caseStatement();
         brContTarget();
-    } else if (SY == WITHSY) {
+        break;
+    case WITHSY:
         withStatement();
     }
     if (l3var4z)

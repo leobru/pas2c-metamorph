@@ -666,13 +666,13 @@ var
                 exit;
             }
         }
-%    } else if (prevOpcode > 1) and (insn.i mod 4096 <> 0) and
-%    (insn.m mod prevInsn.m = [32]) (* maybe ATX/XTA *) then {
+    } else if (prevOpcode > 1) and (insn.i mod 4096 <> 0) and
+    (insn.m mod prevInsn.m = [32]) (* maybe ATX/XTA *) then {
 % Load after store; if the load reg/off is the same as the store,
-% and the store was not a stack push, there is no need to so the read.
-%        if (prevInsn.i <> 74000000B (* not 15,ATX, *)) and
-%            (prevInsn.m * [28, 30..35] = [] (* but still ATX *)) then
-%            exit (* skip the XTA *)
+% and the store was not a stack push, there is no need to do the read.
+        if (prevInsn.i <> 74000000B (* not 15,ATX, *)) and
+            (prevInsn.m * [28, 30..35] = [] (* but still ATX *)) then
+            exit (* skip the XTA *)
     };
     prevOpcode := opcode.i;
     prevInsn := insn;
@@ -3144,7 +3144,7 @@ var
     l5var15z: integer;
     l5var16z, l5var17z, l5var18z, l5var19z: word;
     l5inl20z: @insnltyp;
-    l5op21z: operator; l5idc22z: idclass;
+    l5op21z: operator; paramClass: idclass;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function allocGlobalObject(l6arg1z: irptr): integer;
@@ -3246,11 +3246,11 @@ function allocGlobalObject(l6arg1z: irptr): integer;
                             allocGlobalObject(l5idr4z) + KUJ);
                         if (l5idr3z <> NIL) then {
                             repeat
-                                l5idc22z := l5idr3z@.cl;
-                                if (l5idc22z = ROUTINEID) and
+                                paramClass := l5idr3z@.cl;
+                                if (paramClass = ROUTINEID) and
                                    (l5idr3z@.typ <> NIL) then
-                                    l5idc22z := ENUMID;
-                                form2Insn(0, ord(l5idc22z));
+                                    paramClass := ENUMID;
+                                form2Insn(0, ord(paramClass));
                                 l5idr3z := l5idr3z@.list;
                             until (l5idr4z = l5idr3z);
                         };
@@ -3265,25 +3265,25 @@ function allocGlobalObject(l6arg1z: irptr): integer;
                     addToInsnList(getHelperProc(64)); (* "P/PB" *)
             };
             if (l5op21z = PCALL) then
-                l5idc22z := ROUTINEID
+                paramClass := ROUTINEID
             else
-                l5idc22z := ENUMID;
+                paramClass := ENUMID;
         } else {
             genFullExpr(l5exp2z);
             if (insnList@.ilm = il1) then
-                l5idc22z := FORMALID
+                paramClass := FORMALID
             else
-                l5idc22z := VARID;
+                paramClass := VARID;
         };
-        if not (not isDirect or (l5idc22z <> FORMALID) or
+        if not (not isDirect or (paramClass <> FORMALID) or
                (curForml@.cl <> VARID)) then
-            l5idc22z := VARID;
-(loop)      if (l5idc22z = FORMALID) or (allByRef) then {
+            paramClass := VARID;
+(loop)      if (paramClass = FORMALID) or (allByRef) then {
             setAddrTo(14);
             addToInsnList(KITA+14);
-        } else if (l5idc22z = VARID) then {
+        } else if (paramClass = VARID) then {
             if (insnList@.typ@.size <> 1) then {
-                l5idc22z := FORMALID;
+                paramClass := FORMALID;
                 goto loop;
             } else {
                 prepLoad;
@@ -3298,7 +3298,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
         };
         insnList@.regsused := insnList@.regsused + l5inl20z@.regsused;
         if not isDirect then {
-            curVal.cl := l5idc22z;
+            curVal.cl := paramClass;
             addToInsnList(KXTS+I8 + getFCSToffset);
         };
         if isDirect and not allByRef then
