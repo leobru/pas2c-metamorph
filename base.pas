@@ -6087,7 +6087,7 @@ var
     itemvalue: word;
     itemSpan: integer;
     expected: word;
-    startLine, l4var17z, endOfStmt: integer;
+    startLine, decoder, endOfStmt: integer;
     minValue, unused2, maxValue: word;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6102,10 +6102,10 @@ var
     else
         error(25); (* errExprNotOfADiscreteType *)
     disableNorm;
-    l4var17z := 0;
+    decoder := 0;
     endOfStmt := 0;
     allClauses := NIL;
-    formJump(l4var17z);
+    formJump(decoder);
     checkSymAndRead(BEGINSY);
     firstType := NIL;
     goodMode := true;
@@ -6191,7 +6191,7 @@ var
                 curClause := curClause@.next;
             } else {
                 itemSpan := 34000;
-                fixup(0, l4var17z);
+                fixup(0, decoder);
                 if (firstType@.k = kindScalar) then
                     itemSpan := firstType@.numen;
                 itemsEnded := itemSpan < 32000;
@@ -6226,23 +6226,28 @@ var
             otherOffset := moduleOffset;
             formJump(endOfStmt);
         };
-        fixup(0, l4var17z);
+        fixup(0, decoder);
         curVal := minValue;
         fixup(-(insnTemp[U1A]+otherOffset), maxValue.i);
-        curVal := minValue;
-        curVal.m := curVal.m + intZero;
-        form1Insn(KATI+14);
+        curVal.m := minValue.m + intZero;
+        curVal.i := curVal.i div 2;
+        form3Insn(ASN64+1, KATI+14, KYTA);
         curVal.i := moduleOffset + 1 - curVal.i;
         if (curVal.i < 40000B) then {
-            curVal.i := (curVal.i - 40000B);
-            curVal.i := allocSymtab([24, 29] +
-                        (curVal.m * O77777));
+            curVal.i := curVal.i - 40000B;
+            curVal.i := allocSymtab([24, 29] + (curVal.m * O77777));
         };
         form1Insn(KUJ+I14 + curVal.i);
+        padToLeft;
+        if (odd(minValue.i)) then {
+            form1Insn(KUTC);
+            decoder := ord(UJ);
+        } else
+            decoder := ord(UZA);
         while (allClauses <> NIL) do {
-            padToLeft;
-            form1Insn(insnTemp[UJ] + allClauses@.offset);
+            form1Insn((*=c-*)insnTemp[decoder](*=c+*) + allClauses@.offset);
             allClauses := allClauses@.next;
+            decoder := ord(UZA) + ord(UJ) - decoder;
         };
         16211:
         fixup(0, endOfStmt);

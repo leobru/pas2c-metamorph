@@ -716,7 +716,7 @@ var
             exit; /* no use in UJ after UJ */
         if (putLeft && prevOpcode == 1) {
             pos  =  objBufIdx - 1;
-            if ((objBuffer[pos] & [0..8]) == (KVJM+I13) << 24) {
+            if ((objBuffer[pos] & (077700000 << 24)) == (KVJM+I13) << 24) {
                 prevOpcode  =  opcode;
                 half1 = (insn & 077777U) << 24;
                 half2 = (objBuffer[pos] >> 24) & 077777U;
@@ -729,7 +729,7 @@ var
 // Load after store; if the load reg/off is the same as the store,
 // and the store was not a stack push, there is no need to do the read.
         if (prevInsn != KATX+SP &&
-            (prevInsn & [28, 30..35]) == KATX /* but still ATX */)
+            (prevInsn & 02770000) == KATX /* but still ATX */)
             exit; /* skip the XTA */
     }
     prevOpcode  =  opcode;
@@ -5891,7 +5891,7 @@ var
                 } else {
                     form1Insn(KATX+SP+1);
                 }
-                minValue.i  =  (minValue.i - minValue.i); /* WTF? */
+                minValue.i  =  0;
                 while (allClauses != NIL) {
                     if (itemsEnded) {
                         curVal.i  =  minValue.i - allClauses->value.i;
@@ -5919,18 +5919,24 @@ var
         fixup(0, decoder);
         curVal  =  minValue;
         fixup(-(KU1A+otherOffset), maxValue.i);
-        curVal  =  minValue;
-        form1Insn(KATI+14);
+        curVal.i  =  minValue.i / 2;
+        form3Insn(ASN64+1, KATI+14, KYTA);
         curVal.i  =  moduleOffset + 1 - curVal.i;
         if (curVal.i < 040000) {
             curVal.i  =  curVal.i - 040000;
             curVal.i  =  allocSymtab(041000000U | (curVal.i & 077777U));
         }
         form1Insn(KUJ+I14 + curVal.i);
+        padToLeft();
+        if (minValue.i % 2) {
+            form1Insn(KUTC);
+            decoder = KUJ;
+        } else
+            decoder = KUZA;
         while (allClauses != NIL) {
-            padToLeft();
-            form1Insn(KUJ + allClauses->offset);
+            form1Insn(decoder + allClauses->offset);
             allClauses  =  allClauses->next;
+            decoder = KUZA ^ KUJ ^ decoder;
         }
         16211:
         fixup(0, endOfStmt);
