@@ -1418,12 +1418,12 @@ void lexer;
                     SY  =  LTSY;
                     unpck(localBuf[tokenIdx], curVal.a);
                     pck(localBuf[6], curToken.a);
-                    curVal  = ;
+                    curVal  =  curToken;
                     if (strLen <= 6)
                         return;
                     else if (charEncoding == 3 && strLen == 8) {
                         pack(localbuf, 6, curToken.t);
-                        curVal = ;
+                        curVal  =  curToken;
                         SY = INTCONST;
                         return;
                     } else {
@@ -6021,10 +6021,6 @@ var
                 formOperator(STOREAT9);
             }
         }
-        curExpr  =  NIL;
-    } else if ((SY == SEMICOLON) && allowCompat) {
-        formOperator(STORE);
-        readNext  =  true;
         curExpr  =  NIL;
     } else {
         lhsExpr  =  curExpr;

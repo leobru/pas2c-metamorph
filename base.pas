@@ -6326,11 +6326,6 @@ var
             goto indices;
         };
         curExpr := NIL;
-    } else
-    if (SY = SEMICOLON) and allowCompat then {
-        formOperator(STORE);
-        readNext := true;
-        curExpr := NIL;
     } else  {
         lhsExpr := curExpr;
         expression;
