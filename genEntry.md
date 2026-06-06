@@ -17,7 +17,7 @@ var
     l5var15z: integer;
     l5var16z, l5var17z, l5var18z, l5var19z: word;
     l5inl20z: @insnltyp;
-    l5op21z: operator; l5idc22z: idclass;
+    l5op21z: operator; paramClass: idclass;
 ```
 
 `genEntry` reads the global `exprToGen` (`@eptr`):
@@ -71,14 +71,14 @@ Then the new instruction-list buffer is allocated:
     insnList@.next := NIL;
     insnList@.typ := l5idr5z@.typ;
     insnList@.regsused := (l5idr5z@.flags + [7:15]) * [0:8, 10:15];
-    insnList@.ilm := il2;
+    insnList@.ilm := ilVALINACC;
 ```
 
 `regsused` starts with **bits 7..15 except bit 9** added to the routine's
 clobber set, so the register allocator knows the callee will trash the display
 registers and accumulator-related bits.
 
-`ilm = il2` declares the resulting "instruction list" produces an **rvalue in
+`ilm = ilVALINACC` declares the resulting "instruction list" produces an **rvalue in
 the accumulator**.
 
 Frame reservation:
@@ -177,11 +177,11 @@ decides how to materialise a closure for it:
                             allocGlobalObject(l5idr4z) + KUJ);
                         if (l5idr3z <> NIL) then {
                             repeat
-                                l5idc22z := l5idr3z@.cl;
-                                if (l5idc22z = ROUTINEID) and
+                                paramClass := l5idr3z@.cl;
+                                if (paramClass = ROUTINEID) and
                                    (l5idr3z@.typ <> NIL) then
-                                    l5idc22z := ENUMID;
-                                form2Insn(0, ord(l5idc22z));
+                                    paramClass := ENUMID;
+                                form2Insn(0, ord(paramClass));
                                 l5idr3z := l5idr3z@.list;
                             until (l5idr4z = l5idr3z);
                         };
@@ -217,9 +217,9 @@ passed) or `ENUMID` (function passed):
 
 ```pascal
             if (l5op21z = PCALL) then
-                l5idc22z := ROUTINEID
+                paramClass := ROUTINEID
             else
-                l5idc22z := ENUMID;
+                paramClass := ENUMID;
 ```
 
 ### 3b. Normal expression argument
@@ -228,9 +228,9 @@ passed) or `ENUMID` (function passed):
         } else {
             genFullExpr(l5exp2z);
             if (insnList@.ilm = il1) then
-                l5idc22z := FORMALID
+                paramClass := FORMALID
             else
-                l5idc22z := VARID;
+                paramClass := VARID;
         };
 ```
 
@@ -241,25 +241,25 @@ otherwise it's a plain value (`VARID`).
 ### 3c. Coerce to formal when the formal is by-reference
 
 ```pascal
-        if not (not l5bool9z or (l5idc22z <> FORMALID) or
+        if not (not l5bool9z or (paramClass <> FORMALID) or
                (l5idr6z@.cl <> VARID)) then
-            l5idc22z := VARID;
+            paramClass := VARID;
 ```
 
 For a direct call, if the actual would be passed as a reference (`FORMALID`)
 **but the matching formal is plain VARID**, force it to VARID (i.e. push the
 *value*, not the address). The condition is the de Morgan negation:
-`l5bool9z and l5idc22z = FORMALID and l5idr6z@.cl = VARID`.
+`l5bool9z and paramClass = FORMALID and l5idr6z@.cl = VARID`.
 
 ### 3d. Materialise the actual in the accumulator
 
 ```pascal
-(loop)      if (l5idc22z = FORMALID) or (l5bool11z) then {
+(loop)      if (paramClass = FORMALID) or (l5bool11z) then {
             setAddrTo(14);
             addToInsnList(KITA+14);
-        } else if (l5idc22z = VARID) then {
+        } else if (paramClass = VARID) then {
             if (insnList@.typ@.size <> 1) then {
-                l5idc22z := FORMALID;
+                paramClass := FORMALID;
                 goto loop;
             } else {
                 prepLoad;
@@ -287,7 +287,7 @@ For a direct call, if the actual would be passed as a reference (`FORMALID`)
         };
         insnList@.regsused := insnList@.regsused + l5inl20z@.regsused;
         if not l5bool9z then {
-            curVal.cl := l5idc22z;
+            curVal.cl := paramClass;
             addToInsnList(KXTS+I8 + getFCSToffset);
         };
         if l5bool9z and not l5bool11z then
@@ -425,7 +425,7 @@ nesting level than the callee. Skipped for Fortran calls.
     if not l5bool7z then {
         insnList@.typ := l5idr5z@.typ;
         insnList@.regsused := insnList@.regsused + [0];
-        insnList@.ilm := il2;
+        insnList@.ilm := ilVALINACC;
         set146z := set146z - l5var12z.m;
     }
 ```
@@ -438,7 +438,7 @@ nesting level than the callee. Skipped for Fortran calls.
   (helper 93) when `checkFortran` mode is on.
 - **Function** (`not l5bool7z`): `KXTA, SP+frameSize-1` pulls the return value
   off the stack into the accumulator. The result `typ` is set to the routine's
-  return type, `regsused` records bit 0 (accumulator used), and `ilm = il2`
+  return type, `regsused` records bit 0 (accumulator used), and `ilm = ilVALINACC`
   declares an rvalue available.
 
 `set146z := set146z - l5var12z.m` clears bits in `set146z` that the callee was
@@ -495,5 +495,5 @@ That is `genEntry` end-to-end: it walks the argument chain, materialises each
 actual according to the formal's kind and the call style
 (Fortran / direct / indirect), emits the BESM-6 call, restores the display
 registers across the lexical-level mismatch, and (for functions) leaves the
-result in the accumulator with an `il2` instruction list ready to be consumed
+result in the accumulator with an `ilVALINACC` instruction list ready to be consumed
 by the surrounding expression.

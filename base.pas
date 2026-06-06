@@ -40,10 +40,11 @@ const
     errEOFEncountered = 52;
     errFirstDigitInCharLiteralGreaterThan3 = 60;
 %
-    precNone = 0;   precCond = 1;    precOr = 2;     precAnd = 3;
-    precBitOr = 4;  precBitXor = 5;  precBitAnd = 6;
-    precEq = 7;     precRel = 8;     precShift = 9;
-    precAdd = 10;   precMul = 11;
+    precNone = -1;   precAssign = 0;
+    precCond = 1;    precOr = 2;     precAnd = 3;
+    precBitOr = 4;   precBitXor = 5; precBitAnd = 6;
+    precEq = 7;      precRel = 8;    precShift = 9;
+    precAdd = 10;    precMul = 11;
 %
     macro = 100000000B;
     mcACC2ADDR = 6;
@@ -217,7 +218,7 @@ oneinsn  = record
     mode, code, offset: integer;
 end;
 %
-ilmode = (ilCONST, il1, il2, il3);
+ilmode = (ilCONST, il1, ilVALINACC, il3);
 state = (st0, st1, st2);
 %
 insnltyp  = record
@@ -1696,7 +1697,7 @@ label
             goto 9999;
         };
 1473:
-        while (CH = ' ') and not atEOL do
+        while ((CH = ' ') or (CH = '_011')) and not atEOL do
             nextCH;
         if atEOL then {
             endOfLine;
@@ -2464,7 +2465,7 @@ var
             };
             goto 4545;
         };
-        il2: {
+        ilVALINACC: {
 4545:       if forValue and (valueType = booleanType) and
                (16 in insnList@.regsused) then
                 addToInsnList(KAEX+E1);
@@ -2478,7 +2479,7 @@ var
 4602:
     }; (* with *)
     with insnList@ do {
-        ilm := il2;
+        ilm := ilVALINACC;
         regsused := regsused + [0];
     };
 }; (* prepLoad *)
@@ -3028,7 +3029,7 @@ var
            l5var23z.m := insnCopy.regsused + insnList@.regsused;
            if (not l5var25z) then {
                if (insnCopy.addrmd = 18) then {
-                    if (insnList@.ilm = il2) then {
+                    if (insnList@.ilm = ilVALINACC) then {
                         insnCopy.addrmd := 15;
                     } else {
                         insnCopy.addrmd := 16;
@@ -3067,7 +3068,7 @@ var
                          insnList := copyPtr;
                          addInsnAndOffset(macro+mcADDSTK2REG, l5var1z);
                     } else {
-                         if (insnList@.ilm = il2) then {
+                         if (insnList@.ilm = ilVALINACC) then {
                              addInsnAndOffset(macro+mcADDACC2REG, l5var1z);
                          } else {
                              curInsnTemplate := insnTemp[WTC];
@@ -3172,7 +3173,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
     insnList@.tail := NIL;
     insnList@.typ := l5idr5z@.typ;
     insnList@.regsused := (l5idr5z@.flags + [7:15]) * [0:8, 10:15];
-    insnList@.ilm := il2;
+    insnList@.ilm := ilVALINACC;
     if (isFortrn) then {
         firstArg := not isProc;
         if (checkFortran) then {
@@ -3358,7 +3359,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
     if not isProc then {
         insnList@.typ := l5idr5z@.typ;
         insnList@.regsused := insnList@.regsused + [0];
-        insnList@.ilm := il2;
+        insnList@.ilm := ilVALINACC;
         set146z := set146z - calleeFl.m;
     }
 
@@ -3455,7 +3456,7 @@ var
             otherIns := saved;
             nextInsn := 66;      (* P/IN *)
             genHelper;
-            insnList@.ilm := il2;
+            insnList@.ilm := ilVALINACC;
         }
     } else {
         if negate then
@@ -3474,7 +3475,7 @@ var
             prepMultiWord;
             addInsnAndOffset(KVTM+I11, 1 - size);
             addToInsnList(getHelperProc(89 + l3int3z)); (* P/EQ *)
-            insnList@.ilm := il2;
+            insnList@.ilm := ilVALINACC;
             negate := not negate;
         } else  if l3int3z = 0 then {
             nextInsn := insnTemp[AEX];
@@ -3520,7 +3521,7 @@ procedure genCondOp;
  * Code generation for the ternary conditional operator
  *      exprToGen = CONDOP{cond, ALTERN{then, else}}
  *
- * Strategy: build a single deferred il2 insnList that, when committed by
+ * Strategy: build a single deferred ilVALINACC insnList that, when committed by
  * the surrounding expression via genOneOp, emits the full branching
  * sequence and leaves the result in the accumulator. Both branches simply
  * leave their value in ACC -- no PUSH/POP is needed inside genCondOp,
@@ -3593,7 +3594,7 @@ var
             addInsnAndOffset(macro + 2,
                              elseLab * 10000B + insnList@.payload.i);
     } else {
-        (* Simple il3 (single comparison, payload=0), or il1/il2/ilCONST:
+        (* Simple il3 (single comparison, payload=0), or il1/ilVALINACC/ilCONST:
            prepLoad with forValue=false is a no-op for il3, and materializes
            an lvalue/constant to ACC otherwise. Then emit a single deferred
            UZA/U1A to elseLab. *)
@@ -3644,15 +3645,15 @@ var
     condChain@.regsused := condChain@.regsused + thenChain@.regsused
                            + insnList@.regsused + [0];
 
-    (* Finalize the result insnList as an il2 (rvalue-in-ACC). Both branches
+    (* Finalize the result insnList as an ilVALINACC (rvalue-in-ACC). Both branches
        leave their value in ACC and the chains rejoin at endLab, so the
-       composite chain already meets the il2 contract without any extra
+       composite chain already meets the ilVALINACC contract without any extra
        PUSH/POP. tryFlip / genCopy / genEntry integrate this value into
-       the surrounding expression exactly like any other il2 chain, spilling
+       the surrounding expression exactly like any other ilVALINACC chain, spilling
        ACC to the hardware stack only when actually needed. *)
     insnList := condChain;
     insnList@.typ := exprToGen@.vt.typ;
-    insnList@.ilm := il2;
+    insnList@.ilm := ilVALINACC;
     insnList@.st := st0;
 }; (* genCondOp *)
 %
@@ -3733,6 +3734,30 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     genHelper;
                 opfASSN: {
                     genCopy;
+                    (* For chained assignment (a = b = c) and embedded
+                       assignments (b = (a = 5) + 1).  On BESM-6, KATX
+                       (store) does not modify ACC, so the value just
+                       stored is still in ACC.  We synthesise a fresh
+                       ilVALINACC (rvalue-in-ACC) insnList with one dummy node
+                       (an unused macro number that the emitter quietly
+                       drops) so that any outer op -- ASSIGNOP, tryFlip,
+                       genCopy -- sees a well-formed head/tail to splice
+                       on, while the chain emits no actual instruction. *)
+                    new(insnList);
+                    with insnList@ do {
+                        tail := NIL;
+                        head := NIL;
+                        typ := exprToGen@.vt.typ;
+                        regsused := [0];
+                        ilm := ilVALINACC;
+                        payload.i := 0;
+                        disp := 0;
+                        addrmd := 0;
+                        st := st0;
+                        width := 0;
+                        shift := 0;
+                    };
+                    addToInsnList(macro + 10);
                     exit
                 };
                 opfAND: {
@@ -3962,7 +3987,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     head := NIL;
                     typ := integerType;
                     regsused := [0];
-                    ilm := il2;
+                    ilm := ilVALINACC;
                     st := st0;
                     payload.i := 0;
                     disp := 0;
@@ -4009,7 +4034,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                         addToInsnList(getHelperProc(work - 6));
                     };
                     with insnList@ do {
-                        ilm := il2;
+                        ilm := ilVALINACC;
                         regsused := regsused + [0];
                     }
                 } else {
@@ -5339,6 +5364,8 @@ function getPrec(sym: symbol; cls: operator): integer;
 {
     if sym in [MULOP..RELOP] then
         getPrec := opPrec[cls]
+    else if sym = BECOMES then
+        getPrec := precAssign
     else
         getPrec := precNone
 }; (* getPrec *)
@@ -5858,6 +5885,28 @@ var
             thenExpr := curExpr;
             parsePrc(precCond);
             bldCondOp(leftExpr, thenExpr);
+        } else if (curPrec = precAssign) then {
+            (* Right-associative assignment: lhs = rhs *)
+            if not (leftExpr@.op IN lvalOpSet) then
+                error(27); (* errExpressionWhereVariableExpected *)
+            parsePrc(precAssign);
+            arg1Type := leftExpr@.vt.typ;
+            arg2Type := curExpr@.vt.typ;
+            if not typeCheck(arg1Type, arg2Type) then {
+                if (arg1Type = realType) and
+                   typeCheck(integerType, arg2Type) then
+                    castToReal(curExpr)
+                else
+                    error(33); (*errIllegalTypesForAssignment*)
+            };
+            new(thenExpr);
+            with thenExpr@ do {
+                vt.typ := arg1Type;
+                op := ASSIGNOP;
+                expr1 := leftExpr;
+                expr2 := curExpr;
+            };
+            curExpr := thenExpr;
         } else {
             (* Recursively parse right operand with higher precedence *)
             (* For left-associative: use curPrec + 1 *)
@@ -5902,7 +5951,7 @@ procedure expression;
         inSymbol
     else
         readNext := true;
-    parsePrc(precCond);
+    parsePrc(precAssign);
 }; (* expression *)
 procedure assignStatement(doLHS: boolean); forward;
 %

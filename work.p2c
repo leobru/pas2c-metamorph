@@ -37,7 +37,7 @@ const
     errEOFEncountered = 52;
     errFirstDigitInCharLiteralGreaterThan3 = 60;
 //
-    precNone = 0;   precCond = 1;    precOr = 2;     precAnd = 3;
+    precNone = -1;  precAssign = 0;  precCond = 1;    precOr = 2;     precAnd = 3;
     precBitOr = 4;  precBitXor = 5;  precBitAnd = 6;
     precEq = 7;     precRel = 8;     precShift = 9;
     precAdd = 10;   precMul = 11;
@@ -224,7 +224,7 @@ oneinsn  = struct {
     mode, code, offset: int;
 };
 //
-ilmode = enum {ilCONST, il1, il2, il3};
+ilmode = enum {ilCONST, il1, ilVALINACC, il3};
 state = enum {st0, st1, st2};
 assoc = enum {
     leftAs,     rightAs
@@ -397,7 +397,7 @@ var
     doPMD: int;
     checkBounds: int;
     fixMult: int;
-    bool110z: int;
+    abort: int;
     allowCompat: int;
     checkFortran: int;
     outputFile: irptr;
@@ -1550,7 +1550,7 @@ void lexer;
             longjmp(jb9999);
         }
 1473:   if(setjmp(jb1473));
-        while (CH == ' ' && !atEOL)
+        while ((CH == ' ' || CH == '\011') && !atEOL)
             nextCH();
         if (atEOL) {
             endOfLine();
@@ -1587,8 +1587,7 @@ void error;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 {
-    errors  =  true;
-    bool110z  = ;
+    errors  =  abort  =  true;
     if ((linePos != prevErrPos && 9 >= errsInLine)
         || errno == 52)
      {
@@ -2327,7 +2326,7 @@ var
             }
             // FALLTHRU
         } /* il1 */
-        case il2:
+        case ilVALINACC:
             if (forValue && (valueType == boolType) &&
                (16 in insnList->regsused))
                 addToInsnList(KAEX+E1);
@@ -2340,7 +2339,7 @@ var
 4602:
     } /* with */
     with insnList@ do {
-        ilm  =  il2;
+        ilm  =  ilVALINACC;
         regsused  =  regsused | E48;
     }
 } /* prepLoad */
@@ -2877,7 +2876,7 @@ var
            l5var23z  =  insnCopy.regsused | insnList->regsused;
            if (! l5var25z) {
                if (insnCopy.addrmd == 18) {
-                    if (insnList->ilm == il2) {
+                    if (insnList->ilm == ilVALINACC) {
                         insnCopy.addrmd  =  15;
                     } else {
                         insnCopy.addrmd  =  16;
@@ -2916,7 +2915,7 @@ var
                          insnList  =  copyPtr;
                          addInsnAndOffset(macro+mcADDSTK2REG, l5var1z);
                     } else {
-                         if (insnList->ilm == il2) {
+                         if (insnList->ilm == ilVALINACC) {
                              addInsnAndOffset(macro+mcADDACC2REG, l5var1z);
                          } else {
                              curInsnTemplate  =  KWTC;
@@ -3067,7 +3066,7 @@ void formThunk;
     insnList->tail  =  NIL;
     insnList->typ  =  l5idr5z->typ;
     insnList->regsused  =  (l5idr5z->flags | [7:15]) & [0:8, 10:15];
-    insnList->ilm  =  il2;
+    insnList->ilm  =  ilVALINACC;
     if (isFortrn) {
         firstArg  =  ! isProc;
         if (checkFortran) {
@@ -3195,7 +3194,7 @@ void formThunk;
     if (! isProc) {
         insnList->typ  =  l5idr5z->typ;
         insnList->regsused  =  insnList->regsused | E48;
-        insnList->ilm  =  il2;
+        insnList->ilm  =  ilVALINACC;
         set146z  =  set146z & (~calleeFl);
     }
 } /* genEntry */
@@ -3288,7 +3287,7 @@ var
             otherIns  =  saved;
             nextInsn  =  66;      /* P/IN */
             genHelper();
-            insnList->ilm  =  il2;
+            insnList->ilm  =  ilVALINACC;
         }
     } else {
         if (negate)
@@ -3307,7 +3306,7 @@ var
             prepMultiWord();
             addInsnAndOffset(KVTM+I11, 1 - size);
             addToInsnList(getHelperProc(89 + l3int3z)); /* P/EQ */
-            insnList->ilm  =  il2;
+            insnList->ilm  =  ilVALINACC;
             negate  =  ! negate;
         } else if (l3int3z == 0) {
             nextInsn  =  KAEX;
@@ -3349,7 +3348,7 @@ void genCondOp;
  * Code generation for the ternary conditional operator
  *      exprToGen = CONDOP{cond, ALTERN{then, else}}
  *
- * Strategy: build a single deferred il2 insnList that, when committed by
+ * Strategy: build a single deferred ilVALINACC insnList that, when committed by
  * the surrounding expression via genOneOp, emits the full branching
  * sequence and leaves the result in the accumulator. Both branches simply
  * leave their value in ACC -- no PUSH/POP is needed inside genCondOp,
@@ -3422,7 +3421,7 @@ var
             addInsnAndOffset(macro + 2,
                              (elseLab << 12) + insnList->payload);
     } else {
-        /* Simple il3 (single comparison, payload=0), or il1/il2/ilCONST:
+        /* Simple il3 (single comparison, payload=0), or il1/ilVALINACC/ilCONST:
            prepLoad with forValue=false is a no-op for il3, and materializes
            an lvalue/constant to ACC otherwise. Then emit a single deferred
            UZA/U1A to elseLab. */
@@ -3470,15 +3469,15 @@ var
     condChain->regsused = condChain->regsused | thenChain->regsused
                           | insnList->regsused | [0];
 
-    /* Finalize the result insnList as an il2 (rvalue-in-ACC). Both branches
+    /* Finalize the result insnList as an ilVALINACC (rvalue-in-ACC). Both branches
        leave their value in ACC and the chains rejoin at endLab, so the
-       composite chain already meets the il2 contract without any extra
+       composite chain already meets the ilVALINACC contract without any extra
        PUSH/POP. tryFlip / genCopy / genEntry integrate this value into
-       the surrounding expression exactly like any other il2 chain, spilling
+       the surrounding expression exactly like any other ilVALINACC chain, spilling
        ACC to the hardware stack only when actually needed. */
     insnList = condChain;
     insnList->typ = exprToGen->typ;
-    insnList->ilm = il2;
+    insnList->ilm = ilVALINACC;
     insnList->st = st0;
 } /* genCondOp */
 //
@@ -3555,6 +3554,30 @@ var
                     break;
                 case opfASSN:
                     genCopy();
+                    /* For chained assignment (a = b = c) and embedded
+                       assignments (b = (a = 5) + 1).  On BESM-6, KATX
+                       (store) does not modify ACC, so the value just
+                       stored is still in ACC.  Synthesise a fresh ilVALINACC
+                       (rvalue-in-ACC) insnList with one dummy node
+                       (an unused macro number that the emitter quietly
+                       drops) so that any outer op -- ASSIGNOP, tryFlip,
+                       genCopy -- sees a well-formed head/tail to splice
+                       on, while the chain emits no actual instruction. */
+                    new(insnList);
+                    with insnList@ do {
+                        tail  =  NIL;
+                        head  =  NIL;
+                        typ  =  exprToGen->typ;
+                        regsused  =  [0];
+                        ilm  =  ilVALINACC;
+                        payload  =  0;
+                        disp  =  0;
+                        addrmd  =  0;
+                        st  =  st0;
+                        width  =  0;
+                        shift  =  0;
+                    }
+                    addToInsnList(macro + 10);
                     return;
                 case opfAND:
                     genBoolAnd();
@@ -3759,7 +3782,7 @@ var
                 head  =  NIL;
                 typ  =  intType;
                 regsused  =  E48;
-                ilm  =  il2;
+                ilm  =  ilVALINACC;
                 st  =  st0;
                 payload  =  0;
                 disp  =  0;
@@ -3802,7 +3825,7 @@ var
                     addToInsnList(getHelperProc(work - 6));
                 }
                 with insnList@ do {
-                    ilm  =  il2;
+                    ilm  =  ilVALINACC;
                     regsused  =  regsused | E48;
                 }
             } else {
@@ -3830,8 +3853,7 @@ var
             new(insnList);
             with insnList@ do {
                 typ  =  exprToGen->expr2->typ;
-                tail  =  NIL;
-                head  =  ;
+                head  =  tail  =  NIL;
                 regsused  =  0U;
                 ilm  =  il1;
                 addrmd  =  18;
@@ -5069,6 +5091,8 @@ function getPrec(sym: symbol; cls: operator): int;
 {
     if ((sym >= MULOP) && (sym <= RELOP))
         getPrec = opPrec[cls];
+    else if (sym == BECOMES)
+        getPrec = precAssign;
     else
         getPrec = precNone;
 } /* getPrec */
@@ -5563,6 +5587,28 @@ var
             thenExpr = curExpr;
             parsePrc(precCond);
             bldCondOp(leftExpr, thenExpr);
+        } else if (curPrec == precAssign) {
+            /* Right-associative assignment: lhs = rhs */
+            if (! (leftExpr->op IN lvalOpSet))
+                error(27); /* errExpressionWhereVariableExpected */
+            parsePrc(precAssign);
+            arg1Type = leftExpr->typ;
+            arg2Type = curExpr->typ;
+            if (! typeCheck(arg1Type, arg2Type)) {
+                if (arg1Type == realType
+                    && typeCheck(intType, arg2Type))
+                    castToReal(&curExpr);
+                else
+                    error(33); /* errIllegalTypesForAssignment */
+            }
+            new(thenExpr);
+            with thenExpr@ do {
+                typ  =  arg1Type;
+                op  =  ASSIGNOP;
+                expr1  =  leftExpr;
+                expr2  =  curExpr;
+            }
+            curExpr = thenExpr;
         } else {
             /* Recursively parse right operand with higher precedence */
             /* For left-associative: use curPrec + 1 */
@@ -5614,7 +5660,7 @@ void expression;
         inSymbol();
     else
         readNext  =  true;
-    parsePrc(precCond);
+    parsePrc(precAssign);
 } /* expression */
 //
 void assignStatement(doLHS: int); forward;
@@ -6633,7 +6679,7 @@ var
         return;
     }
     setup(boundary);
-    bool110z  =  false;
+    abort  =  false;
     startLine  =  lineCnt;
     if (freeRegs == halfWord) {
         parseData();
@@ -6782,8 +6828,8 @@ var
     if (l3var4z)
         lineNesting  =  lineNesting - 1;
     myrollup(int(boundary));
-    if (bool110z) {
-        bool110z  =  false;
+    if (abort) {
+        abort  =  false;
         goto 8888;
     }
 } /* statement */
@@ -6811,8 +6857,8 @@ var
     objBuffer[objBufIdx]  =  0U;
     curInsnTemplate  =  KXTA;
     bool48z  =  ((E48 >> 22) & l2idr2z->flags) >> 25;
+    l3var1z  =
     lineStartOffset  =  moduleOffset;
-    l3var1z  =  ;
     int92z  =  2;
     withList  =  NIL;
     arithMode  =  1;
@@ -7181,8 +7227,8 @@ void defExtern;
         programme(&l3var6z, programObj);
     } while ((SY != PERIOD) && (CH != '\000'));
     if (CH != 'D') {
-        int92z  =  0;
-        int93z  =  ;
+        int92z  =
+        int93z  =  0;
     } else {
         freeRegs  =  halfWord;
         dataCheck  =  false;
@@ -7818,9 +7864,9 @@ var
     sizes[4]  =  longSymCnt;
     sizes[5]  =  moduleOffset - 040000;
     sizes[7]  =  FcstCnt;
-    sizes[2]  =  0;
-    sizes[3]  =  ;
-    sizes[6]  =  ;
+    sizes[2]  =
+    sizes[3]  =
+    sizes[6]  =  0;
     sizes[8]  =  int92z;
     sizes[9]  =  int93z;
     curVal.i  =  moduleOffset - 040000;
@@ -7860,18 +7906,15 @@ void initOptions;
     lineNesting  =  0;
     CH  =  ' ';
     linePos  =  -1;
-    prevErrPos  =  0;
+    prevErrPos  =
     errsInLine  =  0;
     lineCnt  =  1;
-    checkFortran  =  false;
-    bool110z  =  false;
-    int93z  =  1;
-    int92z  =  1;
-    moduleOffset  =  16384;
-    lineStartOffset  =  ;
+    checkFortran  =
+    abort  =  false;
+    int92z  =  int93z  =  1;
+    lineStartOffset  =  moduleOffset  =  040000;
     condLabCnt  =  1;
-    bool47z  =  false;
-    dataCheck  =  ;
+    dataCheck  =  bool47z  =  false;
     heapSize  =  100;
     forValue  =  true;
     atEOL  =  false;
@@ -7880,8 +7923,8 @@ void initOptions;
     checkTypes  =  true;
     fixMult  =  true;
     checkBounds  =  ! (44 in curVal.i);
-    declExternal  =  false;
-    errors  =  false;
+    declExternal  =
+    errors  =
     allowCompat  =  false;
     fileBufSize  =  1;
     charEncoding  =  2;
