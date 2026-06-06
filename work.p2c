@@ -295,7 +295,6 @@ kword = struct {
 strLabel = struct {
     next:       @strLabel;
     ident:      int;
-    offset:     int;
     exitTarget: int;
 };
 //
@@ -780,7 +779,7 @@ var
     if (prevOpcode != KUJ) {
         pos  =  getObjBufIdxPlus();
         isLeft  =  putLeft;
-        form1Insn(jumpType + arg@);
+        form1Insn(jumpType + *arg);
         if (putLeft == isLeft)
             pos  =  pos - 1;
         arg@  =  pos;
@@ -1028,7 +1027,7 @@ void nextCH;
 {
     do {
         atEOL  =  eoln(PASINPUT);
-        CH  =  PASINPUT@;
+        CH  =  *PASINPUT;
         get(PASINPUT);
         linePos  =  linePos + 1;
         lineBuf[linePos]  =  CH;
@@ -1642,7 +1641,7 @@ var
                 litValue@  =  1;
             } else {
                 if (l3var1z == MINUSOP)
-                    litValue@  =  -litValue@;
+                    litValue@  =  -(*litValue);
             }
         } else
 99:     {
@@ -5540,11 +5539,8 @@ var
     match: int;
 {
     /* Parse left operand with unary operators */
-    if (minPrec >= precMul)
-        factor();
-    else {
-        parseUnaryExpression();
-    }
+    parseUnaryExpression();
+
     /* Climb through operators at this precedence level and higher */
     while (true) {
         curPrec = getPrec(SY, charClass);
@@ -5624,18 +5620,14 @@ void expression;
 void assignStatement(doLHS: int); forward;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void setStrLab(forGoto: int);
+void setStrLab(id:int);
 {
     new(strLabPtr);
     padToLeft();
     disableNorm();
     with strLabPtr@ do {
         next  =  strLabList;
-        ident  =  curIdent;
-        if (forGoto)
-            offset  =  moduleOffset;
-        else
-            offset  =  -1;
+        ident  =  id;
         exitTarget  =  0;
     }
     strLabList  =  strLabPtr;
@@ -5644,10 +5636,10 @@ void setStrLab(forGoto: int);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void setBrCont;
 {
-    /*=A3*/curIdent  =  '   BREAK';
-    setStrLab(false);
-    curIdent  =  'CONTINUE'; /*=A2*/
-    setStrLab(false);
+    /*=A3*/
+    setStrLab('   BREAK');
+    setStrLab('CONTINUE');
+    /*=A2*/
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6153,7 +6145,7 @@ var
         error(errBadSymbol);
     reset(F);
     while (! eof(F)) {
-        write(FCST, F@);
+        write(FCST, *F);
         get(F);
     }
     int92z  =  FcstCnt - dsize;
@@ -6780,8 +6772,7 @@ var
         forStatement();
         break;
     case SWITCHSY:
-        /*=A3*/curIdent  =  '   BREAK';
-        setStrLab(false);/*=A2*/
+        /*=A3*/setStrLab('   BREAK');/*=A2*/
         caseStatement();
         brContTarget();
         break;

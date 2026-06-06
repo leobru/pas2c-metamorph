@@ -5834,10 +5834,7 @@ var
     match: boolean;
 {
     (* Parse left operand with unary operators *)
-    if minPrec >= precMul then
-        factor
-    else
-        parseUnaryExpression;
+    parseUnaryExpression;
 
     (* Climb through operators at this precedence level and higher *)
     while true do {
