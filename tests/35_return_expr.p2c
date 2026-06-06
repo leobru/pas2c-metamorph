@@ -1,0 +1,32 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+function square(x: int): int;
+{
+    return x * x;
+}
+//
+function clamp(v, lo, hi: int): int;
+{
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+}
+//
+function early_void(x: int): int;
+{
+    early_void = -1;
+    if (x == 0) return;
+    return x + 100;
+}
+//
+{
+    writeln('sq(5)=', square(5):0);
+    writeln('sq(9)=', square(9):0);
+    writeln('cl(7,1,5)=', clamp(7, 1, 5):0);
+    writeln('cl(0,1,5)=', clamp(0, 1, 5):0);
+    writeln('cl(3,1,5)=', clamp(3, 1, 5):0);
+    writeln('ev(0)=', early_void(0):0);
+    writeln('ev(8)=', early_void(8):0);
+}
+.
