@@ -5,7 +5,7 @@ var c: char;
 {
     c = 'A';
     writeln('Character: ', c);
-    c = succ(c);
+    c = c + 1;
     writeln('Next character: ', c);
 }
 .

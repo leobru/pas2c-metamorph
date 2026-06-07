@@ -8,7 +8,7 @@ const
 %
     fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
     fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
-    fnORD   = 10; fnCHR  = 11; fnSUCC = 12; fnPRED  = 13; fnEOF  = 14;
+   (* fnORD = 10; fnCHR  = 11; fnSUCC = 12; fnPRED = 13;*) fnEOF  = 14;
     fnREF   = 15; fnEOLN = 16; fnSETJMP = 17; fnROUND = 18; fnCARD = 19;
     fnMINEL = 20; fnPTR  = 21; fnABSI = 22;
 %
@@ -167,7 +167,7 @@ operator = (
     PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
     IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
-    badop31,    unused32,   ASSIGNOP,   GETELT,     GETVAR,
+    INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
     op36,       op37,       GETENUM,    GETFIELD,   DEREF,
     FILEPTR,    op44,       ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
@@ -1645,8 +1645,16 @@ label
                     nextCH;
                     if CH = '|' then nextCH
                     else charClass := SETOR;
-                } else if (charClass = MINUSOP) and (PASINPUT@ = '>') then {
+                } else if charClass = MINUSOP then {
+                    if (PASINPUT@ = '>') then {
                     SY := ARROW; nextCH; CH := '.';
+                    } else {
+                       nextCH;
+                       if CH = '-' then { charClass := DECROP; nextCH }
+                    }
+                } else if charClass = PLUSOP then {
+                    nextCH;
+                    if CH = '+' then { charClass := INCROP; nextCH }
                 } else
                     nextCH;
             };
@@ -1911,25 +1919,11 @@ var
                 kindReal:
                     (* empty *);
                 kindScalar: {
-(chain)             if (type1@.numen = type2@.numen) then {
-                        enums1 := type1@.enums;
-                        enums2 := type2@.enums;
-                        while (enums1 <> NIL) and (enums2 <> NIL) do {
-                            if (enums1@.id <> enums2@.id) then
-                                exit chain;
-                            enums1 := enums1@.list;
-                            enums2 := enums2@.list;
-                        };
-                        if (enums1 = NIL) and (enums2 = NIL) then
-                            goto 1;
-                    } else if ((type1 = booleanType) or (type1 = integerType)
-%                            or (type1 = charType)
-                          ) and ((type2 = booleanType) or (type2 = integerType)
-%                            or (type2 = charType)
-                           ) then
-                       goto 1
-                    else if (type1@.enums = NIL) and (type2@.enums = NIL) then
-                       goto 1;
+                    (* Two enums must be identical,
+                     * all other combinations are okay.
+                     *)
+                    if (type1@.enums = NIL) or (type2@.enums = NIL) then
+                        goto 1;
                 };
                 kindPtr: {
                     if (type1 = voidPtr) or (type2 = voidPtr) or
@@ -4011,11 +4005,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     case work of
                     fnABS:   arg1Val.r := abs(arg1Val.r);
                     fnTRUNC: arg1Val.i := trunc(arg1Val.r);
-                    fnPTR,
-                    fnORD,
-                    fnCHR:   arg1Val.m := arg1Val.m * [7..47];
-                    fnSUCC:  arg1Val.c := succ(arg1Val.c);
-                    fnPRED:  arg1Val.c := pred(arg1Val.c);
+                    fnPTR:   arg1Val.m := arg1Val.m * [7..47];
                     fnROUND: arg1Val.i := round(arg1Val.r);
                     fnCARD:  arg1Val.i := card(arg1Val.m);
                     fnMINEL: arg1Val.i := minel(arg1Val.m);
@@ -4046,8 +4036,8 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                         addToInsnList(getHelperProc(58)); (*"P/TR"*)
                         goto 10122;
                     };
-                    if (work IN [fnSQRT:fnEXP,
-                                 fnORD:fnSUCC, fnCARD, fnPTR]) then {
+                    if (work IN [fnSQRT:fnEXP, (* was fnSUCC but not fnPRED *)
+                                 fnCARD, fnPTR]) then {
                         l3int3z := 0;
                     } else if (work = fnABS) then
                         l3int3z := 3
@@ -5578,16 +5568,16 @@ var
     if (stProcNo <> fnSIZEOF) and not ((checkMode = chkREAL) and
             (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnROUND])
            or ((checkMode = chkINT) and
-            (asBitset <= [fnSQRT:fnABS,fnCHR,fnREF,fnCARD,fnMINEL,fnPTR,
+            (asBitset <= [fnSQRT:fnABS,fnREF,fnCARD,fnMINEL,fnPTR,
                           fnSETJMP]))
            or ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) and
-            (asBitset <= [fnORD, fnSUCC, fnPRED, fnREF]))
+            (asBitset <= [fnREF]))
            or ((checkMode = chkFILE) and
             (asBitset <= [fnEOF, fnREF, fnEOLN]))
            or ((checkMode = chkOTHER) and
             (stProcNo = fnREF))) then
         error(errNeedOtherTypesOfOperands);
-    if not (asBitset <= [fnABS, fnSUCC, fnPRED, fnSIZEOF]) then {
+    if not (asBitset <= [fnABS, fnSIZEOF]) then {
         arg1Type := routine@.typ;
     } else if (checkMode = chkINT) and (asBitset <= [fnABS]) then {
         stProcNo := fnABSI
@@ -5781,7 +5771,7 @@ var
         else
             oper := NOTOP;
         inSymbol;
-    } else if (charClass IN [PLUSOP, MINUSOP, MUL, SETAND]) then {
+    } else if (charClass IN [PLUSOP,MINUSOP,MUL,SETAND,INCROP,DECROP]) then {
         if (charClass <> PLUSOP) then
             oper := charClass;
         inSymbol;
@@ -6210,9 +6200,7 @@ var
             if (expected = curClause@.value) and
                (exprtype@.k = kindScalar) then {
                 maxValue := expected;
-                curVal := expected;
-                curVal.c := succ(curVal.c);
-                expected := curVal;
+                expected.c := succ(expected.c);
                 curClause := curClause@.next;
             } else {
                 itemSpan := 34000;
@@ -7293,7 +7281,7 @@ var
     l3var1z, outName, inName: word;
     l3var5z, l3var6z: integer;
     l3var7z: irptr;
-    l3var8z, l3var9z: integer;
+    l3var8z, sysProcNum: integer;
     temptype: tptr;
     l3var11z: word;
 %
@@ -7317,8 +7305,8 @@ procedure regSysEnum(l4arg1z: integer; l4arg2z: integer);
 procedure regSysProc(l4arg1z: integer);
 {
     new(curIdRec = 6);
-    curIdRec@ := [l4arg1z, 0, , temptype, ROUTINEID, l3var9z];
-    l3var9z := l3var9z + 1;
+    curIdRec@ := [l4arg1z, 0, , temptype, ROUTINEID, sysProcNum];
+    sysProcNum := sysProcNum + 1;
     addToHashTab(curIdRec);
 }; (* registerSysProc *)
 %
@@ -7476,10 +7464,10 @@ var l : integer;
         pos := 0;
     };
     temptype := NIL;
-    l3var9z := 0;
+    sysProcNum := 0;
     for l3var5z := 0 to 22 do
         regSysProc(systemProcNames[l3var5z]);
-    l3var9z := 0;
+    sysProcNum := 0;
     temptype := realType;
     regSysProc(63616264C(*"    SQRT"*));
     regSysProc(635156C(*"     SIN"*));
@@ -7492,11 +7480,11 @@ var l : integer;
     temptype := integerType;
     regSysProc(6462655643C(*"   TRUNC"*));
     regSysProc(635172455746C(*"  SIZEOF" *));
-    regSysProc(576244C(*"     ORD"*));
+    regSysProc(0C(*" was ORD"*));
     temptype := charType;
-    regSysProc(435062C(*"     CHR"*));
-    regSysProc(63654343C(*"    SUCC"*));
-    regSysProc(60624544C(*"    PRED"*));
+    regSysProc(0C(*" was CHR"*));
+    regSysProc(0C(*" was SUCC"*));
+    regSysProc(0C(*" was PRED"*));
     temptype := booleanType;
     regSysProc(455746C(*"     EOF"*));
     temptype := voidPtr;
@@ -8389,10 +8377,6 @@ procedure initOptions;
     chrClass['_'] := ALNUM;
     funcInsn[fnABS] := KAMX;
     funcInsn[fnTRUNC] := KADD+ZERO;
-    funcInsn[fnORD] := KAAX+MANTISSA;
-    funcInsn[fnCHR] := KAAX+MANTISSA;
-    funcInsn[fnSUCC] := KARX+E1;
-    funcInsn[fnPRED] := KSUB+E1;
     funcInsn[fnROUND] := macro + mcROUND;
     funcInsn[fnCARD] := macro + mcCARD;
     funcInsn[fnMINEL] := macro + mcMINEL;
