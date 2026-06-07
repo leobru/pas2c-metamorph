@@ -349,7 +349,6 @@ var
     dataCheck: int;
     jumpType: int;
     jumpTarget: int;
-    exitTarget: int;
     charClass: operator;
     SY, prevSY: symbol;
     savedObjIdx: int;
@@ -561,23 +560,21 @@ function makeStringType: tptr;
 var res: tptr;
 {
     if (maxSmallString >= strLen)
-        res  =  smallStringType[strLen];
-    else {
-        new(res, kindArray);
-        with res@ do {
-            size  =  (strLen + 5) / 6;
-            bits  =  size == 1 ? strLen << 3 : 0;
-            k  =  kindArray;
-            base  =  charType;
-            pck  =  true;
-            perword  =  6;
-            pcksize  =  8;
-            aleft  =  1;
-            aright  =  strLen;
-            rbase  =  intType;
-        }
+        return smallStringType[strLen];
+    new(res, kindArray);
+    with res@ do {
+        size  =  (strLen + 5) / 6;
+        bits  =  size == 1 ? strLen << 3 : 0;
+        k  =  kindArray;
+        base  =  charType;
+        pck  =  true;
+        perword  =  6;
+        pcksize  =  8;
+        aleft  =  1;
+        aright  =  strLen;
+        rbase  =  intType;
     }
-    makeStringType = res;
+    return res;
 } /* makeStringType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -605,11 +602,9 @@ var
 {
     low  =  1;
     if (FcstCountTo500 == 0) {
-        addCurValToFCST  =  FcstCnt;
         FcstCountTo500  =  1;
         constVals[1]  =  curVal.a;
         constNums[1]  =  FcstCnt;
-        toFCST();
     } else {
         high  =  FcstCountTo500;
         do {
@@ -622,7 +617,6 @@ var
             else
                 low  =  mid + 1;
         } while (high >= low);
-        addCurValToFCST  =  FcstCnt;
         if (FcstCountTo500 != 500) {
             high  =  curval.a < constVals[mid] ? mid : mid + 1;
             for (mid  =  FcstCountTo500; mid >= high; mid=mid-1) {
@@ -634,8 +628,9 @@ var
             constVals[high]  =  curVal.a;
             constNums[high]  =  FcstCnt;
         }
-        toFCST();
     }
+    toFCST();
+    return FcstCnt - 1;
 } /* addCurValToFCST */
 //
 void error(errno: int);  forward;
@@ -767,7 +762,7 @@ void disableNorm;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function getObjBufIdxPlus: int;
 {
-   getObjBufIdxPlus  =  putLeft ? objBufIdx + 4096 : objBufIdx;
+   return putLeft ? objBufIdx + 4096 : objBufIdx;
 } /* getObjBufIdxPlus */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -805,8 +800,7 @@ void formAndAlign(arg: int);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function isCharArray(arg: tptr): int;
 {
-    with arg@ do
-        isCharArray  =  (k == kindArray) && (base == charType);
+    with arg@ do return k == kindArray && base == charType;
 } /* isCharArray */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -824,7 +818,6 @@ void putToSymTab(arg: int);
 function allocExtSymbol(sym: int): int;
 var i: int;
 {
-    allocExtSymbol  =  symTabPos;
     if (curVal.i & halfWord) {
         for (i = 1; i <= longSymCnt; i=i+1)
             if (curVal.i == longSyms[i]) {
@@ -841,6 +834,7 @@ var i: int;
     } else
         sym  =  sym | curVal.i;
     putToSymTab(sym);
+    return symTabPos - 1;
 } /* allocExtSymbol */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -850,19 +844,19 @@ function getHelperProc(l3arg1z: int): int;
         curVal.i  =  helperNames[l3arg1z];
         helperMap[l3arg1z]  =  allocExtSymbol(extSymMask);
     }
-    getHelperProc  =  helperMap[l3arg1z] + (KVJM+I13);
+    return  helperMap[l3arg1z] + (KVJM+I13);
 } /*getHelperProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function allocSymtab(arg: int): int;
 var
-    low, high, mid: int;
+    low, high, mid, ret: int;
     value: word;
 {
     low  =  0;
     value.i  =  arg;
     if (symTabCnt == 0) {
-        allocSymtab  =  symTabPos;
+        ret  =  symTabPos;
         symTabCnt  =  1;
         symTabArray[0].i  =  arg;
         symtbidx[0]  =  symTabPos;
@@ -878,7 +872,7 @@ var
             else
                  low  =  mid + 1;
         } while (high > low);
-        allocSymtab  =  symTabPos;
+        ret  =  symTabPos;
         if (symTabCnt != 80) {
             high  =  (value.a < symTabArray[mid].a) ? mid : mid + 1;
             for (low  =  symTabCnt; low > high; low=low-1) {
@@ -892,6 +886,7 @@ var
         }
     }
     putToSymTab(value.i);
+    return ret;
 } /* allocSymtab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -912,7 +907,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function nrOfBits(value: int): int;
 {
-    nrOfBits  =  48 - minel(value & [7..47]);
+    return 48 - minel(value & [7..47]);
 } /* nrOfBits */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -941,7 +936,7 @@ function getValueOrAllocSymtab(value: int): int;
 {
     curVal.i  =  value;
     curVal.i  =  curVal.i % 32768;
-    getValueOrAllocSymtab  =  (040000 >= curVal.i) ? curVal.i
+    return (040000 >= curVal.i) ? curVal.i
         : allocSymtab((curVal.i | 040000000U) & halfWord);
 } /* getValueOrAllocSymtab */
 //
@@ -1052,7 +1047,7 @@ var t:int;
         badOpt  =  false;
     }
     if (limit < t)  badOpt  =  true;
-    readOptVal = t;
+    return t;
 } /* readOptVal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1667,7 +1662,7 @@ var
         case LTSY:
             ret = makeStringType();
         }; /* switch */
-    parseLiteral = ret;
+    return ret;
 } /* parseLiteral */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1690,7 +1685,7 @@ var
             symHash[l3var2z]  =
                 symHash[l3var2z]->next;
         } else {
-            l3arg1z  =  l3arg2z->next;
+            return l3arg2z->next;
         }
     } else {
         l3var3z  =  l3arg1z;
@@ -1699,18 +1694,18 @@ var
             if (l3var3z != NIL) {
                 l3var3z  =  l3var3z->next;
             } else {
-                return;
+                return l3arg1z;
             }
         }
         l3var4z->next  =  l3arg2z->next;
     };
-    P2672 = l3arg1z;
+    return l3arg1z;
 } /* P2672 */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function isFileType(typtr: tptr): int;
 {
-    isFileType  =  typtr->k == kindFile ||
+    return typtr->k == kindFile ||
         typtr->k == kindStruct && typtr->flag;
 } /* isFileType */
 //
@@ -1736,7 +1731,7 @@ var
             i  =  i + 1;
             it  =  it->list;
         }
-    argCount  =  i;
+    return i;
 } /* argCount */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1745,7 +1740,7 @@ function leftAlign(val:int): int;
     while ((val & [0..5]) == 0U) {
         val  =  val << 6;
     }
-    leftAlign  =  val;
+    return val;
 } /* leftAlign */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1801,8 +1796,7 @@ var
 { /* typeCheck */
     rangeMismatch  =  false;
     if (!checkTypes || type1 == type2)
-1:      typeCheck  =  true;
-    else
+1:      return true;
         with type1@ do {
             kind1  =  k;
             kind2  =  type2->k;
@@ -1854,7 +1848,7 @@ var
                     break;
                 } /* switch */
             }
-            typeCheck  =  false;
+            return false;
         }
 } /* typeCheck */
 //
@@ -2513,7 +2507,7 @@ var
         cur  =  cur->next;
         cnt  =  cnt + 1;
     }
-    insnCount  =  cnt;
+    return cnt;
 } /* insnCount */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2982,7 +2976,7 @@ function allocGlobalObject(arg: irptr): int;
             putToSymTab(0U);
         }
     }
-    allocGlobalObject  =  arg->pos;
+    return arg->pos;
 } /* allocGlobalObject */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3170,7 +3164,7 @@ void formThunk;
             } else {
                 l5var15z  =  frameRestore[curProcNesting][l5var17z];
                 if (l5var15z == 0) {
-                    curVal.i  =  /*=A3*/'P/      ';/*=A2*/
+                    curVal.i  =  /*=A3*/'C/      ';/*=A2*/
                     l5var19z  =  (curProcNesting + 16) << 30;
                     l5var18z  =  (l5var17z + 16) << 24;
                     curVal.i  =  curVal.i | l5var19z | l5var18z;
@@ -3189,8 +3183,7 @@ void formThunk;
         addToInsnList(checkFortran ? getHelperProc(93) /* "P/FM" */
                                    : KNTR+7);
         insnList->tail->mode  =  2;
-    } else if (! isProc)
-        addToInsnList(KXTA+SP + frameSiz - 1);
+    }
     if (! isProc) {
         insnList->typ  =  l5idr5z->typ;
         insnList->regsused  =  insnList->regsused | E48;
@@ -4624,7 +4617,7 @@ void parseRange(aleft, aright: @int; rbase: @tptr);
 13020:
     if (errors)
         skip(skipToSet | [RPAREN, RBRACK, SEMICOLON, OFSY]);
-    parseTypeRef  =  curType;
+    return curType;
 } /* parseTypeRef */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5090,11 +5083,11 @@ var
 function getPrec(sym: symbol; cls: operator): int;
 {
     if ((sym >= MULOP) && (sym <= RELOP))
-        getPrec = opPrec[cls];
+        return opPrec[cls];
     else if (sym == BECOMES)
-        getPrec = precAssign;
+        return precAssign;
     else
-        getPrec = precNone;
+        return precNone;
 } /* getPrec */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6069,9 +6062,9 @@ function allocDataRef(l6arg1z: int): int;
 {
     if (l6arg1z >= 2048) {
         curVal.i  =  l6arg1z;
-        allocDataRef  =  allocSymtab((curVal.i | 040000000U) & halfWord);
+        return allocSymtab((curVal.i | 040000000U) & halfWord);
     } else {
-        allocDataRef  =  l6arg1z;
+        return l6arg1z;
     }
 } /* allocDataRef */
 //
@@ -6262,7 +6255,7 @@ function parseWidthSpecifier: eptr;
         error(14); /* errExprIsNotInt */
         curExpr  =  uVarPtr;
     }
-    parseWidthSpecifier  =  curExpr;
+    return curExpr;
 } /* parseWidthSpecifier */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6484,7 +6477,7 @@ var
     case 0: case 1: case 2: case 3: /* put, get, rewrite, reset */
         if (curVarKind != kindFile)
             error(47); /* errNoVarOfFileType */
-        if ((procNo == 3) && (SY == COMMA)) { // reset with file location
+        if (procNo == 3 && SY == COMMA) { // reset with file location
             formOperator(SETREG12);
             expression();
             if (! typeCheck(intType, curExpr->typ))
@@ -6580,6 +6573,10 @@ var
             if (l2idr2z->typ == NIL)
                 error(errNeedOtherTypesOfOperands);
             else {
+                if (hasFiles) {
+                    writeln(' functions must not use files');
+                    error(200);
+                }
                 new(l4exp6z);
                 with l4exp6z@ do {
                     typ = l2idr2z->typ;
@@ -6595,18 +6592,11 @@ var
                     castToReal(&curExpr);
                 else
                     error(33); /* errIllegalTypesForAssignment */
-                new(workExpr);
-                with workExpr@ do {
-                    typ = l2idr2z->typ;
-                    op = ASSIGNOP;
-                    expr1 = l4exp6z;
-                    expr2 = curExpr;
-                }
-                curExpr = workExpr;
-                formOperator(DOIT);
+                formOperator(LOAD);
             }
-        }
-        formJump(&exitTarget);
+        } else if (l2idr2z->typ != NIL)
+            error(errNeedOtherTypesOfOperands);
+        form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
         return;
     case 15: /* longjmp(jmpbuf) - inline non-local goto via P/RC */
         if (arg1Type != intType)
@@ -6863,7 +6853,6 @@ var
     freeRegs  = (all1 >> 1 >> curProcNesting) & (all1 << 41);
     set148z  =  freeRegs & (~(E48 >> minel(freeRegs)));
     l3var7z  =  freeRegs;
-    exitTarget  =  0;
     set145z  =  [1:15] & (~freeRegs);
     if (curProcNesting != 1)
         parseDecls(2);
@@ -6905,10 +6894,8 @@ var
                errAndSkip(errBadSymbol, skipToSet);
         }
     } while (! l2bool8z);
-    l2idr2z->flags  =  (set145z & [0:15]) | (l2idr2z->flags & (~l3var7z));
+    l2idr2z->flags  =  set145z & [0:15] | l2idr2z->flags & ~l3var7z;
     lineNesting  =  l3var2z - 1;
-    if (exitTarget != 0)
-        fixup(0, exitTarget);
     if (!bool48z && ! doPMD && (sizeCount == 3) &&
        (curProcNesting != 1) && (set145z & [1:15]) != [1:15]) {
         objBuffer[1]  =  (KNTR+7)<< 24 | KUTC;

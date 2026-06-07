@@ -345,7 +345,6 @@ var
    dataCheck: boolean;
    jumpType: integer;
    jumpTarget: integer;
-   exitTarget: integer;
    charClass: operator;
    SY, prevSY: symbol;
    savedObjIdx: integer;
@@ -496,7 +495,7 @@ procedure programme(var l2arg1z: integer; l2idr2z: irptr);
 label 23301;
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
-    isPredefined, done, inTypeDef: boolean;
+    isPredefined, done, retSeen, inTypeDef: boolean;
     l2var10z: eptr;
     hasFiles: integer;
     l2var12z: word;
@@ -3160,8 +3159,8 @@ function allocGlobalObject(l6arg1z: irptr): integer;
     if (isProc) then
         frameSiz.i := 3 else frameSiz.i := 4;
     calleeFl.m := l5idr5z@.flags;
-    isFortrn := (21 in calleeFl.m);
-    allByRef := (24 in calleeFl.m);
+    isFortrn := 21 in calleeFl.m;
+    allByRef := 24 in calleeFl.m;
     if (isDirect) then {
         numArgs.i := argCount(l5idr5z);
         curForml := l5idr5z@.argList;
@@ -3327,7 +3326,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
             } else {
                 l5var15z := frameRestore[curProcNesting][l5var17z.i];
                 if (l5var15z = (0)) then {
-                    curVal.i := 6017T; (* P/ *)
+                    curVal.i := 4317T; (* C/ *)
                     l5var19z.i := curProcNesting + 16;
                     besm(ASN64-30);
                     l5var19z := ;
@@ -3352,9 +3351,6 @@ function allocGlobalObject(l6arg1z: irptr): integer;
         else
             addToInsnList(getHelperProc(93));    (* "P/FM" *)
         insnList@.tail@.mode := 2;
-    } else {
-        if not isProc then
-            addToInsnList(KXTA+SP + frameSiz.i - 1);
     };
     if not isProc then {
         insnList@.typ := l5idr5z@.typ;
@@ -3436,7 +3432,7 @@ var
     if (l3int3z = 6) then {     (* IN *)
         if (arg1Const) then {
             if (arg2Const) then {
-                insnList@.payload.b := (arg1Val.i IN arg2Val.m);
+                insnList@.payload.b := arg1Val.i IN arg2Val.m;
             } else {
                 l5set2z := [arg1Val.i];
                 if (l5set2z = []) then {
@@ -6522,7 +6518,7 @@ function allocDataRef(value: integer): integer;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure standProc;
 label
-    17753, 44;
+    44;
 var
     l4typ1z, l4typ2z, l4typ3z: tptr;
     firstWidth, secondWidth: eptr;
@@ -6846,8 +6842,6 @@ var
             if (arg1Type@.base@.k = kindStruct) then {
                 l4typ1z := l2typ13z@.base;
 (loop)          while (SY = COMMA) and (l4typ1z <> NIL) do {
-                    with l4typ1z@ do
-                        ; (* useless *)
                     inSymbol;
                     parseLiteral(l4typ2z, curVal, true);
                     if (l4typ2z = NIL) then
@@ -6899,7 +6893,7 @@ var
         writeProc;
     };
     11:
-17753: { (* writeln *)
+       { (* writeln *)
         if (SY = LPAREN) then {
             writeProc;
         } else {
@@ -6913,6 +6907,7 @@ var
             if (l2idr2z@.typ = NIL) then
                 error(errNeedOtherTypesOfOperands)
             else {
+                retSeen := true;
                 new(l4exp6z);
                 with l4exp6z@ do {
                     vt.typ := l2idr2z@.typ;
@@ -6928,18 +6923,11 @@ var
                     castToReal(curExpr)
                 else
                     error(33); (* errIllegalTypesForAssignment *)
-                new(workExpr);
-                with workExpr@ do {
-                    vt.typ := l2idr2z@.typ;
-                    op := ASSIGNOP;
-                    expr1 := l4exp6z;
-                    expr2 := curExpr;
-                };
-                curExpr := workExpr;
-                formOperator(DOIT);
+                formOperator(LOAD);
             }
-        };
-        formJump(exitTarget);
+        } else if (l2idr2z@.typ <> NIL) then
+            error(errNeedOtherTypesOfOperands);
+        form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
         exit
     };
     15: { (* longjmp(jmpbuf) - inline non-local goto via C/RC *)
@@ -7209,7 +7197,6 @@ var
     set147z := [curProcNesting+1..6];
     set148z := set147z - [minel(set147z)];
     l3var7z.m := set147z;
-    exitTarget := 0;
     set145z := [1:15] - set147z;
     if (curProcNesting <> 1) then
         parseDecls(2);
@@ -7253,8 +7240,6 @@ var
     until done;
     l2idr2z@.flags := (set145z * [0:15]) + (l2idr2z@.flags - l3var7z.m);
     lineNesting := l3var2z.i - 1;
-    if (exitTarget <> 0) then
-        fixup(0, exitTarget);
     if not bool48z and not doPMD and (l2int21z = 3) and
        (curProcNesting <> 1) and (set145z * [1:15] <> [1:15]) then {
         objBuffer[1] := [7:11,21:23,28,31]; (* ,NTR,7; ,UTC, *)
@@ -7742,6 +7727,7 @@ procedure exitScope(var arg: hashArray);
     };
     preDefHead := ptr(0);
     inTypeDef := false;
+    retSeen := ;
     hasFiles := 0;
     strLabList := NIL;
     lineNesting := lineNesting + 1;
@@ -8098,6 +8084,11 @@ procedure exitScope(var arg: hashArray);
         writeLN;
     };
     defineRoutine;
+    if (curProcNesting > 1) and
+        not retSeen and (l2idr2z@.typ <> NIL) then {
+        writeln(' above function must return a value');
+        error(200);
+    };
     while (numLabTop > 0) do {
         if not (numLabs[numLabTop].defined) then {
             write(' ', numLabs[numLabTop].id.i:0, ':');

@@ -9,9 +9,9 @@ var
 function wrdsExp(bitW: int): int;
 {
     if (bitW > 24)
-        wrdsExp = arspan;
+        return arspan;
     else
-        wrdsExp = (arspan * bitW + 47) / 48;
+        return (arspan * bitW + 47) / 48;
 }
 
 function chkWords(tag: int; got: int; exp: int): int;
@@ -19,41 +19,41 @@ function chkWords(tag: int; got: int; exp: int): int;
     if (got != exp) {
         writeln('FAIL size tag=', tag:0, ' got=', got:0,
                 ' exp=', exp:0);
-        chkWords = 1;
+        return 1;
     } else {
         writeln('OK size tag=', tag:0, ' words=', got:0);
-        chkWords = 0;
+        return 0;
     }
 }
 
 function tsz08: int;
 var a: __packed array [1..12] of int:8;
 {
-    tsz08 = chkWords(8, sizeof(a), wrdsExp(8));
+    return chkWords(8, sizeof(a), wrdsExp(8));
 }
 
 function tsz16: int;
 var b: __packed array [1..12] of int:16;
 {
-    tsz16 = chkWords(16, sizeof(b), wrdsExp(16));
+    return chkWords(16, sizeof(b), wrdsExp(16));
 }
 
 function tsz24: int;
 var c: __packed array [1..12] of int:24;
 {
-    tsz24 = chkWords(24, sizeof(c), wrdsExp(24));
+    return chkWords(24, sizeof(c), wrdsExp(24));
 }
 
 function tsz32: int;
 var d: __packed array [1..12] of int:32;
 {
-    tsz32 = chkWords(32, sizeof(d), wrdsExp(32));
+    return chkWords(32, sizeof(d), wrdsExp(32));
 }
 
 function tsz40: int;
 var e: __packed array [1..12] of int:40;
 {
-    tsz40 = chkWords(40, sizeof(e), wrdsExp(40));
+    return chkWords(40, sizeof(e), wrdsExp(40));
 }
 
 function trw08: int;
@@ -66,7 +66,6 @@ var i: int;
     maxv: int:8;
     g: int:8;
 {
-    trw08 = 0;
     fail = 0;
     lo = 3;
     hi = 9;
@@ -107,8 +106,9 @@ var i: int;
     if (fail == 0) {
         writeln('OK int:8 rw guards');
     } else {
-        trw08 = 1;
+        return 1;
     }
+    return 0;
 }
 
 function trw16: int;
@@ -120,7 +120,6 @@ var i: int;
     maxv: int:16;
     g: int:16;
 {
-    trw16 = 0;
     fail = 0;
     lo = 5;
     v = 4660;
@@ -153,8 +152,9 @@ var i: int;
     if (fail == 0) {
         writeln('OK int:16 rw guards');
     } else {
-        trw16 = 1;
+        return 1;
     }
+    return 0;
 }
 
 function trw24: int;
@@ -165,7 +165,6 @@ var i: int;
     v: int:24;
     g: int:24;
 {
-    trw24 = 0;
     fail = 0;
     lo = 4;
     v = 1000000;
@@ -191,8 +190,9 @@ var i: int;
     if (fail == 0) {
         writeln('OK int:24 rw guards');
     } else {
-        trw24 = 1;
+        return 1;
     }
+    return 0;
 }
 
 function tdense: int;
@@ -202,7 +202,6 @@ var i: int;
     one: int:1;
     zero: int:1;
 {
-    tdense = 0;
     fail = 0;
     one = 1;
     zero = 0;
@@ -231,8 +230,9 @@ var i: int;
     if (fail == 0) {
         writeln('OK int:1 dense 48 x 1 bit');
     } else {
-        tdense = 1;
+        return 1;
     }
+    return 0;
 }
 
 //

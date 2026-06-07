@@ -4,7 +4,7 @@ var result: int;
 //
 function square(x: int): int;
 {
-    square = x * x;
+    return x * x;
 }
 //
 {

@@ -1,7 +1,6 @@
 # Remains to be done
  - `case <type> of` -> `union`
  - `enum`, allow assigning values to elements
- - `return`
  - parsing C-style expressions as statements 
  - optimize !x 
  - increment/decrement (pre-, post-)

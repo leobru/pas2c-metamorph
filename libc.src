@@ -180,7 +180,7 @@ C ONE WORD LONGER THAN ,CALL,P/CW BUT FASTER (AS IN THE ORIGINAL)
 c===========================================
  c/e     :      ,entry,
 c===========================================
-                , ntr , 3
+                , ntr , 7
             7   , mtj , 15
             7   , wtc ,
             7   , vtm ,
@@ -204,4 +204,84 @@ c===========================================
             1   ,     , paseofcd
             1   , set , /0012b
             1   ,     , pasends*
+                , end ,
+ c/31    :      , name,         . dtran  /01.06.84/
+             7  , mtj , 3
+             3  , wtc , 2
+             2  , vtm ,
+            13  , uj  ,
+                , end ,
+ c/41    :      , name,         . dtran  /01.06.84/
+             7  , mtj , 4
+             4  , wtc , 2
+             3  , vtm ,
+             3  , wtc , 2
+             2  , vtm ,
+            13  , uj  ,
+                , end ,
+ c/42    :      , name,         . dtran  /01.06.84/
+             7  , mtj , 4
+             4  , wtc , 2
+             3  , vtm ,
+            13  , uj  ,
+                , end ,
+ c/51    :      , name,         . dtran  /01.06.84/
+             7  , mtj , 5
+             5  , wtc , 2
+             4  , vtm ,
+             4  , wtc , 2
+             3  , vtm ,
+             3  , wtc , 2
+             2  , vtm ,
+            13  , uj  ,
+                , end ,
+ c/52    :      , name,         . dtran  /01.06.84/
+             7  , mtj , 5
+             5  , wtc , 2
+             4  , vtm ,
+             4  , wtc , 2
+             3  , vtm ,
+            13  , uj  ,
+                , end ,
+ c/53    :      , name,         . dtran  /01.06.84/
+             7  , mtj , 5
+             5  , wtc , 2
+             4  , vtm ,
+            13  , uj  ,
+                , end ,
+ c/61    :      , name,         . dtran  /01.06.84/
+             7  , mtj , 6
+             6  , wtc , 2
+             5  , vtm ,
+             5  , wtc , 2
+             4  , vtm ,
+             4  , wtc , 2
+             3  , vtm ,
+             3  , wtc , 2
+             2  , vtm ,
+            13  , uj  ,
+                , end ,
+ c/62    :      , name,         . dtran  /01.06.84/
+             7  , mtj , 6
+             6  , wtc , 2
+             5  , vtm ,
+             5  , wtc , 2
+             4  , vtm ,
+             4  , wtc , 2
+             3  , vtm ,
+            13  , uj  ,
+                , end ,
+ c/63    :      , name,         . dtran  /01.06.84/
+             7  , mtj , 6
+             6  , wtc , 2
+             5  , vtm ,
+             5  , wtc , 2
+             4  , vtm ,
+            13  , uj  ,
+                , end ,
+ c/64    :      , name,         . dtran  /01.06.84/
+             7  , mtj , 6
+             6  , wtc , 2
+             5  , vtm ,
+            13  , uj  ,
                 , end ,

@@ -15,8 +15,8 @@ function clamp(v, lo, hi: int): int;
 //
 function early_void(x: int): int;
 {
-    early_void = -1;
-    if (x == 0) return;
+//    early_void = -1;
+    if (x == 0) return -1;
     return x + 100;
 }
 //

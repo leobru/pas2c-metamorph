@@ -4,9 +4,9 @@ extern _output_;
 function fact(n: int): int;
 {
     if (n <= 1) {
-        fact = 1;
+        return 1;
     } else {
-        fact = n * fact(n - 1);
+        return n * fact(n - 1);
     }
 }
 //
