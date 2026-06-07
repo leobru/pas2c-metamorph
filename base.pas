@@ -290,7 +290,7 @@ end;
 strLabel = record
     next:       @strLabel;
     ident:      word;
-    exitTarget: integer;
+    target: integer;
 end;
 %
 numLabel = record
@@ -498,7 +498,7 @@ var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
     isPredefined, done, inTypeDef: boolean;
     l2var10z: eptr;
-    l2int11z: integer;
+    hasFiles: integer;
     l2var12z: word;
     l2typ13z, l2typ14z: tptr;
     labFence: integer;
@@ -3706,12 +3706,18 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 MUL:        arg1Val.r := arg1Val.r * arg2Val.r;
                 RDIVOP:     arg1Val.r := arg1Val.r / arg2Val.r;
                 ANDOP:      arg1Val.b := arg1Val.b and arg2Val.b;
-                IDIVOP:     arg1Val.c := chr(ord(arg1Val.c) DIV ord(arg2Val.c));
-                IMODOP:     arg1Val.c := chr(ord(arg1Val.c) MOD ord(arg2Val.c));
+                IDIVOP:     { arg1Val.i := ord(arg1Val.c) DIV ord(arg2Val.c);
+                              arg1Val.m := arg1Val.m MOD intZero;
+                            };
+                IMODOP:     { arg1Val.i := ord(arg1Val.c) MOD ord(arg2Val.c);
+                              arg1Val.m := arg1Val.m MOD intZero;
+                            };
                 PLUSOP:     arg1Val.r := arg1Val.r + arg2Val.r;
                 MINUSOP:    arg1Val.r := arg1Val.r - arg2Val.r;
                 OROP:       arg1Val.b := arg1Val.b or arg2Val.b:
-                IMULOP:     arg1Val.c := chr(ord(arg1Val.c) * ord(arg2Val.c));
+                IMULOP:     { arg1Val.i := ord(arg1Val.c) * ord(arg2Val.c);
+                              arg1Val.m := arg1Val.m MOD intZero;
+                            };
                 SETAND:     arg1Val.m := arg1Val.m * arg2Val.m;
                 SETXOR:     arg1Val.m := arg1Val.m MOD arg2Val.m;
                 INTPLUS:    arg1Val.i := arg1Val.i + arg2Val.i;
@@ -5030,10 +5036,10 @@ var
             form1Insn(0);
         if l3var3z then
             form1Insn(KVTM+I8+74001B);
-        if (l2int11z <> 0) then {
+        if (hasFiles <> 0) then {
             form1Insn(insnTemp[XTA]);
-            formAndAlign(KVJM+I13 + l2int11z);
-            curVal.i := l2int11z;
+            formAndAlign(KVJM+I13 + hasFiles);
+            curVal.i := hasFiles;
             fixup(2, 49 (* "P/RDC" *));
         };
         if (curProcNesting = 1) then {
@@ -5964,7 +5970,7 @@ procedure setStrLab;
     with strLabPtr@ do {
         next := strLabList;
         ident := curIdent;
-        exitTarget := 0;
+        target := 0;
     };
     strLabList := strLabPtr;
 };
@@ -5982,8 +5988,8 @@ procedure setBrCont;
 procedure brContTarget;
 {
     (* assigning target for break/continue if used *)
-    with strLabList@ do if (exitTarget <> 0) then {
-        fixup(0, exitTarget);
+    with strLabList@ do if (target <> 0) then {
+        fixup(0, target);
     };
     strLabList  :=  strLabList@.next; (* removing break/continue *)
 };
@@ -6081,7 +6087,7 @@ var
     curLab := strLabList;
     while (curLab <> NIL) do {
         if curLab@.ident = curIdent then {
-            formJump(curLab@.exitTarget);
+            formJump(curLab@.target);
             exit
         };
         curLab := curLab@.next;
@@ -7104,7 +7110,7 @@ var
         } else  if (SY = WHILESY) then {
             set146z := [];
             setBrCont;
-            strLabList@.exitTarget := moduleOffset;
+            strLabList@.target := moduleOffset;
             curOffset.i := moduleOffset;
             ifWhileStatement;
             disableNorm;
@@ -7270,10 +7276,10 @@ var
             form1Insn(insnTemp[UJ] + indexreg[curVal.i]);
         }
     } else  {
-        if (l2int11z = 0) then
-            jj := 27    (* P/E *)
+        if (hasFiles = 0) then
+            jj := 27    (* C/E *)
         else
-            jj := 28;   (* P/EF *)
+            jj := 28;   (* C/EF *)
         form1Insn(getHelperProc(jj) + (-I13-100000B));
         if (curProcNesting = 1) then {
             parseDecls(2);
@@ -7736,7 +7742,7 @@ procedure exitScope(var arg: hashArray);
     };
     preDefHead := ptr(0);
     inTypeDef := false;
-    l2int11z := 0;
+    hasFiles := 0;
     strLabList := NIL;
     lineNesting := lineNesting + 1;
     labFence := numLabTop;
@@ -7922,10 +7928,10 @@ procedure exitScope(var arg: hashArray);
         }
     };
     if (curExpr <> NIL) then {
-        l2int11z := moduleOffset;
+        hasFiles := moduleOffset;
         formOperator(FILEINIT);
     } else
-        l2int11z := 0;
+        hasFiles := 0;
     if (curProcNesting = 1) then {
         curExternFile := externFileList;
         while (curExternFile <> NIL) do {
@@ -8520,8 +8526,8 @@ procedure initOptions;
         6017625100000000C      (*"P/RI    "*),
         6017214400000000C      (*"P/1D    "*),
         6017474400000000C      (*"P/GD    "*),
-        6017450000000000C      (*"P/E     "*),
-        6017454600000000C      (*"P/EF    "*),
+        4317450000000000C      (*"C/E     "*),
+        4317454600000000C      (*"C/EF    "*),
         6017604600000000C      (*"P/PF    "*),
 (*30*)  6017474600000000C      (*"P/GF    "*),
         6017644600000000C      (*"P/TF    "*),

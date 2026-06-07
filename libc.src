@@ -97,23 +97,23 @@ C ONE WORD LONGER THAN ,CALL,P/CW BUT FASTER (AS IN THE ORIGINAL)
           ,END,
  c/di    :      , name,
                 , ntr ,
-            1   , aox , 11b     . I0
+            1   , aex , 11b     . I0
                 , avx ,
             15  , stx , 1
-            1   , aox , 11b
+            1   , aex , 11b
                 , avx ,
             15  , a/x , 2
                 , ntr , 3
             1   , a+x , 11b
-            1   , aax , 14b     . mantissa
+            1   , aex , 11b
             13  , uj  ,
                 , end ,
  c/md    :      , name,
                 , ntr ,
-            1   , aox , 11b
+            1   , aex , 11b
                 , avx ,
             15  , stx , 1
-            1   , aox , 11b
+            1   , aex , 11b
                 , avx ,
             15  , atx , 1
             15  , a/x , 2
@@ -124,7 +124,7 @@ C ONE WORD LONGER THAN ,CALL,P/CW BUT FASTER (AS IN THE ORIGINAL)
             15  , x-a , 1
                 , ntr , 3
             1   , a+x , 11b
-            1   , aax , 14b
+            1   , aex , 11b
             13  , uj  ,
                 , end ,
  c/rc    :      , name,
@@ -164,4 +164,44 @@ C ONE WORD LONGER THAN ,CALL,P/CW BUT FASTER (AS IN THE ORIGINAL)
  frame   :      , log ,
  ret     :      , log ,
  e30to16 :      , log , 77 7770 0000
+                , end ,
+ c/ef    :      , name,         . dtran  /01.06.84/
+ paseolsy:      , lc  , 1
+ paszero*:      , lc  , 1
+ pasmins*:      , lc  , 1
+ space*  :      , lc  , 1
+ paseofcd:      , lc  , 1
+ pasends*:      , lc  , 1
+            7   , xta , 1
+                , asn , 64+15
+                , ati , 14
+            14  , utc ,
+            13  , vjm ,
+c===========================================
+ c/e     :      ,entry,
+c===========================================
+                , ntr , 3
+            7   , mtj , 15
+            7   , wtc ,
+            7   , vtm ,
+            15  , wtc , 1
+                , uj  ,
+                , data,
+ /0006b  :      , log , 60
+ /0007b  :      , log , 55
+ /0010b  :      , log , 40
+ /0011b  :      , iso , 6h/*
+ /0012b  :      , log , 12
+            1   , set , /0012b
+            1   ,     , paseolsy
+            1   , set , /0006b
+            1   ,     , paszero*
+            1   , set , /0007b
+            1   ,     , pasmins*
+            1   , set , /0010b
+            1   ,     , space*
+            1   , set , /0011b
+            1   ,     , paseofcd
+            1   , set , /0012b
+            1   ,     , pasends*
                 , end ,

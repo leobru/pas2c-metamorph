@@ -13,6 +13,7 @@ cat << EOF > tmp$$
 *libra:22
 *call *pascom
 EOF
+if [ "$1" = "-d" ]; then ln -f tmp$$ run.dub ; shift; fi
 sed 's/{/<:/g;s/}/:>/g' < $1 >> tmp$$
 cat << EOF >> tmp$$
 *copy:0,000000,000000
@@ -26,7 +27,6 @@ cat << EOF >> tmp$$
 *execute
 *end file
 EOF
-if [ "$1" = "-d" ]; then ln -f tmp$$ run.dub ; fi
 ulimit -t 3
 dubna tmp$$ | sed 1,/METAMORPH/d | tee runwork.lst
 if [ $? -ne 0 ]; then

@@ -295,7 +295,7 @@ kword = struct {
 strLabel = struct {
     next:       @strLabel;
     ident:      int;
-    exitTarget: int;
+    target: int;
 };
 //
 numLabel = struct {
@@ -1756,7 +1756,7 @@ var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
     isPredefined, l2bool8z, inTypeDef: int;
     l2var10z: eptr;
-    l2int11z: int;
+    hasFiles: int;
     l2var12z: int;
     l2typ13z, l2typ14z: tptr;
     labFence: int;
@@ -4778,10 +4778,10 @@ var
             form1Insn(0);
         if (l3var3z)
             form1Insn(KVTM+I8+074001);
-        if (l2int11z != 0) {
+        if (hasFiles != 0) {
             form1Insn(KXTA);
-            formAndAlign(KVJM+I13 + l2int11z);
-            curVal.i  =  l2int11z;
+            formAndAlign(KVJM+I13 + hasFiles);
+            curVal.i  =  hasFiles;
             fixup(2, 49 /* "P/RDC" */);
         }
         if (curProcNesting == 1) {
@@ -5674,7 +5674,7 @@ void setStrLab(id:int);
     with strLabPtr@ do {
         next  =  strLabList;
         ident  =  id;
-        exitTarget  =  0;
+        target  =  0;
     }
     strLabList  =  strLabPtr;
 } /* setStrLab */
@@ -5692,8 +5692,8 @@ void setBrCont;
 void brContTarget;
 {
     /* assigning target for break/continue if used */
-    with strLabList@ do if (exitTarget != 0) {
-        fixup(0, exitTarget);
+    with strLabList@ do if (target != 0) {
+        fixup(0, target);
     }
     strLabList  =  strLabList->next; /* removing break/continue */
 }
@@ -5791,7 +5791,7 @@ var
     curLab  =  strLabList;
     while (curLab != NIL) {
         if (curLab->ident == curIdent) {
-            formJump(&curLab->exitTarget);
+            formJump(&curLab->target);
             return;
         }
         curLab  =  curLab->next;
@@ -6764,7 +6764,7 @@ var
     case WHILESY:
         set146z  =  0U;
         setBrCont();
-        strLabList->exitTarget = moduleOffset;
+        strLabList->target = moduleOffset;
         curOffset  =  moduleOffset;
         ifWhileStatement();
         disableNorm();
@@ -6928,10 +6928,10 @@ var
             form1Insn(KUJ + indexreg[curVal.i]);
         }
     } else {
-        if (l2int11z == 0)
-            jj  =  27;    /* P/E */
+        if (hasFiles == 0)
+            jj  =  27;    /* C/E */
         else
-            jj  =  28;   /* P/EF */
+            jj  =  28;   /* C/EF */
         form1Insn(getHelperProc(jj) - (KVJM+I13-KUJ));
         if (curProcNesting == 1) {
             parseDecls(2);
@@ -7375,7 +7375,7 @@ void exitScope(arg: @hashArray);
     }
     preDefHead  =  irptr(0);
     inTypeDef  =  false;
-    l2int11z  =  0;
+    hasFiles  =  0;
     strLabList  =  NIL;
     lineNesting  =  lineNesting + 1;
     labFence  =  numLabTop;
@@ -7559,10 +7559,10 @@ void exitScope(arg: @hashArray);
         }
     }
     if (curExpr != NIL) {
-        l2int11z  =  moduleOffset;
+        hasFiles  =  moduleOffset;
         formOperator(FILEINIT);
     } else
-        l2int11z  =  0;
+        hasFiles  =  0;
     if (curProcNesting == 1) {
         curExternFile  =  externFileList;
         while (curExternFile != NIL) {
@@ -8124,8 +8124,8 @@ void initOptions;
         'P/RI    ',
         'P/1D    ',
         'P/GD    ',
-        'P/E     ',
-        'P/EF    ',
+        'C/E     ',
+        'C/EF    ',
         'P/PF    ',
 /*30*/  'P/GF    ',
         'P/TF    ',
