@@ -5740,7 +5740,7 @@ var
 procedure parseUnaryExpression;
 var
     oper: operator;
-    leftExpr: eptr;
+    leftExpr, addExpr, oneExpr: eptr;
 {
     oper := NOOP;
     if (SY = NOTSY) then {
@@ -5815,6 +5815,35 @@ var
                     op := STANDPROC;
                     num2 := fnREF;
                 }
+            };
+            INCROP, DECROP: with leftExpr@ do {
+                (* Pre-increment (++x) / pre-decrement (--x):
+                   lower to ASSIGNOP(x, INTPLUS|INTMINUS(x, 1)).
+                   The lvalue subtree is shared between LHS and RHS;
+                   callers must therefore avoid side-effectful lvalues. *)
+                if not (curExpr@.op IN lvalOpSet) then {
+                    error(27); (* errExpressionWhereVariableExpected *)
+                    exit
+                };
+                if not typeCheck(arg1Type, integerType) then {
+                    error(62); (* errIntegerNeeded *)
+                    exit
+                };
+                new(oneExpr);
+                oneExpr@ := [integerType, GETENUM, 1C];
+                new(addExpr);                  (* INTPLUS / INTMINUS node *)
+                with addExpr@ do {
+                    vt.typ := integerType;
+                    if (oper = INCROP) then
+                        op := INTPLUS
+                    else
+                        op := INTMINUS;
+                    expr1 := curExpr;          (* lvalue subtree, shared *)
+                    expr2 := oneExpr;
+                };
+                vt.typ := integerType;
+                op := ASSIGNOP;
+                expr2 := addExpr;
             }
             end;
             curExpr := leftExpr;
@@ -6996,6 +7025,14 @@ var
                 error(errNotDefined);
 8888:           skip(skipToSet + statEndSys);
             };
+        } else if (SY = ADDOP) and (charClass IN [INCROP, DECROP]) then {
+            (* Bare pre-increment / pre-decrement statement: '++x;' / '--x;'.
+               readNext := false tells expression() to keep the current SY
+               (the leading '+' / '-') instead of skipping it. *)
+            readNext := false;
+            expression;
+            formOperator(DOIT);
+            checkSymAndRead(SEMICOLON);
         } else  if (SY = BEGINSY) then
 (rep)   {
             inSymbol;
