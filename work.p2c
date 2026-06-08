@@ -193,7 +193,7 @@ opgen = enum {
 // Flags for ops that can potentially be optimized if one operand is a constant
 opflg = enum {
     opfCOMM, opfHELP, opfAND, opfOR, opfDIV, opfMOD, opfSHIFT,
-    opfMULMSK, opfASSN, opfINV
+    opfMULMSK, opfASSN
 };
 //
 kind = enum {
@@ -1746,7 +1746,7 @@ function leftAlign(val:int): int;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PROGRAMME                 %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void programme(retSizePtr: @int; l2idr2z: irptr);
+void programme(retSizePtr: @int; procName: irptr);
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
     isPredefined, l2bool8z, inTypeDef: int;
@@ -2510,7 +2510,7 @@ var
     sjLabel: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void P5155;
+void startIL1;
 {
     prepLoad();
     insnList->ilm  =  il1;
@@ -2518,7 +2518,7 @@ void P5155;
     insnList->disp  =  0;
     insnList->payload  =  0;
     insnList->addrmd  =  18;
-} /* P5155 */
+} /* startIL1 */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genDeref;
@@ -2552,7 +2552,7 @@ var
             }
         }
     } else {
-        P5155();
+        startIL1();
         if (doPtrCheck) {
             addToInsnList(KVTM+I14 + lineCnt);
             addToInsnList(getHelperProc(7)); /* "P/CA"*/
@@ -3521,13 +3521,6 @@ var
                 l3int3z  =  opToMode[curOP];
                 nextInsn  =  opToInsn[curOP];
                 switch (opFlags[curOP]) {
-                case opfINV:
-                    saved  =  insnList;
-                    insnList  =  otherIns;
-                    otherIns  =  saved;
-                    prepLoad();
-                    addToInsnList(KAEX+ALLONES);
-                // FALLTHRU
                 case opfCOMM:
                     tryFlip(curOP in [MUL,PLUSOP,SETOR,SETAND,INTPLUS,IMULOP]);
                     break;
@@ -3679,7 +3672,7 @@ var
                         if (! rhsMode)
                             error(errUsingVarAfterIndexingPackedArray);
                         else {
-                            P5155();
+                            startIL1();
                             insnList->shift  =  curIdRec->shift;
                         }
                     }
@@ -4638,7 +4631,7 @@ var
             optSflags  =  optSflags | [S3];
             curVal.i  =  074001;
             fixup(2, 34); /*"P/DS"*/
-            curVal.i  =  l2idr2z->id;
+            curVal.i  =  procName->id;
             toFCST();
             curVal.i  =  lineCnt;
             toFCST();
@@ -4646,7 +4639,7 @@ var
         for (jj  =  0; jj < 128; jj=jj+1) {
             curIdRec  =  symHash[jj];
             while ((curIdRec != NIL) &&
-                  (l2idr2z < curIdRec)) with curIdRec@ do {
+                  (procName < curIdRec)) with curIdRec@ do {
                 l3var2z  =  typ->size;
                 if ((cl IN [VARID, FORMALID]) &&
                   (value < 074000)) {
@@ -4713,7 +4706,7 @@ var
         break;
     case 2:
         padToLeft();
-        with l2idr2z@ do {
+        with procName@ do {
             l3var3z  =  ((E48 >> 22) & flags) >> 25; // 22 IN flags
             l3arg1z  =  pos;
             frame  =  moduleOffset - 040000;
@@ -4721,16 +4714,16 @@ var
                 symTab[l3arg1z]  =  [24, 29] | frame & halfWord;
             pos  =  moduleOffset;
         }
-        l3arg1z  =  argCount(l2idr2z);
+        l3arg1z  =  argCount(procName);
         if (l3var3z) {
             if (entryPtCnt <= 40) {
-                entryPtTable[entryPtCnt]  =  leftAlign(l2idr2z->id);
+                entryPtTable[entryPtCnt]  =  leftAlign(procName->id);
                 entryPtTable[entryPtCnt+1]  =  [1] | frame & (~[0, 3]);
                 entryPtCnt  =  entryPtCnt + 2;
             } else
                 error(87); /* errTooManyEntryProcs */
         }
-        if (l2idr2z->typ == NIL) {
+        if (procName->typ == NIL) {
             frame  =  3;
         } else {
             frame  =  4;
@@ -4835,7 +4828,7 @@ void statement;
 var
     boundary: eptr;
     strLabPtr: @strLabel;
-    l3var4z: int;
+    nest: int;
     l3bool5z: int;
     l3var6z: idclass;
     curOffset: int;
@@ -5296,7 +5289,7 @@ var
     l4var2z  =  bool47z;
     bool47z  =  false;
     switch (SY) {
-    case IDENT: {
+    case IDENT:
         if (hashTravPtr == NIL) {
             error(errNotDefined);
             curExpr  =  uVarPtr;
@@ -5367,7 +5360,6 @@ var
                 parseLval();
             } /* switch */
         break;
-    } /* IDENT */
     case LPAREN:
         expression();
         checkSymAndRead(RPAREN);
@@ -5643,7 +5635,7 @@ void expression;
     parsePrc(precAssign);
 } /* expression */
 //
-void assignStatement(doLHS: int); forward;
+void assignStatement; forward;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void setStrLab(id:int);
@@ -5687,7 +5679,7 @@ var
     inSymbol();
     checkSymAndRead(LPAREN);
     if (SY != SEMICOLON) {
-        assignStatement(true);   // eventually: expression
+        assignStatement();   // eventually: expression
         formOperator(DOIT);
     }
     checkSymAndRead(SEMICOLON);
@@ -5704,7 +5696,7 @@ var
     checkSymAndRead(SEMICOLON);
     loopExpr = NIL;
     if (SY != RPAREN) {
-        assignStatement(true);   // eventually: expression
+        assignStatement();   // eventually: expression
         loopExpr = curExpr;
     }
     checkSymAndRead(RPAREN);
@@ -5959,23 +5951,13 @@ var
 } /* caseStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void assignStatement;            // (doLHS: int)
+void assignStatement;
 var
     lhsExpr, assnExpr: eptr;
     indCnt: int;
     srcType, targType: tptr;
 {
-    if (doLHS)
-        parseLval();
-    else {
-        new(curExpr);
-        with curExpr@ do {
-            typ  =  hashTravPtr->typ;
-            op  =  GETVAR;
-            id1  =  hashTravPtr;
-        }
-        inSymbol();
-    }
+    parseLval();
     checkSymAndRead(BECOMES);
     readNext  =  false;
     targType  =  curExpr->typ;
@@ -6341,8 +6323,8 @@ void writeProc;
                     }
                 }
                 noWidth  =  false;
-                if ((firstWidth == NIL) &&
-                   (helperNo IN [38,39,40])) {  /* WC,A6,A7 */
+                if (firstWidth == NIL &&
+                    helperNo IN [38,39,40]) {  /* WC,A6,A7 */
                     helperNo  =  helperNo + 5;       /* CW,6A,7A */
                     noWidth  =  true;
                 } else {
@@ -6372,15 +6354,15 @@ void writeProc;
                     else
                         l4var18z  =  LOAD;
                 } else {
-                    if ((helperNo == 40) ||       /* P/A7 */
-                       (helperNo == 81))      /* P/WA */
+                    if (helperNo == 40 ||       /* P/A7 */
+                        helperNo == 81)      /* P/WA */
                         l4var18z  =  gen12;
                     else
                         l4var18z  =  FRACWIDTH;
                 }
                 formOperator(l4var18z);
-                if ((helperNo IN [39,40,44,45]) || /* A6,A7,6A,7A */
-                   (helperNo == 81))
+                if (helperNo IN [39,40,44,45] || /* A6,A7,6A,7A */
+                    helperNo == 81)
                     form1Insn(KVTM+I10 + defWidth);
                 else {
                     if (helperNo == 41)  /* P/WX */
@@ -6554,32 +6536,26 @@ var
         }
     case 14: /* return */
         if (! (SY IN statEndSys)) {
-            /* return expr: assign expr to function result, then jump */
-            if (l2idr2z->typ == NIL)
+            /* return expr: load expr to ACC, then jump */
+            if (procName->typ == NIL)
                 error(errNeedOtherTypesOfOperands);
             else {
                 if (hasFiles) {
                     writeln(' functions must not use files');
                     error(200);
                 }
-                new(l4exp6z);
-                with l4exp6z@ do {
-                    typ = l2idr2z->typ;
-                    op = GETVAR;
-                    id1 = l2idr2z;
-                }
                 readNext = false;
                 expression();
-                if (typeCheck(l2idr2z->typ, curExpr->typ)) {
+                if (typeCheck(procName->typ, curExpr->typ)) {
                     /* OK */
-                } else if (l2idr2z->typ == realType &&
+                } else if (procName->typ == realType &&
                         typeCheck(intType, curExpr->typ))
                     castToReal(&curExpr);
                 else
                     error(33); /* errIllegalTypesForAssignment */
                 formOperator(LOAD);
             }
-        } else if (l2idr2z->typ != NIL)
+        } else if (procName->typ != NIL)
             error(errNeedOtherTypesOfOperands);
         form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
         return;
@@ -6589,7 +6565,7 @@ var
         formOperator(LOAD);             /* KXTA jmpbuf -> ACC = packed */
         form1Insn(KXTS + E1);           /* send 1 */
         form1Insn(getHelperProc(18)     /* C/RC, tail-jump (UJ) form */
-                  + (-064100000));
+                  + (KUJ-KVJM-I13));
         break;
     case 16: /* besm */
         expression();
@@ -6664,8 +6640,8 @@ var
         inSymbol();
         checkSymAndRead(COLON);
     }
-    l3var4z  =  (SY IN [BEGINSY,SWITCHSY]);
-    if (l3var4z)
+    nest  =  SY IN [BEGINSY,SWITCHSY];
+    if (nest)
         lineNesting  =  lineNesting + 1;
     if (setjmp(jb8888))
         goto 8888;
@@ -6674,10 +6650,9 @@ var
         if (hashTravPtr != NIL) {
             l3var6z  =  hashTravPtr->cl;
             if (l3var6z >= VARID) {
-                assignStatement(true);
+                assignStatement();
             } else {
                 if (l3var6z == ROUTINEID) {
-                    if (hashTravPtr->typ == NIL) {
                         l3idr12z  =  hashTravPtr;
                         inSymbol();
                         if (l3idr12z->offset == 0) {
@@ -6686,9 +6661,6 @@ var
                             break;
                         }
                         parseCallArgs(l3idr12z);
-                    } else {
-                        assignStatement(false);
-                    }
                 } else {
                     error(32); /* errWrongStartOfOperator */
                     goto 8888;
@@ -6739,6 +6711,8 @@ var
     case WHILESY:
         set146z  =  0U;
         setBrCont();
+        // We know immediately where the continue statement within
+        // a while loop should go.
         strLabList->target = moduleOffset;
         curOffset  =  moduleOffset;
         ifWhileStatement();
@@ -6789,6 +6763,7 @@ var
         forStatement();
         break;
     case SWITCHSY:
+         // Switch statements only have "break", no "continue".
         /*=A3*/setStrLab('   BREAK');/*=A2*/
         caseStatement();
         brContTarget();
@@ -6796,7 +6771,7 @@ var
     case WITHSY:
         withStatement();
     }
-    if (l3var4z)
+    if (nest)
         lineNesting  =  lineNesting - 1;
     myrollup(int(boundary));
     if (abort) {
@@ -6827,7 +6802,7 @@ var
     objBufIdx  =  1;
     objBuffer[objBufIdx]  =  0U;
     curInsnTemplate  =  KXTA;
-    bool48z  =  ((E48 >> 22) & l2idr2z->flags) >> 25;
+    bool48z  =  ((E48 >> 22) & procName->flags) >> 25;
     l3var1z  =
     lineStartOffset  =  moduleOffset;
     int92z  =  2;
@@ -6844,12 +6819,12 @@ var
     sizeCount  =  localSize;
     if (SY != BEGINSY)
         requiredSymErr(BEGINSY);
-    if ((E48 >> 23) & l2idr2z->flags) {
-        l3idr5z  =  l2idr2z->argList;
+    if ((E48 >> 23) & procName->flags) {
+        l3idr5z  =  procName->argList;
         l3int4z  =  3;
-        if (l2idr2z->typ != NIL)
+        if (procName->typ != NIL)
         l3int4z  =  4;
-        while (l3idr5z != l2idr2z) {
+        while (l3idr5z != procName) {
             if (l3idr5z->cl == VARID) {
                 l3var2z  =  l3idr5z->typ->size;
                 if (l3var2z != 1) {
@@ -6879,18 +6854,18 @@ var
                errAndSkip(errBadSymbol, skipToSet);
         }
     } while (! l2bool8z);
-    l2idr2z->flags  =  set145z & [0:15] | l2idr2z->flags & ~l3var7z;
+    procName->flags  =  set145z & [0:15] | procName->flags & ~l3var7z;
     lineNesting  =  l3var2z - 1;
     if (!bool48z && ! doPMD && (sizeCount == 3) &&
        (curProcNesting != 1) && (set145z & [1:15]) != [1:15]) {
         objBuffer[1]  =  (KNTR+7)<< 24 | KUTC;
-        with l2idr2z@ do
+        with procName@ do
             flags  =  flags | [25];
         if (objBufIdx == 2) {
             objBuffer[1]  =  (KUJ+I13) << 24;
             putLeft  =  true;
         } else {
-            l2idr2z->pos  =  l3var1z;
+            procName->pos  =  l3var1z;
             if ((E48 >> 13) & set145z) {
                 curVal.i  =  minel([1:15] & (~set145z));
                 objBuffer[2]  =  objBuffer[2] | (KMTJ+I13+curVal.i) << 24;
@@ -6910,7 +6885,7 @@ var
             if ((E48 >> S3) & optSflags)
                 formAndAlign(getHelperProc(78)); /* "P/PMDSET" */
             form1Insn(KUJ + l3var1z);
-            curVal.i  =  l2idr2z->pos - 040000;
+            curVal.i  =  procName->pos - 040000;
             symTab[074002]  =  [24,29] | (curVal.i & halfWord);
         }
         curVal.i  =  sizeCount;
@@ -7704,7 +7679,7 @@ void exitScope(arg: @hashArray);
         numLabTop  =  numLabTop - 1;
     }
     if (! l2bool8z) {
-        printTextWord(l2idr2z->id);
+        printTextWord(procName->id);
         error(90); /* errLblDefinitionInBlock */
     }
     retSizePtr@  =  sizeCount;

@@ -184,7 +184,7 @@ opgen = (
 % Flags for ops that can potentially be optimized if one operand is a constant
 opflg = (
     opfCOMM, opfHELP, opfAND, opfOR, opfDIV, opfMOD, opfSHIFT,
-    opfMULMSK, opfASSN, opfINV
+    opfMULMSK, opfASSN
 );
 %
 kind = (
@@ -491,7 +491,7 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %              PROGRAMME                 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure programme(var l2arg1z: integer; l2idr2z: irptr);
+procedure programme(var l2arg1z: integer; procName: irptr);
 label 23301;
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
@@ -2653,7 +2653,7 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure genFullExpr(exprToGen: eptr);
 label
-    7567, 7760, 10075, 10122;
+    7567, 7760, 10122;
 var
     arg1Const, arg2Const: boolean;
     otherIns: @insnltyp;
@@ -2663,7 +2663,7 @@ var
     sjLabel: integer;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure P5155;
+procedure startIL1;
 {
     prepLoad;
     insnList@.ilm := il1;
@@ -2671,7 +2671,7 @@ procedure P5155;
     insnList@.disp := 0;
     insnList@.payload.i := 0;
     insnList@.addrmd := 18;
-}; (* P5155 *)
+}; (* startIL1 *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure genDeref;
@@ -2708,7 +2708,7 @@ var
             }
         }
     } else {
-        P5155;
+        startIL1;
         if (doPtrCheck) then {
             addToInsnList(KVTM+I14 + lineCnt);
             addToInsnList(getHelperProc(7)); (* "P/CA"*)
@@ -3815,14 +3815,6 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     else
                         addToInsnList(KYTA+64);
                 };
-                opfINV: {
-10075:              saved := insnList;
-                    insnList := otherIns;
-                    otherIns := saved;
-                    prepLoad;
-                    addToInsnList(KAEX+ALLONES);
-                    goto 7760
-                };
                 opfSHIFT: {
                     if (not arg2Const) then genHelper
                     else {
@@ -3886,7 +3878,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                             if (not l3bool13z) then
                                 error(errUsingVarAfterIndexingPackedArray)
                             else {
-                                P5155;
+                                startIL1;
                                 insnList@.shift := curIdRec@.shift;
                             }
                         end; (* 10235*)
@@ -4899,7 +4891,7 @@ var
             optSflags.m := (optSflags.m + [S3]);
             curVal.i := 74001B;
             fixup(2, 34); (*"P/DS"*)
-            curVal := l2idr2z@.id;
+            curVal := procName@.id;
             toFCST;
             curVal.i := lineCnt;
             toFCST;
@@ -4908,7 +4900,7 @@ var
             curIdRec := symHash[jj];
 
             while (curIdRec <> NIL) and
-                  (l2idr2z < curIdRec) do with curIdRec@ do {
+                  (procName < curIdRec) do with curIdRec@ do {
                 l3var2z.i := typ@.size;
                 if (cl IN [VARID, FORMALID]) and
                   (value < 74000B) then {
@@ -4978,23 +4970,23 @@ var
     };
     2: {
         padToLeft;
-        l3var3z := 22 IN l2idr2z@.flags;
-        l3arg1z := l2idr2z@.pos;
+        l3var3z := 22 IN procName@.flags;
+        l3arg1z := procName@.pos;
         frame.i := moduleOffset - 40000B;
         if (l3arg1z <> 0) then
             symTab[l3arg1z] := [24, 29] + frame.m * halfWord;
-        l2idr2z@.pos := moduleOffset;
-        l3arg1z := argCount(l2idr2z);
+        procName@.pos := moduleOffset;
+        l3arg1z := argCount(procName);
         if l3var3z then {
             if (41 >= entryPtCnt) then {
-                curVal := l2idr2z@.id;
+                curVal := procName@.id;
                 entryPtTable[entryPtCnt] := leftAlign;
                 entryPtTable[entryPtCnt+1] := [1] + frame.m - [0, 3];
                 entryPtCnt := entryPtCnt + 2;
             } else
                 error(87); (* errTooManyEntryProcs *)
         };
-        if (l2idr2z@.typ = NIL) then {
+        if (procName@.typ = NIL) then {
             frame.i := 3;
         } else {
             frame.i := 4;
@@ -5105,7 +5097,7 @@ label
 var
     boundary              : eptr;
     strLabPtr             : @strLabel;
-    l3var4z               : boolean;
+    nest                  : boolean;
     flag                  : boolean;
     l3var6z               : idclass;
     curOffset             : word;
@@ -5945,7 +5937,7 @@ procedure expression;
         readNext := true;
     parsePrc(precAssign);
 }; (* expression *)
-procedure assignStatement(doLHS: boolean); forward;
+procedure assignStatement; forward;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure setStrLab;
@@ -5989,7 +5981,7 @@ var
     inSymbol;
     checkSymAndRead(LPAREN);
     if (SY <> SEMICOLON) then {
-        assignStatement(true); (* eventually: expression *)
+        assignStatement; (* eventually: expression *)
         formOperator(DOIT);
     };
     checkSymAndRead(SEMICOLON);
@@ -6006,7 +5998,7 @@ var
     checkSymAndRead(SEMICOLON);
     loopExpr := NIL;
     if (SY <> RPAREN) then {
-        assignStatement(true); (* eventually: expression *)
+        assignStatement; (* eventually: expression *)
         loopExpr := curExpr;
     };
     checkSymAndRead(RPAREN);
@@ -6279,17 +6271,7 @@ var
     indCnt: integer;
     srcType, targType: tptr;
 {
-    if (doLHS) then
-        parseLval
-    else {
-        new(curExpr);
-        with curExpr@ do {
-            vt.typ := hashTravPtr@.typ;
-            op := GETVAR;
-            id1 := hashTravPtr;
-        };
-        inSymbol;
-    };
+    parseLval;
     checkSymAndRead(BECOMES);
     readNext := false;
     targType := curExpr@.vt.typ;
@@ -6891,29 +6873,23 @@ var
     };
     14: { (* return [expr] *)
         if not (SY IN statEndSys) then {
-            (* return expr: assign expr to function result, then jump *)
-            if (l2idr2z@.typ = NIL) then
+            (* return expr: load expr to ACC, then jump *)
+            if (procName@.typ = NIL) then
                 error(errNeedOtherTypesOfOperands)
             else {
                 retSeen := true;
-                new(l4exp6z);
-                with l4exp6z@ do {
-                    vt.typ := l2idr2z@.typ;
-                    op := GETVAR;
-                    id1 := l2idr2z;
-                };
                 readNext := false;
                 expression;
-                if (typeCheck(l2idr2z@.typ, curExpr@.vt.typ)) then
+                if (typeCheck(procName@.typ, curExpr@.vt.typ)) then
                     (* OK *)
-                else if (l2idr2z@.typ = realType) and
+                else if (procName@.typ = realType) and
                         typeCheck(integerType, curExpr@.vt.typ) then
                     castToReal(curExpr)
                 else
                     error(33); (* errIllegalTypesForAssignment *)
                 formOperator(LOAD);
             }
-        } else if (l2idr2z@.typ <> NIL) then
+        } else if (procName@.typ <> NIL) then
             error(errNeedOtherTypesOfOperands);
         form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
         exit
@@ -6924,7 +6900,7 @@ var
         formOperator(LOAD);             (* KXTA jmpbuf -> ACC = packed *)
         form1Insn(KXTS + E1);           (* send 1 to C/RC *)
         form1Insn(getHelperProc(18)     (* C/RC, tail-jump (UJ) form *)
-                  + (-64100000B));
+                  + (KUJ-KVJM-I13));
     };
     16: { (* besm *)
         expression;
@@ -7003,19 +6979,18 @@ var
             labCheckAndDefine(true);
             inSymbol;
             checkSymAndRead(COLON);
-        }; (* 20355*)
-        l3var4z := (SY IN [BEGINSY,SWITCHSY]);
-        if (l3var4z) then
+        };
+        nest := SY IN [BEGINSY,SWITCHSY];
+        if nest then
             lineNesting := lineNesting + 1;
 (ident)
         if SY = IDENT then {
             if hashTravPtr <> NIL then {
                 l3var6z := hashTravPtr@.cl;
                 if l3var6z >= VARID then {
-                    assignStatement(true);
+                    assignStatement;
                 } else {
                     if l3var6z = ROUTINEID then {
-                        if hashTravPtr@.typ = NIL then {
                             l3idr12z := hashTravPtr;
                             inSymbol;
                             if l3idr12z@.offset = 0 then {
@@ -7024,9 +6999,6 @@ var
                                 exit ident;
                             };
                             parseCallArgs(l3idr12z);
-                        } else {
-                            assignStatement(false);
-                        };
                     } else {
                         error(32); (* errWrongStartOfOperator *)
                         goto 8888;
@@ -7141,7 +7113,7 @@ var
         } else if (SY = WITHSY) then {
             withStatement;
         };
-        if (l3var4z) then
+        if (nest) then
             lineNesting := lineNesting - 1;
         myrollup(ord(boundary));
         if (bool110z) then {
@@ -7175,7 +7147,7 @@ var
     objBufIdx := 1;
     objBuffer[objBufIdx] := [];
     curInsnTemplate := insnTemp[XTA];
-    bool48z := 22 IN l2idr2z@.flags;
+    bool48z := 22 IN procName@.flags;
     lineStartOffset := moduleOffset;
     l3var1z := ;
     int92z := 2;
@@ -7191,12 +7163,12 @@ var
     l2int21z := localSize;
     if (SY <> BEGINSY) then
         requiredSymErr(BEGINSY);
-    if 23 IN l2idr2z@.flags then {
-        l3idr5z := l2idr2z@.argList;
+    if 23 IN procName@.flags then {
+        l3idr5z := procName@.argList;
         l3int4z := 3;
-        if (l2idr2z@.typ <> NIL) then
+        if (procName@.typ <> NIL) then
         l3int4z := 4;
-        while (l3idr5z <> l2idr2z) do {
+        while (l3idr5z <> procName) do {
             if (l3idr5z@.cl = VARID) then {
                 l3var2z.i := l3idr5z@.typ@.size;
                 if (l3var2z.i <> 1) then {
@@ -7226,18 +7198,18 @@ var
                errAndSkip(errBadSymbol, skipToSet);
            }
     until done;
-    l2idr2z@.flags := (set145z * [0:15]) + (l2idr2z@.flags - l3var7z.m);
+    procName@.flags := (set145z * [0:15]) + (procName@.flags - l3var7z.m);
     lineNesting := l3var2z.i - 1;
     if not bool48z and not doPMD and (l2int21z = 3) and
        (curProcNesting <> 1) and (set145z * [1:15] <> [1:15]) then {
         objBuffer[1] := [7:11,21:23,28,31]; (* ,NTR,7; ,UTC, *)
-        with l2idr2z@ do
+        with procName@ do
             flags := flags + [25];
         if (objBufIdx = 2) then {
             objBuffer[1] := [0,1,3:5]; (* 13,UJ, *)
             putLeft := true;
         } else {
-            l2idr2z@.pos := l3var1z.i;
+            procName@.pos := l3var1z.i;
             if 13 IN set145z then {
                 curVal.i := minel([1:15] - set145z);
                 besm(ASN64-24);
@@ -7259,7 +7231,7 @@ var
             if S3 IN optSflags.m then
                 formAndAlign(getHelperProc(78)); (* "P/PMDSET" *)
             form1Insn(insnTemp[UJ] + l3var1z.i);
-            curVal.i := l2idr2z@.pos - 40000B;
+            curVal.i := procName@.pos - 40000B;
             symTab[74002B] := [24,29] + (curVal.m * halfWord);
         };
         curVal.i := l2int21z;
@@ -8073,7 +8045,7 @@ procedure exitScope(var arg: hashArray);
     };
     defineRoutine;
     if (curProcNesting > 1) and
-        not retSeen and (l2idr2z@.typ <> NIL) then {
+        not retSeen and (procName@.typ <> NIL) then {
         writeln(' above function must return a value');
         error(200);
     };
@@ -8085,7 +8057,7 @@ procedure exitScope(var arg: hashArray);
         numLabTop := numLabTop - 1;
     };
     if not done then {
-        printTextWord(l2idr2z@.id);
+        printTextWord(procName@.id);
         error(90); (* errLblDefinitionInBlock *)
     };
     l2arg1z := l2int21z;
