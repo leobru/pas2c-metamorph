@@ -5996,7 +5996,8 @@ var
     inSymbol;
     checkSymAndRead(LPAREN);
     if (SY <> SEMICOLON) then {
-        assignStatement; (* eventually: expression *)
+        readNext := false;
+        expression;
         formOperator(DOIT);
     };
     checkSymAndRead(SEMICOLON);
@@ -6013,7 +6014,8 @@ var
     checkSymAndRead(SEMICOLON);
     loopExpr := NIL;
     if (SY <> RPAREN) then {
-        assignStatement; (* eventually: expression *)
+        readNext := false;
+        expression;
         loopExpr := curExpr;
     };
     checkSymAndRead(RPAREN);
@@ -6283,62 +6285,35 @@ label
     16332;
 var
     lhsExpr, assnExpr: eptr;
-    indCnt: integer;
     srcType, targType: tptr;
 {
     parseLval;
     checkSymAndRead(BECOMES);
     readNext := false;
     targType := curExpr@.vt.typ;
-    if (targType@.k = kindStruct) and
-       (SY = LBRACK) then {
-        formOperator(SETREG9);
-        indCnt := 0;
-        inSymbol;
-        flag := false;
-(indices)
-        {
-            if (SY = COMMA) then {
-                indCnt := indCnt + 1;
-                inSymbol;
-            } else if (SY = RBRACK) then {
-                inSymbol;
-                exit indices;
-            } else  {
-                readNext := false;
-                expression;
-                curVal.i := indCnt;
-                formOperator(STOREAT9);
+    lhsExpr := curExpr;
+    expression;
+    srcType := curExpr@.vt.typ;
+    if (typeCheck(targType, srcType)) then {
+        if (srcType@.k = kindFile) then
+            error(75) (*errCannotAssignFiles*)
+        else {
+16332:      new(assnExpr);
+            with assnExpr@ do {
+                vt.typ := targType;
+                op := ASSIGNOP;
+                expr1 := lhsExpr;
+                expr2 := curExpr;
             };
-            goto indices;
-        };
-        curExpr := NIL;
-    } else  {
-        lhsExpr := curExpr;
-        expression;
-        srcType := curExpr@.vt.typ;
-        if (typeCheck(targType, srcType)) then {
-            if (srcType@.k = kindFile) then
-                error(75) (*errCannotAssignFiles*)
-            else {
-16332:          new(assnExpr);
-                with assnExpr@ do {
-                    vt.typ := targType;
-                    op := ASSIGNOP;
-                    expr1 := lhsExpr;
-                    expr2 := curExpr;
-                };
-                curExpr := assnExpr;
-            }
-        } else if (targType = realType) and
-            typeCheck(integerType, srcType) then {
-            castToReal(curExpr);
-            goto 16332;
-        } else {
-            error(33); (*errIllegalTypesForAssignment*)
+            curExpr := assnExpr;
         }
+    } else if (targType = realType) and
+        typeCheck(integerType, srcType) then {
+        castToReal(curExpr);
+        goto 16332;
+    } else {
+        error(33); (*errIllegalTypesForAssignment*)
     }
-
 }; (* assignStatement *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6516,6 +6491,7 @@ var
     defWidth: integer;
     procNo: integer;
     helperNo: integer;
+    indCnt: integer;
     opToForm: opgen;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6764,7 +6740,7 @@ var
     if not l4bool10z and
        (procNo IN [0:5,8:10,12,15:28]) then
         error(45); (* errNoOpenParenForStandProc *)
-    if (procNo IN [0:5,8,9,15]) then {
+    if (procNo IN [0:5,8,9,12,15]) then {
         inSymbol;
         if (hashTravPtr@.cl < VARID) then
             error(46); (* errNoVarForStandProc *)
@@ -6873,6 +6849,31 @@ var
             exit
         }
     };
+    12: { (* ctor(lvalue, expr0, expr1, ...): struct-constructor assignment.
+            Lvalue (already parsed above) must be of kindStruct; each comma-
+            separated expression is stored at successive word offsets from
+            the lvalue address, using register 9 as the base.  Empty argument
+            positions are allowed and silently skip an offset. *)
+        if (curVarKind <> kindStruct) then
+            error(errNeedOtherTypesOfOperands);
+        formOperator(SETREG9);
+        indCnt := 0;
+        inSymbol;          (* consume the comma between lvalue and expr0 *)
+(args)  {
+            if (SY = COMMA) then {
+                indCnt := indCnt + 1;
+                inSymbol;
+            } else if (SY = RPAREN) then {
+                exit args;
+            } else {
+                readNext := false;
+                expression;
+                curVal.i := indCnt;
+                formOperator(STOREAT9);
+            };
+            goto args;
+        };
+    };
     14: { (* return [expr] *)
         if not (SY IN statEndSys) then {
             (* return expr: load expr to ACC, then jump *)
@@ -6955,7 +6956,7 @@ var
         doPackUnpack;
     };
     end;
-    if procNo in [0,1,2,3,5,10,11,12,13,21,22] then
+    if procNo in [0,1,2,3,5,10,11,13,21,22] then
         arithMode := 1;
     checkSymAndRead(RPAREN);
 
@@ -8569,7 +8570,7 @@ procedure initOptions;
         625754546560C          (*"  ROLLUP"*),
 (*10*)  6762516445C            (*"   WRITE"*),
         67625164455456C        (*" WRITELN"*),
-        0C                     (*"    READ"*),
+        43645762C              (*"    CTOR"*),
         0C                     (*"  READLN"*),
         624564656256C          (*"  RETURN"*),
         54575647525560C        (*" LONGJMP"*),
