@@ -1884,7 +1884,7 @@ void add2InsnsToBuf(insn1, insn2: int);
 } /* add2InsnsToBuf */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function F3413: int;
+function findLabel: int;
 {
     l4inl7z  =  l4inl6z;
     while (l4inl7z != NIL) {
@@ -1898,12 +1898,12 @@ function F3413: int;
         }
     }
     return false;
-} /* F3413 */
+} /* findLabel */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void addJumpInsn(opcode: int);
 {
-    if (!F3413()) {
+    if (!findLabel()) {
         new(l4inl7z);
         l4inl7z->next  =  l4inl6z;
         l4inl7z->mode  =  curInsn;
@@ -1968,7 +1968,7 @@ void processInsn;
             form1Insn(KUJ + 2 + moduleOffset);
             padToLeft();
             if (curInsn) {
-                if (! F3413())
+                if (! findLabel())
                     error(211);
                 fixup(0, l4inl7z->code);
             }
@@ -2039,7 +2039,7 @@ void processInsn;
                 curInsn  =  tempInsn;
             // FALLTHRU
             case 21:
-                if (F3413())
+                if (findLabel())
                     addInsnToBuf(2*macro+int(l4inl7z));
                 else
                     error(206);
@@ -2047,10 +2047,10 @@ void processInsn;
             case 3:
                  tempInsn  =  curInsn % 4096;
                  curInsn  =  curInsn / 4096;
-                 l4var213z  =   F3413();
+                 l4var213z  =   findLabel();
                  l4inl8z  =  l4inl7z;
                  curInsn  =  tempInsn;
-                 l4var213z  =  l4var213z && F3413();
+                 l4var213z  =  l4var213z && findLabel();
                  if (l4var213z)
                     with l4inl7z@ do {
                         code  =  macro;
@@ -2472,7 +2472,7 @@ var
 } /* prepStore */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void P5117(op: operator);
+void spillAcc(op: operator);
 {
     addInsnAndOffset(curFrameRegTemplate, localSize);
     new(curExpr);
@@ -2484,7 +2484,7 @@ void P5117(op: operator);
     ++localSize;
     if (sizeCount < localSize)
         sizeCount  =  localSize;
-} /* P5117 */
+} /* spillAcc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function insnCount: int;
@@ -3362,7 +3362,7 @@ void genCondOp;
  *
  * Labels are simply unique integers drawn from condLabCnt. When genOneOp later
  * processes a macro+0/1/2 entry, addJumpInsn looks up an existing label
- * record by `mode = label`; if found (F3413), the new jump is linked into
+ * record by `mode = label`; if found (findLabel), the new jump is linked into
  * that record's chain in the object buffer, so several jumps to the same
  * logical label share one record and are all patched together by fixup.
  */
@@ -3431,7 +3431,7 @@ var
     /* Build the else-branch sub-chain:
            <else chain> + "endLab:"
        prepLoad materializes the else-value into ACC. macro+21 is a pure
-       label-definition marker: it requires F3413 to find an existing
+       label-definition marker: it requires findLabel to find an existing
        label record for endLab (the macro+2 above already created it via
        addJumpInsn) and patches the UJ jump to land here. */
     curExpr = altExpr->expr2;
@@ -3926,7 +3926,7 @@ var l4exf1z: @extfilerec;
                     if (l3int3z != 1) {
                         setAddrTo(l3int2z);
                         addToInsnList(KITA + l3int2z);
-                        P5117(op37);
+                        spillAcc(op37);
                     } else if (l3int2z != 14) {
                         setAddrTo(l3int2z);
                         genOneOp();
@@ -6259,27 +6259,6 @@ void callHelperWithArg;
 } /* callHelperWithArg */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void P17037;
-{
-    set145z  =  set145z & (~[12]);
-    if ((helperNo != 49) &&             /* P/RDC */
-       ! typeCheck(l4exp8z->typ, l4exp7z->typ))
-        error(34); /* errTypeIsNotAFileElementType */
-    else {
-        if (helperNo == 29) {       /* P/PF */
-            l4exp6z->expr2  =  l4exp7z;
-        } else {
-            if (helperNo == 49)
-                helperNo  =  30;         /* P/GF */
-            l4exp6z->expr1  =  l4exp7z;
-        }
-        curExpr  =  l4exp6z;
-        formOperator(DOIT);
-        callHelperWithArg();
-    }
-} /* P17037 */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void checkElement;
 {
     set145z  =  set145z & (~[12]);
@@ -6323,7 +6302,15 @@ void writeProc;
         if (l4exp7z != workExpr) {
             if (! isCharFile) {
                 helperNo  =  29;         /* P/PF */
-                P17037();
+                set145z  =  set145z & (~[12]);
+                if (! typeCheck(l4exp8z->typ, l4exp7z->typ))
+                    error(34); /* errTypeIsNotAFileElementType */
+                else {
+                    l4exp6z->expr2  =  l4exp7z;
+                    curExpr  =  l4exp6z;
+                    formOperator(DOIT);
+                    callHelperWithArg();
+                }
             } else {
                 checkElement();
                 secondWidth  =  NIL;

@@ -2028,12 +2028,12 @@ procedure add2InsnsToBuf(insn1, insn2: integer);
 }; (* add2InsnsToBuf *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function F3413: boolean;
+function findLabel: boolean;
 {
     l4inl7z := l4inl6z;
     while l4inl7z <> NIL do {
         if (l4inl7z@.mode = curInsn.i) then {
-            F3413 := true;
+            findLabel := true;
             while (l4inl7z@.code = macro) do {
                 l4inl7z := ptr(l4inl7z@.offset);
             };
@@ -2042,13 +2042,13 @@ function F3413: boolean;
             l4inl7z := l4inl7z@.next;
         }
     };
-    F3413 := false;
-}; (* F3413 *)
+    findLabel := false;
+}; (* findLabel *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure addJumpInsn(opcode: integer);
 {
-    if not F3413 then {
+    if not findLabel then {
         new(l4inl7z);
         l4inl7z@.next := l4inl6z;
         l4inl7z@.mode := curInsn.i;
@@ -2101,7 +2101,7 @@ procedure addJumpInsn(opcode: integer);
                 curInsn.i := curInsn.i div 4096;
                 addJumpInsn(insnTemp[UJ]);
                 curInsn.i := tempInsn.i;
-3556:           if F3413 then
+3556:           if findLabel then
                     addInsnToBuf(2*macro+ord(l4inl7z))
                 else
                     error(206);
@@ -2109,10 +2109,10 @@ procedure addJumpInsn(opcode: integer);
             3: {
                  tempInsn.i := curInsn.i mod 4096;
                  curInsn.i := curInsn.i div 4096;
-                 l4var213z :=  F3413;
+                 l4var213z :=  findLabel;
                  l4inl8z := l4inl7z;
                  curInsn.i := tempInsn.i;
-                 l4var213z := l4var213z & F3413;
+                 l4var213z := l4var213z & findLabel;
                  if l4var213z then
                     with l4inl7z@ do {
                         code := macro;
@@ -2280,7 +2280,7 @@ procedure addJumpInsn(opcode: integer);
             form1Insn(insnTemp[UJ] + 2 + moduleOffset);
             padToLeft;
             if (curInsn.i <> 0) then {
-                if (not F3413) then
+                if (not findLabel) then
                     error(211);
                 fixup(0, l4inl7z@.code);
             };
@@ -2616,7 +2616,7 @@ var
 }; (* prepStore *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure P5117(op: operator);
+procedure spillAcc(op: operator);
 {
     addInsnAndOffset(curFrameRegTemplate, localSize);
     new(curExpr);
@@ -2627,7 +2627,7 @@ procedure P5117(op: operator);
     localSize := localSize + 1;
     if (l2int21z < localSize) then
         l2int21z := localSize;
-}; (* P5117 *)
+}; (* spillAcc *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function insnCount: integer;
@@ -3535,7 +3535,7 @@ procedure genCondOp;
  *
  * Labels are simply unique integers drawn from condLabCnt. When genOneOp later
  * processes a macro+0/1/2 entry, addJumpInsn looks up an existing label
- * record by `mode = label`; if found (F3413), the new jump is linked into
+ * record by `mode = label`; if found (findLabel), the new jump is linked into
  * that record's chain in the object buffer, so several jumps to the same
  * logical label share one record and are all patched together by fixup.
  *)
@@ -3607,7 +3607,7 @@ var
     (* Build the else-branch sub-chain:
            <else chain> + "endLab:"
        prepLoad materializes the else-value into ACC. macro+21 is a pure
-       label-definition marker: it requires F3413 to find an existing
+       label-definition marker: it requires findLabel to find an existing
        label record for endLab (the macro+2 above already created it via
        addJumpInsn) and patches the UJ jump to land here. *)
     curExpr := altExpr@.expr2;
@@ -4155,7 +4155,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                     if (l3int3z <> 1) then {
                         setAddrTo(l3int2z);
                         addToInsnList(KITA + l3int2z);
-                        P5117(op37);
+                        spillAcc(op37);
                     } else if (l3int2z <> 14) then {
                         setAddrTo(l3int2z);
                         genOneOp;
@@ -6587,27 +6587,6 @@ procedure callHelperWithArg;
 }; (* callHelperWithArg *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure P17037;
-{
-    set145z := set145z - [12];
-    if (helperNo <> 49) and             (* P/RDC *)
-       not typeCheck(l4exp8z@.vt.typ, l4exp7z@.vt.typ) then
-        error(34) (* errTypeIsNotAFileElementType *)
-    else {
-        if (helperNo = 29) then {       (* P/PF *)
-            l4exp6z@.expr2 := l4exp7z;
-        } else {
-            if (helperNo = 49) then
-                helperNo := 30;         (* P/GF *)
-            l4exp6z@.expr1 := l4exp7z;
-        };
-        curExpr := l4exp6z;
-        formOperator(DOIT);
-        callHelperWithArg;
-    }
-}; (* P17037 *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure checkElementForReadWrite;
 {
     set145z := set145z - [12];
@@ -6651,7 +6630,15 @@ procedure writeProc;
         if (l4exp7z <> workExpr) then {
             if not isCharFile then {
                 helperNo := 29;         (* P/PF *)
-                P17037;
+                set145z := set145z - [12];
+                if not typeCheck(l4exp8z@.vt.typ, l4exp7z@.vt.typ) then
+                    error(34) (* errTypeIsNotAFileElementType *)
+                else {
+                    l4exp6z@.expr2 := l4exp7z;
+                    curExpr := l4exp6z;
+                    formOperator(DOIT);
+                    callHelperWithArg;
+                }
             } else {
                 checkElementForReadWrite;
                 secondWidth := NIL;
