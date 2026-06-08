@@ -710,22 +710,16 @@ procedure disableNorm;
 }; (* disableNorm *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function getObjBufIdxPlus: integer;
-{
-   if putLeft then
-       getObjBufIdxPlus := objBufIdx + 4096
-   else
-       getObjBufIdxPlus := objBufIdx
-}; (* getObjBufIdxPlus *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure formJump(var arg: integer);
 var
     pos: integer;
     isLeft: boolean;
 {
     if prevOpcode <> insnTemp[UJ] then {
-        pos := getObjBufIdxPlus;
+        if putLeft then
+            pos := objBufIdx + 4096
+        else
+            pos := objBufIdx;
         isLeft := putLeft;
         form1Insn(jumpType + arg);
         if putLeft = isLeft then
@@ -4255,16 +4249,8 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                 }
             } else {
                 if (curExpr@.vt.typ <> booleanType) and not (curExpr@.op IN
-                    [SHLEFT..SETOR,ASSIGNOP..ALNUM]) then {
-                    new(helpExpr);
-                    with helpExpr@ do {
-                        vt.typ := booleanType;
-                        expr1 := curExpr;
-                        op := NEOP;
-                        new(expr2);
-                        expr2@ := [integerType, GETENUM, 0C];
-                    };
-                    curExpr := helpExpr;
+                    [SHLEFT..SETOR,GETELT..ALNUM]) then {
+                    addToInsnList(KAEX);
                 };
                 direction := 16 in insnList@.regsused;
                 if (insnList@.ilm = il3) and
@@ -6495,7 +6481,7 @@ var
     l4exp6z: eptr;
     l4exp7z, l4exp8z, workExpr: eptr;
     l4bool10z,
-    noWidth, l4bool12z: boolean;
+    noWidth, needR12: boolean;
     isCharFile: boolean;
     oldOffset: integer;
     defWidth: integer;
@@ -6536,7 +6522,7 @@ procedure startWrite;
         arg2Type := workExpr@.vt.typ;
         (* typeCheck(arg2Type@.base, charType); *)
         isCharFile := arg2Type@.base = charType;
-        l4bool12z := true;
+        needR12 := true;
         new(l4exp8z);
         l4exp8z@.vt.typ := arg2Type@.base;
         l4exp8z@.op := FILEPTR;
@@ -6562,11 +6548,11 @@ function parseWidthSpecifier: eptr;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure callHelperWithArg;
 {
-    if ([12] <= set145z) or l4bool12z then {
+    if ([12] <= set145z) or needR12 then {
         curExpr := workExpr;
         formOperator(SETREG12);
     };
-    l4bool12z := false;
+    needR12 := false;
     formAndAlign(getHelperProc(helperNo));
     disableNorm;
 }; (* callHelperWithArg *)

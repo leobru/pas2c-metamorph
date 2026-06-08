@@ -760,19 +760,13 @@ void disableNorm;
 } /* disableNorm */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function getObjBufIdxPlus: int;
-{
-   return putLeft ? objBufIdx + 4096 : objBufIdx;
-} /* getObjBufIdxPlus */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void formJump(arg: @int);
 var
     pos: int;
     isLeft: int;
 {
     if (prevOpcode != KUJ) {
-        pos  =  getObjBufIdxPlus();
+        pos  =  putLeft ? objBufIdx + 4096 : objBufIdx;
         isLeft  =  putLeft;
         form1Insn(jumpType + *arg);
         if (putLeft == isLeft)
@@ -1846,7 +1840,7 @@ void formOperator(l3arg1z: opgen);
 var
     l3int1z, l3int2z, l3int3z: int;
     nextInsn: int;
-    l3var5z: eptr;
+    helpExpr: eptr;
     direction: int;
     noTarget: int;
     l3var10z, l3var11z: int;
@@ -3906,10 +3900,10 @@ var l4exf1z: @extfilerec;
     case SETREG: {
         with insnList@ do {
             l3int3z  =  insnCount();
-            new(l3var5z);
-            l3var5z->expr1  =  withList;
-            withList  =  l3var5z;
-            l3var5z->op  =  NOOP;
+            new(helpExpr);
+            helpExpr->expr1  =  withList;
+            withList  =  helpExpr;
+            helpExpr->op  =  NOOP;
             switch (st) {
             case st0:
                 if (l3int3z == 0) {
@@ -3935,17 +3929,17 @@ var l4exf1z: @extfilerec;
                     set146z  =  set146z | l3var11z;
                 }
                 curVal.i  =  l3int2z;
-                l3var5z->typ  =  curVal.tp;
+                helpExpr->typ  =  curVal.tp;
                 break;
             case st1:
                 curVal.i  =  14;
-                l3var5z->typ  =  curVal.tp;
+                helpExpr->typ  =  curVal.tp;
                 break;
             case st2:
                 error(errVarTooComplex);
             } /* switch */
         } /* with */
-        l3var5z->expr2  =  curExpr;
+        helpExpr->expr2  =  curExpr;
         break;
     } /* SETREG */
     case STORE:
@@ -4021,16 +4015,8 @@ var l4exf1z: @extfilerec;
                 }
             } else {
                 if ((curExpr->typ != boolType) && (!(curExpr->op IN
-                    [SHLEFT..SETOR,ASSIGNOP..ALNUM]))) {
-                    new(l3var5z);
-                    with l3var5z@ do {
-                        typ  =  boolType;
-                        expr1  =  curExpr;
-                        op  =  NEOP;
-                        new(expr2);
-                        expr2@  =  [intType, GETENUM, 0U];
-                    };
-                    curExpr  =  l3var5z;
+                    [SHLEFT..SETOR,GETELT..ALNUM]))) {
+                    addToInsnList(KAEX);
                 };
                 direction  =  (16 in insnList->regsused);
                 if ((insnList->ilm == il3) &&
@@ -4071,19 +4057,19 @@ var l4exf1z: @extfilerec;
             break;
         } /* BRANCH */
     case PCKUNPCK:
-        l3var5z  =  curExpr;
+        helpExpr  =  curExpr;
         curExpr  =  curExpr->expr1;
         formOperator(gen11);
-        genFullExpr(l3var5z->expr2);
+        genFullExpr(helpExpr->expr2);
         if ((E48 >> 11) & insnList->regsused)
             error(44); /* errIncorrectUsageOfStandProcOrFunc */
         setAddrTo(12);
         genOneOp();
-        arg1Type  =  l3var5z->expr2->typ;
+        arg1Type  =  helpExpr->expr2->typ;
         l3int3z  =  arg1Type->aright - arg1Type->aleft + 1;
         form2Insn((KVTM+I14) + l3int3z,
                   (KVTM+I10+64) - arg1Type->pcksize);
-        l3int3z  =  int(l3var5z->typ);
+        l3int3z  =  int(helpExpr->typ);
         l3int1z  =  arg1Type->perword;
         if (l3int3z == 72)           /* P/KC */
             l3int1z  =  1 - l3int1z;
@@ -6163,7 +6149,7 @@ var
     l4exp6z: eptr;
     l4exp7z, l4exp8z, workExpr: eptr;
     l4bool10z,
-    noWidth, l4bool12z, isCharFile, l4var14z: int;
+    noWidth, needR12, isCharFile, l4var14z: int;
     defWidth: int;
     procNo: int;
     helperNo: int;
@@ -6202,7 +6188,7 @@ void startWrite;
         arg2Type  =  workExpr->typ;
         /* typeCheck(arg2Type->base, charType); */
         isCharFile  =  arg2Type->base == charType;
-        l4bool12z  =  true;
+        needR12  =  true;
         new(l4exp8z);
         l4exp8z->typ  =  arg2Type->base;
         l4exp8z->op  =  FILEPTR;
@@ -6228,11 +6214,11 @@ function parseWidthSpecifier: eptr;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void callHelperWithArg;
 {
-    if (([12] & set145z) != 0U || l4bool12z) {
+    if ([12] & set145z || needR12) {
         curExpr  =  workExpr;
         formOperator(SETREG12);
     }
-    l4bool12z  =  false;
+    needR12  =  false;
     formAndAlign(getHelperProc(helperNo));
     disableNorm();
 } /* callHelperWithArg */
