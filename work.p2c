@@ -5588,6 +5588,8 @@ var
                     castToReal(&curExpr);
                 else
                     error(33); /* errIllegalTypesForAssignment */
+            } else if (arg2Type->k == kindFile) {
+                error(75); /* errCannotAssignFiles */
             }
             new(thenExpr);
             with thenExpr@ do {
@@ -5651,7 +5653,6 @@ void expression;
     parsePrc(precAssign);
 } /* expression */
 //
-void assignStatement; forward;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void setStrLab(id:int);
@@ -5748,7 +5749,7 @@ var
         inSymbol();
         if ((hashTravPtr != NIL) &&
            (hashTravPtr->cl >= VARID)) {
-            parseLval();
+            factor();
             if (curExpr->typ->k == kindStruct) {
                 formOperator(SETREG);
                 usedRegs  =  (usedRegs | (E48 >> curVal.i)) & set148z;
@@ -5967,41 +5968,6 @@ var
            disableNorm();
     }
 } /* caseStatement */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void assignStatement;
-var
-    lhsExpr, assnExpr: eptr;
-    srcType, targType: tptr;
-{
-    parseLval();
-    checkSymAndRead(BECOMES);
-    readNext  =  false;
-    targType  =  curExpr->typ;
-    lhsExpr  =  curExpr;
-    expression();
-    srcType  =  curExpr->typ;
-    if (typeCheck(targType, srcType)) {
-        if (srcType->k == kindFile)
-            error(75); /*errCannotAssignFiles*/
-        else {
-16332:      new(assnExpr);
-            with assnExpr@ do {
-                typ  =  targType;
-                op  =  ASSIGNOP;
-                expr1  =  lhsExpr;
-                expr2  =  curExpr;
-            }
-            curExpr  =  assnExpr;
-        }
-    } else if ((targType == realType) &&
-        typeCheck(intType, srcType)) {
-        castToReal(&curExpr);
-        goto 16332;
-    } else {
-        error(33); /*errIllegalTypesForAssignment*/
-    }
-} /* assignStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void ifWhileStatement;
@@ -6416,7 +6382,9 @@ var
         inSymbol();
         if (hashTravPtr->cl < VARID)
             error(46); /* errNoVarForStandProc */
-        parseLval();
+        factor();
+        if (! (curExpr->op IN lvalOpSet))
+            error(27); /* errExpressionWhereVariableExpected */
         arg1Type  =  curExpr->typ;
         curVarKind  =  arg1Type->k;
     }
@@ -6654,46 +6622,40 @@ var
         goto 8888;
     switch (SY) {
     case IDENT:
-        if (hashTravPtr != NIL) {
-            l3var6z  =  hashTravPtr->cl;
-            if (l3var6z >= VARID) {
-                assignStatement();
-            } else {
-                if (l3var6z == ROUTINEID) {
-                        l3idr12z  =  hashTravPtr;
-                        inSymbol();
-                        if (l3idr12z->offset == 0) {
-                            standProc();
-                            checkSymAndRead(SEMICOLON);
-                            break;
-                        }
-                        parseCallArgs(l3idr12z);
-                } else {
-                    error(32); /* errWrongStartOfOperator */
-                    goto 8888;
-                }
-            }
-            formOperator(DOIT);
-            checkSymAndRead(SEMICOLON);
-        } else {
+        if (hashTravPtr == NIL) {
             error(errNotDefined);
 8888:       skip(skipToSet | statEndSys);
+            break;
         }
-        break;
-    case ADDOP:
-        if (charClass IN [INCROP, DECROP]) {
-            /* Bare pre-increment / pre-decrement statement:
-               '++x;' / '--x;'.  readNext := false tells expression() to
-               keep the current SY (the leading '+' / '-') instead of
-               skipping it. */
-            readNext = false;
-            expression();
-            formOperator(DOIT);
-            checkSymAndRead(SEMICOLON);
-        } else {
-            error(32); /* errWrongStartOfOperator */
-            goto 8888;
+        l3var6z  =  hashTravPtr->cl;
+        if (l3var6z == ROUTINEID) {
+            l3idr12z  =  hashTravPtr;
+            if (l3idr12z->offset == 0) {
+                /* System procedure (WRITE, PUT, GET, NEW, ...): special
+                   syntax, handled directly. */
+                inSymbol();
+                standProc();
+                checkSymAndRead(SEMICOLON);
+                break;
+            }
+            if (l3idr12z->typ == NIL) {
+                /* User procedure call (void return): not a valid expression
+                   in factor(), so dispatch directly to parseCallArgs. */
+                inSymbol();
+                parseCallArgs(l3idr12z);
+                formOperator(DOIT);
+                checkSymAndRead(SEMICOLON);
+                break;
+            }
         }
+        /* VARID / FORMALID / FIELDID, or ROUTINEID with non-NIL typ
+           (function call): assignment, function call, or other expression
+           used as a statement.  readNext := false keeps the current SY
+           (the leading IDENT) for expression() to consume. */
+        readNext = false;
+        expression();
+        formOperator(DOIT);
+        checkSymAndRead(SEMICOLON);
         break;
     case BEGINSY:
         inSymbol();
@@ -6792,6 +6754,18 @@ var
         break;
     case WITHSY:
         withStatement();
+        break;
+    case ADDOP: case MULOP: case NOTSY: case LPAREN:
+    case INTCONST: case REALCONST: case CHARCONST: case LTSY:
+    case LBRACK:
+        /* Generic expression statement: '++x;', '(x = 1);', etc.
+           Includes pre-increment / pre-decrement, parenthesised expressions,
+           unary operators and so on.  readNext := false keeps the current SY
+           for expression() to consume. */
+        readNext = false;
+        expression();
+        formOperator(DOIT);
+        checkSymAndRead(SEMICOLON);
     }
     if (nest)
         --lineNesting;
