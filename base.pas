@@ -341,7 +341,7 @@ var
    numFormat : numberFormat;
    bigSkipSet, statEndSys, blockBegSys, statBegSys,
    skipToSet, lvalOpSet: setofsys;
-   bool47z, bool48z, forValue: boolean;
+   inCallArgs, bool48z, forValue: boolean;
    dataCheck: boolean;
    jumpType: integer;
    jumpTarget: integer;
@@ -379,7 +379,7 @@ var
    lineNesting: integer;
    FcstCountTo500: integer;
    objBufIdx: integer;
-   int92z, int93z, condLabCnt: integer;
+   int92z, lookupMode, condLabCnt: integer;
    prevOpcode: integer;
    charEncoding: integer;
    errLine: integer;
@@ -1293,7 +1293,7 @@ label
                 };
                 isDefined := false;
                 SY := IDENT;
-                case int93z of
+                case lookupMode of
                 0: {
                     hashTravPtr := symHash[bucket];
                     while hashTravPtr <> NIL do {
@@ -1716,7 +1716,7 @@ label
 %           }
         prevSY := SY;
         commentModeCH := ' ';
-        int93z := int92z;
+        lookupMode := int92z;
 }; (* inSymbol *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4466,7 +4466,7 @@ var
 { (* parseRecordDecl *)
     if (SY <> BEGINSY) then
        requiredSymErr(BEGINSY);
-    int93z := 3;
+    lookupMode := 3;
     inSymbol;
 
     while (SY = IDENT) do {
@@ -4485,24 +4485,24 @@ var
                     l4var6z@.list := curEnum;
                 };
                 l4var6z := curEnum;
-                int93z := 3;
+                lookupMode := 3;
                 inSymbol;
             };
             cond := (SY <> COMMA);
             if (not cond) then {
-                int93z := 3;
+                lookupMode := 3;
                 inSymbol;
             }
         until cond;
         checkSymAndRead(COLON);
         packFields;
         if (SY = SEMICOLON) then {
-            int93z := 3;
+            lookupMode := 3;
             inSymbol;
         }
     };
     if (SY = SWITCHSY) then {
-        int93z := 3;
+        lookupMode := 3;
         inSymbol;
         selType := integerType;
 (identif)
@@ -4627,7 +4627,7 @@ var
         inSymbol;
         checkSymAndRead(BEGINSY);
         span := 0;
-        int93z := 0;
+        lookupMode := 0;
         curField := NIL;
         new(curType = 6);
         while (SY = IDENT) do {
@@ -4647,7 +4647,7 @@ var
             curField := curEnum;
             inSymbol;
             if (SY = COMMA) then {
-                int93z := 0;
+                lookupMode := 0;
                 inSymbol;
             } else {
                 if (SY <> ENDSY) then
@@ -4663,7 +4663,7 @@ var
                           span, 0];
         };
     } else
-    if (SY = ARROW) then {
+    if (SY = MULOP) then {
         inSymbol;
         if (SY <> IDENT) then {
             error(errNoIdent);
@@ -4943,7 +4943,7 @@ var
 {
     case l3arg1z of
     0: {
-        int93z := 0;
+        lookupMode := 0;
         inSymbol;
         if (SY <> IDENT) then
             errAndSkip(3, skipToSet + [IDENT]);
@@ -5144,7 +5144,7 @@ var
             curExpr := l4exp1z;
         } else if (SY = PERIOD) then {
             if (l4var4z = kindStruct) then {
-                int93z := 3;
+                lookupMode := 3;
                 typ121z := l4typ3z;
                 inSymbol;
                 if (hashTravPtr = NIL) then {
@@ -5268,7 +5268,7 @@ var
                 error(errTooManyArguments);
                 goto 8888;
             };
-            bool47z := true;
+            inCallArgs := true;
             expression;
             actualOp := curExpr@.op;
 (a)         if noArgs then {
@@ -5493,7 +5493,7 @@ label
     14567;
 var
     l4var1z: word;
-    l4var2z: boolean;
+    wasInCall: boolean;
     l4var3z, l4var4z: word;
     l4exp5z, newExpr, l4var7z, l4var8z: eptr;
     routine: irptr;
@@ -5579,8 +5579,8 @@ var
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* factor *)
-    l4var2z := bool47z;
-    bool47z := false;
+    wasInCall := inCallArgs;
+    inCallArgs := false;
     if (SY IN [IDENT,INTCONST,REALCONST,CHARCONST,LTSY,LPAREN,LBRACK]) then {
         case SY of
         IDENT: {
@@ -5620,7 +5620,7 @@ var
                         };
                         error(44) (* errIncorrectUsageOfStandProcOrFunc *)
                     } else if (routine@.typ = NIL) then {
-                        if (l4var2z) then {
+                        if (wasInCall) then {
                             newOp := PCALL;
                         } else {
                             error(68); (* errUsingProcedureInExpression *)
@@ -5630,7 +5630,7 @@ var
                             parseCallArgs(routine);
                             exit
                         };
-                        if (l4var2z) then {
+                        if (wasInCall) then {
                             newOp := FCALL;
                         } else {
                             parseCallArgs(routine);
@@ -6435,7 +6435,7 @@ function allocDataRef(value: integer): integer;
     };
     int92z := FcstCnt - dsize;
     FcstCnt := dsize;
-    int93z := setcount;
+    lookupMode := setcount;
 
 }; (* parseData *)
 %
@@ -6459,16 +6459,13 @@ var
     opToForm: opgen;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure verifyType(l5arg1z: tptr);
+procedure verifyType(t: tptr);
 {
-    if (hashTravPtr <> NIL) and
-       (hashTravPtr@.cl >= VARID) then {
-        parseLval;
-        if (l5arg1z <> NIL) and
-           not typeCheck(l5arg1z, curExpr@.vt.typ) then
-            error(errNeedOtherTypesOfOperands);
-    } else {
-        error(errNotDefined);
+    readNext := false;
+    expression;
+    if (t <> NIL) and
+        not typeCheck(t, curExpr@.vt.typ) then {
+        error(errNeedOtherTypesOfOperands);
         curExpr := uVarPtr;
     }
 }; (* verifyType *)
@@ -6705,10 +6702,7 @@ var
        (procNo IN [0:5,8:10,12,15:28]) then
         error(45); (* errNoOpenParenForStandProc *)
     if (procNo IN [0:5,8,9,12,15]) then {
-        inSymbol;
-        if (hashTravPtr@.cl < VARID) then
-            error(46); (* errNoVarForStandProc *)
-        factor;
+        expression;
         if not (curExpr@.op IN lvalOpSet) then {
             error(27); (* errExpressionWhereVariableExpected *)
         };
@@ -6742,7 +6736,7 @@ var
             formOperator(SETREG9);
         l2typ13z := arg1Type@.base;
         ii := l2typ13z@.size;
-        if (charClass = EQOP) then {
+        if (procNo = 5) and (SY = COLON) then {
             expression;
             if not typeCheck(integerType, curExpr@.vt.typ) then
                 error(14); (* errExprIsNotInteger *)
@@ -7484,7 +7478,7 @@ var l : integer;
     programObj@.argList := NIL;
     programObj@.flags := [];
     objBufIdx := 1;
-    int93z := 0;
+    lookupMode := 0;
     outputObjFile;
     outputFile := NIL;
     inputFile := NIL;
@@ -7521,7 +7515,7 @@ var l : integer;
     until (SY = PERIOD) or (CH = '_000');
     if (CH <> 'D') then {
         int92z := 0;
-        int93z := ;
+        lookupMode := ;
     } else {
         set147z := halfWord;
         dataCheck := false;
@@ -7557,7 +7551,7 @@ var
 {
     int92z := 0;
     l3var5z := 0;
-    int93z := 0;
+    lookupMode := 0;
     inSymbol;
     l3var2z := NIL;
     if not (SY IN [IDENT,FUNCSY,VOIDSY]) then
@@ -7577,7 +7571,7 @@ var
             expType := integerType;
         l3var6z := 0;
         if (SY <> IDENT) then {
-            int93z := 0;
+            lookupMode := 0;
             inSymbol;
         };
         repeat if (SY = IDENT) then {
@@ -7608,7 +7602,7 @@ var
             errAndSkip(errNoIdent, skipToSet + [RPAREN,COMMA,COLON]);
         noComma := (SY <> COMMA);
         if not noComma then {
-            int93z := 0;
+            lookupMode := 0;
             inSymbol;
         };
         until noComma;
@@ -7627,7 +7621,7 @@ var
         };
 
         if (SY = SEMICOLON) then {
-            int93z := 0;
+            lookupMode := 0;
             inSymbol;
             if not (SY IN (skipToSet + [IDENT,FUNCSY,VOIDSY])) then
                 errAndSkip(errBadSymbol, (skipToSet + [IDENT,RPAREN]));
@@ -7707,7 +7701,7 @@ procedure exitScope(var arg: hashArray);
             } else
                 inSymbol;
             if (SY = SEMICOLON) then {
-                int93z := 0;
+                lookupMode := 0;
                 inSymbol;
                 if not (SY IN (skipToSet + [IDENT])) then {
                     errAndSkip(errBadSymbol, skipToSet + [IDENT]);
@@ -7758,7 +7752,7 @@ procedure exitScope(var arg: hashArray);
             };
             curIdRec@.next := symHash[ii];
             symHash[ii] := curIdRec;
-            int93z := 0;
+            lookupMode := 0;
             checkSymAndRead(SEMICOLON);
         };
         while (typelist <> NIL) do {
@@ -7802,7 +7796,7 @@ procedure exitScope(var arg: hashArray);
                 errAndSkip(1, skipToSet + [IDENT,COMMA]);
             done := SY <> COMMA;
             if not done then {
-                int93z := 0;
+                lookupMode := 0;
                 inSymbol;
             };
             (* 22663 -> 22620 *) until done;
@@ -7848,7 +7842,7 @@ procedure exitScope(var arg: hashArray);
                     makeExtFile;
                 workidr := curIdRec;
             };
-            int93z := 0;
+            lookupMode := 0;
             checkSymAndRead(SEMICOLON);
             if (SY <> IDENT) and not (SY IN skipToSet) then
                 errAndSkip(errBadSymbol, skipToSet + [IDENT]);
@@ -7886,7 +7880,7 @@ procedure exitScope(var arg: hashArray);
         if (curFrameRegTemplate = 7) then {
             error(81); (* errProcNestingTooDeep *)
         };
-        int93z := 0;
+        lookupMode := 0;
         inSymbol;
         if (SY <> IDENT) then {
             error(errNoIdent);
@@ -8194,7 +8188,7 @@ var
     sizes[4] := ;
     sizes[7] := ;
     sizes[9] := ptr(int92z);
-    sizes[10] := ptr(int93z);
+    sizes[10] := ptr(lookupMode);
     curVal.i := moduleOffset - 40000B;
     symTab[74001B] := [24,29] + curVal.m - intZero;
     reset(FCST);
@@ -8237,12 +8231,12 @@ procedure initOptions;
     lineCnt := 1;
     checkFortran := false;
     bool110z := false;
-    int93z := 1;
+    lookupMode := 1;
     int92z := 1;
     moduleOffset := 16384;
     lineStartOffset := ;
     condLabCnt := 1;
-    bool47z := false;
+    inCallArgs := false;
     dataCheck := ;
     heapSize := 100;
     forValue := true;

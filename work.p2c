@@ -50,6 +50,7 @@ const
     mcMULTI = 7;
     mcADDSTK2REG = 8;
     mcADDACC2REG = 9;
+    mcDUMMY = 10;
     mcROUND = 11;
     mcMINEL = 15;
     mcPOP2ADDR = 19;
@@ -146,6 +147,12 @@ const
     P_RR = 56;
     P_TR = 58;
     P_LDAR = 74;
+//
+    lookDef = 0;
+    lookUse = 1;
+    lookWith = 2;
+    lookField = 3;
+
 type
     symbol = enum {
 /*0B*/  IDENT,      INTCONST,   REALCONST,  CHARCONST,
@@ -164,7 +171,7 @@ type
 //
 idclass = enum {
         TYPEID,     ENUMID,     ROUTINEID,  VARID,
-        FORMALID,   FIELDID
+        FORMALID,   FIELDID,    SYSID
 };
 //
 setofsys = int; // set of symbol
@@ -202,9 +209,9 @@ kind = enum {
     kindCases
 };
 //
-eptr = @expr;
-tptr = @types;
-irptr = @identrec;
+eptr = *expr;
+tptr = *types;
+irptr = *identrec;
 //
 textchar = int:6;
 word = struct { switch int of
@@ -217,7 +224,7 @@ word = struct { switch int of
     9: {tp: tptr};
 };
 //
-oiptr = @oneinsn;
+oiptr = *oneinsn;
 //
 oneinsn  = struct {
     next: oiptr;
@@ -289,11 +296,11 @@ kword = struct {
     w:      int;
     sym:    symbol;
     op:     operator;
-    next:   @kword;
+    next:   *kword;
 };
 //
 strLabel = struct {
-    next:       @strLabel;
+    next:       *strLabel;
     ident:      int;
     target: int;
 };
@@ -312,8 +319,8 @@ identrec = struct {
     typ: tptr;
     cl: idclass;
     switch idclass of
-    TYPEID,
-    VARID:  {};
+    TYPEID: {};
+    VARID,
     ENUMID,
     FORMALID:
             {list: irptr; value: int};
@@ -329,8 +336,12 @@ identrec = struct {
              level, pos: int;
              flags: int
             };
+    SYSID:
+            {sysnum: int;
+            };
+
 };
-pextf = @extfilerec;
+pextf = *extfilerec;
 extfilerec = struct {
     id:     int;
     offset: int;
@@ -345,7 +356,7 @@ var
     numFormat: NumberFormat;
     bigSkipSet, statEndSys, blockBegSys, statBegSys,
     skipToSet, lvalOpSet: setofsys;
-    bool47z, bool48z, forValue: int;
+    inCallArgs, bool48z, forValue: int;
     dataCheck: int;
     jumpType: int;
     jumpTarget: int;
@@ -373,40 +384,42 @@ var
     heapSize: int;
     arithMode: int;
     stmtName: alfa;
-    keywordHashPtr: @kword;
+    keywordHashPtr: *kword;
     curVarKind: kind;
     curExternFile: pextf;
     commentModeCH: char;
     CH: char;
-    prevInsn: int;
-    debugLine: int;
-    lineNesting: int;
-    FcstCountTo500: int;
-    objBufIdx: int;
-    int92z, int93z, condLabCnt: int;
-    prevOpcode: int;
-    charEncoding: int;
-    errLine: int;
-    atEOL: int;
-    checkTypes: int;
-    isDefined, putLeft, readNext: int;
-    errors: int;
-    declExternal: int;
-    rangeMismatch: int;
-    doPMD: int;
-    checkBounds: int;
-    fixMult: int;
-    abort: int;
-    allowCompat: int;
+    prevInsn,
+    debugLine,
+    lineNesting,
+    FcstCountTo500,
+    objBufIdx,
+    int92z,
+    lookupMode,
+    condLabCnt,
+    prevOpcode,
+    charEncoding,
+    errLine,
+    atEOL,
+    checkTypes,
+    isDefined, putLeft, readNext,
+    errors,
+    declExternal,
+    rangeMismatch,
+    doPMD,
+    checkBounds,
+    fixMult,
+    abort,
+    allowCompat,
     checkFortran: int;
-    outputFile: irptr;
-    inputFile: irptr;
-    programObj: irptr;
-    hashTravPtr: irptr;
+    outputFile,
+    inputFile,
+    programObj,
+    hashTravPtr,
     uProcPtr: irptr;
-    externFileList: @extfilerec;
-    baseType, typ121z: tptr;
-    voidPtr: tptr;
+    externFileList: *extfilerec;
+    baseType, typ121z,
+    voidPtr,
     boolType: tptr;
     textType: tptr;
     intType: tptr;
@@ -430,8 +443,8 @@ var
     optSflags: int;
     uVarPtr: eptr;
     curExpr: eptr;
-    insnList: @insnltyp;
-    fileForOutput, fileForInput: @extfilerec;
+    insnList: *insnltyp;
+    fileForOutput, fileForInput: *extfilerec;
     maxSmallString: int;
     smallStringType: array [2..6] of tptr;
     symTabCnt: int;
@@ -452,7 +465,7 @@ var
     lineBuf: array [130] of char;
     errMap: array [10] of int;
     chrClass: array ['\200'] of operator;
-    kwordHash: array [128] of @kword;
+    kwordHash: array [128] of *kword;
     charSym: array ['\200'] of symbol;
     symHash, fieldHash: hashArray;
     helperMap: array [1..99] of int;
@@ -480,11 +493,11 @@ var
 //
     pasinfor: struct {
         /*0*/ listMode:     int;
-        /*1*/ errors:       @int;
-        /*2*/ entryptr:     @entries;
+        /*1*/ errors:       *int;
+        /*2*/ entryptr:     *entries;
         /*3*/ startOffset:  int;
-      /*4-6*/ a0, a1, a4:   @charmap;
-        /*7*/ a3:           @textmap;
+      /*4-6*/ a0, a1, a4:   *charmap;
+        /*7*/ a3:           *textmap;
      /*8-17*/ sizes:        array [10] of int;
        /*18*/ flags:        int;
 };
@@ -497,12 +510,12 @@ void printErrMsg(errno: int);
 type
     errtxt = __packed array [101] of textchar;
 var
-    errptr: @errtxt;
+    errptr: *errtxt;
     errtext: array [101] of textchar;
     i: int;
     c: char;
 //
-    function pasmitxt(errno: int): @errtxt;
+    function pasmitxt(errno: int): *errtxt;
         fortran;
 //
     function pasisoxt(txtchar: textchar): char;
@@ -522,7 +535,7 @@ var
                 write(curToken.i:0,' ');
         }
         errptr  =  pasmitxt(errno);
-        unpack(errptr@, errtext, 0);
+        unpack(*errptr, errtext, 0);
         for (i = 0; i <= 100; ++i) {
             c  =  pasisoxt(errtext[i]);
             if (c == '*')
@@ -760,7 +773,7 @@ void disableNorm;
 } /* disableNorm */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formJump(arg: @int);
+void formJump(arg: *int);
 var
     pos: int;
     isLeft: int;
@@ -1045,7 +1058,7 @@ var t:int;
 } /* readOptVal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void readOptFlag(res: @int);
+void readOptFlag(res: *int);
 {
     nextCH();
     if (CH == '-' || CH == '+') {
@@ -1197,8 +1210,8 @@ void lexer;
                 }
                 isDefined  =  false;
                 SY  =  IDENT;
-                switch (int93z) {
-                case 0:
+                switch (lookupMode) {
+                case lookDef:
                     hashTravPtr  =  symHash[bucket];
                     while (hashTravPtr != NIL) {
                         if (hashTravPtr->offset == curFrameRegTemplate)
@@ -1213,7 +1226,7 @@ void lexer;
                             return;
                     }
                     break;
-                case 2:
+                case lookWith:
                 if (withList != NIL) {
                     withIter  =  withList;
                     chain  =  fieldHash[bucket];
@@ -1232,7 +1245,7 @@ void lexer;
                     }
                 }
                 // FALLTHRU
-                case 1:
+                case lookUse:
                     hashTravPtr  =  symHash[bucket];
                     while (hashTravPtr != NIL) {
                         if (hashTravPtr->id != curIdent)
@@ -1241,7 +1254,7 @@ void lexer;
                             return;
                     }
                     break;
-                case 3:
+                case lookField:
                     hashTravPtr  =  fieldHash[bucket];
                     while (hashTravPtr != NIL) {
                         with *hashTravPtr do {
@@ -1556,7 +1569,7 @@ void lexer;
         lexer();
         prevSY  =  SY;
         commentModeCH  =  ' ';
-        int93z  =  int92z;
+        lookupMode  =  int92z;
 } /* inSymbol */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1617,7 +1630,7 @@ void errAndSkip(errno: int; toset: setofsys);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Returns the type of the literal; the value is assigned by reference
 // in the first argument.
-function parseLiteral(litValue: @int; allowSign: int):tptr;
+function parseLiteral(litValue: *int; allowSign: int):tptr;
 var
     l3var1z: operator; ret: tptr;
 {
@@ -1744,7 +1757,7 @@ function leftAlign(val:int): int;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PROGRAMME                 %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void programme(retSizePtr: @int; procName: irptr);
+void programme(retSizePtr: *int; procName: irptr);
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
     isPredefined, l2bool8z, inTypeDef: int;
@@ -1753,13 +1766,13 @@ var
     l2var12z: int;
     l2typ13z, l2typ14z: tptr;
     labFence: int;
-    strLabList: @strLabel;
+    strLabList: *strLabel;
 //
     l2int18z, ii, localSize, sizeCount, jj: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void myrollup(addr : int);
-type pint = @int;
+type pint = *int;
 var cur : pint;
     top : int;
 {
@@ -1772,7 +1785,7 @@ var cur : pint;
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function knownInType(rec: @irptr): int;
+function knownInType(rec: *irptr): int;
 var it: irptr;
 {
     for (it = typelist; it != NIL; it = it->next) {
@@ -1848,7 +1861,7 @@ var
     direction: int;
     noTarget: int;
     l3var10z, l3var11z: int;
-    saved: @insnltyp;
+    saved: *insnltyp;
     rhsMode: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2501,7 +2514,7 @@ var
 void genFullExpr(exprToGen: eptr);
 var
     arg1Const, arg2Const: int;
-    otherIns: @insnltyp;
+    otherIns: *insnltyp;
     arg1Val, arg2Val: word;
     curOP: operator;
     work: int;
@@ -2580,7 +2593,7 @@ void genHelper;
 void prepMultiWord;
 var
     l5var1z: int;
-    l5var2z: @insnltyp;
+    l5var2z: *insnltyp;
 {
     l5var1z  =  12 in otherIns->regsused;
     setAddrTo(12);
@@ -2615,7 +2628,7 @@ void negateCond;
 void tryFlip(commutes: int);
 var
     l5var1z: int;
-    l5var2z: @insnltyp;
+    l5var2z: *insnltyp;
 {
     if (! (0 in otherIns->regsused)) {
         l5var1z  =  0;
@@ -2665,7 +2678,7 @@ void genBoolAnd;
 var
     l5var1z, l5var2z: int;
     l5var3z, l5var4z, l5var5z, l5var6z, l5var7z: int;
-    l5ins8z: @insnltyp;
+    l5ins8z: *insnltyp;
     l5var9z: int;
 {
     if (arg1Const) {
@@ -2775,14 +2788,14 @@ var
     l5var1z, dimCnt, curDim, l5var4z, l5var5z, l5var6z,
         l5var7z, l5var8z: int;
     insnCopy: insnltyp;
-    copyPtr, l5ins21z: @insnltyp;
+    copyPtr, l5ins21z: *insnltyp;
     l5var22z, l5var23z: int;
     l5var24z: int;
     l5var25z: int;
     l5var26z, l5var27z: tptr;
     l5ilm28z: ilmode;
     l5var29z: eptr;
-    getEltInsns: array [1..10] of @insnltyp;
+    getEltInsns: array [1..10] of *insnltyp;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* genGetElt */
@@ -2975,7 +2988,7 @@ var
     calleeFl, frameSiz, numArgs: int;
     l5var15z: int;
     l5var16z, l5var17z, l5var18z, l5var19z: int;
-    l5inl20z: @insnltyp;
+    l5inl20z: *insnltyp;
     l5op21z: operator; paramClass: idclass;
 //
 void formThunk;
@@ -3365,7 +3378,7 @@ void genCondOp;
 var
     altExpr: eptr;
     elseLab, endLab: int;
-    condChain, thenChain: @insnltyp;
+    condChain, thenChain: *insnltyp;
 {
     altExpr = exprToGen->expr2;
     /* Allocate two unique forward-label identifiers from the global
@@ -3550,7 +3563,7 @@ var
                         width  =  0;
                         shift  =  0;
                     }
-                    addToInsnList(macro + 10);
+                    addToInsnList(macro + mcDUMMY);
                     return;
                 case opfAND:
                     genBoolAnd();
@@ -3847,7 +3860,7 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void formFileInit;
-var l4exf1z: @extfilerec;
+var l4exf1z: *extfilerec;
     l4var2z: tptr;
     l4var3z: irptr;
     l4int4z, elSize: int;
@@ -4116,10 +4129,10 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void definePtrType(toType: tptr);
 {
-    new(curType = 4);
-    CTOR(curType@, 1, 15, kindPtr, toType);
-    new(curEnum = 5);
-    CTOR(curEnum@, curIdent, lineCnt, typelist, curType, TYPEID);
+    new(curType, kindPtr);
+    CTOR(*curType, 1, 15, kindPtr, toType);
+    new(curEnum, TYPEID);
+    CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
     typelist  =  curEnum;
 } /* definePtrType */
 //
@@ -4136,7 +4149,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void addFieldToHash;
 {
-    CTOR(curEnum@, curIdent, , fieldHash[bucket], ,
+    CTOR(*curEnum, curIdent, , fieldHash[bucket], ,
                    FIELDID, NIL, curType, isPacked);
     fieldHash[bucket]  =  curEnum;
 } /* addFieldToHash */
@@ -4145,7 +4158,7 @@ void addFieldToHash;
 void packFields;
 var
     l5var1z, pairIdx, l5var3z, l5var4z, l5var5z: int;
-    l5var6z: @pair;
+    l5var6z: *pair;
 {
     selType = parseTypeRef(skipTarget | [SWITCHSY]);
     if (curType->ptr2 == NIL) {
@@ -4228,7 +4241,7 @@ var
 { /* parseRecordDecl */
     if (SY != BEGINSY)
         requiredSymErr(BEGINSY);
-    int93z  =  3;
+    lookupMode  =  3;
     inSymbol();
     while (SY == IDENT) {
         l4var6z  =  NIL;
@@ -4238,7 +4251,7 @@ var
             } else {
                 if (hashTravPtr != NIL)
                     error(errIdentAlreadyDefined);
-                new(curEnum = 10);
+                new(curEnum, FIELDID);
                 addFieldToHash();
                 if (l4var6z == NIL) {
                     curField  =  curEnum;
@@ -4246,24 +4259,24 @@ var
                     l4var6z->list  =  curEnum;
                 }
                 l4var6z  =  curEnum;
-                int93z  =  3;
+                lookupMode  =  3;
                 inSymbol();
             }
             cond  =  (SY != COMMA);
             if (! cond) {
-                int93z  =  3;
+                lookupMode  =  3;
                 inSymbol();
             }
         } while (! cond);
         checkSymAndRead(COLON);
         packFields();
         if (SY == SEMICOLON) {
-            int93z  =  3;
+            lookupMode  =  3;
             inSymbol();
         }
     }
     if (SY == SWITCHSY) {
-        int93z  =  3;
+        lookupMode  =  3;
         inSymbol();
         selType  =  intType;
         if (SY != IDENT) {
@@ -4298,8 +4311,8 @@ var
                     error(errNoConstant);
                 else if (! typeCheck(l4typ4z, selType))
                     error(errConstOfOtherTypeNeeded);
-                new(l4var5z = 7);
-                CTOR(l4var5z@, cases.size, 48, kindCases,
+                new(l4var5z, kindCases);
+                CTOR(*l4var5z, cases.size, 48, kindCases,
                               l4int7z, NIL, NIL, NIL);
                 if (l4var3z == NIL) {
                     tempType  =  l4var5z;
@@ -4347,7 +4360,7 @@ var
 } /* parseRecordDecl*/
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseRange(aleft, aright: @int; rbase: @tptr);
+void parseRange(aleft, aright: *int; rbase: *tptr);
 {
     curType = parseLiteral(aleft, true);
     if (curType != NIL && curType->k == kindScalar) {
@@ -4377,14 +4390,14 @@ void parseRange(aleft, aright: @int; rbase: @tptr);
         inSymbol();
         checkSymAndRead(BEGINSY);
         span  =  0;
-        int93z  =  0;
+        lookupMode  =  lookDef;
         curField  =  NIL;
-        new(curType = 6);
+        new(curType, kindScalar);
         while (SY == IDENT) {
             if (isDefined)
                 error(errIdentAlreadyDefined);
-            new(curEnum = 7);
-            CTOR(curEnum@, curIdent, curFrameRegTemplate,
+            new(curEnum, ENUMID);
+            CTOR(*curEnum, curIdent, curFrameRegTemplate,
                            symHash[bucket], curType,
                            ENUMID, NIL, span);
             symHash[bucket]  =  curEnum;
@@ -4397,7 +4410,7 @@ void parseRange(aleft, aright: @int; rbase: @tptr);
             curField  =  curEnum;
             inSymbol();
             if (SY == COMMA) {
-                int93z  =  0;
+                lookupMode  =  lookDef;
                 inSymbol();
             } else {
                 if (SY != ENDSY)
@@ -4409,10 +4422,10 @@ void parseRange(aleft, aright: @int; rbase: @tptr);
             curType  =  boolType;
             error(errNoIdent);
         } else {
-            CTOR(curType@, 1, nrOfBits(span - 1), kindScalar, ,
+            CTOR(*curType, 1, nrOfBits(span - 1), kindScalar, ,
                            span, 0);
         }
-    } else if (SY == ARROW) {
+    } else if (SY == MULOP) {
         inSymbol();
         if (SY != IDENT) {
             error(errNoIdent);
@@ -4433,7 +4446,7 @@ void parseRange(aleft, aright: @int; rbase: @tptr);
                 if (hashTravPtr->cl != TYPEID) {
                     goto 12366
                 }
-                new(curType = 4);
+                new(curType, kindPtr);
                 with *curType do {
                     size  =  1;
                     bits  =  15;
@@ -4482,7 +4495,7 @@ void parseRange(aleft, aright: @int; rbase: @tptr);
             goto 12247;
         }
         if (SY == STRUCTSY) {
-            new(curType = 7);
+            new(curType, kindStruct);
             typ121z  =  curType;
             with *curType do {
                 size  =  0;
@@ -4682,7 +4695,7 @@ var
 {
     switch (l3arg1z) {
     case 0:
-        int93z  =  0;
+        lookupMode  =  lookDef;
         inSymbol();
         if (SY != IDENT)
             errAndSkip(3, skipToSet | [IDENT]);
@@ -4816,7 +4829,7 @@ var
 void statement;
 var
     boundary: eptr;
-    strLabPtr: @strLabel;
+    strLabPtr: *strLabel;
     nest: int;
     l3bool5z: int;
     l3var6z: idclass;
@@ -4867,9 +4880,10 @@ var
                 }
             }
             curExpr  =  l4exp1z;
-        } else if (SY == PERIOD) {
+        } else
+        if (SY == PERIOD) {
             if (l4var4z == kindStruct) {
-                int93z  =  3;
+                lookupMode  =  3;
                 typ121z  =  l4typ3z;
                 inSymbol();
                 if (hashTravPtr == NIL) {
@@ -4919,7 +4933,7 @@ var
 } /* parseLval */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void castToReal(value: @eptr);
+void castToReal(value: *eptr);
 var
     cast: eptr;
 {
@@ -4932,7 +4946,7 @@ var
     }
 } /* castToReal */
 //
-function areTypesCompatible(l4arg1z: @eptr): int;
+function areTypesCompatible(l4arg1z: *eptr): int;
 {
     if (arg1Type == realType) {
         if (typeCheck(intType, arg2Type)) {
@@ -4989,7 +5003,7 @@ var
                 error(errTooManyArguments);
                 longjmp(jb8888);
             }
-            bool47z  =  true;
+            inCallArgs  =  true;
             expression();
             actualOp  =  curExpr->op;
             do if (noArgs) {
@@ -5210,7 +5224,7 @@ var altExpr, condOpExpr: eptr;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void factor;
 var
-    l4var1z, l4var2z, l4var3z, l4var4z: int;
+    l4var1z, wasInCall, l4var3z, l4var4z: int;
     l4exp5z, newExpr, l4var7z, l4var8z: eptr;
     routine: irptr;
     l4op10z: operator;
@@ -5275,8 +5289,8 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* factor */
-    l4var2z  =  bool47z;
-    bool47z  =  false;
+    wasInCall  =  inCallArgs;
+    inCallArgs  =  false;
     switch (SY) {
     case IDENT:
         if (hashTravPtr == NIL) {
@@ -5316,7 +5330,7 @@ var
                     }
                     error(44); /* errIncorrectUsageOfStandProcOrFunc */
                 } else if (routine->typ == NIL) {
-                    if (l4var2z) {
+                    if (wasInCall) {
                         l4op10z  =  PCALL;
                     } else {
                         error(68); /* errUsingVoidInExpression */
@@ -5326,7 +5340,7 @@ var
                         parseCallArgs(routine);
                         return;
                     }
-                    if (l4var2z) {
+                    if (wasInCall) {
                         l4op10z  =  FCALL;
                     } else {
                         parseCallArgs(routine);
@@ -5479,7 +5493,7 @@ var
                 } else if (arg1Type == intType) {
                     leftExpr->op = EQOP;
                     new(leftExpr->expr2);
-                    CTOR(leftExpr->expr2@, intType, GETENUM, 0U);
+                    CTOR(*leftExpr->expr2, intType, GETENUM, 0U);
                 } else {
                     error(errNeedOtherTypesOfOperands);
                     return;
@@ -5524,7 +5538,7 @@ var
                     return;
                 }
                 new(oneExpr);
-                CTOR(oneExpr@, intType, GETENUM, 1U);
+                CTOR(*oneExpr, intType, GETENUM, 1U);
                 new(addExpr);              /* INTPLUS / INTMINUS node */
                 with *addExpr do {
                     typ = intType;
@@ -5777,7 +5791,7 @@ void reportStmtType;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void structBranch;
 var
-    curLab: @strLabel;
+    curLab: *strLabel;
 {
     curLab  =  strLabList;
     while (curLab != NIL) {
@@ -5795,12 +5809,12 @@ var
 void caseStatement;
 type
     casechain = struct {
-        next:   @casechain;
+        next:   *casechain;
         value:  word;
         offset: int;
     };
 var
-    allClauses, curClause, clause, chain: @casechain;
+    allClauses, curClause, clause, chain: *casechain;
     otherSeen: int;
     otherOffset: int;
     itemsEnded, goodMode: int;
@@ -6112,7 +6126,7 @@ var
     }
     int92z  =  FcstCnt - dsize;
     FcstCnt  =  dsize;
-    int93z  =  setcount;
+    lookupMode  =  setcount;
 } /* parseData */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6133,14 +6147,11 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void verifyType(t: tptr);
 {
-    if ((hashTravPtr != NIL) &&
-       (hashTravPtr->cl >= VARID)) {
-        parseLval();
-        if ((t != NIL) &&
-           ! typeCheck(t, curExpr->typ))
-            error(errNeedOtherTypesOfOperands);
-    } else {
-        error(errNotDefined);
+    readNext = false;
+    expression();
+    if (!(curExpr->op IN lvalOpSet) ||
+        t != NIL && ! typeCheck(t, curExpr->typ)) {
+        error(errNeedOtherTypesOfOperands);
         curExpr  =  uVarPtr;
     }
 } /* verifyType */
@@ -6379,10 +6390,7 @@ var
        (procNo IN [0:5,8:10,12,15:28]))
         error(45); /* errNoOpenParenForStandProc */
     if (procNo IN [0,1,2,3,4,5,8,9,12,15]) {
-        inSymbol();
-        if (hashTravPtr->cl < VARID)
-            error(46); /* errNoVarForStandProc */
-        factor();
+        expression();
         if (! (curExpr->op IN lvalOpSet))
             error(27); /* errExpressionWhereVariableExpected */
         arg1Type  =  curExpr->typ;
@@ -6414,7 +6422,7 @@ var
             formOperator(SETREG9);
         l2typ13z  =  arg1Type->base;
         ii  =  l2typ13z->size;
-        if (charClass == EQOP) {
+        if (procNo == 5 && SY == COLON) {
             expression();
             if (! typeCheck(intType, curExpr->typ))
                 error(14); /* errExprIsNotInt */
@@ -6906,24 +6914,24 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysType(l4arg1z:int; l4arg2z: tptr);
 {
-    new(curIdRec = 5);
-    CTOR(curIdRec@, l4arg1z, 0, , l4arg2z, TYPEID);
+    new(curIdRec, TYPEID);
+    CTOR(*curIdRec, l4arg1z, 0, , l4arg2z, TYPEID);
     addToHashTab(curIdRec);
 } /* regSysType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysEnum(l4arg1z: int; l4arg2z: int);
 {
-    new(curIdRec = 7);
-    CTOR(curIdRec@, l4arg1z, 48, , temptype, ENUMID, NIL, l4arg2z);
+    new(curIdRec, ENUMID);
+    CTOR(*curIdRec, l4arg1z, 48, , temptype, ENUMID, NIL, l4arg2z);
     addToHashTab(curIdRec);
 } /* regSysEnum */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysProc(l4arg1z: int);
 {
-    new(curIdRec = 6);
-    CTOR(curIdRec@, l4arg1z, 0, , temptype, ROUTINEID, sysProcNum);
+    new(curIdRec, SYSID);
+    CTOR(*curIdRec, l4arg1z, 0, , temptype, ROUTINEID, sysProcNum);
     ++sysProcNum;
     addToHashTab(curIdRec);
 } /* registerSysProc */
@@ -7054,7 +7062,7 @@ void defExtern;
     for (strLen = 2; strLen <= 5; ++strLen)
         smallStringType[strlen] = makeStringType();
     maxSmallString  =  6;
-    new(curIdRec = 7);
+    new(curIdRec, VARID);
     with *curIdRec do {
         offset  =  0;
         typ  =  intType;
@@ -7109,7 +7117,7 @@ void defExtern;
     regSysProc('   MINEL');
     l3var11z  =  30;
     l3var11z  =  l3var11z & halfWord | [24,27,28,29];
-    new(programObj = 12);
+    new(programObj, ROUTINEID);
     if (SY != EXTERNSY) {
         requiredSymErr(EXTERNSY);
         skip(skipToSet | [IDENT,LPAREN]);
@@ -7132,7 +7140,7 @@ void defExtern;
     programObj->argList  =  NIL;
     programObj->flags  =  0U;
     objBufIdx  =  1;
-    int93z  =  0;
+    lookupMode  =  lookDef;
     outputObjFile();
     outputFile  =  NIL;
     inputFile  =  NIL;
@@ -7167,7 +7175,7 @@ void defExtern;
     } while ((SY != PERIOD) && (CH != '\000'));
     if (CH != 'D') {
         int92z  =
-        int93z  =  0;
+        lookupMode  =  lookDef;
     } else {
         freeRegs  =  halfWord;
         dataCheck  =  false;
@@ -7203,7 +7211,7 @@ var
 {
     int92z  =  0;
     l3var5z  =  0;
-    int93z  =  0;
+    lookupMode  =  lookDef;
     inSymbol();
     l3var2z  =  NIL;
     if (! (SY IN [IDENT,FUNCSY,VOIDSY]))
@@ -7220,7 +7228,7 @@ var
         expType  =  (SY == VOIDSY) ? NIL : intType;
         l3var6z  =  0;
         if (SY != IDENT) {
-            int93z  =  0;
+            lookupMode  =  lookDef;
             inSymbol();
         }
         do {
@@ -7252,7 +7260,7 @@ var
             errAndSkip(errNoIdent, skipToSet | [RPAREN,COMMA,COLON]);
         noComma  =  (SY != COMMA);
         if (! noComma) {
-            int93z  =  0;
+            lookupMode  =  lookDef;
             inSymbol();
         }
         } while (! noComma);
@@ -7270,7 +7278,7 @@ var
                 }
         }
         if (SY == SEMICOLON) {
-            int93z  =  0;
+            lookupMode  =  lookDef;
             inSymbol();
             if (! (SY IN (skipToSet | [IDENT,VARSY,FUNCSY,VOIDSY])))
                 errAndSkip(errBadSymbol, skipToSet | [IDENT,RPAREN]);
@@ -7296,13 +7304,16 @@ var
 } /* parseParameters */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void exitScope(arg: @hashArray);
+void exitScope(a: int);
 {
     for (ii = 0; ii < 128; ++ii) {
-        workidr  =  arg@[ii];
+        workidr  = a ? symHash[ii] : fieldHash[ii];
         while (workidr != NIL && workidr >= scopeBound)
             workidr  =  workidr->next;
-        arg@[ii]  =  workidr;
+        if (a)
+            symHash[ii]  =  workidr;
+        else
+            fieldHash[ii]  =  workidr;
     }
 } /* exitScope */
 //
@@ -7327,8 +7338,8 @@ void exitScope(arg: @hashArray);
         while  (SY == IDENT) {
             if (isDefined)
                 error(errIdentAlreadyDefined);
-            new(workidr=7);
-            CTOR(workidr@, curIdent, curFrameRegTemplate,
+            new(workidr, ENUMID);
+            CTOR(*workidr, curIdent, curFrameRegTemplate,
                            symHash[bucket], , ENUMID, NIL);
             symHash[bucket]  =  workidr;
             inSymbol();
@@ -7345,7 +7356,7 @@ void exitScope(arg: @hashArray);
             } else
                 inSymbol();
             if (SY == SEMICOLON) {
-                int93z  =  0;
+                lookupMode  =  lookDef;
                 inSymbol();
                 if (! (SY IN (skipToSet | [IDENT]))) {
                     errAndSkip(errBadSymbol, skipToSet | [IDENT]);
@@ -7386,7 +7397,7 @@ void exitScope(arg: @hashArray);
                 }
                 typelist = P2672(typelist, curIdRec);
             } else {
-                new(curIdRec=5);
+                new(curIdRec, TYPEID);
                 with *curIdRec do {
                     id  =  l2var12z;
                     offset  =  curFrameRegTemplate;
@@ -7396,7 +7407,7 @@ void exitScope(arg: @hashArray);
             }
             curIdRec->next  =  symHash[ii];
             symHash[ii]  =  curIdRec;
-            int93z  =  0;
+            lookupMode  =  lookDef;
             checkSymAndRead(SEMICOLON);
         }
         while (typelist != NIL) {
@@ -7415,7 +7426,7 @@ void exitScope(arg: @hashArray);
             workidr  =  NIL;
             do {
             if (SY == IDENT) {
-                new(curIdRec=7);
+                new(curIdRec, VARID);
                 if (isDefined)
                     error(errIdentAlreadyDefined);
                 with *curIdRec do {
@@ -7438,7 +7449,7 @@ void exitScope(arg: @hashArray);
                 errAndSkip(1, skipToSet | [IDENT,COMMA]);
             l2bool8z  =  SY != COMMA;
             if (! l2bool8z) {
-                int93z  =  0;
+                lookupMode  =  lookDef;
                 inSymbol();
             }
             } while (! l2bool8z);
@@ -7484,7 +7495,7 @@ void exitScope(arg: @hashArray);
                     makeExtFile();
                 workidr  =  curIdRec;
             }
-            int93z  =  0;
+            lookupMode  =  lookDef;
             checkSymAndRead(SEMICOLON);
             if ((SY != IDENT) && ! (SY IN skipToSet))
                 errAndSkip(errBadSymbol, skipToSet | [IDENT]);
@@ -7522,7 +7533,7 @@ void exitScope(arg: @hashArray);
         if (curFrameRegTemplate == 7) {
             error(81); /* errProcNestingTooDeep */
         }
-        int93z  =  0;
+        lookupMode  =  lookDef;
         inSymbol();
         if (SY != IDENT) {
             error(errNoIdent);
@@ -7635,8 +7646,8 @@ void exitScope(arg: @hashArray);
                     errAndSkip(errBadSymbol, skipToSet);
             } while (! (SY IN [FUNCSY,VOIDSY,BEGINSY]));
             myrollup(int(scopeBound));
-            exitScope(&symHash);
-            exitScope(&fieldHash);
+            exitScope(0);
+            exitScope(1);
             goto 23301;
         }
         inSymbol();
@@ -7739,7 +7750,7 @@ void regKeywords;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regResWord(keyword: int);
 var
-    kw: @kword;
+    kw: *kword;
 {
     curVal.i  =  keyword & hashMask;
     mapai(curVal.a, curVal.i);
@@ -7776,7 +7787,7 @@ var
     initInsnTemplates();
     skipToSet  =  blockBegSys | statBegSys & (~[SWITCHSY]);
     bigSkipSet  =  skipToSet | statEndSys;
-    unpack(pasinfor.a3@, iso2text, '\052'); /* '*' */
+    unpack(*pasinfor.a3, iso2text, '\052'); /* '*' */
     iso2text['_'] = iso2text['*'];
     rewrite(_CHILD_);
     for (jdx = 1; jdx <= 10; ++jdx)
@@ -7806,7 +7817,7 @@ var
     sizes[3]  =
     sizes[6]  =  0;
     sizes[8]  =  int92z;
-    sizes[9]  =  int93z;
+    sizes[9]  =  lookupMode;
     curVal.i  =  moduleOffset - 040000;
     symTab[074001]  =  [24,29] | curVal.i;
     reset(FCST);
@@ -7849,10 +7860,10 @@ void initOptions;
     lineCnt  =  1;
     checkFortran  =
     abort  =  false;
-    int92z  =  int93z  =  1;
+    int92z  =  lookupMode  =  1;
     lineStartOffset  =  moduleOffset  =  040000;
     condLabCnt  =  1;
-    dataCheck  =  bool47z  =  false;
+    dataCheck  =  inCallArgs  =  false;
     heapSize  =  100;
     forValue  =  true;
     atEOL  =  false;
