@@ -501,7 +501,7 @@ var
     l2var10z: eptr;
     hasFiles: integer;
     l2var12z: word;
-    l2typ13z, l2typ14z: tptr;
+    l2typ13z, l2typ14z, typedRetType: tptr;
     labFence: integer;
     strLabList: @strLabel;
 %
@@ -7147,7 +7147,9 @@ var
         if (curProcNesting = 1) then
             done := (SY = PERIOD) or (CH = '_000')
         else
-            done := (SY IN blockBegSys) or (CH = '_000');
+            done := (SY IN blockBegSys) or (CH = '_000') or
+                    ((SY = IDENT) and (hashTravPtr <> NIL) and
+                     (hashTravPtr@.cl = TYPEID));
         if not done then
            if (curProcNesting = 1) then
                requiredSymErr(PERIOD)
@@ -7819,7 +7821,21 @@ procedure exitScope(var arg: hashArray);
             checkSymAndRead(SEMICOLON);
             if (SY <> IDENT) and not (SY IN skipToSet) then
                 errAndSkip(errBadSymbol, skipToSet + [IDENT]);
-        (* 23001 -> 22617 *) until SY <> IDENT;
+            (* A leading type-IDENT after ';' starts a new C-style
+               routine decl, not another variable; bail out so the
+               routine-declaration loop below can pick it up.
+               lookDef leaves hashTravPtr unreliable when the name
+               is absent from the current scope, so re-resolve it
+               via a scope-agnostic walk over the hash bucket. *)
+            hashTravPtr := NIL;
+            if (SY = IDENT) then {
+                hashTravPtr := symHash[bucket];
+                while (hashTravPtr <> NIL) and
+                      (hashTravPtr@.id <> curIdent) do
+                    hashTravPtr := hashTravPtr@.next;
+            };
+        (* 23001 -> 22617 *) until (SY <> IDENT) or
+            ((hashTravPtr <> NIL) and (hashTravPtr@.cl = TYPEID));
     }; (* VARSY -> 23003 *)
     if (curProcNesting = 1) then {
         workidr := outputFile;
@@ -7848,8 +7864,18 @@ procedure exitScope(var arg: hashArray);
         }
     };
     outputObjFile;
-    while (SY = VOIDSY) or (SY = FUNCSY) do {
+    while (SY = VOIDSY) or (SY = FUNCSY) or
+          ((SY = IDENT) and (hashTravPtr <> NIL) and
+           (hashTravPtr@.cl = TYPEID)) do {
         done := SY = VOIDSY;
+        (* For the new C-style syntax 'RETTYPE NAME(args);' the current
+           IDENT names the return type; stash it before inSymbol clobbers
+           hashTravPtr.  NIL marks "not new-style" so the code that sets
+           curIdRec@.typ knows which path to take. *)
+        if (SY = IDENT) then
+            typedRetType := hashTravPtr@.typ
+        else
+            typedRetType := NIL;
         if (curFrameRegTemplate = 7) then {
             error(81); (* errProcNestingTooDeep *)
         };
@@ -7907,7 +7933,13 @@ procedure exitScope(var arg: hashArray);
             if (SY = LPAREN) then
                 parseParameters;
             if not done then {
-                if (SY <> COLON) then
+                if (typedRetType <> NIL) then {
+                    (* New C-style: return type was stashed at the loop
+                       head; no ':TYPE' suffix expected. *)
+                    curIdRec@.typ := typedRetType;
+                    if (curIdRec@.typ@.size <> 1) then
+                        error(errTypeMustNotBeFile);
+                } else if (SY <> COLON) then
                     errAndSkip(106 (*:*), skipToSet + [SEMICOLON])
                 else {
                     inSymbol;
@@ -7967,9 +7999,14 @@ procedure exitScope(var arg: hashArray);
                 setup(scopeBound);
                 programme(l2int18z, curIdRec);
                 if CH = '_000' then exit loop;
-                if not (SY IN [FUNCSY,VOIDSY,BEGINSY]) then
+                (* A type-ident also opens a new C-style routine decl. *)
+                if not (SY IN [FUNCSY,VOIDSY,BEGINSY]) and
+                   not ((SY = IDENT) and (hashTravPtr <> NIL) and
+                        (hashTravPtr@.cl = TYPEID)) then
                     errAndSkip(errBadSymbol, skipToSet);
-            until SY IN [FUNCSY,VOIDSY,BEGINSY];
+            until (SY IN [FUNCSY,VOIDSY,BEGINSY]) or
+                  ((SY = IDENT) and (hashTravPtr <> NIL) and
+                   (hashTravPtr@.cl = TYPEID));
             myrollup(ord(scopeBound));
             exitScope(symHash);
             exitScope(fieldHash);

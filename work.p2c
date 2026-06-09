@@ -510,16 +510,17 @@ var
 void printErrMsg(errno: int);
 type
     errtxt = __packed array [101] of textchar;
+    perrtxt = *errtxt;
 var
-    errptr: *errtxt;
+    errptr: perrtxt;
     errtext: array [101] of textchar;
     i: int;
     c: char;
 //
-    function pasmitxt(errno: int): *errtxt;
+    perrtxt pasmitxt(errno: int);
         fortran;
 //
-    function pasisoxt(txtchar: textchar): char;
+    char pasisoxt(txtchar: textchar);
         fortran;
 //
 { /* PrintErrMsg */
@@ -570,7 +571,7 @@ void printTextWord(val: int);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              makeStringType                %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function makeStringType: tptr;
+tptr makeStringType;
 var res: tptr;
 {
     if (maxSmallString >= strLen)
@@ -610,7 +611,7 @@ void toFCST;
 } /* toFCST */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function addCurValToFCST: int;
+int addCurValToFCST;
 var
     low, high, mid: int;
 {
@@ -806,7 +807,7 @@ void formAndAlign(arg: int);
 } /* formAndAlign */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function isCharArray(arg: tptr): int;
+int isCharArray(arg: tptr);
 {
     with *arg do return k == kindArray && base == charType;
 } /* isCharArray */
@@ -823,7 +824,7 @@ void putToSymTab(arg: int);
 } /* putToSymTab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function allocExtSymbol(sym: int): int;
+int allocExtSymbol(sym: int);
 var i: int;
 {
     if (curVal.i & halfWord) {
@@ -846,7 +847,7 @@ var i: int;
 } /* allocExtSymbol */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function getHelperProc(l3arg1z: int): int;
+int getHelperProc(l3arg1z: int);
 {
     if (helperMap[l3arg1z] == 0) {
         curVal.i  =  helperNames[l3arg1z];
@@ -856,7 +857,7 @@ function getHelperProc(l3arg1z: int): int;
 } /*getHelperProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function allocSymtab(arg: int): int;
+int allocSymtab(arg: int);
 var
     low, high, mid, ret: int;
     value: word;
@@ -898,7 +899,7 @@ var
 } /* allocSymtab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function getFCSToffset: int;
+int getFCSToffset;
 var
     offset: int;
 {
@@ -913,13 +914,13 @@ var
 } /* getFCSToffset */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function nrOfBits(value: int): int;
+int nrOfBits(value: int);
 {
     return 48 - minel(value & [7..47]);
 } /* nrOfBits */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function mkIntScl(bitWid: int): tptr;
+tptr mkIntScl(bitWid: int);
 var
     res: tptr;
 {
@@ -940,7 +941,7 @@ var
 } /* mkIntScl */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function getValueOrAllocSymtab(value: int): int;
+int getValueOrAllocSymtab(value: int);
 {
     curVal.i  =  value;
     curVal.i  =  curVal.i % 32768;
@@ -1044,7 +1045,7 @@ var
     c: char;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function readOptVal(limit: int): int;
+int readOptVal(limit: int);
 var t:int;
 {
     nextCH();
@@ -1632,7 +1633,7 @@ void errAndSkip(errno: int; toset: setofsys);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Returns the type of the literal; the value is assigned by reference
 // in the first argument.
-function parseLiteral(litValue: *int; allowSign: int):tptr;
+tptr parseLiteral(litValue: *int; allowSign: int);
 var
     l3var1z: operator; ret: tptr;
 {
@@ -1679,7 +1680,7 @@ var
 } /* parseLiteral */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function hash(l3arg1z: irptr; l3arg2z: irptr):irptr;
+irptr hash(l3arg1z: irptr; l3arg2z: irptr);
 var
     l3var1z: int;
     l3var2z: int;
@@ -1716,7 +1717,7 @@ var
 } /* hash */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function isFileType(typtr: tptr): int;
+int isFileType(typtr: tptr);
 {
     return typtr->k == kindFile ||
         typtr->k == kindStruct && typtr->flag;
@@ -1732,7 +1733,7 @@ void checkSymAndRead(sym: symbol);
 } /* checkSymAndRead */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function argCount(p: irptr): int;
+int argCount(p: irptr);
 var
     i: int;
     it: irptr;
@@ -1748,7 +1749,7 @@ var
 } /* argCount */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function leftAlign(val:int): int;
+int leftAlign(val:int);
 {
     while ((val & [0..5]) == 0U) {
         val  =  val << 6;
@@ -1766,7 +1767,7 @@ var
     l2var10z: eptr;
     hasFiles: int;
     l2var12z: int;
-    l2typ13z, l2typ14z: tptr;
+    l2typ13z, l2typ14z, typedRetType: tptr;
     labFence: int;
     strLabList: *strLabel;
 //
@@ -1787,7 +1788,7 @@ var cur : pint;
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function knownInType(rec: *irptr): int;
+int knownInType(rec: *irptr);
 var it: irptr;
 {
     for (it = typelist; it != NIL; it = it->next) {
@@ -1800,7 +1801,7 @@ var it: irptr;
 } /* knownInType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function typeCheck(type1, type2: tptr): int;
+int typeCheck(type1, type2: tptr);
 var
     baseMatch: int;
     kind1, kind2: kind;
@@ -1895,7 +1896,7 @@ void add2InsnsToBuf(insn1, insn2: int);
 } /* add2InsnsToBuf */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function findLabel: int;
+int findLabel;
 {
     l4inl7z  =  l4inl6z;
     while (l4inl7z != NIL) {
@@ -2507,7 +2508,7 @@ void spillAcc(op: operator);
 } /* spillAcc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function insnCount: int;
+int insnCount;
 var
     cnt: int;
     cur: oiptr;
@@ -2981,7 +2982,7 @@ var
 } /* genGetElt */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function allocGlobalObject(arg: irptr): int;
+int allocGlobalObject(arg: irptr);
 {
     if (arg->pos == 0) {
         if (arg->flags & [20, 21]) {
@@ -3257,7 +3258,7 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genConstDiv;
-    function PASDIV(r: real): real;
+    real PASDIV(r: real);
         extern;
 {
     curVal.r = PASDIV(1.0/arg2Val.i);
@@ -4125,7 +4126,7 @@ var l4exf1z: *extfilerec;
 } /* formOperator */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function parseTypeRef(skipTarget: setofsys): tptr;
+tptr parseTypeRef(skipTarget: setofsys);
 type
     pair = struct {
             first, second: int
@@ -4909,7 +4910,7 @@ var
     }
 } /* castToReal */
 //
-function areTypesCompatible(l4arg1z: *eptr): int;
+int areTypesCompatible(l4arg1z: *eptr);
 {
     if (arg1Type == realType) {
         if (typeCheck(intType, arg2Type)) {
@@ -5026,7 +5027,7 @@ var
 } /* parseCallArgs */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function getPrec(sym: symbol; cls: operator): int;
+int getPrec(sym: symbol; cls: operator);
 {
     if ((sym >= MULOP) && (sym <= RELOP))
         return opPrec[cls];
@@ -5970,7 +5971,7 @@ void ifWhileStatement;
 } /* ifWhileStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function allocDataRef(l6arg1z: int): int;
+int allocDataRef(l6arg1z: int);
 {
     if (l6arg1z >= 2048) {
         curVal.i  =  l6arg1z;
@@ -6158,7 +6159,7 @@ void startWrite;
 } /* startWrite */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function parseWidthSpecifier: eptr;
+eptr parseWidthSpecifier;
 {
     expression();
     if (! typeCheck(intType, curExpr->typ)) {
@@ -6821,7 +6822,9 @@ var
         if (curProcNesting == 1)
             l2bool8z = (SY == PERIOD) || (CH == '\000');
         else
-            l2bool8z = (SY IN blockBegSys) || (CH == '\000');
+            l2bool8z = (SY IN blockBegSys) || (CH == '\000') ||
+                       ((SY == IDENT) && (hashTravPtr != NIL) &&
+                        (hashTravPtr->cl == TYPEID));
         if (! l2bool8z) {
            if (curProcNesting == 1)
                requiredSymErr(PERIOD);
@@ -7186,10 +7189,10 @@ var
     lookupMode  =  lookDef;
     inSymbol();
     l3var2z  =  NIL;
-    if (! (SY IN [IDENT,FUNCSY,VOIDSY]))
+    if (! (SY IN [IDENT,VOIDSY]))
         errAndSkip(errBadSymbol, (skipToSet | [IDENT,RPAREN]));
     int92z  =  1;
-    while (SY IN [IDENT,FUNCSY,VOIDSY]) {
+    while (SY IN [IDENT,VOIDSY]) {
         l3sym7z  =  SY;
         if (SY == IDENT)
             parClass  =  VARID;
@@ -7252,7 +7255,7 @@ var
         if (SY == SEMICOLON) {
             lookupMode  =  lookDef;
             inSymbol();
-            if (! (SY IN (skipToSet | [IDENT,VARSY,FUNCSY,VOIDSY])))
+            if (! (SY IN (skipToSet | [IDENT,VARSY,VOIDSY])))
                 errAndSkip(errBadSymbol, skipToSet | [IDENT,RPAREN]);
         }
     }
@@ -7471,7 +7474,21 @@ void exitScope(a: int);
             checkSymAndRead(SEMICOLON);
             if ((SY != IDENT) && ! (SY IN skipToSet))
                 errAndSkip(errBadSymbol, skipToSet | [IDENT]);
-        } while (SY == IDENT);
+            /* A leading type-IDENT after ';' starts a new C-style
+               routine decl, not another variable; bail out so the
+               routine-declaration loop below can pick it up.
+               lookDef leaves hashTravPtr unreliable when the name
+               is absent from the current scope, so re-resolve it
+               via a scope-agnostic walk over the hash bucket. */
+            hashTravPtr  =  NIL;
+            if (SY == IDENT) {
+                hashTravPtr  =  symHash[bucket];
+                while ((hashTravPtr != NIL) &&
+                       (hashTravPtr->id != curIdent))
+                    hashTravPtr  =  hashTravPtr->next;
+            }
+        } while ((SY == IDENT) &&
+                 ((hashTravPtr == NIL) || (hashTravPtr->cl != TYPEID)));
     }
     if (curProcNesting == 1) {
         workidr  =  outputFile;
@@ -7500,8 +7517,18 @@ void exitScope(a: int);
         }
     }
     outputObjFile();
-    while (SY == VOIDSY || SY == FUNCSY) {
+    while (SY == VOIDSY ||
+           ((SY == IDENT) && (hashTravPtr != NIL) &&
+            (hashTravPtr->cl == TYPEID))) {
         l2bool8z  =  SY == VOIDSY;
+        /* For the new C-style syntax 'RETTYPE NAME(args);' the current
+           IDENT names the return type; stash it before inSymbol clobbers
+           hashTravPtr.  NIL marks "not new-style" so the code that sets
+           curIdRec->typ knows which path to take. */
+        if (SY == IDENT)
+            typedRetType  =  hashTravPtr->typ;
+        else
+            typedRetType  =  NIL;
         if (curFrameRegTemplate == 7) {
             error(81); /* errProcNestingTooDeep */
         }
@@ -7553,7 +7580,13 @@ void exitScope(a: int);
             if (SY == LPAREN)
                 parseParameters();
             if (! l2bool8z) {
-                if (SY != COLON)
+                if (typedRetType != NIL) {
+                    /* New C-style: return type was stashed at the loop
+                       head; no ':TYPE' suffix expected. */
+                    curIdRec->typ = typedRetType;
+                    if (curIdRec->typ->size != 1)
+                        error(errTypeMustNotBeFile);
+                } else if (SY != COLON)
                     errAndSkip(106 /*:*/, skipToSet | [SEMICOLON]);
                 else {
                     inSymbol();
@@ -7614,9 +7647,14 @@ void exitScope(a: int);
                 programme(&l2int18z, curIdRec);
                 if (CH == '\000')
                     break;
-                if (! (SY IN [FUNCSY,VOIDSY,BEGINSY]))
+                /* A type-ident also opens a new C-style routine decl. */
+                if (! (SY IN [VOIDSY,BEGINSY]) &&
+                    ! ((SY == IDENT) && (hashTravPtr != NIL) &&
+                       (hashTravPtr->cl == TYPEID)))
                     errAndSkip(errBadSymbol, skipToSet);
-            } while (! (SY IN [FUNCSY,VOIDSY,BEGINSY]));
+            } while (! (SY IN [VOIDSY,BEGINSY]) &&
+                     ! ((SY == IDENT) && (hashTravPtr != NIL) &&
+                        (hashTravPtr->cl == TYPEID)));
             myrollup(int(scopeBound));
             exitScope(0);
             exitScope(1);
@@ -7744,7 +7782,10 @@ var
     SY  =  CONSTSY;
     charClass  =  NOOP;
     for (idx = 0; idx < 27; ++idx) {
-        regResWord(resWordName[idx]);
+        /* 'function' keyword is retired: C-style "RetType name();"
+           is the only accepted routine-declaration form. */
+        if (SY != FUNCSY)
+            regResWord(resWordName[idx]);
         SY  =  SY + 1;
     }
 } /*=A2 regKeywords */
@@ -7873,7 +7914,7 @@ void initOptions;
     frameRegTemplate  =  04000000;
     constRegTemplate  =  I8;
     disNormTemplate  =   KNTR+7;
-    blockBegSys  =  [CONSTSY, TYPESY, VARSY, FUNCSY, VOIDSY, BEGINSY];
+    blockBegSys  =  [CONSTSY, TYPESY, VARSY, VOIDSY, BEGINSY];
     statBegSys  =   [BEGINSY, IFSY, SWITCHSY, DOSY, WHILESY, FORSY, WITHSY,
                     GOTOSY];
     hashMask  =  0203407U;
