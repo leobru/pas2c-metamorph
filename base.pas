@@ -4349,7 +4349,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure parseTypeRef(var newtype: tptr; skipTarget: setofsys);
 label
-    12247, 12366, 12476, 13020;
+    12247, 12366, 13020;
 type
     pair = record
             first, second: integer
@@ -4772,35 +4772,24 @@ var
         if (SY = ARRAYSY) then {
             inSymbol;
             checkSymAndRead(LBRACK);
-            tempType := NIL;
-12476:      nestedType := parseRange;
+            nestedType := parseRange;
             new(arrayType, kindArray);
             with arrayType@ do {
-                size := ord(tempType);
                 bits := 48;
                 k := kindArray;
                 aleft := nestedType@.left;
                 aright := nestedType@.right;
                 rbase := nestedType@.base;
             };
-            if (tempType = NIL) then
-                curType := arrayType
-            else
-                tempType@.base := arrayType;
-            tempType := arrayType;
-            if (SY = COMMA) then {
-                inSymbol;
-                goto 12476;
-            };
+            curType := arrayType;
             checkSymAndRead(RBRACK);
             checkSymAndRead(OFSY);
             parseTypeRef(nestedType, skipTarget);
             arrayType@.base := nestedType;
             if isFileType(nestedType) then
                 error(errTypeMustNotBeFile);
-            repeat with arrayType@ do {
+            with arrayType@ do {
                 span := aright - aleft + 1;
-                tempType := ptr(size);
                 l3int22z := base@.bits;
                 if (24 < l3int22z) then
                     isPacked := false;
@@ -4830,11 +4819,9 @@ var
                         curVal.m := curVal.m + [1, 3];
                     arrayType@.perword := KMUL+ I8 + getFCSToffset;
                 };
-                arrayType@.pck := isPacked;
-                isPacked := false;
-                cond := curType = arrayType;
-                arrayType := tempType;
-            } until cond;
+                pck := isPacked;
+            };
+            isPacked := false;
         } else if (SY = FILESY) then {
             inSymbol;
             checkSymAndRead(OFSY);
@@ -5116,27 +5103,24 @@ var
         };
     } else if (SY = LBRACK) then {
         stmtName := '  [   ';
-        repeat
-            l4exp1z := curExpr;
-            expression;
-            l4typ3z := l4exp1z@.vt.typ;
-            if (l4typ3z@.k <> kindArray) then {
-                error(errWrongVarTypeBefore);
-            } else {
-                if (not typeCheck(l4typ3z@.rbase, curExpr@.vt.typ)) then
-                    error(66 (*errOtherIndexTypeNeeded *));
-                new(l4exp2z);
-                with l4exp2z@ do {
-                    vt.typ := l4typ3z@.base;
-                    expr1 := l4exp1z;
-                    expr2 := curExpr;
-                    op := GETELT;
-                };
-                l4exp1z := l4exp2z;
+        l4exp1z := curExpr;
+        expression;
+        l4typ3z := l4exp1z@.vt.typ;
+        if (l4typ3z@.k <> kindArray) then {
+            error(errWrongVarTypeBefore);
+        } else {
+            if (not typeCheck(l4typ3z@.rbase, curExpr@.vt.typ)) then
+                error(66 (*errOtherIndexTypeNeeded *));
+            new(l4exp2z);
+            with l4exp2z@ do {
+                vt.typ := l4typ3z@.base;
+                expr1 := l4exp1z;
+                expr2 := curExpr;
+                op := GETELT;
             };
-            curExpr := l4exp1z;
-            stmtName := '  ,   ';
-        until (SY <> COMMA);
+            l4exp1z := l4exp2z;
+        };
+        curExpr := l4exp1z;
         if (SY <> RBRACK) then
             error(67 (*errNeedBracketAfterIndices*));
         inSymbol;
