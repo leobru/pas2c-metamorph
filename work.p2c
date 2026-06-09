@@ -231,7 +231,7 @@ oneinsn  = struct {
     mode, code, offset: int;
 };
 //
-ilmode = enum {ilCONST, il1, ilVALINACC, il3};
+ilmode = enum {ilCONST, il1, ilVALINACC, ilCOND};
 state = enum {st0, st1, st2};
 assoc = enum {
     leftAs,     rightAs
@@ -667,7 +667,7 @@ var
         }
         writeln;
         if (errsInLine) {
-            write('*****':startPos, ' ':errMap[0], '0');
+            write('*****':startPos, ' ':errMap[0]+1, '0');
             lastErr  =  errsInLine - 1;
             for (err = 1; err <= lastErr; ++err) {
                 errPos  =  errMap[err];
@@ -1090,7 +1090,7 @@ void readOptFlag(res: *int);
             break;
         case 'F': readOptFlag(&checkFortran); break;
         case 'L': PASINFOR.listMode = readOptVal(3); break;
-        case 'P': readOptFlag(&doPMD); break;
+        case 'P': readOptFlag(&doPMD); break; // ignored
         case 'T': readOptFlag(&checkBounds); break;
         case 'A': charEncoding = readOptVal(3); break;
         case 'C': readOptFlag(&checkTypes); break;
@@ -1132,13 +1132,13 @@ var
     jb1473: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void doCharConst;
+void doCharConst(lim:char);
 {
                     for (tokenIdx = 6; tokenIdx <= 130; ++tokenIdx) {
                         nextCH();
-                        if (charSym[CH] == CHARCONST) {
+                        if (CH == lim) {
                             nextCH();
-                            if (charSym[CH] != CHARCONST)
+                            if (CH != lim)
                                 return;
                             else
                                 goto 2233;
@@ -1398,7 +1398,7 @@ void lexer;
                 return;
             } /* INTCONST */ /*=m+*/
             case CHARCONST: {
-                doCharConst();
+                doCharConst(CH);
                 strLen  =  tokenIdx - 6;
                 if (strLen == 0) {
                    error(61); /* errEmptyString */
@@ -1677,7 +1677,7 @@ var
 } /* parseLiteral */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function P2672(l3arg1z: irptr; l3arg2z: irptr):irptr;
+function hash(l3arg1z: irptr; l3arg2z: irptr):irptr;
 var
     l3var1z: int;
     l3var2z: int;
@@ -1711,7 +1711,7 @@ var
         l3var4z->next  =  l3arg2z->next;
     };
     return l3arg1z;
-} /* P2672 */
+} /* hash */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function isFileType(typtr: tptr): int;
@@ -2325,7 +2325,7 @@ var
                (16 in insnList->regsused))
                 addToInsnList(KAEX+E1);
             break;
-        case il3:
+        case ilCOND:
             if (forValue)
                 addInsnAndOffset(macro+mcCOND2INT,
                     (16 IN insnList->regsused)*010000 + insnList->payload);
@@ -2695,13 +2695,13 @@ var
         forValue  =  false;
         l5var6z  =  (l5var1z|0) + macro;
         l5var7z  =  (l5var2z|0) + macro;
-        if (insnList->ilm == il3) {
+        if (insnList->ilm == ilCOND) {
             l5var3z  =  insnList->payload;
         } else {
             l5var3z  =  0;
             prepLoad();
         }
-        if (otherIns->ilm == il3) {
+        if (otherIns->ilm == ilCOND) {
             l5var4z  =  otherIns->payload;
         } else {
             l5var4z  =  0;
@@ -2776,7 +2776,7 @@ var
         insnList->regsused  =  l5var9z & (~[16]);
         l5ins8z->tail->next  =  insnList->head;
         insnList->head  =  l5ins8z->head;
-        insnList->ilm  =  il3;
+        insnList->ilm  =  ilCOND;
         insnList->payload  =  l5var5z;
         forValue  =  true;
     }
@@ -2863,7 +2863,7 @@ var
                 else
                     addToInsnList(macro + mcMULTI);
            }
-           if ((l5ilm28z == il3) ||
+           if ((l5ilm28z == ilCOND) ||
               (l5ilm28z == il1) &&
               (insnList->st != st0))
                prepLoad();
@@ -3271,7 +3271,7 @@ var
                     curVal.i  =  l5set2z;
                     addToInsnList(KAAX+I8 + getFCSToffset());
                     insnList->payload  =  0;
-                    insnList->ilm  =  il3;
+                    insnList->ilm  =  ilCOND;
                 }
             }
         } else {
@@ -3304,7 +3304,7 @@ var
         } else if (l3int3z == 0) {
             nextInsn  =  KAEX;
             tryFlip(true);
-7504:       insnList->ilm  =  il3;
+7504:       insnList->ilm  =  ilCOND;
             insnList->payload  =  0;
         } else {
             switch (work) {
@@ -3390,7 +3390,7 @@ var
 
     /* Build the condition sub-chain: <cond chain> + branch-to-elseLab-if-false.
        We set forValue := false before generating the condition so that
-       genComparison / genBoolAnd leave the chain in il3 form (deferred
+       genComparison / genBoolAnd leave the chain in ilCOND form (deferred
        conditional), avoiding the wasteful mcCOND2INT sequence that would
        first materialize a 0/1 in ACC and then re-test it.
        Direction = (16 in regsused) follows the convention used by
@@ -3400,7 +3400,7 @@ var
     forValue = false;
     curExpr = exprToGen->expr1;
     genFullExpr(curExpr);
-    if (insnList->ilm == il3 && insnList->payload != 0) {
+    if (insnList->ilm == ilCOND && insnList->payload != 0) {
         /* Compound boolean (a && b, a || b, ...): the chain already has an
            embedded forward jump to label `payload`. */
         if (16 in insnList->regsused)
@@ -3414,8 +3414,8 @@ var
             addInsnAndOffset(macro + 2,
                              (elseLab << 12) + insnList->payload);
     } else {
-        /* Simple il3 (single comparison, payload=0), or il1/ilVALINACC/ilCONST:
-           prepLoad with forValue=false is a no-op for il3, and materializes
+        /* Simple ilCOND (single comparison, payload=0), or il1/ilVALINACC/ilCONST:
+           prepLoad with forValue=false is a no-op for ilCOND, and materializes
            an lvalue/constant to ACC otherwise. Then emit a single deferred
            UZA/U1A to elseLab. */
         prepLoad();
@@ -4036,8 +4036,8 @@ var l4exf1z: *extfilerec;
                     addToInsnList(KAEX);
                 };
                 direction  =  (16 in insnList->regsused);
-                if ((insnList->ilm == il3) &&
-                   (insnList->payload != 0)) {
+                if (insnList->ilm == ilCOND &&
+                    insnList->payload != 0) {
                     genOneOp();
                     if (direction) {
                         if (noTarget)
@@ -4619,76 +4619,6 @@ var
 } /* dumpEnumNames */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formPMD;
-var
-    l3typ1z: tptr;
-    l3var2z: int;
-    l3var3z: int;
-    l3var4z: int;
-    l3var5z: kind;
-{
-    l3var4z = false;
-    do {
-        if (l3var4z) {
-            optSflags  =  optSflags | [S3];
-            curVal.i  =  074001;
-            fixup(2, 34); /*"P/DS"*/
-            curVal.i  =  procName->id;
-            toFCST();
-            curVal.i  =  lineCnt;
-            toFCST();
-        }
-        for (jj  =  0; jj < 128; ++jj) {
-            curIdRec  =  symHash[jj];
-            while ((curIdRec != NIL) &&
-                  (procName < curIdRec)) with *curIdRec do {
-                l3var2z  =  typ->size;
-                if ((cl IN [VARID, FORMALID]) &&
-                  (value < 074000)) {
-                    curVal.i  =  id;
-                    if (l3var4z)
-                        toFCST();
-                    l3typ1z  =  typ;
-                    l3var5z  =  l3typ1z->k;
-                    l3var3z  =  0U;
-                    if (l3var5z == kindPtr) {
-                        l3typ1z  =  l3typ1z->base;
-                        l3var5z  =  l3typ1z->k;
-                        l3var3z  =  E48;
-                    }
-                    if (l3typ1z == realType)
-                        curVal.i  =  0;
-                    else if (typeCheck(l3typ1z, intType))
-                        curVal.i  =  0100000;
-                    else if (typeCheck(l3typ1z, charType))
-                        curVal.i  =  0200000;
-                    else if (l3var5z == kindArray)
-                        curVal.i  =  0400000;
-                    else if (l3var5z == kindScalar) {
-                        dumpEnumNames(l3typ1z);
-                        curVal.i  =  (l3typ1z->start << 18) + 0300000;
-                    } else if (l3var5z == kindFile)
-                        curVal.i  =  0600000;
-                    else {
-                        curVal.i  =  0500000;
-                    }
-                    curVal.i  =  curVal.i + curIdRec->value;
-                    l3var2z  =  l3var2z << 33;
-                    curVal.i  =  curVal.i & [15:47] | l3var2z | l3var3z;
-                    if (l3var4z)
-                        toFCST();
-                }
-                curIdRec  =  curIdRec->next;
-            }
-        }
-        curVal.i  =  0U;
-        if (l3var4z)
-            toFCST();
-        l3var3z = !l3var3z;
-    } while (l3var3z);
-} /* formPMD */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseDecls(l3arg1z: int);
 var
     l3int1z, frame, l3var3z: int;
@@ -4772,8 +4702,6 @@ var
                 padToLeft();
             }
         }
-        if (doPMD)
-            formPMD();
     } /* switch */
 } /* parseDecls */
 //
@@ -6012,11 +5940,11 @@ function allocDataRef(l6arg1z: int): int;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseData;
 var
-    dsize, setcount, l4var3z, length, repCount: int;
+    dsize, setcount, dataLoc, length, repCount: int;
     boundary: eptr;
     l4var7z: int;
     savedVal: word;
-    l4var9z: int;
+    dataSegLen: int;
     F: file of int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6027,26 +5955,26 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* putDataRec */
     rec  =  allocDataRef(length) << 36;
-    if (FcstCnt == l4var3z) {
+    if (FcstCnt == dataLoc) {
         curVal  =  savedVal;
         curVal.i  =  addCurValToFCST();
     } else {
-        curVal.i  =  l4var3z;
+        curVal.i  =  dataLoc;
     }
     rec  =  rec | (07777U & allocSymtab(0400100000000U | curVal.i & halfWord)) << 24;
     rec  =  rec | allocDataRef(count) << 12;
-    if (l4var9z == 0) {
+    if (dataSegLen == 0) {
         curVal.i  =  l4var7z >> 24;
     } else {
-        curVal.i  =  allocSymtab(l4var7z | l4var9z & halfWord);
+        curVal.i  =  allocSymtab(l4var7z | dataSegLen & halfWord);
     }
     rec  =  rec | curVal.i & 07777U;
-    l4var9z  =  count * length + l4var9z;
+    dataSegLen  =  count * length + dataSegLen;
     *F  =  rec;
     put(F);
     ++setcount;
     length  =  0;
-    l4var3z  =  FcstCnt;
+    dataLoc  =  FcstCnt;
 } /* putDataRec */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6079,9 +6007,9 @@ var
         if (objBufIdx != 1)
             error(errVarTooComplex);
         l4var7z  =  leftInsn & (07777U << 24);
-        l4var3z  =  FcstCnt;
+        dataLoc  =  FcstCnt;
         length  =  0;
-        l4var9z  =  0;
+        dataSegLen  =  0;
         do {
             expression();
             formOperator(LITINSN);
@@ -7395,7 +7323,7 @@ void exitScope(a: int);
                     l2typ14z->base  =  l2typ13z;
                     curIdRec->typ  =  l2typ13z;
                 }
-                typelist = P2672(typelist, curIdRec);
+                typelist = hash(typelist, curIdRec);
             } else {
                 new(curIdRec, TYPEID);
                 with *curIdRec do {
@@ -7655,7 +7583,7 @@ void exitScope(a: int);
 23301:  workidr  =  curIdRec->argList;
         if (workidr != NIL) {
             while (workidr != curIdRec) {
-                scopeBound = P2672(NIL, workidr);
+                scopeBound = hash(NIL, workidr);
                 workidr  =  workidr->list;
             }
         }
@@ -7762,11 +7690,6 @@ var
         next  =  kwordHash[curVal.i];
     }
     kwordHash[curVal.i]  =  kw;
-    if (charClass == NOOP) {
-        SY  =  SY + 1;
-    } else {
-        charClass  =  charClass + 1;
-    }
 } /* regResWord */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7776,8 +7699,10 @@ var
     regResWord('      IN');
     SY  =  CONSTSY;
     charClass  =  NOOP;
-    for (idx = 0; idx < 27; ++idx)
+    for (idx = 0; idx < 27; ++idx) {
         regResWord(resWordName[idx]);
+        SY  =  SY + 1;
+    }
 } /*=A2 regKeywords */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7959,6 +7884,7 @@ void initOptions;
     intOpMap[IMODOP] = IMODOP,INTPLUS,INTMINUS;
     frameRestore = 0:16;
     charSym['''']  =  CHARCONST;
+    charSym['"']  =  CHARCONST;
     charSym['_']  =  IDENT;
     charSym['<']  =  LTSY;
     charSym['>']  =  GTSY;

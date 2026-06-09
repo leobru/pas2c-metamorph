@@ -218,7 +218,7 @@ oneinsn  = record
     mode, code, offset: integer;
 end;
 %
-ilmode = (ilCONST, il1, ilVALINACC, il3);
+ilmode = (ilCONST, il1, ilVALINACC, ilCOND);
 state = (st0, st1, st2);
 %
 insnltyp  = record
@@ -1232,7 +1232,7 @@ procedure readOptFlag(var res: boolean);
         };
         'F': readOptFlag(checkFortran);
         'L': readOptVal(PASINFOR.listMode, 3);
-        'P': readOptFlag(doPMD);
+        'P': readOptFlag(doPMD); (* ignored *)
         'T': readOptFlag(checkBounds);
         'A': readOptVal(charEncoding, 3);
         'C': readOptFlag(checkTypes);
@@ -1823,7 +1823,7 @@ var
 }; (* parseLiteral *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure P2672(var l3arg1z: irptr; l3arg2z: irptr);
+procedure hash(var l3arg1z: irptr; l3arg2z: irptr);
 var
     l3var1z: boolean;
     l3var2z: integer;
@@ -1856,7 +1856,7 @@ var
         };
         l3var4z@.next := l3arg2z@.next;
     }
-}; (* P2672 *)
+}; (* hash *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function isFileType(typtr: tptr): boolean;
@@ -2457,7 +2457,7 @@ var
                (16 in insnList@.regsused) then
                 addToInsnList(KAEX+E1);
         };
-        il3: {
+        ilCOND: {
             if forValue then
                 addInsnAndOffset(macro+mcCOND2INT,
                     ord(16 in insnList@.regsused)*10000B + insnList@.payload.i);
@@ -2840,13 +2840,13 @@ var
         forValue := false;
         l5var6z := ord(l5var1z) + macro;
         l5var7z := ord(l5var2z) + macro;
-        if (insnList@.ilm = il3) then {
+        if (insnList@.ilm = ilCOND) then {
             l5var3z := insnList@.payload.i;
         } else {
             l5var3z := 0;
             prepLoad;
         };
-        if (otherIns@.ilm = il3) then {
+        if (otherIns@.ilm = ilCOND) then {
             l5var4z := otherIns@.payload.i;
         } else {
             l5var4z := 0;
@@ -2921,7 +2921,7 @@ var
         insnList@.regsused := l5var9z.m - [16];
         l5ins8z@.tail@.next := insnList@.head;
         insnList@.head := l5ins8z@.head;
-        insnList@.ilm := il3;
+        insnList@.ilm := ilCOND;
         insnList@.payload.i := l5var5z;
         forValue := true;
     }
@@ -3009,7 +3009,7 @@ var
                 else
                     addToInsnList(macro + mcMULTI);
            };
-           if (l5ilm28z = il3) or
+           if (l5ilm28z = ilCOND) or
               (l5ilm28z = il1) and
               (insnList@.st <> st0) then
                prepLoad;
@@ -3431,7 +3431,7 @@ var
                     curVal.m := l5set2z;
                     addToInsnList(KAAX+I8 + getFCSToffset);
                     insnList@.payload.i := 0;
-                    insnList@.ilm := il3;
+                    insnList@.ilm := ilCOND;
                 }
             };
         } else {
@@ -3464,7 +3464,7 @@ var
         } else  if l3int3z = 0 then {
             nextInsn := insnTemp[AEX];
             tryFlip(true);
-7504:       insnList@.ilm := il3;
+7504:       insnList@.ilm := ilCOND;
             insnList@.payload.i := 0;
         } else {
             case work of
@@ -3554,7 +3554,7 @@ var
 
     (* Build the condition sub-chain: <cond chain> + branch-to-elseLab-if-false.
        We set forValue := false before generating the condition so that
-       genComparison / genBoolAnd leave the chain in il3 form (deferred
+       genComparison / genBoolAnd leave the chain in ilCOND form (deferred
        conditional), avoiding the wasteful mcCOND2INT sequence that would
        first materialize a 0/1 in ACC and then re-test it.
        Direction = (16 in regsused) follows the convention used by
@@ -3564,7 +3564,7 @@ var
     forValue := false;
     curExpr := exprToGen@.expr1;
     genFullExpr(curExpr);
-    if (insnList@.ilm = il3) and (insnList@.payload.i <> 0) then {
+    if (insnList@.ilm = ilCOND) and (insnList@.payload.i <> 0) then {
         (* Compound boolean (a && b, a || b, ...): the chain already has an
            embedded forward jump to label `payload`. *)
         if (16 in insnList@.regsused) then
@@ -3578,8 +3578,8 @@ var
             addInsnAndOffset(macro + 2,
                              elseLab * 10000B + insnList@.payload.i);
     } else {
-        (* Simple il3 (single comparison, payload=0), or il1/ilVALINACC/ilCONST:
-           prepLoad with forValue=false is a no-op for il3, and materializes
+        (* Simple ilCOND (single comparison, payload=0), or il1/ilVALINACC/ilCONST:
+           prepLoad with forValue=false is a no-op for ilCOND, and materializes
            an lvalue/constant to ACC otherwise. Then emit a single deferred
            UZA/U1A to elseLab. *)
         prepLoad;
@@ -4253,7 +4253,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                     addToInsnList(KAEX);
                 };
                 direction := 16 in insnList@.regsused;
-                if (insnList@.ilm = il3) and
+                if (insnList@.ilm = ilCOND) and
                    (insnList@.payload.i <> 0) then {
                     genOneOp;
                     if (direction) then {
@@ -4864,77 +4864,6 @@ var
 }; (* dumpEnumNames *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure formPMD;
-var
-    l3typ1z: tptr;
-    l3var2z: word;
-    l3var3z: bitset;
-    l3var4z: boolean;
-    l3var5z: kind;
-{
-    for l3var4z := false to true do {
-        if l3var4z then {
-            optSflags.m := (optSflags.m + [S3]);
-            curVal.i := 74001B;
-            fixup(2, 34); (*"P/DS"*)
-            curVal := procName@.id;
-            toFCST;
-            curVal.i := lineCnt;
-            toFCST;
-        };
-        for jj := 0 to 127 do {
-            curIdRec := symHash[jj];
-
-            while (curIdRec <> NIL) and
-                  (procName < curIdRec) do with curIdRec@ do {
-                l3var2z.i := typ@.size;
-                if (cl IN [VARID, FORMALID]) and
-                  (value < 74000B) then {
-                    curVal := id;
-                    if (l3var4z) then
-                        toFCST;
-                    l3typ1z := typ;
-                    l3var5z := l3typ1z@.k;
-                    l3var3z := [];
-                    if (l3var5z = kindPtr) then {
-                        l3typ1z := l3typ1z@.base;
-                        l3var5z := l3typ1z@.k;
-                        l3var3z := [0];
-                    };
-                    if (l3typ1z = realType) then
-                        curVal.i := 0
-                    else if typeCheck(l3typ1z, integerType) then
-                        curVal.i := 100000B
-                    else if typeCheck(l3typ1z, charType) then
-                        curVal.i := 200000B
-                    else if (l3var5z = kindArray) then
-                        curVal.i := 400000B
-                    else if (l3var5z = kindScalar) then {
-                        dumpEnumNames(l3typ1z);
-                        curVal.i := 1000000B * l3typ1z@.start + 300000B;
-                    } else if (l3var5z = kindFile) then
-                        curVal.i := 600000B
-                    else {
-                        curVal.i := 500000B;
-                    };
-                    curVal.i := curVal.i + curIdRec@.value;
-                    l3var2z := l3var2z;
-                    besm(ASN64-33);
-                    l3var2z := ;
-                    curVal.m := curVal.m * [15:47] + l3var2z.m + l3var3z;
-                    if (l3var4z) then
-                        toFCST;
-                };
-                curIdRec := curIdRec@.next;
-            };
-        }; (*13167+*)
-        curVal.m := [];
-        if l3var4z then
-            toFCST;
-    }
-}; (* formPMD *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure parseDecls(l3arg1z: integer);
 var
     l3int1z: integer;
@@ -5020,8 +4949,6 @@ var
                 padToLeft;
             }
         };
-        if (doPMD) then
-            formPMD;
     }
     end; (* case *)
 }; (* parseDecls *)
@@ -7740,7 +7667,7 @@ procedure exitScope(var arg: hashArray);
                     l2typ14z@.base := l2typ13z;
                     curIdRec@.typ := l2typ13z;
                 };
-                P2672(typelist, curIdRec);
+                hash(typelist, curIdRec);
             } else {
                 new(curIdRec=5);
                 with curIdRec@ do {
@@ -8008,7 +7935,7 @@ procedure exitScope(var arg: hashArray);
         if (workidr <> NIL) then {
             while (workidr <> curIdRec) do {
                 scopeBound := NIL;
-                P2672(scopeBound, workidr);
+                hash(scopeBound, workidr);
                 workidr := workidr@.list;
             }
         };
@@ -8133,11 +8060,6 @@ var
         next := kwordHash[curVal.i];
     };
     kwordHash[curVal.i] := kw;
-    if (charClass = NOOP) then {
-        SY := succ(SY);
-    } else {
-        charClass := succ(charClass);
-    }
 }; (* regResWord *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -8147,8 +8069,10 @@ var
     regResWord(5156C(*"      IN"*));
     SY := CONSTSY;
     charClass := NOOP;
-    for idx := 0 to 25 do
+    for idx := 0 to 25 do {
         regResWord(resWordName[idx]);
+        SY := succ(SY);
+    }
 }; (* regKeywords *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

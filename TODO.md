@@ -1,16 +1,15 @@
 # Remains to be done
  - `case <type> of` -> `union`
  - `enum`, allow assigning values to elements
- - parsing C-style expressions as statements 
  - optimize !x 
- - increment/decrement (pre-, post-)
+ - increment/decrement (post-)
  - C-style string literals using "" with terminating \0
  - helper routine for printing C-style strings for `write` (`puts`) 
  - C-style of variable declarations and type definitions
  - C style of function declarations
  - `main` as a regular function
  - starting routine calling `main`
- - `sizeof`
+ - `sizeof(type)`
  - function pointers
  - operations on pointers to words
  - `char *`, operations of `char *`
