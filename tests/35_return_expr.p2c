@@ -1,19 +1,19 @@
 /*=p-,t-,s8,y+,k9,l0*/
 extern _output_;
 //
-function square(x: int): int;
+int square(x: int);
 {
     return x * x;
 }
 //
-function clamp(v, lo, hi: int): int;
+int clamp(v, lo, hi: int);
 {
     if (v < lo) return lo;
     if (v > hi) return hi;
     return v;
 }
 //
-function early_void(x: int): int;
+int early_void(x: int);
 {
 //    early_void = -1;
     if (x == 0) return -1;

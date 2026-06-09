@@ -2,7 +2,7 @@
 extern _output_;
 var result: int;
 //
-function square(x: int): int;
+int square(x: int);
 {
     return x * x;
 }

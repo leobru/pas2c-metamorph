@@ -1,7 +1,7 @@
 /*=p-,t-,s8,y+,k9,l0*/
 extern _output_;
 //
-function fact(n: int): int;
+int fact(n: int);
 {
     if (n <= 1) {
         return 1;
