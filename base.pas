@@ -8,7 +8,7 @@ const
 %
     fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
     fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
-   (* fnORD = 10; fnCHR  = 11; fnSUCC = 12; fnPRED = 13;*) fnEOF  = 14;
+    fnMALLOC = 10;(* fnCHR  = 11; fnSUCC = 12; fnPRED = 13;*) fnEOF  = 14;
     fnREF   = 15; fnEOLN = 16; fnSETJMP = 17; fnROUND = 18; fnCARD = 19;
     fnMINEL = 20; fnPTR  = 21; fnABSI = 22;
 %
@@ -53,7 +53,9 @@ const
     mcMULTI = 7;
     mcADDSTK2REG = 8;
     mcADDACC2REG = 9;
+    mcDUMMY = 10;
     mcROUND = 11;
+    mcMALLOC = 12;
     mcMINEL = 15;
     mcPOP2ADDR = 19;
     mcCOND2INT = 20;
@@ -2173,6 +2175,14 @@ procedure addJumpInsn(opcode: integer);
                                KAAX+I8 + curInsn.i);
                 add2InsnsToBuf(KAEX+SP, KATX+I14)
             };
+            mcMALLOC: {
+                (* MALLOC(N): N is in ACC (placed there by prepLoad).
+                   Move N to register 14 and invoke the heap-allocator
+                   helper P/PF + 4 (helper #33), which returns the newly
+                   allocated pointer in ACC.  Same calling convention as
+                   the NEW system procedure. *)
+                add2InsnsToBuf(KATI+14, getHelperProc(33));
+            };
             end; (* case *)
         } else {
             if 28 in tempInsn.m then {
@@ -2677,7 +2687,12 @@ var
 {
     doPtrCheck := checkBounds and not (NoPtrCheck in optSflags.m)
                and (curOP = DEREF);
-    if not doPtrCheck and (
+    (* The optimised path manipulates addrmd/disp/payload, which only
+       carry meaning for il1 (addressable) operands.  For ilVALINACC --
+       e.g. a function-call result whose pointer value is already in ACC
+       -- those fields are uninitialised and would yield garbage; in
+       that case fall through to the general mcACC2ADDR path below. *)
+    if not doPtrCheck and (insnList@.ilm = il1) and (
         (insnList@.st = st0) or
         (insnList@.st = st1) and
         (insnList@.shift = 0))
@@ -3747,7 +3762,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                         width := 0;
                         shift := 0;
                     };
-                    addToInsnList(macro + 10);
+                    addToInsnList(macro + mcDUMMY);(* deliberately dummy op *)
                     exit
                 };
                 opfAND: {
@@ -3938,6 +3953,8 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
         } else if (curOP = STANDPROC) then {
             genFullExpr(exprToGen@.expr1);
             work := exprToGen@.num2;
+            if (work = fnMALLOC) then
+                heapCallsCnt := heapCallsCnt + 1;
             if (work = fnSETJMP) then {
                 (* setjmp(jmpbuf): inline non-local-goto setup.
                  * Layout emitted:
@@ -3987,7 +4004,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 } else
                     arg1Const := false;
                 arg2Const := insnList@.typ = realType;
-                if (arg1Const) then {
+                if arg1Const and (work <> fnMALLOC) then {
                     case work of
                     fnABS:   arg1Val.r := abs(arg1Val.r);
                     fnTRUNC: arg1Val.i := trunc(arg1Val.r);
@@ -5031,17 +5048,108 @@ procedure expression;
     forward;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure parseLval;
+(* parsePostfix: consume any chain of postfix operators (@, .field, [idx])
+   acting on curExpr.  Returns with SY pointing at the first token that is
+   neither a postfix operator nor the trailing `]` of an index list.  Safe
+   to call when the next token isn't a postfix at all (loop simply exits). *)
+procedure parsePostfix;
 label
-    13462, 13530;
+    13462;
 var
     l4exp1z, l4exp2z: eptr;
     l4typ3z: tptr;
     l4var4z: kind;
 {
+13462:
+    l4typ3z := curExpr@.vt.typ;
+    l4var4z := l4typ3z@.k;
+    if (SY = ARROW) then {
+        new(l4exp1z);
+        with l4exp1z@ do {
+            expr1 := curExpr;
+            if (l4var4z = kindPtr) then {
+                vt.typ := l4typ3z@.base;
+                op := DEREF;
+            } else if (l4var4z = kindFile) then {
+                vt.typ := l4typ3z@.base;
+                op := FILEPTR;
+            } else {
+                stmtName := '  ^   ';
+                error(errWrongVarTypeBefore);
+                l4exp1z@.vt.typ := l4typ3z;
+            }
+        };
+        curExpr := l4exp1z;
+        inSymbol;
+    } else if (SY = PERIOD) then {
+        if (l4var4z = kindStruct) then {
+            lookupMode := 3;
+            typ121z := l4typ3z;
+            inSymbol;
+            if (hashTravPtr = NIL) then {
+                error(20); (* errDigitGreaterThan7 ??? *)
+            } else {
+                new(l4exp1z);
+                with l4exp1z@ do {
+                    vt.typ := hashTravPtr@.typ;
+                    op := GETFIELD;
+                    expr1 := curExpr;
+                    id2 := hashTravPtr;
+                };
+                curExpr := l4exp1z;
+            };
+            inSymbol;
+        } else {
+            stmtName := '  .   ';
+            error(errWrongVarTypeBefore);
+            exit;
+        };
+    } else if (SY = LBRACK) then {
+        stmtName := '  [   ';
+        repeat
+            l4exp1z := curExpr;
+            expression;
+            l4typ3z := l4exp1z@.vt.typ;
+            if (l4typ3z@.k <> kindArray) then {
+                error(errWrongVarTypeBefore);
+            } else {
+                if (not typeCheck(l4typ3z@.rbase, curExpr@.vt.typ)) then
+                    error(66 (*errOtherIndexTypeNeeded *));
+                new(l4exp2z);
+                with l4exp2z@ do {
+                    vt.typ := l4typ3z@.base;
+                    expr1 := l4exp1z;
+                    expr2 := curExpr;
+                    op := GETELT;
+                };
+                l4exp1z := l4exp2z;
+            };
+            curExpr := l4exp1z;
+            stmtName := '  ,   ';
+        until (SY <> COMMA);
+        if (SY <> RBRACK) then
+            error(67 (*errNeedBracketAfterIndices*));
+        inSymbol;
+    } else exit;
+    goto 13462;
+}; (* parsePostfix *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure parseLval;
+var
+    l4exp1z: eptr;
+{
     if (hashTravPtr@.cl = FIELDID) then {
-        curExpr := withIter;
-        goto 13530;
+        (* Implicit field of the `with` variable: build GETFIELD on
+           withIter directly, then continue with any further postfix. *)
+        new(l4exp1z);
+        with l4exp1z@ do {
+            vt.typ := hashTravPtr@.typ;
+            op := GETFIELD;
+            expr1 := withIter;
+            id2 := hashTravPtr;
+        };
+        curExpr := l4exp1z;
     } else {
         new(curExpr);
         with curExpr@ do {
@@ -5049,75 +5157,9 @@ var
             op := GETVAR;
             id1 := hashTravPtr;
         };
-13462:  inSymbol;
-        l4typ3z := curExpr@.vt.typ;
-        l4var4z := l4typ3z@.k;
-        if (SY = ARROW) then {
-            new(l4exp1z);
-            with l4exp1z@ do {
-                expr1 := curExpr;
-                if (l4var4z = kindPtr) then {
-                    vt.typ := l4typ3z@.base;
-                    op := DEREF;
-                } else if (l4var4z = kindFile) then {
-                    vt.typ := l4typ3z@.base;
-                    op := FILEPTR;
-                } else {
-                    stmtName := '  ^   ';
-                    error(errWrongVarTypeBefore);
-                    l4exp1z@.vt.typ := l4typ3z;
-                }
-            };
-            curExpr := l4exp1z;
-        } else if (SY = PERIOD) then {
-            if (l4var4z = kindStruct) then {
-                lookupMode := 3;
-                typ121z := l4typ3z;
-                inSymbol;
-                if (hashTravPtr = NIL) then {
-                    error(20); (* errDigitGreaterThan7 ??? *)
-                } else 13530: {
-                    new(l4exp1z);
-                    with l4exp1z@ do {
-                        vt.typ := hashTravPtr@.typ;
-                        op := GETFIELD;
-                        expr1 := curExpr;
-                        id2 := hashTravPtr;
-                    };
-                    curExpr := l4exp1z;
-                }
-            } else {
-                stmtName := '  .   ';
-                error(errWrongVarTypeBefore);
-            };
-        } else if (SY = LBRACK) then {
-            stmtName := '  [   ';
-            repeat
-                l4exp1z := curExpr;
-                expression;
-                l4typ3z := l4exp1z@.vt.typ;
-                if (l4typ3z@.k <> kindArray) then {
-                    error(errWrongVarTypeBefore);
-                } else {
-                    if (not typeCheck(l4typ3z@.rbase, curExpr@.vt.typ)) then
-                        error(66 (*errOtherIndexTypeNeeded *));
-                    new(l4exp2z);
-                    with l4exp2z@ do {
-                        vt.typ := l4typ3z@.base;
-                        expr1 := l4exp1z;
-                        expr2 := curExpr;
-                        op := GETELT;
-                    };
-                    l4exp1z := l4exp2z;
-                };
-                curExpr := l4exp1z;
-                stmtName := '  ,   ';
-            until (SY <> COMMA);
-            if (SY <> RBRACK) then
-                error(67 (*errNeedBracketAfterIndices*));
-        } else exit;
     };
-    goto 13462;
+    inSymbol;
+    parsePostfix;
 }; (* parseLval *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5473,7 +5515,7 @@ var
     if (stProcNo <> fnSIZEOF) and not ((checkMode = chkREAL) and
             (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnROUND])
            or ((checkMode = chkINT) and
-            (asBitset <= [fnSQRT:fnABS,fnREF,fnCARD,fnMINEL,fnPTR,
+            (asBitset <= [fnSQRT:fnABS,fnMALLOC,fnREF,fnCARD,fnMINEL,fnPTR,
                           fnSETJMP]))
            or ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) and
             (asBitset <= [fnREF]))
@@ -5536,14 +5578,15 @@ var
                     };
                     inSymbol;
                 };
-                ROUTINEID: {
+                ROUTINEID:
+(rout)          {
                     routine := hashTravPtr;
                     inSymbol;
                     if (routine@.offset = 0) then {
                         if (routine@.typ <> NIL) and
                            (SY = LPAREN) then {
                             stdCall;
-                            exit;
+                            exit rout;
                         };
                         error(44) (* errIncorrectUsageOfStandProcOrFunc *)
                     } else if (routine@.typ = NIL) then {
@@ -5555,13 +5598,13 @@ var
                    } else  {
                         if (SY = LPAREN) then {
                             parseCallArgs(routine);
-                            exit
+                            exit rout
                         };
                         if (wasInCall) then {
                             newOp := FCALL;
                         } else {
                             parseCallArgs(routine);
-                            exit
+                            exit rout
                         };
                     };
                     new(curExpr);
@@ -5659,7 +5702,12 @@ var
     } else {
         error(errBadSymbol);
         goto 8888;
-    }
+    };
+    (* Any factor producing an rvalue/lvalue may be followed by postfix
+       operators (@ for pointer/file deref, .field for struct member,
+       [idx] for array element).  parseLval already drained them above;
+       parsePostfix is a no-op when SY is not a postfix token. *)
+    parsePostfix;
 
 }; (* factor *)
 %
@@ -5681,7 +5729,10 @@ var
             oper := charClass;
         inSymbol;
     };
-    factor;
+    if oper <> NOOP then
+        parseUnaryExpression
+    else
+        factor;
     if oper <> NOOP then {
         arg1Type := curExpr@.vt.typ;
         new(leftExpr);
@@ -7364,7 +7415,8 @@ var l : integer;
     temptype := integerType;
     regSysProc(6462655643C(*"   TRUNC"*));
     regSysProc(635172455746C(*"  SIZEOF" *));
-    regSysProc(0C(*" was ORD"*));
+    temptype := voidPtr;
+    regSysProc(554154545743C(*"  MALLOC"*));
     temptype := charType;
     regSysProc(0C(*" was CHR"*));
     regSysProc(0C(*" was SUCC"*));
@@ -8261,6 +8313,7 @@ procedure initOptions;
     funcInsn[fnROUND] := macro + mcROUND;
     funcInsn[fnCARD] := macro + mcCARD;
     funcInsn[fnMINEL] := macro + mcMINEL;
+    funcInsn[fnMALLOC] := macro + mcMALLOC;
     funcInsn[fnPTR] := KAAX+MANTISSA;
     funcInsn[fnABSI] := KAMX;
     intOpMap[MUL] := IMULOP,IDIVOP;
