@@ -1,0 +1,22 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+// Test P/LDARIN helper: integer array with variable index
+var 
+    arr: array [1..10] of int;
+    idx, value: int;
+{
+    arr[1] = 100;
+    arr[2] = 200;
+    arr[3] = 300;
+    arr[5] = 500;
+    
+    idx = 2;
+    value = arr[idx];          // Variable index forces st2 → P/LDARIN
+    writeln('Value at index 2: ', value:0);
+    
+    idx = 5;
+    value = arr[idx];
+    writeln('Value at index 5: ', value:0);
+}
+.

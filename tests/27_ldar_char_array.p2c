@@ -1,0 +1,23 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+// Test P/LDAR helper: char array with variable index
+var 
+    chars: array [1..5] of char;
+    idx: int;
+    ch: char;
+{
+    chars[1] = 'A';
+    chars[2] = 'B';
+    chars[3] = 'C';
+    chars[4] = 'D';
+    
+    idx = 2;
+    ch = chars[idx];           // Variable index, char type → P/LDAR
+    writeln('Character at index 2: ', ch);
+    
+    idx = 4;
+    ch = chars[idx];
+    writeln('Character at index 4: ', ch);
+}
+.

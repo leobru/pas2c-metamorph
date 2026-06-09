@@ -1,0 +1,19 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+// Test P/LDARIN via pointer dereference
+type intptr = *int;
+var 
+    p: intptr;
+    x, value: int;
+{
+    x = 42;
+    p = &x;
+    value = *p;                // Pointer dereference → st2 → P/LDARIN
+    writeln('Value via pointer: ', value:0);
+    
+    x = 99;
+    value = *p;
+    writeln('Updated value: ', value:0);
+}
+.

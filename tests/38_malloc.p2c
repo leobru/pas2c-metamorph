@@ -1,0 +1,13 @@
+/*=p-,t-,s8,y+,l0*/
+extern _output_;
+//
+type intptr = *int;
+var p, q: intptr;
+{
+    p = MALLOC(1);
+    *p = 42;
+    new(q);
+    *q = 99;
+    writeln('p=', *p:0, ' q=', *q:0);
+}
+.

@@ -1,0 +1,32 @@
+/*=p-,t-,s8,y+,l0*/
+extern _output_;
+//
+type
+    point = struct { x, y: int; };
+    ptpr  = *point;
+//
+var
+    obj: point;
+    p: ptpr;
+    arr: array [1..3] of int;
+//
+function getp: ptpr;
+{
+    return p;
+}
+//
+{
+    p = &obj;
+    p->x = 7;
+    p->y = 8;
+    arr[1] = 10;
+    arr[2] = 20;
+    arr[3] = 30;
+
+    /* postfix on parenthesised expression: (p)->x */
+    writeln('(p)->x   = ', (p)->x:0);
+
+    /* postfix on the result of a function call: getp()->y */
+    writeln('getp()->y= ', getp()->y:0);
+}
+.
