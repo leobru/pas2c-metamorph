@@ -5897,6 +5897,8 @@ var
                     castToReal(curExpr)
                 else
                     error(33); (*errIllegalTypesForAssignment*)
+            } else if (arg2Type@.k = kindFile) then {
+                error(75); (*errCannotAssignFiles*)
             };
             new(thenExpr);
             with thenExpr@ do {
@@ -5952,7 +5954,6 @@ procedure expression;
         readNext := true;
     parsePrc(precAssign);
 }; (* expression *)
-procedure assignStatement; forward;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure setStrLab;
@@ -6046,19 +6047,19 @@ var
     l4var2z := set147z;
     l4var3z := [];
     repeat
-        inSymbol;
-        if (hashTravPtr <> NIL) and
-           (hashTravPtr@.cl >= VARID) then {
-            parseLval;
+%        inSymbol;
+%        if (hashTravPtr <> NIL) and
+%           (hashTravPtr@.cl >= VARID) then {
+            expression;
             if (curExpr@.vt.typ@.k = kindStruct) then {
                 formOperator(SETREG);
                 l4var3z := (l4var3z + [curVal.i]) * set148z;
             } else {
                 error(71); (* errWithOperatorNotOfARecord *)
             };
-        } else {
-            error(72); (* errWithOperatorNotOfAVariable *)
-        }
+%        } else {
+%            error(72); (* errWithOperatorNotOfAVariable *)
+%        }
     until (SY <> COMMA);
     checkSymAndRead(DOSY);
     statement;
@@ -6278,43 +6279,6 @@ var
 
     }
 }; (* caseStatement *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure assignStatement;
-label
-    16332;
-var
-    lhsExpr, assnExpr: eptr;
-    srcType, targType: tptr;
-{
-    parseLval;
-    checkSymAndRead(BECOMES);
-    readNext := false;
-    targType := curExpr@.vt.typ;
-    lhsExpr := curExpr;
-    expression;
-    srcType := curExpr@.vt.typ;
-    if (typeCheck(targType, srcType)) then {
-        if (srcType@.k = kindFile) then
-            error(75) (*errCannotAssignFiles*)
-        else {
-16332:      new(assnExpr);
-            with assnExpr@ do {
-                vt.typ := targType;
-                op := ASSIGNOP;
-                expr1 := lhsExpr;
-                expr2 := curExpr;
-            };
-            curExpr := assnExpr;
-        }
-    } else if (targType = realType) and
-        typeCheck(integerType, srcType) then {
-        castToReal(curExpr);
-        goto 16332;
-    } else {
-        error(33); (*errIllegalTypesForAssignment*)
-    }
-}; (* assignStatement *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure ifWhileStatement;
@@ -6744,7 +6708,10 @@ var
         inSymbol;
         if (hashTravPtr@.cl < VARID) then
             error(46); (* errNoVarForStandProc *)
-        parseLval;
+        factor;
+        if not (curExpr@.op IN lvalOpSet) then {
+            error(27); (* errExpressionWhereVariableExpected *)
+        };
         arg1Type := curExpr@.vt.typ;
         curVarKind := arg1Type@.k;
     };
@@ -6990,33 +6957,46 @@ var
         if SY = IDENT then {
             if hashTravPtr <> NIL then {
                 l3var6z := hashTravPtr@.cl;
-                if l3var6z >= VARID then {
-                    assignStatement;
-                } else {
-                    if l3var6z = ROUTINEID then {
-                            l3idr12z := hashTravPtr;
-                            inSymbol;
-                            if l3idr12z@.offset = 0 then {
-                                standProc;
-                                checkSymAndRead(SEMICOLON);
-                                exit ident;
-                            };
-                            parseCallArgs(l3idr12z);
-                    } else {
-                        error(32); (* errWrongStartOfOperator *)
-                        goto 8888;
-                    }
+                if l3var6z = ROUTINEID then {
+                    l3idr12z := hashTravPtr;
+                    if l3idr12z@.offset = 0 then {
+                        (* System procedure (WRITE, PUT, GET, NEW, ...):
+                           special syntax, handled directly. *)
+                        inSymbol;
+                        standProc;
+                        checkSymAndRead(SEMICOLON);
+                        exit ident;
+                    };
+                    if l3idr12z@.typ = NIL then {
+                        (* User procedure call (void return): not a valid
+                           expression in factor(), so dispatch directly to
+                           parseCallArgs. *)
+                        inSymbol;
+                        parseCallArgs(l3idr12z);
+                        formOperator(DOIT);
+                        checkSymAndRead(SEMICOLON);
+                        exit ident;
+                    };
                 };
+                (* VARID / FORMALID / FIELDID, or ROUTINEID with non-NIL
+                   typ (function call): assignment, function call, or other
+                   expression used as a statement.  readNext := false keeps
+                   the current SY (the leading IDENT) for expression() to
+                   consume. *)
+                readNext := false;
+                expression;
                 formOperator(DOIT);
                 checkSymAndRead(SEMICOLON);
             } else {
                 error(errNotDefined);
 8888:           skip(skipToSet + statEndSys);
             };
-        } else if (SY = ADDOP) and (charClass IN [INCROP, DECROP]) then {
-            (* Bare pre-increment / pre-decrement statement: '++x;' / '--x;'.
-               readNext := false tells expression() to keep the current SY
-               (the leading '+' / '-') instead of skipping it. *)
+        } else if (SY IN [ADDOP, MULOP, NOTSY, LPAREN, INTCONST,
+                          REALCONST, CHARCONST, LTSY, LBRACK]) then {
+            (* Generic expression statement: '++x;', '(x = 1);', etc.
+               Includes pre-increment / pre-decrement, parenthesised
+               expressions, unary operators and so on.  readNext := false
+               keeps the current SY for expression() to consume. *)
             readNext := false;
             expression;
             formOperator(DOIT);

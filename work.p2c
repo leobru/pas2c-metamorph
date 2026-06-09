@@ -562,7 +562,7 @@ var res: tptr;
     if (maxSmallString >= strLen)
         return smallStringType[strLen];
     new(res, kindArray);
-    with res@ do {
+    with *res do {
         size  =  (strLen + 5) / 6;
         bits  =  size == 1 ? strLen << 3 : 0;
         k  =  kindArray;
@@ -794,7 +794,7 @@ void formAndAlign(arg: int);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function isCharArray(arg: tptr): int;
 {
-    with arg@ do return k == kindArray && base == charType;
+    with *arg do return k == kindArray && base == charType;
 } /* isCharArray */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -914,7 +914,7 @@ var
         return intType;
     }
     new(res, kindScalar);
-    with res@ do {
+    with *res do {
         size = 1;
         k = kindScalar;
         start = -1;
@@ -1244,7 +1244,7 @@ void lexer;
                 case 3:
                     hashTravPtr  =  fieldHash[bucket];
                     while (hashTravPtr != NIL) {
-                        with hashTravPtr@ do {
+                        with *hashTravPtr do {
                             if ((id == curIdent) &&
                                (typ121z == uptype))
                                 return;
@@ -1795,7 +1795,7 @@ var
     rangeMismatch  =  false;
     if (!checkTypes || type1 == type2)
 1:      return true;
-        with type1@ do {
+        with *type1 do {
             kind1  =  k;
             kind2  =  type2->k;
             if (kind1 == kind2) {
@@ -2048,7 +2048,7 @@ void processInsn;
                  curInsn  =  tempInsn;
                  l4var213z  =  l4var213z && findLabel();
                  if (l4var213z)
-                    with l4inl7z@ do {
+                    with *l4inl7z do {
                         code  =  macro;
                         offset  =  int(l4inl8z);
                     }
@@ -2165,7 +2165,7 @@ void processInsn;
         processInsn();
     insnList  =  NIL;
     while (l4inl6z != NIL) {
-        with l4inl6z@ do
+        with *l4inl6z do
             if (offset == 0) {
                 jumpTarget  =  code;
                 return;
@@ -2180,13 +2180,13 @@ void addToInsnList(insn: int);
 var elt: oiptr;
 {
     new(elt);
-    with elt@ do {
+    with *elt do {
         next  =  NIL;
         mode  =  0;
         code  =  insn;
         offset  =  0;
     }
-    with insnList@ do {
+    with *insnList do {
         if (tail == NIL)
             head  =  elt;
         else
@@ -2208,7 +2208,7 @@ var
     elt: oiptr;
 {
     new(elt);
-    with elt@ do {
+    with *elt do {
         next  =  insnList->head;
         mode  =  0;
         code  =  insn;
@@ -2230,7 +2230,7 @@ var
     isSimple, needsMask: int;
 {
     valueType  =  insnList->typ;
-    with insnList@ do {
+    with *insnList do {
         switch (ilm) {
         case ilCONST:
             curVal.i  =  payload;
@@ -2319,7 +2319,7 @@ var
         } /* switch */
 4602:
     } /* with */
-    with insnList@ do {
+    with *insnList do {
         ilm  =  ilVALINACC;
         regsused  =  regsused | E48;
     }
@@ -2346,7 +2346,7 @@ void getOffset;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* setAddrTo */
-    with insnList@ do {
+    with *insnList do {
         l4int2z  =  addrmd;
         opCode  =  KVTM;
         regField  =  indexreg[reg];
@@ -2395,7 +2395,7 @@ void getOffset;
             goto 4650;
         }
     } /* with */
-    with insnList@ do {
+    with *insnList do {
         ilm  =  il1;
         addrmd  =  reg;
         disp  =  0;
@@ -2412,7 +2412,7 @@ var
     l4st6z: state;
     l4var7z: kind;
 {
-    with insnList@ do
+    with *insnList do
         l4int1z  =  addrmd;
     if (15 < l4int1z) {
         /* nothing? */
@@ -2472,7 +2472,7 @@ void spillAcc(op: operator);
 {
     addInsnAndOffset(curFrameRegTemplate, localSize);
     new(curExpr);
-    with curExpr@ do
+    with *curExpr do
         typ  =  insnList->typ;
     genOneOp();
     curExpr->op  =  op;
@@ -3537,7 +3537,7 @@ var
                        genCopy -- sees a well-formed head/tail to splice
                        on, while the chain emits no actual instruction. */
                     new(insnList);
-                    with insnList@ do {
+                    with *insnList do {
                         tail  =  NIL;
                         head  =  NIL;
                         typ  =  exprToGen->typ;
@@ -3626,7 +3626,7 @@ var
         if (curOP == GETVAR) {
             new(insnList);
             curIdRec  =  exprToGen->id1;
-            with insnList@ do {
+            with *insnList do {
                 tail  =  NIL;
                 head  =  NIL;
                 regsused  =  0U;
@@ -3651,7 +3651,7 @@ var
         } else if (curOP == GETFIELD) {
             genFullExpr(exprToGen->expr1);
             curIdRec  =  exprToGen->id2;
-            with insnList@ do {
+            with *insnList do {
                 disp  =  disp + curIdRec->offset;
                 if (curIdRec->pckfield) {
                     switch (st) {
@@ -3750,7 +3750,7 @@ var
                       KXTA + 0);              /* ACC := 0 */
             fixup(0, sjLabel);
             new(insnList);
-            with insnList@ do {
+            with *insnList do {
                 tail  =  NIL;
                 head  =  NIL;
                 typ  =  intType;
@@ -3795,7 +3795,7 @@ var
                     setAddrTo(12);
                     addToInsnList(getHelperProc(work - 6));
                 }
-                with insnList@ do {
+                with *insnList do {
                     ilm  =  ilVALINACC;
                     regsused  =  regsused | E48;
                 }
@@ -3822,7 +3822,7 @@ var
         curVal.tp  =  exprToGen->typ;
         if (curVal.i IN set146z) {
             new(insnList);
-            with insnList@ do {
+            with *insnList do {
                 typ  =  exprToGen->expr2->typ;
                 head  =  tail  =  NIL;
                 regsused  =  0U;
@@ -3902,7 +3902,7 @@ var l4exf1z: @extfilerec;
         genOneOp();
         break;
     case SETREG: {
-        with insnList@ do {
+        with *insnList do {
             l3int3z  =  insnCount();
             new(helpExpr);
             helpExpr->expr1  =  withList;
@@ -4004,7 +4004,7 @@ var l4exf1z: @extfilerec;
         genOneOp();
         break;
     case BRANCH:
-        with insnList@ do {
+        with *insnList do {
             noTarget  =  jumpTarget == 0;
             l3int3z  =  jumpTarget;
             if (ilm == ilCONST) {
@@ -4083,7 +4083,7 @@ var l4exf1z: @extfilerec;
         formAndAlign(getHelperProc(l3int3z));
         break;
    case LITINSN:
-        with insnList@ do {
+        with *insnList do {
             if (ilm != ilCONST)
                 error(errNoConstant);
             if (insnList->typ->size != 1)
@@ -4434,7 +4434,7 @@ void parseRange(aleft, aright: @int; rbase: @tptr);
                     goto 12366
                 }
                 new(curType = 4);
-                with curType@ do {
+                with *curType do {
                     size  =  1;
                     bits  =  15;
                     k  =  kindPtr;
@@ -4484,7 +4484,7 @@ void parseRange(aleft, aright: @int; rbase: @tptr);
         if (SY == STRUCTSY) {
             new(curType = 7);
             typ121z  =  curType;
-            with curType@ do {
+            with *curType do {
                 size  =  0;
                 bits  =  48;
                 k  =  kindStruct;
@@ -4503,7 +4503,7 @@ void parseRange(aleft, aright: @int; rbase: @tptr);
             tempType  =  NIL;
 12476:
             new(arrayType, kindArray);
-            with arrayType@ do {
+            with *arrayType do {
                 size  =  int(tempType);
                 bits  =  48;
                 k  =  kindArray;
@@ -4524,7 +4524,7 @@ void parseRange(aleft, aright: @int; rbase: @tptr);
             arrayType->base  =  nestedType;
             if (isFileType(nestedType))
                 error(errTypeMustNotBeFile);
-            do with arrayType@ do {
+            do with *arrayType do {
                 span  =  aright - aleft + 1;
                 tempType  =  tptr(size);
                 l3int22z  =  base->bits;
@@ -4572,7 +4572,7 @@ void parseRange(aleft, aright: @int; rbase: @tptr);
             new(curType, kindFile);
             if (! isPacked)
                 l3int22z  =  0;
-            with curType@ do {
+            with *curType do {
                 size  =  30;
                 bits  =  48;
                 k  =  kindFile;
@@ -4628,7 +4628,7 @@ var
         for (jj  =  0; jj < 128; ++jj) {
             curIdRec  =  symHash[jj];
             while ((curIdRec != NIL) &&
-                  (procName < curIdRec)) with curIdRec@ do {
+                  (procName < curIdRec)) with *curIdRec do {
                 l3var2z  =  typ->size;
                 if ((cl IN [VARID, FORMALID]) &&
                   (value < 074000)) {
@@ -4695,7 +4695,7 @@ var
         break;
     case 2:
         padToLeft();
-        with procName@ do {
+        with *procName do {
             l3var3z  =  ((E48 >> 22) & flags) >> 25; // 22 IN flags
             l3arg1z  =  pos;
             frame  =  moduleOffset - 040000;
@@ -4842,7 +4842,7 @@ var
         goto 13530;
     } else {
         new(curExpr);
-        with curExpr@ do {
+        with *curExpr do {
             typ  =  hashTravPtr->typ;
             op  =  GETVAR;
             id1  =  hashTravPtr;
@@ -4852,7 +4852,7 @@ var
         l4var4z  =  l4typ3z->k;
         if (SY == ARROW) {
             new(l4exp1z);
-            with l4exp1z@ do {
+            with *l4exp1z do {
                 expr1  =  curExpr;
                 if (l4var4z == kindPtr) {
                     typ  =  l4typ3z->base;
@@ -4876,7 +4876,7 @@ var
                     error(20); /* errDigitGreaterThan7 ??? */
                 } else 13530: {
                     new(l4exp1z);
-                    with l4exp1z@ do {
+                    with *l4exp1z do {
                         typ  =  hashTravPtr->typ;
                         op  =  GETFIELD;
                         expr1  =  curExpr;
@@ -4900,7 +4900,7 @@ var
                     if (! typeCheck(l4typ3z->rbase, curExpr->typ))
                         error(66 /*errOtherIndexTypeNeeded */);
                     new(l4exp2z);
-                    with l4exp2z@ do {
+                    with *l4exp2z do {
                         typ  =  l4typ3z->base;
                         expr1  =  l4exp1z;
                         expr2  =  curExpr;
@@ -4924,7 +4924,7 @@ var
     cast: eptr;
 {
     new(cast);
-    with cast@ do {
+    with *cast do {
         typ  =  realType;
         op  =  TOREAL;
         expr1  =  value@;
@@ -4956,7 +4956,7 @@ var
     actualOp: operator;
     formClass: idclass;
 {
-    with subroutine@ do {
+    with *subroutine do {
         if (typ != NIL)
             set146z  =  set146z & (~flags);
         noArgs  =  (list == NIL) && ! (24 in flags);
@@ -4964,7 +4964,7 @@ var
     new(callExpr);
     argList  =  callExpr;
     bool48z  =  true;
-    with callExpr@ do {
+    with *callExpr do {
         typ  =  subroutine->typ;
         op  =  ALNUM;
         id2  =  subroutine;
@@ -5027,7 +5027,7 @@ var
                 }
             } while (false);
             new(curActual);
-            with curActual@ do {
+            with *curActual do {
                 typ  =  NIL;
                 expr1  =  NIL;
                 expr2  =  curExpr;
@@ -5069,7 +5069,7 @@ var finalExpr: eptr;
         return;
     }
     new(finalExpr);
-    with finalExpr@ do {
+    with *finalExpr do {
         op = oper;
         expr1 = leftArg;
         expr2 = curExpr;
@@ -5092,7 +5092,7 @@ var
         return;
     }
     new(finalExpr);
-    with finalExpr@ do {
+    with *finalExpr do {
         if (k1 == kindReal || k2 == kindReal) {
             if (oper == IMODOP) {
                 error(62); // errIntNeeded
@@ -5136,7 +5136,7 @@ var ex1: eptr;
         }
     }
     new(ex1);
-    with ex1@ do {
+    with *ex1 do {
         typ = boolType;
         if (oper IN [GTOP, LEOP]) {
             expr1 = curExpr;
@@ -5160,7 +5160,7 @@ var finalExpr: eptr;
         finalExpr = uVarPtr;
     } else {
         new(finalExpr);
-        with finalExpr@ do {
+        with *finalExpr do {
             typ = boolType;
             op = oper;
             expr1 = leftExpr;
@@ -5191,14 +5191,14 @@ var altExpr, condOpExpr: eptr;
         return;
     }
     new(altExpr);
-    with altExpr@ do {
+    with *altExpr do {
         typ = resType;
         op = ALTERN;
         expr1 = thenExpr;
         expr2 = curExpr;
     }
     new(condOpExpr);
-    with condOpExpr@ do {
+    with *condOpExpr do {
         typ = resType;
         op = CONDOP;
         expr1 = condExpr;
@@ -5297,7 +5297,7 @@ var
                 break;
             case ENUMID:
                 new(curExpr);
-                with curExpr@ do {
+                with *curExpr do {
                     typ  =  hashTravPtr->typ;
                     op  =  GETENUM;
                     num1  =  hashTravPtr->value;
@@ -5338,7 +5338,7 @@ var
                     error(errNoCommaOrParenOrTooFewArgs);
                     longjmp(jb8888);
                 }
-                with curExpr@ do {
+                with *curExpr do {
                     typ  =  routine->typ;
                     op  =  l4op10z;
                     expr1  =  NIL;
@@ -5405,7 +5405,7 @@ var
                     error(errNoConstant);
                 }
                 new(curExpr);
-                with curExpr@ do {
+                with *curExpr do {
                     typ  =  intType;
                     op  =  SETOR;
                     expr1  =  newExpr;
@@ -5415,7 +5415,7 @@ var
             } while (SY == COMMA);
         }
         checkSymAndRead(RBRACK);
-        with l4var8z@ do {
+        with *l4var8z do {
             op  =  GETENUM;
             typ  =  intType;
             num1  =  l4var1z;
@@ -5447,7 +5447,7 @@ var
     if (oper != NOOP) {
         arg1Type = curExpr->typ;
         new(leftExpr);
-        with leftExpr@ do {
+        with *leftExpr do {
             typ = arg1Type;
             expr1 = curExpr;
             switch (oper) {
@@ -5486,7 +5486,7 @@ var
                 }
                 break;
             case MUL:
-                with leftExpr@ do {
+                with *leftExpr do {
                     if (arg1Type->k == kindPtr) {
                         typ = arg1Type->base;
                         op = DEREF;
@@ -5502,7 +5502,7 @@ var
             case SETAND:
                 if (! (curExpr->op IN lvalOpSet))
                     error(27); /* errExpressionWhereVariableExpected */
-                with leftExpr@ do {
+                with *leftExpr do {
                     typ = voidPtr;
                     op = STANDPROC;
                     expr1 = curExpr;
@@ -5526,7 +5526,7 @@ var
                 new(oneExpr);
                 CTOR(oneExpr@, intType, GETENUM, 1U);
                 new(addExpr);              /* INTPLUS / INTMINUS node */
-                with addExpr@ do {
+                with *addExpr do {
                     typ = intType;
                     op = (oper == INCROP) ? INTPLUS : INTMINUS;
                     expr1 = curExpr;        /* lvalue subtree, shared */
@@ -5592,7 +5592,7 @@ var
                 error(75); /* errCannotAssignFiles */
             }
             new(thenExpr);
-            with thenExpr@ do {
+            with *thenExpr do {
                 typ  =  arg1Type;
                 op  =  ASSIGNOP;
                 expr1  =  leftExpr;
@@ -5660,7 +5660,7 @@ void setStrLab(id:int);
     new(strLabPtr);
     padToLeft();
     disableNorm();
-    with strLabPtr@ do {
+    with *strLabPtr do {
         next  =  strLabList;
         ident  =  id;
         target  =  0;
@@ -5681,7 +5681,7 @@ void setBrCont;
 void brContTarget;
 {
     /* assigning target for break/continue if used */
-    with strLabList@ do if (target != 0) {
+    with *strLabList do if (target != 0) {
         fixup(0, target);
     }
     strLabList  =  strLabList->next; /* removing break/continue */
@@ -5746,19 +5746,19 @@ var
     oldRegs  =  freeRegs;
     usedRegs  =  0U;
     do {
-        inSymbol();
-        if ((hashTravPtr != NIL) &&
-           (hashTravPtr->cl >= VARID)) {
-            factor();
+//        inSymbol();
+//        if ((hashTravPtr != NIL) &&
+//           (hashTravPtr->cl >= VARID)) {
+            expression();
             if (curExpr->typ->k == kindStruct) {
                 formOperator(SETREG);
                 usedRegs  =  (usedRegs | (E48 >> curVal.i)) & set148z;
             } else {
                 error(71); /* errWithOperatorNotOfARecord */
             }
-        } else {
-            error(72); /* errWithOperatorNotOfAVariable */
-        }
+//        } else {
+//            error(72); /* errWithOperatorNotOfAVariable */
+//        }
     } while (SY == COMMA);
     checkSymAndRead(DOSY);
     statement();
@@ -6733,7 +6733,7 @@ var
             jumpTarget  =  curOffset;
             whileExpr  =  curExpr;
             new (curExpr);
-            with curExpr@ do {
+            with *curExpr do {
                 typ  =  boolType;
                 op  =  NOTOP;
                 expr1  =  whileExpr;
@@ -6855,7 +6855,7 @@ var
     if (!bool48z && ! doPMD && (sizeCount == 3) &&
        (curProcNesting != 1) && (set145z & [1:15]) != [1:15]) {
         objBuffer[1]  =  (KNTR+7)<< 24 | KUTC;
-        with procName@ do
+        with *procName do
             flags  =  flags | [25];
         if (objBufIdx == 2) {
             objBuffer[1]  =  (KUJ+I13) << 24;
@@ -6936,7 +6936,7 @@ void defExtern;
     l3var1z  =  leftAlign(curIdent);
     if (curIdent == litInput) {
         new(inputFile, 12);
-        with inputFile@ do {
+        with *inputFile do {
             id  =  curIdent;
             offset  =  0;
             typ  =  textType;
@@ -6961,7 +6961,7 @@ void defExtern;
         }
     }
     new(curExternFile);
-    with curExternFile@ do {
+    with *curExternFile do {
         id  =  curIdent;
         next  =  externFileList;
         line  =  l3var8z;
@@ -6981,7 +6981,7 @@ void defExtern;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* mainProgram */
     new(boolType, kindScalar);
-    with boolType@ do {
+    with *boolType do {
         size  =  1;
         bits  =  1;
         k  =  kindScalar;
@@ -6990,7 +6990,7 @@ void defExtern;
         enums  =  NIL;
     }
     new(intType, kindScalar);
-    with intType@ do {
+    with *intType do {
         size  =  1;
         bits  =  48;
         k  =  kindScalar;
@@ -6999,7 +6999,7 @@ void defExtern;
         enums  =  NIL;
     }
     new(charType, kindScalar);
-    with charType@ do {
+    with *charType do {
         size  =  1;
         bits  =  8;
         k  =  kindScalar;
@@ -7008,20 +7008,20 @@ void defExtern;
         enums  =  NIL;
     }
     new(realType, kindReal);
-    with realType@ do {
+    with *realType do {
         size  =  1;
         bits  =  48;
         k  =  kindReal;
     }
     new(voidPtr, kindPtr);
-    with voidPtr@ do {
+    with *voidPtr do {
         size  =  1;
         bits  =  48;
         k  =  kindPtr;
         base  =  voidPtr;
     }
     new(textType, kindFile);
-    with textType@ do {
+    with *textType do {
         size  =  30;
         bits  =  48;
         k  =  kindFile;
@@ -7029,7 +7029,7 @@ void defExtern;
         elsize  =  8;
     }
     new(alfaType,kindArray);
-    with alfaType@ do {
+    with *alfaType do {
         size  =  1;
         bits  =  48;
         k  =  kindArray;
@@ -7055,7 +7055,7 @@ void defExtern;
         smallStringType[strlen] = makeStringType();
     maxSmallString  =  6;
     new(curIdRec = 7);
-    with curIdRec@ do {
+    with *curIdRec do {
         offset  =  0;
         typ  =  intType;
         cl  =  VARID;
@@ -7063,13 +7063,13 @@ void defExtern;
         value  =  7;
     }
     new(uVarPtr);
-    with uVarPtr@ do {
+    with *uVarPtr do {
         typ  =  intType;
         op  =  GETVAR;
         id1  =  curIdRec;
     }
     new(uProcPtr, 12);
-    with uProcPtr@ do {
+    with *uProcPtr do {
         typ  =  NIL;
         list  =  NIL;
         argList  =  NIL;
@@ -7116,7 +7116,7 @@ void defExtern;
     } else
         inSymbol();
     symTabPos  =  074004;
-    with programObj@ do {
+    with *programObj do {
         id  =  'PASCOMPL';
         pos  =  0;
         symTab[074000]  =  'PASCOMPL';
@@ -7139,7 +7139,7 @@ void defExtern;
     externFileList  =  NIL;
     new(l3var7z, 12);
     lineStartOffset  =  moduleOffset;
-    with l3var7z@ do {
+    with *l3var7z do {
         id  =  litOutput;
         offset  =  0;
         typ  =  textType;
@@ -7183,7 +7183,7 @@ void defExtern;
 void makeExtFile;
 {
     new(l2var10z);
-    with l2var10z@ do {
+    with *l2var10z do {
         typ  =  tptr(curExternFile);
         id2  =  workidr;
         expr1  =  curExpr;
@@ -7229,7 +7229,7 @@ var
                 error(errIdentAlreadyDefined);
             ++l3var6z;
             new(l3var1z, FORMALID);
-            with l3var1z@ do {
+            with *l3var1z do {
                 id  =  curIdent;
                 offset  =  curFrameRegTemplate;
                 cl  =  parClass;
@@ -7264,7 +7264,7 @@ var
                 else if (expType->size != 1)
                      l3var5z  =  l3var6z * expType->size + l3var5z;
             if (l3var3z != NIL)
-                while (l3var3z != curIdRec) with l3var3z@ do {
+                while (l3var3z != curIdRec) with *l3var3z do {
                     typ  =  expType;
                     l3var3z  =  list;
                 }
@@ -7337,7 +7337,7 @@ void exitScope(arg: @hashArray);
                 error(errBadSymbol);
             else
                 inSymbol();
-            with workidr@ do
+            with *workidr do
                 typ = parseLiteral(&high, true);
             if (workidr->typ == NIL) {
                 error(errNoConstant);
@@ -7388,7 +7388,7 @@ void exitScope(arg: @hashArray);
                 typelist = P2672(typelist, curIdRec);
             } else {
                 new(curIdRec=5);
-                with curIdRec@ do {
+                with *curIdRec do {
                     id  =  l2var12z;
                     offset  =  curFrameRegTemplate;
                     typ  =  l2typ13z;
@@ -7419,7 +7419,7 @@ void exitScope(arg: @hashArray);
                 new(curIdRec=7);
                 if (isDefined)
                     error(errIdentAlreadyDefined);
-                with curIdRec@ do {
+                with *curIdRec do {
                     id  =  curIdent;
                     offset  =  curFrameRegTemplate;
                     next  =  symHash[bucket];
@@ -7446,7 +7446,7 @@ void exitScope(arg: @hashArray);
             checkSymAndRead(COLON);
             l2typ13z = parseTypeRef(skipToSet | [IDENT,SEMICOLON]);
             jj  =  l2typ13z->size;
-            while (workidr != NIL) with workidr@ do {
+            while (workidr != NIL) with *workidr do {
                 curIdRec  =  list;
                 typ  =  l2typ13z;
                 list  =  NIL;
@@ -7530,7 +7530,7 @@ void exitScope(arg: @hashArray);
             curIdRec  =  uProcPtr;
             isPredefined  =  false;
         } else {
-            if (isDefined)  with hashTravPtr@ do {
+            if (isDefined)  with *hashTravPtr do {
                 if (cl == ROUTINEID &&
                     list == NIL &&
                     preDefLink != NIL &&
@@ -7546,7 +7546,7 @@ void exitScope(arg: @hashArray);
         }
         if (! isPredefined) {
             new(curIdRec, 12);
-            with curIdRec@ do {
+            with *curIdRec do {
                 id  =  curIdent;
                 offset  =  curFrameRegTemplate;
                 next  =  symHash[bucket];
@@ -7581,7 +7581,7 @@ void exitScope(arg: @hashArray);
                 }
             }
         } else {
-            with hashTravPtr@ do {
+            with *hashTravPtr do {
                 l2int18z  =  level;
                 curFrameRegTemplate  =  curFrameRegTemplate + indexreg[1];
                 ++curProcNesting;
@@ -7609,7 +7609,7 @@ void exitScope(arg: @hashArray);
             inSymbol();
         }
         checkSymAndRead(SEMICOLON);
-        with curIdRec@ do if (curIdent == litForward) {
+        with *curIdRec do if (curIdent == litForward) {
             if (isPredefined)
                 error(83); /* errRepeatedPredefinition */
             level  =  l2int18z;
@@ -7745,7 +7745,7 @@ var
     curVal.i  =  keyword & hashMask;
     mapai(curVal.a, curVal.i);
     new(kw);
-    with kw@ do {
+    with *kw do {
         w  =  keyword;
         sym  =  SY;
         op  =  charClass;
