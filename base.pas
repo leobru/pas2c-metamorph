@@ -1642,10 +1642,12 @@ label
                     if CH = '|' then nextCH
                     else charClass := SETOR;
                 } else if charClass = MINUSOP then {
-                    if (PASINPUT@ = '>') then {
-                    SY := ARROW; nextCH; CH := '.';
+                    nextCH;
+                    if (CH = '>') then {
+                       (* '->' yields ARROW (deref + struct field select);
+                          parsePostfix expects the field IDENT next. *)
+                       SY := ARROW; nextCH;
                     } else {
-                       nextCH;
                        if CH = '-' then { charClass := DECROP; nextCH }
                     }
                 } else if charClass = PLUSOP then {
@@ -5054,7 +5056,7 @@ procedure expression;
    to call when the next token isn't a postfix at all (loop simply exits). *)
 procedure parsePostfix;
 label
-    13462;
+    13462, 55;
 var
     l4exp1z, l4exp2z: eptr;
     l4typ3z: tptr;
@@ -5064,26 +5066,34 @@ var
     l4typ3z := curExpr@.vt.typ;
     l4var4z := l4typ3z@.k;
     if (SY = ARROW) then {
+        (* '->' is deref + struct field selection; build DEREF here,
+           then jump to label 55 to consume the field IDENT. *)
         new(l4exp1z);
-        with l4exp1z@ do {
-            expr1 := curExpr;
-            if (l4var4z = kindPtr) then {
-                vt.typ := l4typ3z@.base;
-                op := DEREF;
-            } else if (l4var4z = kindFile) then {
-                vt.typ := l4typ3z@.base;
-                op := FILEPTR;
-            } else {
-                stmtName := '  ^   ';
-                error(errWrongVarTypeBefore);
-                l4exp1z@.vt.typ := l4typ3z;
-            }
+        l4exp1z@.expr1  :=  curExpr;
+        if ((l4var4z = kindPtr) and
+            (l4typ3z@.base@.k = kindStruct)) then {
+            l4exp1z@.vt.typ  :=  l4typ3z@.base;
+            l4exp1z@.op   :=  DEREF;
+            curExpr  :=  l4exp1z;
+            l4typ3z  :=  l4typ3z@.base;
+            goto 55;
+        (* leaving it here for the future when accessing fields of the FILE
+           structure is possible, that is, when kindFile is a special case
+           of kindStruct
+        } else if (l4var4z = kindFile) then {
+                                            typ  :=  l4typ3z@.base;
+                                            op  :=  FILEPTR;
+        *)
+        } else {
+            stmtName  :=  '  ->  ';
+            error(errWrongVarTypeBefore);
+            l4exp1z@.vt.typ  :=  l4typ3z;
         };
-        curExpr := l4exp1z;
+        curExpr  :=  l4exp1z;
         inSymbol;
     } else if (SY = PERIOD) then {
         if (l4var4z = kindStruct) then {
-            lookupMode := 3;
+55:         lookupMode := 3;
             typ121z := l4typ3z;
             inSymbol;
             if (hashTravPtr = NIL) then {
@@ -8346,7 +8356,6 @@ procedure initOptions;
     charSym['&'] := MULOP;
     charSym[','] := COMMA;
     charSym['.'] := PERIOD;
-    charSym['@'] := ARROW;
     charSym['^'] := MULOP;
     charSym['('] := LPAREN;
     charSym[')'] := RPAREN;

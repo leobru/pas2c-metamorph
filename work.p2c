@@ -1503,11 +1503,12 @@ void lexer;
                     if (CH == '|') nextCH();
                     else charClass = SETOR;
                 } else if (charClass == MINUSOP) {
-                    if (*PASINPUT == '>') {
+                    nextCH();
+                    if (CH == '>') {
+                        /* '->' yields ARROW (deref + struct field select);
+                           parsePostfix expects the field IDENT next. */
                         SY = ARROW; nextCH();
-                        CH = '.';
                     } else {
-                        nextCH();
                         if (CH == '-') { charClass = DECROP; nextCH(); }
                     }
                 } else if (charClass == PLUSOP) {
@@ -4789,10 +4790,11 @@ var
 void expression; forward;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-/* parsePostfix: consume any chain of postfix operators (@, .field, [idx])
-   acting on curExpr.  Returns with SY pointing at the first token that is
-   neither a postfix operator nor the trailing `]` of an index list.  Safe
-   to call when the next token isn't a postfix at all (loop simply exits). */
+/* parsePostfix: consume any chain of postfix operators (->field,
+   .field, [idx]) acting on curExpr.  Returns with SY pointing at the
+   first token that is neither a postfix operator nor the trailing `]`
+   of an index list.  Safe to call when the next token isn't a postfix
+   at all (loop simply exits). */
 void parsePostfix;
 var
     l4exp1z, l4exp2z: eptr;
@@ -4803,25 +4805,34 @@ var
     l4typ3z  =  curExpr->typ;
     l4var4z  =  l4typ3z->k;
     if (SY == ARROW) {
+        /* '->' is deref + struct field selection; build DEREF here,
+           then jump to label 55 to consume the field IDENT. */
         new(l4exp1z);
-        with *l4exp1z do {
-            expr1  =  curExpr;
-            if (l4var4z == kindPtr) {
-                typ  =  l4typ3z->base;
-                op  =  DEREF;
-            } else if (l4var4z == kindFile) {
-                typ  =  l4typ3z->base;
-                op  =  FILEPTR;
-            } else {
-                stmtName  =  '  ^   ';
-                error(errWrongVarTypeBefore);
-                l4exp1z->typ  =  l4typ3z;
-            }
+        l4exp1z->expr1  =  curExpr;
+        if ((l4var4z == kindPtr) &&
+            (l4typ3z->base->k == kindStruct)) {
+            l4exp1z->typ  =  l4typ3z->base;
+            l4exp1z->op   =  DEREF;
+            curExpr  =  l4exp1z;
+            l4typ3z  =  l4typ3z->base;
+            goto 55;
+        /* leaving it here for the future when accessing fields of the FILE
+           structure is possible, that is, when kindFile is a special case
+           of kindStruct
+        } else if (l4var4z == kindFile) {
+            typ  =  l4typ3z->base;
+            op  =  FILEPTR;
+        */
+        } else {
+            stmtName  =  '  ->  ';
+            error(errWrongVarTypeBefore);
+            l4exp1z->typ  =  l4typ3z;
         }
         curExpr  =  l4exp1z;
         inSymbol();
     } else if (SY == PERIOD) {
         if (l4var4z == kindStruct) {
+55:
             lookupMode  =  3;
             typ121z  =  l4typ3z;
             inSymbol();
@@ -5410,7 +5421,7 @@ var
         longjmp(jb8888);
     } /* switch */
     /* Any factor producing an rvalue/lvalue may be followed by postfix
-       operators (@ for pointer/file deref, .field for struct member,
+       operators (->field for ptr-to-struct deref+select, .field for struct member,
        [idx] for array element).  parseLval already drained them above;
        parsePostfix is a no-op when SY is not a postfix token. */
     parsePostfix();
@@ -7962,7 +7973,6 @@ void initOptions;
     charSym['&']  =  MULOP;
     charSym[',']  =  COMMA;
     charSym['.']  =  PERIOD;
-    charSym['@']  =  ARROW;
     charSym['^']  =  MULOP;
     charSym['(']  =  LPAREN;
     charSym[')']  =  RPAREN;
