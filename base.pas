@@ -174,7 +174,7 @@ operator = (
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
     IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
-    op36,       op37,       GETENUM,    GETFIELD,   DEREF,
+    RMWASSIGN,  op37,       GETENUM,    GETFIELD,   DEREF,
     FILEPTR,    op44,       ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
     STANDPROC,  NOOP
@@ -3590,6 +3590,67 @@ var
 }; (* genCondOp *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure genRMWAssign;
+(* Code-gen for RMWASSIGN(lhs, inner-op(rhs, NIL)): a read-modify-write
+   assignment (compound op-assign such as `lhs += rhs`, or pre-++/--).
+   The naked AST lowering ASSIGNOP(lhs, op(lhs, rhs)) evaluates `lhs`
+   twice, which is wrong when computing its address has side effects
+   (or even just clobbers ACC).  RMWASSIGN materialises the lvalue's
+   address once into a local spill slot via spillAcc(op37) whenever
+   that address needs ACC to compute, then synthesises
+   ASSIGNOP(slot, op(slot, rhs)) and re-enters genFullExpr.  Both
+   slot references then refer to the same spilled address, so the
+   original lvalue subtree is walked exactly once.
+   For trivial lvalues that don't touch ACC (plain GETVAR), we skip
+   materialisation and let the synthetic AST share the lvalue node
+   directly -- re-walking is cheap and side-effect free. *)
+var
+    innerNode, rhsExpr, lhsExpr, rmwLhs: eptr;
+    synthOp, synthAsn: eptr;
+    innerOp: operator;
+    needsMater: boolean;
+{
+    lhsExpr := exprToGen@.expr1;
+    innerNode := exprToGen@.expr2;
+    innerOp := innerNode@.op;
+    rhsExpr := innerNode@.expr1;
+
+    needsMater := (lhsExpr@.op <> GETVAR) and
+                  ((lhsExpr@.op <> GETELT) or
+                  (lhsExpr@.expr2@.op <> GETVAR));
+
+    if needsMater then {
+        l3bool13z := false;
+        genFullExpr(lhsExpr);
+        l3bool13z := true;
+        setAddrTo(14);
+        addToInsnList(KITA + 14);
+        spillAcc(op37);
+        rmwLhs := curExpr;
+    } else {
+        rmwLhs := lhsExpr;
+    };
+
+    new(synthOp);
+    with synthOp@ do {
+        vt.typ := innerNode@.vt.typ;
+        op := innerOp;
+        expr1 := rmwLhs;
+        expr2 := rhsExpr;
+    };
+
+    new(synthAsn);
+    with synthAsn@ do {
+        vt.typ := exprToGen@.vt.typ;
+        op := ASSIGNOP;
+        expr1 := rmwLhs;
+        expr2 := synthOp;
+    };
+
+    genFullExpr(synthAsn);
+}; (* genRMWAssign *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function shift(val:bitset; amt:integer):bitset;
 var i    : integer; ret: word;
 {
@@ -3609,6 +3670,10 @@ var i    : integer; ret: word;
     curOP := exprToGen@.op;
     if (curOP = CONDOP) then {
         genCondOp;
+        exit;
+    };
+    if (curOP = RMWASSIGN) then {
+        genRMWAssign;
         exit;
     };
     if (curOP < GETELT) then {
@@ -5716,9 +5781,10 @@ var
             };
             INCROP, DECROP: with leftExpr@ do {
                 (* Pre-increment (++x) / pre-decrement (--x):
-                   lower to ASSIGNOP(x, INTPLUS|INTMINUS(x, 1)).
-                   The lvalue subtree is shared between LHS and RHS;
-                   callers must therefore avoid side-effectful lvalues. *)
+                   lower to RMWASSIGN(x, INTPLUS|INTMINUS(1, NIL)).
+                   Codegen materialises x's address once (when needed)
+                   and reuses the spill slot for both load and store,
+                   so side-effectful lvalues fire only once. *)
                 if not (curExpr@.op IN lvalOpSet) then {
                     error(27); (* errExpressionWhereVariableExpected *)
                     exit
@@ -5736,11 +5802,11 @@ var
                         op := INTPLUS
                     else
                         op := INTMINUS;
-                    expr1 := curExpr;          (* lvalue subtree, shared *)
-                    expr2 := oneExpr;
+                    expr1 := oneExpr;          (* RHS = 1 *)
+                    expr2 := NIL;                (* don't-care slot *)
                 };
                 vt.typ := integerType;
-                op := ASSIGNOP;
+                op := RMWASSIGN;
                 expr2 := addExpr;
             }
             end;
@@ -5786,17 +5852,24 @@ var
             (* Right-associative assignment: lhs [op]= rhs.  `oper` (captured
                above before inSymbol) is ASSIGNOP for plain `=`; for op-assign
                (+=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=) it carries the
-               underlying operation, lexed as SY=BECOMES + charClass=op. *)
+               underlying operation, lexed as SY=BECOMES + charClass=op.
+               Plain `=` yields ASSIGNOP(lhs, rhs).  Op-assign yields
+               RMWASSIGN(lhs, inner-op(rhs, NIL)) where inner-op carries the
+               operator (e.g. INTPLUS) and the RHS in expr1; expr2 is the
+               don't-care slot.  Codegen for RMWASSIGN walks lhs once,
+               materialising its address into a spill slot when needed, then
+               synthesises the equivalent ASSIGNOP for emission. *)
             if not (leftExpr@.op IN lvalOpSet) then
                 error(27); (* errExpressionWhereVariableExpected *)
             parsePrc(precAssign);
             arg1Type := leftExpr@.vt.typ;
             arg2Type := curExpr@.vt.typ;
             if (oper <> ASSIGNOP) then {
-                (* Op-assign: fold (leftExpr op rhs) into curExpr; the final
-                   ASSIGNOP node below then turns it into lhs = lhs op rhs.
-                   leftExpr appears twice in the resulting AST -- safe for
-                   plain lvalues; side-effects in the lhs would fire twice. *)
+                (* Reuse bldArithOp/bldBitOp/bldLogOp for operator selection
+                   (PLUSOP vs INTPLUS, etc.) and type promotion, then drop
+                   the leftExpr slot of the result so it stores op(rhs, NIL)
+                   ready for RMWASSIGN.expr2.  RMWASSIGN.expr1 carries the
+                   original lvalue subtree, evaluated once at codegen time. *)
                 match := typeCheck(arg1Type, arg2Type);
                 case opPrec[oper] of
                     precMul,
@@ -5808,6 +5881,8 @@ var
                     precAnd,
                     precOr:     bldLogOp(oper, leftExpr, match);
                 end;
+                curExpr@.expr1 := curExpr@.expr2;
+                curExpr@.expr2 := NIL;
                 arg2Type := curExpr@.vt.typ;
             };
             if not typeCheck(arg1Type, arg2Type) then {
@@ -5822,7 +5897,10 @@ var
             new(thenExpr);
             with thenExpr@ do {
                 vt.typ := arg1Type;
-                op := ASSIGNOP;
+                if (oper <> ASSIGNOP) then
+                    op := RMWASSIGN
+                else
+                    op := ASSIGNOP;
                 expr1 := leftExpr;
                 expr2 := curExpr;
             };
