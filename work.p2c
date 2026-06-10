@@ -352,6 +352,7 @@ extfilerec = struct {
 };
 NumberFormat = enum {DECIMAL, OCTAL, FULLWORD, HEX};
 hashArray = array [128] of irptr;
+tok = int:15;
 //
 var
     numFormat: NumberFormat;
@@ -389,7 +390,7 @@ var
     curVarKind: kind;
     curExternFile: pextf;
     commentModeCH: char;
-    CH: char;
+    CH, prevCH: char;
     prevInsn,
     debugLine,
     lineNesting,
@@ -1183,372 +1184,287 @@ void doCharConst(lim:char);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void lexer;
 {
-        switch (SY) {
-            default:
-                nextCH();
-                break;
-            case IDENT: {
-                curToken.i  = 0U;
-                tokenLen  =  1;
-                do {
-                    curVal.c  =  iso2text[CH];
-                    nextCH();
-                    if (8 >= tokenLen) {
-                        ++tokenLen;
-                        curToken.i  =  (curToken.i << 6) | curVal.i;
-                    }
-                } while (chrClass[CH] == ALNUM);
-                curVal.i  =  curToken.i & hashMask;
-                mapAI(curVal.a, bucket);
-                curIdent  =  curToken.i;
-                keywordHashPtr  =  kwordHash[bucket];
-                while (keywordHashPtr != NIL) {
-                    if (keywordHashPtr->w == curToken.i) {
-                        SY  =  keywordHashPtr->sym;
-                        charClass  =  keywordHashPtr->op;
+    switch (SY) {
+    case IDENT: {
+        curToken.i  = 0U;
+        tokenLen  =  1;
+        do {
+            curVal.c  =  iso2text[CH];
+            nextCH();
+            if (8 >= tokenLen) {
+                ++tokenLen;
+                curToken.i  =  (curToken.i << 6) | curVal.i;
+            }
+        } while (chrClass[CH] == ALNUM);
+        curVal.i  =  curToken.i & hashMask;
+        mapAI(curVal.a, bucket);
+        curIdent  =  curToken.i;
+        keywordHashPtr  =  kwordHash[bucket];
+        while (keywordHashPtr != NIL) {
+            if (keywordHashPtr->w == curToken.i) {
+                SY  =  keywordHashPtr->sym;
+                charClass  =  keywordHashPtr->op;
+                return;
+            }
+            keywordHashPtr  =  keywordHashPtr->next;
+        }
+        isDefined  =  false;
+        SY  =  IDENT;
+        switch (lookupMode) {
+        case lookDef:
+            hashTravPtr  =  symHash[bucket];
+            while (hashTravPtr != NIL) {
+                if (hashTravPtr->offset == curFrameRegTemplate)
+                {
+                    if (hashTravPtr->id != curIdent)
+                        hashTravPtr  =  hashTravPtr->next;
+                    else {
+                        isDefined  =  true;
                         return;
                     }
-                    keywordHashPtr  =  keywordHashPtr->next;
-                }
-                isDefined  =  false;
-                SY  =  IDENT;
-                switch (lookupMode) {
-                case lookDef:
-                    hashTravPtr  =  symHash[bucket];
-                    while (hashTravPtr != NIL) {
-                        if (hashTravPtr->offset == curFrameRegTemplate)
-                        {
-                            if (hashTravPtr->id != curIdent)
-                                hashTravPtr  =  hashTravPtr->next;
-                            else {
-                                isDefined  =  true;
-                                return;
-                            }
-                        } else
-                            return;
-                    }
-                    break;
-                case lookWith:
-                if (withList != NIL) {
-                    withIter  =  withList;
-                    chain  =  fieldHash[bucket];
-                    if (chain != NIL) {
-                        while (withIter != NIL) {
-                            val  =  withIter->typ2->size;
-                            hashTravPtr  =  chain;
-                            while (hashTravPtr != NIL) {
-                                if ((hashTravPtr->id == curIdent)
-                                && (hashTravPtr->value == val))
-                                    return;
-                                hashTravPtr  =  hashTravPtr->next;
-                            }
-                            withIter  =  withIter->expr1;
-                        }
-                    }
-                }
-                // FALLTHRU
-                case lookUse:
-                    hashTravPtr  =  symHash[bucket];
-                    while (hashTravPtr != NIL) {
-                        if (hashTravPtr->id != curIdent)
-                            hashTravPtr  =  hashTravPtr->next;
-                        else
-                            return;
-                    }
-                    break;
-                case lookField:
-                    hashTravPtr  =  fieldHash[bucket];
-                    while (hashTravPtr != NIL) {
-                        with *hashTravPtr do {
-                            if ((id == curIdent) &&
-                               (typ121z == uptype))
-                                return;
-                            hashTravPtr  =  next;
-                       }
-                   }
-                }
-                break;
-            } /* IDENT */
-            case INTCONST: { /*=m-*/
-                SY  =  INTCONST;
-                tokenLen  =  -1;
-                do {
-                    ++tokenLen;
-                    if (tokenLen <= 16)
-                        numstr[tokenLen].i  =  CH - '0';
-                    else {
-                        error(55); /* errMoreThan16DigitsInNumber */
-                        tokenLen  =  1;
-                    }
-                    nextCH();
-                } while (charSym[CH] == INTCONST);
-/* octdec */    do {
-                    if ((numstr[0].i == 0) && (CH != '.')) {
-                        if (tokenLen == 0 && CH == 'X') {
-                            /* Hex literal: 0Xhhh[U] */
-                            numFormat = hex;
-                            nextCH();
-                            curToken.i = 0;
-                            while (charSym[CH] == INTCONST
-                               || ('A' <= CH) && (CH <= 'F')) {
-                                curToken.i = curToken.i << 4 |
-                                    CH - (charSym[CH] == INTCONST ? 48 : 55);
-                                nextCH();
-                            };
-                            if (CH == 'U')
-                                nextCH();
-                            return;
-                        };
-                        numFormat  =  OCTAL;
-                        if (CH == 'U') {
-                            numFormat = FULLWORD;
-                            nextCH();
-                        }
-                    } else {
-                        numFormat  =  DECIMAL;
-                        break;  /* octdec */
-                    }
-                    curToken.i  =  0;
-                    for (tokenIdx = 0; tokenIdx <= tokenLen; ++tokenIdx) {
-                        if (7 < numstr[tokenIdx].i) {
-                            error(20); /* errDigitGreaterThan7 */
-                        }
-                        curToken.i = (curToken.i << 3) |
-                            numstr[tokenIdx].i & 7;
-                    }
+                } else
                     return;
-                } while (0);
-                curToken.i  =  0;
-                for (tokenIdx = 0; tokenIdx <= tokenLen; ++tokenIdx) {
-                    if (0xFFFFFFFFFF/10 >= curToken.i)
-                        curToken.i  =  10 * curToken.i +
-                            numstr[tokenIdx].i;
-                    else {
-                        error(errNumberTooLarge);
-                        curToken.i  =  1;
+            }
+            break;
+        case lookWith:
+        if (withList != NIL) {
+            withIter  =  withList;
+            chain  =  fieldHash[bucket];
+            if (chain != NIL) {
+                while (withIter != NIL) {
+                    val  =  withIter->typ2->size;
+                    hashTravPtr  =  chain;
+                    while (hashTravPtr != NIL) {
+                        if ((hashTravPtr->id == curIdent)
+                        && (hashTravPtr->value == val))
+                            return;
+                        hashTravPtr  =  hashTravPtr->next;
                     }
+                    withIter  =  withIter->expr1;
                 }
+            }
+        }
+        // FALLTHRU
+        case lookUse:
+            hashTravPtr  =  symHash[bucket];
+            while (hashTravPtr != NIL) {
+                if (hashTravPtr->id != curIdent)
+                    hashTravPtr  =  hashTravPtr->next;
+                else
+                    return;
+            }
+            break;
+        case lookField:
+            hashTravPtr  =  fieldHash[bucket];
+            while (hashTravPtr != NIL) {
+                with *hashTravPtr do {
+                    if ((id == curIdent) &&
+                       (typ121z == uptype))
+                        return;
+                    hashTravPtr  =  next;
+               }
+           }
+        }
+        break;
+    } /* IDENT */
+    case INTCONST: { /*=m-*/
+        SY  =  INTCONST;
+        tokenLen  =  -1;
+        do {
+            ++tokenLen;
+            if (tokenLen <= 16)
+                numstr[tokenLen].i  =  CH - '0';
+            else {
+                error(55); /* errMoreThan16DigitsInNumber */
+                tokenLen  =  1;
+            }
+            nextCH();
+        } while (charSym[CH] == INTCONST);
+        do {
+            if ((numstr[0].i == 0) && (CH != '.')) {
+                if (tokenLen == 0 && CH == 'X') {
+                    /* Hex literal: 0Xhhh[U] */
+                    numFormat = hex;
+                    nextCH();
+                    curToken.i = 0;
+                    while (charSym[CH] == INTCONST
+                       || ('A' <= CH) && (CH <= 'F')) {
+                        curToken.i = curToken.i << 4 |
+                            CH - (charSym[CH] == INTCONST ? 48 : 55);
+                        nextCH();
+                    };
+                    if (CH == 'U')
+                        nextCH();
+                    return;
+                };
+                numFormat  =  OCTAL;
                 if (CH == 'U') {
-                    curToken.i = curToken.i & [7..47];
                     numFormat = FULLWORD;
                     nextCH();
-                    return;
                 }
-                expMagnitude  =  0;
-                if (CH == '.') {
-                    nextCH();
-                    if (CH == '.') {
-                        CH  =  ':';
-                        return;
-                    }
-                    curToken.r  =  curToken.i;
-                    SY  =  REALCONST;
-                    if (charSym[CH] != INTCONST) {
-                        error(56); /* errNeedMantissaAfterDecimal */
-                    } else
-                        do {
-                            curToken.r  =  10.0*curToken.r + CH - '0';
-                            --expMagnitude;
-                            nextCH();
-                        } while (charSym[CH] == INTCONST);
+            } else {
+                numFormat  =  DECIMAL;
+                break;  /* octdec */
+            }
+            curToken.i  =  0;
+            for (tokenIdx = 0; tokenIdx <= tokenLen; ++tokenIdx) {
+                if (7 < numstr[tokenIdx].i) {
+                    error(20); /* errDigitGreaterThan7 */
                 }
-                if (CH == 'E') {
-                    if (expMagnitude == 0) {
-                        curToken.r  =  curToken.i;
-                        SY  =  REALCONST;
-                    }
-                    expSign  =  false;
-                    nextCH();
-                    if (CH == '+')
-                        nextCH();
-                    else if (CH == '-') {
-                        expSign  =  true;
-                        nextCH();
-                    }
-                    expLiteral  =  0;
-                    if (charSym[CH] != INTCONST) {
-                        error(57); /* errNeedExponentAfterE */
-                    } else
-                        do {
-                            expLiteral  =  10 * expLiteral + CH - '0';
-                            nextCH();
-                        } while (charSym[CH] == INTCONST);
-                    expMagnitude  =  expSign ? expMagnitude - expLiteral
-                                             : expMagnitude + expLiteral;
-                }
-                if (expMagnitude) {
-                    expValue  =  1.0;
-                    expSign  =  expMagnitude < 0;
-                    expMagnitude  =  abs(expMagnitude);
-                    expMultiple  =  10.0;
-                    if (18 < expMagnitude) {
-                        expMagnitude  =  1;
-                        error(58); /* errExponentGreaterThan18 */
-                    }
-                    do {
-                        if (expMagnitude & 1U)
-                            expValue  =  expValue * expMultiple;
-                        expMagnitude  =  expMagnitude / 2;
-                        if (expMagnitude)
-                            expMultiple  =  expMultiple*expMultiple;
-                    } while (expMagnitude);
-                    if (expSign)
-                        curToken.r  =  curToken.r / expValue;
-                    else
-                        curToken.r  =  curToken.r * expValue;
-                }
+                curToken.i = (curToken.i << 3) |
+                    numstr[tokenIdx].i & 7;
+            }
+            return;
+        } while (0);
+        curToken.i  =  0;
+        for (tokenIdx = 0; tokenIdx <= tokenLen; ++tokenIdx) {
+            if (0xFFFFFFFFFF/10 >= curToken.i)
+                curToken.i  =  10 * curToken.i +
+                    numstr[tokenIdx].i;
+            else {
+                error(errNumberTooLarge);
+                curToken.i  =  1;
+            }
+        }
+        if (CH == 'U') {
+            curToken.i = curToken.i & [7..47];
+            numFormat = FULLWORD;
+            nextCH();
+            return;
+        }
+        expMagnitude  =  0;
+        if (CH == '.') {
+            nextCH();
+            if (CH == '.') {
+                CH  =  ':';
                 return;
-            } /* INTCONST */ /*=m+*/
-            case CHARCONST: {
-                doCharConst(CH);
-                strLen  =  tokenIdx - 6;
-                if (strLen == 0) {
-                   error(61); /* errEmptyString */
-                   strLen  =  1;
-                   goto 2320;
-                } else if (strLen == 1) {
-                    SY  =  CHARCONST;
-                    tokenLen  =  1;
-                    curToken.i  =  0;
-                    unpck(localBuf[0], curToken.a);
-                    pck(localBuf[tokenLen], curToken.a);
-                    return;
-                } else 2320: {
-                    curVal.a  =  '      ';
-                    SY  =  LTSY;
-                    unpck(localBuf[tokenIdx], curVal.a);
-                    pck(localBuf[6], curToken.a);
-                    curVal  =  curToken;
-                    if (strLen <= 6)
+            }
+            curToken.r  =  curToken.i;
+            SY  =  REALCONST;
+            if (charSym[CH] != INTCONST) {
+                error(56); /* errNeedMantissaAfterDecimal */
+            } else
+                do {
+                    curToken.r  =  10.0*curToken.r + CH - '0';
+                    --expMagnitude;
+                    nextCH();
+                } while (charSym[CH] == INTCONST);
+        }
+        if (CH == 'E') {
+            if (expMagnitude == 0) {
+                curToken.r  =  curToken.i;
+                SY  =  REALCONST;
+            }
+            expSign  =  false;
+            nextCH();
+            if (CH == '+')
+                nextCH();
+            else if (CH == '-') {
+                expSign  =  true;
+                nextCH();
+            }
+            expLiteral  =  0;
+            if (charSym[CH] != INTCONST) {
+                error(57); /* errNeedExponentAfterE */
+            } else
+                do {
+                    expLiteral  =  10 * expLiteral + CH - '0';
+                    nextCH();
+                } while (charSym[CH] == INTCONST);
+            expMagnitude  =  expSign ? expMagnitude - expLiteral
+                                     : expMagnitude + expLiteral;
+        }
+        if (expMagnitude) {
+            expValue  =  1.0;
+            expSign  =  expMagnitude < 0;
+            expMagnitude  =  abs(expMagnitude);
+            expMultiple  =  10.0;
+            if (18 < expMagnitude) {
+                expMagnitude  =  1;
+                error(58); /* errExponentGreaterThan18 */
+            }
+            do {
+                if (expMagnitude & 1U)
+                    expValue  =  expValue * expMultiple;
+                expMagnitude  =  expMagnitude / 2;
+                if (expMagnitude)
+                    expMultiple  =  expMultiple*expMultiple;
+            } while (expMagnitude);
+            if (expSign)
+                curToken.r  =  curToken.r / expValue;
+            else
+                curToken.r  =  curToken.r * expValue;
+        }
+        return;
+    } /* INTCONST */ /*=m+*/
+    case CHARCONST: {
+        doCharConst(CH);
+        strLen  =  tokenIdx - 6;
+        if (strLen == 0) {
+           error(61); /* errEmptyString */
+           strLen  =  1;
+           goto 2320;
+        } else if (strLen == 1) {
+            SY  =  CHARCONST;
+            tokenLen  =  1;
+            curToken.i  =  0;
+            unpck(localBuf[0], curToken.a);
+            pck(localBuf[tokenLen], curToken.a);
+            return;
+        } else 2320: {
+            curVal.a  =  '      ';
+            SY  =  LTSY;
+            unpck(localBuf[tokenIdx], curVal.a);
+            pck(localBuf[6], curToken.a);
+            curVal  =  curToken;
+            if (strLen <= 6)
+                return;
+            else if (charEncoding == 3 && strLen == 8) {
+                pack(localbuf, 6, curToken.t);
+                curVal  =  curToken;
+                SY = INTCONST;
+                return;
+            } else {
+                curToken.i  =  FcstCnt;
+                tokenLen  =  6;
+                while (1) {
+                    toFCST();
+                    tokenLen  =  tokenLen + 6;
+                    if (tokenIdx < tokenLen)
                         return;
-                    else if (charEncoding == 3 && strLen == 8) {
-                        pack(localbuf, 6, curToken.t);
-                        curVal  =  curToken;
-                        SY = INTCONST;
-                        return;
-                    } else {
-                        curToken.i  =  FcstCnt;
-                        tokenLen  =  6;
-                        while (1) {
-                            toFCST();
-                            tokenLen  =  tokenLen + 6;
-                            if (tokenIdx < tokenLen)
-                                return;
-                            pck(localBuf[tokenLen], curVal.a);
-                        }
-                    }
+                    pck(localBuf[tokenLen], curVal.a);
                 }
-                break;
-            } /* CHARCONST */
-            case LTSY: {
-                SY  =  RELOP;
-                nextCH();
-                switch (CH) {
-                case '=':
-                    charClass = LEOP;
-                    nextCH();
-                    break;
-                case '<':
-                    SY = MULOP;
-                    charClass = SHLEFT;
-                    nextCH();
-                    break;
-                case ':':
-                    SY = BEGINSY;
-                    nextCH();
-                }
-                break;
-            } /* LTSY */
-            case GTSY: {
-                SY  =  RELOP;
-                nextCH();
-                switch (CH) {
-                case '>':
-                    SY = MULOP;
-                    charClass = SHRIGHT;
-                    nextCH();
-                    break;
-                case '=':
-                    charClass  =  GEOP;
-                    nextCH();
-                }
-                break;
-            } /* GTSY */
-            case BECOMES:
-                nextCH();
-                if (CH == '=') {
-                    nextCH();
-                    SY = RELOP;
-                }
-                break;
-            case COLON:
-                nextCH();
-                if (CH == '>') {
-                    SY = ENDSY;
-                    nextCH();
-                }
-                break;
-            case NOTSY:
-                if (charClass == NEOP) {
-                    nextCH();
-                    if (CH == '=') {
-                        SY = RELOP;
-                        nextCH();
-                    }
-                } else
-                    nextCH();
-                break;
-            case ADDOP:
-                if (charClass == OROP) {
-                    nextCH();
-                    if (CH == '|') nextCH();
-                    else charClass = SETOR;
-                } else if (charClass == MINUSOP) {
-                    nextCH();
-                    if (CH == '>') {
-                        /* '->' yields ARROW (deref + struct field select);
-                           parsePostfix expects the field IDENT next. */
-                        SY = ARROW; nextCH();
-                    } else {
-                        if (CH == '-') { charClass = DECROP; nextCH(); }
-                    }
-                } else if (charClass == PLUSOP) {
-                    nextCH();
-                    if (CH == '+') { charClass = INCROP; nextCH(); }
-                } else
-                    nextCH();
-                break;
-            case MULOP:
-               if (charClass == ANDOP) {
-                   nextCH();
-                   if (CH == '&') nextCH();
-                   else charClass = SETAND;
-               } else if (charClass == RDIVOP) {
-                   nextCH();
-                   switch (CH) {
-                   case '*': {
-                       parseComment();
-                       longjmp(jb1473);
-                   }
-                   case '/': {
-                       while (!atEOL) nextCH();
-                       longjmp(jb1473);
-                   }
-                   }
-               } else
-                   nextCH();
-               break;
-            case PERIOD:
-                nextCH();
-                if (CH == '.') {
-                    nextCH();
-                    SY  =  COLON;
-                    charClass  =  NOOP;
-                } else {
-                    if (prevSY == ENDSY)
-                        dataCheck  =  true;
-                }
-        } /* switch */
+            }
+        }
+        break;
+    } /* CHARCONST */
+    default:
+        prevCH = CH;
+        nextCH();
+        switch (prevCH << 8 | CH) {
+        case tok('<=') >> 32: SY = RELOP; charClass = LEOP; break;
+        case tok('<<') >> 32: SY = MULOP; charClass = SHLEFT; break;
+        case tok('<:') >> 32: SY = BEGINSY; break;
+        case tok('>>') >> 32: SY = MULOP; charClass = SHRIGHT; break;
+        case tok('>=') >> 32: SY = RELOP; charClass = GEOP; break;
+        case tok(':>') >> 32: SY = ENDSY; break;
+        case tok('==') >> 32: SY = RELOP; charClass = EQOP; break;
+        case tok('!=') >> 32: SY = RELOP; charClass = NEOP; break;
+        case tok('->') >> 32: SY = ARROW; break;
+        case tok('--') >> 32: SY = ADDOP; charClass = DECROP; break;
+        case tok('++') >> 32: SY = ADDOP; charClass = INCROP; break;
+        case tok('||') >> 32: SY = ADDOP; charClass = OROP; break;
+        case tok('&&') >> 32: SY = MULOP; charClass = ANDOP; break;
+        case tok('/*') >> 32: parseComment(); longjmp(jb1473);
+        case tok('//') >> 32: while (!atEOL) nextCH(); longjmp(jb1473);
+        case tok('..') >> 32: SY = COLON; break;
+        default:
+            if (prevCH == '.' && prevSY == ENDSY)
+               dataCheck = true;
+            return;
+        } /* switch prevCH, CH */
+        nextCH();
+    } /* switch SY */
 } /* lexer */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5732,9 +5648,6 @@ var
     oldRegs  =  freeRegs;
     usedRegs  =  0U;
     do {
-//        inSymbol();
-//        if ((hashTravPtr != NIL) &&
-//           (hashTravPtr->cl >= VARID)) {
             expression();
             if (curExpr->typ->k == kindStruct) {
                 formOperator(SETREG);
@@ -5742,9 +5655,6 @@ var
             } else {
                 error(71); /* errWithOperatorNotOfARecord */
             }
-//        } else {
-//            error(72); /* errWithOperatorNotOfAVariable */
-//        }
     } while (SY == COMMA);
     checkSymAndRead(DOSY);
     statement();
@@ -5826,8 +5736,12 @@ var
                 otherSeen  =  true;
                 otherOffset  =  moduleOffset;
             } else {
-                checkSymAndRead(CASESY);
-                itemtype = parseLiteral(&itemvalue, true);
+                if (SY != CASESY)
+                    requiredSymErr(CASESY);
+                expression();
+                formOperator(LITINSN);
+                itemvalue = curVal.i;
+                itemType = insnList->typ;
                 if (itemtype != NIL) {
                     if (firstType == NIL) {
                         firstType  =  itemtype;
@@ -5857,7 +5771,6 @@ var
                         clause->next  =  curClause;
                         chain->next  =  clause;
                     }
-                    inSymbol();
                 }
             }
             checkSymAndRead(COLON);
@@ -7972,17 +7885,17 @@ void initOptions;
     charSym['''']  =  CHARCONST;
     charSym['"']  =  CHARCONST;
     charSym['_']  =  IDENT;
-    charSym['<']  =  LTSY;
-    charSym['>']  =  GTSY;
+    charSym['<']  =  RELOP;
+    charSym['>']  =  RELOP;
     chrClass['+']  =  PLUSOP;
     chrClass['-']  =  MINUSOP;
-    chrClass['|']  =  OROP;
+    chrClass['|']  =  SETOR;
     chrClass['*']  =  MUL;
     chrClass['/']  =  RDIVOP;
     chrClass['%']  =  IMODOP;
     chrClass['^']  =  SETXOR;
     chrClass['=']  =  EQOP;
-    chrClass['&']  =  ANDOP;
+    chrClass['&']  =  SETAND;
     chrClass['>']  =  GTOP;
     chrClass['<']  =  LTOP;
     chrClass['!']  =  NEOP;

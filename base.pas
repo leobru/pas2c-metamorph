@@ -6019,9 +6019,6 @@ var
     l4var2z := set147z;
     l4var3z := [];
     repeat
-%        inSymbol;
-%        if (hashTravPtr <> NIL) and
-%           (hashTravPtr@.cl >= VARID) then {
             expression;
             if (curExpr@.vt.typ@.k = kindStruct) then {
                 formOperator(SETREG);
@@ -6029,9 +6026,6 @@ var
             } else {
                 error(71); (* errWithOperatorNotOfARecord *)
             };
-%        } else {
-%            error(72); (* errWithOperatorNotOfAVariable *)
-%        }
     until (SY <> COMMA);
     checkSymAndRead(DOSY);
     statement;
@@ -6118,8 +6112,12 @@ var
                 otherSeen := true;
                 otherOffset := moduleOffset;
             } else {
-                checkSymAndRead(CASESY);
-                parseLiteral(itemtype, itemvalue, true);
+                if (SY <> CASESY) then
+                    requiredSymErr(CASESY);
+                expression;
+                formOperator(LITINSN);
+                itemvalue := curVal;
+                itemType := insnList@.typ;
                 if (itemtype <> NIL) then {
                     if (firstType = NIL) then {
                         firstType := itemtype;
@@ -6149,7 +6147,6 @@ var
                         clause@.next := curClause;
                         prev@.next := clause;
                     };
-                    inSymbol;
                 }
             };
             checkSymAndRead(COLON);
@@ -7529,10 +7526,10 @@ var
     lookupMode := 0;
     inSymbol;
     l3var2z := NIL;
-    if not (SY IN [IDENT,FUNCSY,VOIDSY]) then
+    if not (SY IN [IDENT,VOIDSY]) then
         errAndSkip(errBadSymbol, (skipToSet + [IDENT,RPAREN]));
     int92z := 1;
-    while (SY IN [IDENT,FUNCSY,VOIDSY]) do {
+    while (SY IN [IDENT,VOIDSY]) do {
         l3sym7z := SY;
         if (SY = IDENT) then
             parClass := VARID
@@ -7598,7 +7595,7 @@ var
         if (SY = SEMICOLON) then {
             lookupMode := 0;
             inSymbol;
-            if not (SY IN (skipToSet + [IDENT,FUNCSY,VOIDSY])) then
+            if not (SY IN (skipToSet + [IDENT,VOIDSY])) then
                 errAndSkip(errBadSymbol, (skipToSet + [IDENT,RPAREN]));
         };
     };
@@ -7864,7 +7861,7 @@ procedure exitScope(var arg: hashArray);
         }
     };
     outputObjFile;
-    while (SY = VOIDSY) or (SY = FUNCSY) or
+    while (SY = VOIDSY) or
           ((SY = IDENT) and (hashTravPtr <> NIL) and
            (hashTravPtr@.cl = TYPEID)) do {
         done := SY = VOIDSY;
@@ -8000,11 +7997,11 @@ procedure exitScope(var arg: hashArray);
                 programme(l2int18z, curIdRec);
                 if CH = '_000' then exit loop;
                 (* A type-ident also opens a new C-style routine decl. *)
-                if not (SY IN [FUNCSY,VOIDSY,BEGINSY]) and
+                if not (SY IN [VOIDSY,BEGINSY]) and
                    not ((SY = IDENT) and (hashTravPtr <> NIL) and
                         (hashTravPtr@.cl = TYPEID)) then
                     errAndSkip(errBadSymbol, skipToSet);
-            until (SY IN [FUNCSY,VOIDSY,BEGINSY]) or
+            until (SY IN [VOIDSY,BEGINSY]) or
                   ((SY = IDENT) and (hashTravPtr <> NIL) and
                    (hashTravPtr@.cl = TYPEID));
             myrollup(ord(scopeBound));
@@ -8290,7 +8287,7 @@ procedure initOptions;
     frameRegTemplate := 04000000B;
     constRegTemplate := I8;
     disNormTemplate :=  KNTR+7;
-    blockBegSys := [CONSTSY, TYPESY, VARSY, FUNCSY, VOIDSY, BEGINSY];
+    blockBegSys := [CONSTSY, TYPESY, VARSY, VOIDSY, BEGINSY];
     statBegSys :=  [BEGINSY, IFSY, SWITCHSY, DOSY, WHILESY, FORSY, WITHSY,
                     GOTOSY];
     O77777 := [33:47];
@@ -8308,7 +8305,7 @@ procedure initOptions;
         4357566364C             (*"   CONST"*),
         64716045C               (*"    TYPE"*),
         664162C                 (*"     VAR"*),
-        4665564364515756C       (*"FUNCTION"*),
+        0C                      (*"was FUNCTION"*),
         66575144C               (*"    VOID"*),
         45566555C               (*"    ENUM"*),
         1212604143534544C       (*"**PACKED"*),
