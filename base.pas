@@ -380,7 +380,7 @@ var
    curVarKind: kind;
    curExternFile: @extfilerec;
    commentModeCH: char;
-   CH: char;
+   CH, prevCH: char;
    prevInsn: word;
    debugLine: integer;
    lineNesting: integer;
@@ -1269,10 +1269,12 @@ procedure readOptFlag(var res: boolean);
 procedure lexer;
 label
     1, 2, 2175, 2233, 2320;
+var done : boolean;
 {
+done := false;
         case SY of
-            NOSY: nextCH;
             IDENT: {
+                   done := true;
 1:              curToken.m := [];
                 tokenLen := 1;
                 repeat
@@ -1360,6 +1362,7 @@ label
                 end;
             }; (* IDENT *)
             INTCONST: { (*=m-*)
+                      done := true;
                 SY := INTCONST;
                 tokenLen := 0;
                 repeat
@@ -1500,6 +1503,7 @@ label
                 exit
             }; (* INTCONST *) (*=m+*)
             CHARCONST: {
+                       done := true;
 (loop)          {
                     for tokenIdx := 6 to 130 do {
                         nextCH;
@@ -1583,120 +1587,33 @@ label
                     }
                 };
             }; (* CHARCONST *)
-            LTSY: {
-                SY := RELOP;
-                nextCH;
-                case CH of
-                '=': {
-                    charClass := LEOP;
-                    nextCH;
-                };
-                '<':   {
-                    SY := MULOP;
-                    charClass := SHLEFT;
-                    nextCH;
-                };
-                ':': {
-                    SY := BEGINSY;
-                    nextCH;
-                }
-                end
-            }; (* LTOP *)
-            GTSY: {
-                SY := RELOP;
-                nextCH;
-                case CH of
-                '>': {
-                    SY := MULOP;
-                    charClass := SHRIGHT;
-                    nextCH;
-                };
-                '=':  {
-                    charClass := GEOP;
-                    nextCH
-                }
-                end
-            }; (* GTOP *)
-            BECOMES: {
-                nextCH;
-                if CH = '=' then {
-                    nextCH;
-                    SY := RELOP;
-                }
-            };
-            COLON: {
-                nextCH;
-                if CH = '>' then {
-                    SY := ENDSY;
-                    nextCH;
-                }
-            };
-            NOTSY: {
-                if charClass = NEOP then {
-                    nextCH;
-                    if CH = '=' then {
-                        SY := RELOP;
-                        nextCH;
-                    }
-                } else
-                    nextCH
-            };
-            ADDOP: {
-                if charClass = OROP then {
-                    nextCH;
-                    if CH = '|' then nextCH
-                    else charClass := SETOR;
-                } else if charClass = MINUSOP then {
-                    nextCH;
-                    if (CH = '>') then {
-                       (* '->' yields ARROW (deref + struct field select);
-                          parsePostfix expects the field IDENT next. *)
-                       SY := ARROW; nextCH;
-                    } else {
-                       if CH = '-' then { charClass := DECROP; nextCH }
-                    }
-                } else if charClass = PLUSOP then {
-                    nextCH;
-                    if CH = '+' then { charClass := INCROP; nextCH }
-                } else
-                    nextCH;
-            };
-            MULOP: {
-               if charClass = ANDOP then {
-                   nextCH;
-                   if CH = '&' then nextCH
-                   else charClass := SETAND;
-               } else if charClass = RDIVOP then {
-                   nextCH;
-                   case CH of
-                   '*': {
-                       parseComment;
-                       goto 1473
-                   };
-                   '/': {
-                       while not atEOL do nextCH;
-                       goto 1473;
-                   }
-                   end
-               } else
-                   nextCH
-            };
-            LPAREN, LBRACK, RELOP, RPAREN, RBRACK,
-            COMMA, SEMICOLON, ARROW: {
-                nextCH;
-            };
-            PERIOD: {
-                nextCH;
-                if CH = '.' then {
-                    nextCH;
-                    SY := COLON;
-                    charClass := NOOP
-                } else {
-                    if prevSY = ENDSY then
-                        dataCheck := true;
-                }
-            };
-            end; (* case *)
+        end; (* case *)
+        if done then exit;
+        prevCH := CH;
+        nextCH;
+        curToken.a := '      ';
+        curToken.a[1] := prevCH;
+        curToken.a[2] := CH;
+        case curToken.a of
+        '<=    ': { SY := RELOP; charClass := LEOP; nextCH; exit };
+        '<<    ': { SY := MULOP; charClass := SHLEFT; nextCH; exit };
+        '<:    ': { SY := BEGINSY; nextCH; exit };
+        '>>    ': { SY := MULOP; charClass := SHRIGHT; nextCH; exit };
+        '>=    ': { SY := RELOP; charClass := GEOP; nextCH; exit };
+        ':>    ': { SY := ENDSY; nextCH; exit };
+        '==    ': { SY := RELOP; charClass := EQOP; nextCH; exit };
+        '!=    ': { SY := RELOP; charClass := NEOP; nextCH; exit };
+        '->    ': { SY := ARROW; nextCH; exit };
+        '--    ': { SY := ADDOP; charClass := DECROP; nextCH; exit };
+        '++    ': { SY := ADDOP; charClass := INCROP; nextCH; exit };
+        '||    ': { SY := ADDOP; charClass := OROP; nextCH; exit };
+        '&&    ': { SY := MULOP; charClass := ANDOP; nextCH; exit };
+        '/*    ': { parseComment; goto 1473 };
+        '//    ': { while not atEOL do nextCH; goto 1473 };
+        '..    ': { SY := COLON; nextCH; exit };
+        end;
+        if (prevCH = '.') and (prevSY = ENDSY) then
+           dataCheck := true;
 }; (* lexer *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1718,6 +1635,7 @@ label
         SY := charSym[CH];
         charClass := chrClass[CH];
         lexer;
+write(SY, ' ');
 %           if (CH = '=') and (SY IN [ADDOP,MULOP])  then {
 %                 SY := ASSNOP;
 %writeln(' ASSNOP');
@@ -8354,16 +8272,16 @@ procedure initOptions;
     frameRestore := 0:16;
     charSym[''''] := CHARCONST;
     charSym['_'] := IDENT;
-    charSym['<'] := LTSY;
-    charSym['>'] := GTSY;
+    charSym['<'] := RELOP;
+    charSym['>'] := RELOP;
     chrClass['+'] := PLUSOP;
     chrClass['-'] := MINUSOP;
     chrClass['*'] := MUL;
     chrClass['/'] := RDIVOP;
     chrClass['%'] := IMODOP;
     chrClass['='] := EQOP;
-    chrClass['&'] := ANDOP;
-    chrClass['|'] := OROP;
+    chrClass['&'] := SETAND;
+    chrClass['|'] := SETOR;
     chrClass['^'] := SETXOR;
     chrClass['~'] := BITNEGOP;
     chrClass['>'] := GTOP;
