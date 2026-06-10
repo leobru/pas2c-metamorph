@@ -157,8 +157,8 @@ const
 type
     symbol = enum {
 /*0B*/  IDENT,      INTCONST,   REALCONST,  CHARCONST,
-        LTSY,       GTSY,       NOTSY,      LPAREN,
-/*10B*/ LBRACK,     MULOP,      ADDOP,      RELOP,
+        STRINGSY,   GTSY,       xNOTSY,     LPAREN,
+/*10B*/ LBRACK,     EXPROP,     xADDOP,     xRELOP,
         RPAREN,     RBRACK,     COMMA,      SEMICOLON,
 /*20B*/ PERIOD,     ARROW,      COLON,      BECOMES,
         BEGINSY,    ENDSY,      CONSTSY,    TYPESY,
@@ -1413,7 +1413,7 @@ void lexer;
             return;
         } else 2320: {
             curVal.a  =  '      ';
-            SY  =  LTSY;
+            SY  =  STRINGSY;
             unpck(localBuf[tokenIdx], curVal.a);
             pck(localBuf[6], curToken.a);
             curVal  =  curToken;
@@ -1442,19 +1442,19 @@ void lexer;
         prevCH = CH;
         nextCH();
         switch (tok(prevCH << 8 | CH)) {
-        case tok('<=') >> 32: SY = RELOP; charClass = LEOP; break;
-        case tok('<<') >> 32: SY = MULOP; charClass = SHLEFT; break;
+        case tok('<=') >> 32: charClass = LEOP; break;
+        case tok('<<') >> 32: charClass = SHLEFT; break;
         case tok('<:') >> 32: SY = BEGINSY; break;
-        case tok('>>') >> 32: SY = MULOP; charClass = SHRIGHT; break;
-        case tok('>=') >> 32: SY = RELOP; charClass = GEOP; break;
+        case tok('>>') >> 32: charClass = SHRIGHT; break;
+        case tok('>=') >> 32: charClass = GEOP; break;
         case tok(':>') >> 32: SY = ENDSY; break;
-        case tok('==') >> 32: SY = RELOP; charClass = EQOP; break;
-        case tok('!=') >> 32: SY = RELOP; charClass = NEOP; break;
+        case tok('==') >> 32: SY = EXPROP; charClass = EQOP; break;
+        case tok('!=') >> 32: charClass = NEOP; break;
         case tok('->') >> 32: SY = ARROW; break;
-        case tok('--') >> 32: SY = ADDOP; charClass = DECROP; break;
-        case tok('++') >> 32: SY = ADDOP; charClass = INCROP; break;
-        case tok('||') >> 32: SY = ADDOP; charClass = OROP; break;
-        case tok('&&') >> 32: SY = MULOP; charClass = ANDOP; break;
+        case tok('--') >> 32: charClass = DECROP; break;
+        case tok('++') >> 32: charClass = INCROP; break;
+        case tok('||') >> 32: charClass = OROP; break;
+        case tok('&&') >> 32: charClass = ANDOP; break;
         case tok('/*') >> 32: parseComment(); longjmp(jb1473);
         case tok('//') >> 32: while (!atEOL) nextCH(); longjmp(jb1473);
         case tok('..') >> 32: SY = COLON; break;
@@ -1589,7 +1589,7 @@ var
         case CHARCONST:
             ret  =  charType;
             break;
-        case LTSY:
+        case STRINGSY:
             ret = makeStringType();
         }; /* switch */
     return ret;
@@ -4360,7 +4360,7 @@ void parseRange(aleft, aright: *int; rbase: *tptr);
             CTOR(*curType, 1, nrOfBits(span - 1), kindScalar, ,
                            span, 0);
         }
-    } else if (SY == MULOP) {
+    } else if (charClass == MUL) {
         inSymbol();
         if (SY != IDENT) {
             error(errNoIdent);
@@ -4945,7 +4945,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int getPrec(sym: symbol; cls: operator);
 {
-    if ((sym >= MULOP) && (sym <= RELOP))
+    if (sym == EXPROP)
         return opPrec[cls];
     else if (sym == BECOMES)
         return precAssign;
@@ -5247,7 +5247,7 @@ var
         expression();
         checkSymAndRead(RPAREN);
         break;
-    case INTCONST: case REALCONST: case CHARCONST: case LTSY:
+    case INTCONST: case REALCONST: case CHARCONST: case STRINGSY:
         new(curExpr);
         curExpr->typ = parseLiteral(&curExpr->num1, false);
         curExpr->num2  =  int(numFormat);
@@ -5334,10 +5334,7 @@ var
     leftExpr, addExpr, oneExpr: eptr;
 {
     oper = NOOP;
-    if (SY == NOTSY) {
-        oper = (charClass == BITNEGOP) ? BITNEGOP : NOTOP;
-        inSymbol();
-    } else if (charClass IN [PLUSOP, MINUSOP, MUL, SETAND, INCROP, DECROP]) {
+    if (charClass IN [PLUSOP, MINUSOP, BITNEGOP, NOTOP, MUL, SETAND, INCROP, DECROP]) {
         if (charClass != PLUSOP)
             oper = charClass;
         inSymbol();
@@ -5807,7 +5804,7 @@ var
                 itemSpan  =  34000;
                 fixup(0, decoder);
                 if (firstType->k == kindScalar)
-                    itemSpan  =  exprType->numen;
+                    itemSpan  =  firstType->numen;
                 itemsEnded  =  itemSpan < 32000;
                 if (itemsEnded) {
                     form1Insn(KATI+14);
@@ -6648,8 +6645,8 @@ var
     case WITHSY:
         withStatement();
         break;
-    case ADDOP: case MULOP: case NOTSY: case LPAREN:
-    case INTCONST: case REALCONST: case CHARCONST: case LTSY:
+    case EXPROP: case LPAREN:
+    case INTCONST: case REALCONST: case CHARCONST: case STRINGSY:
     case LBRACK:
         /* Generic expression statement: '++x;', '(x = 1);', etc.
            Includes pre-increment / pre-decrement, parenthesised expressions,
@@ -7689,7 +7686,7 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /*=A3 regKeywords */
-    SY  =  RELOP;
+    SY  =  EXPROP;
     charClass  =  INOP;
     regResWord('      IN');
     SY  =  CONSTSY;
@@ -7885,8 +7882,8 @@ void initOptions;
     charSym['''']  =  CHARCONST;
     charSym['"']  =  CHARCONST;
     charSym['_']  =  IDENT;
-    charSym['<']  =  RELOP;
-    charSym['>']  =  RELOP;
+    charSym['<']  =  EXPROP;
+    charSym['>']  =  EXPROP;
     chrClass['+']  =  PLUSOP;
     chrClass['-']  =  MINUSOP;
     chrClass['|']  =  SETOR;
@@ -7898,19 +7895,19 @@ void initOptions;
     chrClass['&']  =  SETAND;
     chrClass['>']  =  GTOP;
     chrClass['<']  =  LTOP;
-    chrClass['!']  =  NEOP;
+    chrClass['!']  =  NOTOP;
     chrClass['~']  =  BITNEGOP;
     chrClass['?']  =  CONDOP;
-    charSym['+']  =  ADDOP;
-    charSym['-']  =  ADDOP;
-    charSym['|']  =  ADDOP;
-    charSym['*']  =  MULOP;
-    charSym['/']  =  MULOP;
-    charSym['%']  =  MULOP;
-    charSym['&']  =  MULOP;
+    charSym['+']  =  EXPROP;
+    charSym['-']  =  EXPROP;
+    charSym['|']  =  EXPROP;
+    charSym['*']  =  EXPROP;
+    charSym['/']  =  EXPROP;
+    charSym['%']  =  EXPROP;
+    charSym['&']  =  EXPROP;
     charSym[',']  =  COMMA;
     charSym['.']  =  PERIOD;
-    charSym['^']  =  MULOP;
+    charSym['^']  =  EXPROP;
     charSym['(']  =  LPAREN;
     charSym[')']  =  RPAREN;
     charSym[';']  =  SEMICOLON;
@@ -7918,9 +7915,9 @@ void initOptions;
     charSym[']']  =  RBRACK;
     charSym['=']  =  BECOMES;
     charSym[':']  =  COLON;
-    charSym['!']  =  NOTSY;
-    charSym['~']  =  NOTSY;
-    charSym['?']  =  RELOP;
+    charSym['!']  =  EXPROP;
+    charSym['~']  =  EXPROP;
+    charSym['?']  =  EXPROP;
 
     /* Initialize operator precedence table */
     opPrec = precNone:48;

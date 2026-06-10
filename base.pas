@@ -138,8 +138,8 @@ type
 %
     symbol = (
 (*0B*)  IDENT,      INTCONST,   REALCONST,  CHARCONST,
-        LTSY,       GTSY,       NOTSY,      LPAREN,
-(*10B*) LBRACK,     MULOP,      ADDOP,      RELOP,
+        STRINGSY,   GTSY,       xNOTSY,     LPAREN,
+(*10B*) LBRACK,     EXPROP,     xADDOP,     xRELOP,
         RPAREN,     RBRACK,     COMMA,      SEMICOLON,
 (*20B*) PERIOD,     ARROW,      COLON,      BECOMES,
         BEGINSY,    ENDSY,      CONSTSY,    TYPESY,
@@ -1562,7 +1562,7 @@ done := false;
                     exit;
                 } else 2320: {
                     curVal.a := '      ';
-                    SY := LTSY;
+                    SY := STRINGSY;
                     unpck(localBuf[tokenIdx], curVal.a);
                     pck(localBuf[6], curToken.a);
                     curVal :=;
@@ -1595,19 +1595,19 @@ done := false;
         curToken.a[1] := prevCH;
         curToken.a[2] := CH;
         case curToken.a of
-        '<=    ': { SY := RELOP; charClass := LEOP; nextCH; exit };
-        '<<    ': { SY := MULOP; charClass := SHLEFT; nextCH; exit };
+        '<=    ': { charClass := LEOP; nextCH; exit };
+        '<<    ': { charClass := SHLEFT; nextCH; exit };
         '<:    ': { SY := BEGINSY; nextCH; exit };
-        '>>    ': { SY := MULOP; charClass := SHRIGHT; nextCH; exit };
-        '>=    ': { SY := RELOP; charClass := GEOP; nextCH; exit };
+        '>>    ': { charClass := SHRIGHT; nextCH; exit };
+        '>=    ': { charClass := GEOP; nextCH; exit };
         ':>    ': { SY := ENDSY; nextCH; exit };
-        '==    ': { SY := RELOP; charClass := EQOP; nextCH; exit };
-        '!=    ': { SY := RELOP; charClass := NEOP; nextCH; exit };
+        '==    ': { SY := EXPROP; charClass := EQOP; nextCH; exit };
+        '!=    ': { charClass := NEOP; nextCH; exit };
         '->    ': { SY := ARROW; nextCH; exit };
-        '--    ': { SY := ADDOP; charClass := DECROP; nextCH; exit };
-        '++    ': { SY := ADDOP; charClass := INCROP; nextCH; exit };
-        '||    ': { SY := ADDOP; charClass := OROP; nextCH; exit };
-        '&&    ': { SY := MULOP; charClass := ANDOP; nextCH; exit };
+        '--    ': { charClass := DECROP; nextCH; exit };
+        '++    ': { charClass := INCROP; nextCH; exit };
+        '||    ': { charClass := OROP; nextCH; exit };
+        '&&    ': { charClass := ANDOP; nextCH; exit };
         '/*    ': { parseComment; goto 1473 };
         '//    ': { while not atEOL do nextCH; goto 1473 };
         '..    ': { SY := COLON; nextCH; exit };
@@ -1635,7 +1635,6 @@ done := false;
         SY := charSym[CH];
         charClass := chrClass[CH];
         lexer;
-write(SY, ' ');
 %           if (CH = '=') and (SY IN [ADDOP,MULOP])  then {
 %                 SY := ASSNOP;
 %writeln(' ASSNOP');
@@ -1744,7 +1743,7 @@ var
             litType := realType;
         CHARCONST:
             litType := charType;
-        LTSY:
+        STRINGSY:
             makeStringType(litType);
         end (* case *)
 }; (* parseLiteral *)
@@ -4605,7 +4604,7 @@ var
                           span, 0];
         };
     } else
-    if (SY = MULOP) then {
+    if (charClass = MUL) then {
         inSymbol;
         if (SY <> IDENT) then {
             error(errNoIdent);
@@ -5218,7 +5217,7 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function getPrec(sym: symbol; cls: operator): integer;
 {
-    if sym in [MULOP..RELOP] then
+    if sym = EXPROP then
         getPrec := opPrec[cls]
     else if sym = BECOMES then
         getPrec := precAssign
@@ -5467,7 +5466,7 @@ var
 { (* factor *)
     wasInCall := inCallArgs;
     inCallArgs := false;
-    if (SY IN [IDENT,INTCONST,REALCONST,CHARCONST,LTSY,LPAREN,LBRACK]) then {
+    if SY IN [IDENT,INTCONST,REALCONST,CHARCONST,STRINGSY,LPAREN,LBRACK] then {
         case SY of
         IDENT: {
             if (hashTravPtr = NIL) then {
@@ -5544,7 +5543,7 @@ var
             expression;
             checkSymAndRead(RPAREN);
         };
-        INTCONST, REALCONST, CHARCONST, LTSY: {
+        INTCONST, REALCONST, CHARCONST, STRINGSY: {
             new(curExpr);
             parseLiteral(curExpr@.vt.typ, curExpr@.lit, false);
             curExpr@.num2 := ord(numFormat);
@@ -5635,13 +5634,8 @@ var
     leftExpr, addExpr, oneExpr: eptr;
 {
     oper := NOOP;
-    if (SY = NOTSY) then {
-        if (charClass = BITNEGOP) then
-            oper := BITNEGOP
-        else
-            oper := NOTOP;
-        inSymbol;
-    } else if (charClass IN [PLUSOP,MINUSOP,MUL,SETAND,INCROP,DECROP]) then {
+    if (charClass IN [PLUSOP,MINUSOP,BITNEGOP,NOTOP,
+                      MUL,SETAND,INCROP,DECROP]) then {
         if (charClass <> PLUSOP) then
             oper := charClass;
         inSymbol;
@@ -6877,8 +6871,8 @@ var
                 error(errNotDefined);
 8888:           skip(skipToSet + statEndSys);
             };
-        } else if (SY IN [ADDOP, MULOP, NOTSY, LPAREN, INTCONST,
-                          REALCONST, CHARCONST, LTSY, LBRACK]) then {
+        } else if (SY IN [EXPROP, LPAREN, INTCONST,
+                          REALCONST, CHARCONST, STRINGSY, LBRACK]) then {
             (* Generic expression statement: '++x;', '(x = 1);', etc.
                Includes pre-increment / pre-decrement, parenthesised
                expressions, unary operators and so on.  readNext := false
@@ -8067,7 +8061,7 @@ var
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* regKeywords *)
-    SY := RELOP;
+    SY := EXPROP;
     charClass := INOP;
     regResWord(5156C(*"      IN"*));
     SY := CONSTSY;
@@ -8272,8 +8266,8 @@ procedure initOptions;
     frameRestore := 0:16;
     charSym[''''] := CHARCONST;
     charSym['_'] := IDENT;
-    charSym['<'] := RELOP;
-    charSym['>'] := RELOP;
+    charSym['<'] := EXPROP;
+    charSym['>'] := EXPROP;
     chrClass['+'] := PLUSOP;
     chrClass['-'] := MINUSOP;
     chrClass['*'] := MUL;
@@ -8286,18 +8280,18 @@ procedure initOptions;
     chrClass['~'] := BITNEGOP;
     chrClass['>'] := GTOP;
     chrClass['<'] := LTOP;
-    chrClass['!'] := NEOP;
+    chrClass['!'] := NOTOP;
     chrClass['?'] := CONDOP;
-    charSym['+'] := ADDOP;
-    charSym['-'] := ADDOP;
-    charSym['|'] := ADDOP;
-    charSym['*'] := MULOP;
-    charSym['/'] := MULOP;
-    charSym['%'] := MULOP;
-    charSym['&'] := MULOP;
+    charSym['+'] := EXPROP;
+    charSym['-'] := EXPROP;
+    charSym['|'] := EXPROP;
+    charSym['*'] := EXPROP;
+    charSym['/'] := EXPROP;
+    charSym['%'] := EXPROP;
+    charSym['&'] := EXPROP;
     charSym[','] := COMMA;
     charSym['.'] := PERIOD;
-    charSym['^'] := MULOP;
+    charSym['^'] := EXPROP;
     charSym['('] := LPAREN;
     charSym[')'] := RPAREN;
     charSym[';'] := SEMICOLON;
@@ -8305,9 +8299,9 @@ procedure initOptions;
     charSym[']'] := RBRACK;
     charSym['='] := BECOMES;
     charSym[':'] := COLON;
-    charSym['!'] := NOTSY;
-    charSym['~'] := NOTSY;
-    charSym['?'] := RELOP;
+    charSym['!'] := EXPROP;
+    charSym['~'] := EXPROP;
+    charSym['?'] := EXPROP;
     helperMap := 0:102;
 %
     (* Initialize operator precedence table *)
