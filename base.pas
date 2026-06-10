@@ -1594,7 +1594,6 @@ done := false;
         curToken.a[1] := prevCH;
         curToken.a[2] := CH;
         case curToken.a of
-(*
         '+=    ',
         '-=    ',
         '*=    ',
@@ -1603,7 +1602,6 @@ done := false;
         '&=    ',
         '|=    ',
         '^=    ': { SY := BECOMES; nextCH; exit };
-*)
         '<=    ': { charClass := LEOP; nextCH; exit };
         '<<    ': { charClass := SHLEFT; nextCH;
                     if CH = '=' then { SY := BECOMES; nextCH }; exit };
@@ -5785,12 +5783,33 @@ var
             parsePrc(precCond);
             bldCondOp(leftExpr, thenExpr);
         } else if (curPrec = precAssign) then {
-            (* Right-associative assignment: lhs = rhs *)
+            (* Right-associative assignment: lhs [op]= rhs.  `oper` (captured
+               above before inSymbol) is ASSIGNOP for plain `=`; for op-assign
+               (+=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=) it carries the
+               underlying operation, lexed as SY=BECOMES + charClass=op. *)
             if not (leftExpr@.op IN lvalOpSet) then
                 error(27); (* errExpressionWhereVariableExpected *)
             parsePrc(precAssign);
             arg1Type := leftExpr@.vt.typ;
             arg2Type := curExpr@.vt.typ;
+            if (oper <> ASSIGNOP) then {
+                (* Op-assign: fold (leftExpr op rhs) into curExpr; the final
+                   ASSIGNOP node below then turns it into lhs = lhs op rhs.
+                   leftExpr appears twice in the resulting AST -- safe for
+                   plain lvalues; side-effects in the lhs would fire twice. *)
+                match := typeCheck(arg1Type, arg2Type);
+                case opPrec[oper] of
+                    precMul,
+                    precAdd:    bldArithOp(oper, leftExpr, match);
+                    precShift,
+                    precBitAnd,
+                    precBitXor,
+                    precBitOr:  bldBitOp(oper, leftExpr);
+                    precAnd,
+                    precOr:     bldLogOp(oper, leftExpr, match);
+                end;
+                arg2Type := curExpr@.vt.typ;
+            };
             if not typeCheck(arg1Type, arg2Type) then {
                 if (arg1Type = realType) and
                    typeCheck(integerType, arg2Type) then

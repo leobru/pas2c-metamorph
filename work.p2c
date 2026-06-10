@@ -1441,10 +1441,27 @@ void lexer;
         prevCH = CH;
         nextCH();
         switch (tok(prevCH << 8 | CH)) {
+        /* Op-assigns: SY=BECOMES, charClass keeps the per-char op
+           (PLUSOP/MINUSOP/MUL/RDIVOP/IMODOP/SETAND/SETOR/SETXOR) from
+           chrClass[prevCH], so parsePrc can fold lhs = lhs op rhs. */
+        case tok('+=') >> 32:
+        case tok('-=') >> 32:
+        case tok('*=') >> 32:
+        case tok('/=') >> 32:
+        case tok('%=') >> 32:
+        case tok('&=') >> 32:
+        case tok('|=') >> 32:
+        case tok('^=') >> 32: SY = BECOMES; break;
         case tok('<=') >> 32: charClass = LEOP; break;
-        case tok('<<') >> 32: charClass = SHLEFT; break;
+        case tok('<<') >> 32:
+            charClass = SHLEFT; nextCH();
+            if (CH == '=') { SY = BECOMES; nextCH(); }
+            return;
         case tok('<:') >> 32: SY = BEGINSY; break;
-        case tok('>>') >> 32: charClass = SHRIGHT; break;
+        case tok('>>') >> 32:
+            charClass = SHRIGHT; nextCH();
+            if (CH == '=') { SY = BECOMES; nextCH(); }
+            return;
         case tok('>=') >> 32: charClass = GEOP; break;
         case tok(':>') >> 32: SY = ENDSY; break;
         case tok('==') >> 32: SY = EXPROP; charClass = EQOP; break;
@@ -5474,12 +5491,39 @@ var
             parsePrc(precCond);
             bldCondOp(leftExpr, thenExpr);
         } else if (curPrec == precAssign) {
-            /* Right-associative assignment: lhs = rhs */
+            /* Right-associative assignment: lhs [op]= rhs.  `oper` (captured
+               above before inSymbol) is ASSIGNOP for plain `=`; for op-assign
+               (+=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=) it carries the
+               underlying operation, lexed as SY=BECOMES + charClass=op. */
             if (! (leftExpr->op IN lvalOpSet))
                 error(27); /* errExpressionWhereVariableExpected */
             parsePrc(precAssign);
             arg1Type = leftExpr->typ;
             arg2Type = curExpr->typ;
+            if (oper != ASSIGNOP) {
+                /* Op-assign: fold (leftExpr op rhs) into curExpr; the final
+                   ASSIGNOP node below then turns it into lhs = lhs op rhs.
+                   leftExpr appears twice in the resulting AST -- safe for
+                   plain lvalues; side-effects in the lhs would fire twice. */
+                match = typeCheck(arg1Type, arg2Type);
+                switch (opPrec[oper]) {
+                case precMul:
+                case precAdd:
+                    bldArithOp(oper, leftExpr, match);
+                    break;
+                case precShift:
+                case precBitAnd:
+                case precBitXor:
+                case precBitOr:
+                    bldBitOp(oper, leftExpr);
+                    break;
+                case precAnd:
+                case precOr:
+                    bldLogOp(oper, leftExpr, match);
+                    break;
+                }
+                arg2Type = curExpr->typ;
+            }
             if (! typeCheck(arg1Type, arg2Type)) {
                 if (arg1Type == realType
                     && typeCheck(intType, arg2Type))
@@ -7227,7 +7271,7 @@ void exitScope(a: int);
                            symHash[bucket], , ENUMID, NIL);
             symHash[bucket]  =  workidr;
             inSymbol();
-            if (charClass != EQOP)
+            if (charClass != ASSIGNOP)
                 error(errBadSymbol);
             else
                 inSymbol();
@@ -7261,7 +7305,7 @@ void exitScope(a: int);
             ii  =  bucket;
             l2var12z  =  curIdent;
             inSymbol();
-            if (charClass != EQOP)
+            if (charClass != ASSIGNOP)
                 error(errBadSymbol);
             else
                 inSymbol();
@@ -7890,7 +7934,7 @@ void initOptions;
     chrClass['/']  =  RDIVOP;
     chrClass['%']  =  IMODOP;
     chrClass['^']  =  SETXOR;
-    chrClass['=']  =  EQOP;
+    chrClass['=']  =  ASSIGNOP;
     chrClass['&']  =  SETAND;
     chrClass['>']  =  GTOP;
     chrClass['<']  =  LTOP;
