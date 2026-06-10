@@ -128,6 +128,11 @@ const
     SP =        74000000B;      (* stack pointer, reg 15 *)
 %
    maxLineLen = 130;
+   lookDef = 0;
+   lookUse = 1;
+   lookWith = 2;
+   lookField = 3;
+%
 type
     assoc = (leftAs, rightAs);
 %
@@ -381,7 +386,7 @@ var
    lineNesting: integer;
    FcstCountTo500: integer;
    objBufIdx: integer;
-   int92z, lookupMode, condLabCnt: integer;
+   lookup2, lookupMode, condLabCnt: integer;
    prevOpcode: integer;
    charEncoding: integer;
    errLine: integer;
@@ -1296,7 +1301,7 @@ label
                 isDefined := false;
                 SY := IDENT;
                 case lookupMode of
-                0: {
+                lookDef: {
                     hashTravPtr := symHash[bucket];
                     while hashTravPtr <> NIL do {
                         if hashTravPtr@.offset = curFrameRegTemplate then
@@ -1311,7 +1316,7 @@ label
                             exit;
                     };
                 };
-                1: {
+                lookUse: {
 2:                  hashTravPtr := symHash[bucket];
                     while hashTravPtr <> NIL do {
                         if hashTravPtr@.id <> curIdent then
@@ -1320,7 +1325,7 @@ label
                             exit;
                     };
                 };
-                2: {
+                lookWith: {
                     if withList = NIL then
                         goto 2;
                     withIter := withList;
@@ -1340,7 +1345,7 @@ label
                     };
                     goto 2;
                 };
-                3: {
+                lookField: {
                     hashTravPtr := fieldHash[bucket];
                     while hashTravPtr <> NIL do {
                         with hashTravPtr@ do {
@@ -1720,7 +1725,7 @@ label
 %           }
         prevSY := SY;
         commentModeCH := ' ';
-        lookupMode := int92z;
+        lookupMode := lookup2;
 }; (* inSymbol *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4485,7 +4490,7 @@ var
 { (* parseRecordDecl *)
     if (SY <> BEGINSY) then
        requiredSymErr(BEGINSY);
-    lookupMode := 3;
+    lookupMode := lookField;
     inSymbol;
 
     while (SY = IDENT) do {
@@ -4504,24 +4509,24 @@ var
                     l4var6z@.list := curEnum;
                 };
                 l4var6z := curEnum;
-                lookupMode := 3;
+                lookupMode := lookField;
                 inSymbol;
             };
             cond := (SY <> COMMA);
             if (not cond) then {
-                lookupMode := 3;
+                lookupMode := lookField;
                 inSymbol;
             }
         until cond;
         checkSymAndRead(COLON);
         packFields;
         if (SY = SEMICOLON) then {
-            lookupMode := 3;
+            lookupMode := lookField;
             inSymbol;
         }
     };
     if (SY = SWITCHSY) then {
-        lookupMode := 3;
+        lookupMode := lookField;
         inSymbol;
         selType := integerType;
 (identif)
@@ -4646,7 +4651,7 @@ var
         inSymbol;
         checkSymAndRead(BEGINSY);
         span := 0;
-        lookupMode := 0;
+        lookupMode := lookDef;
         curField := NIL;
         new(curType = 6);
         while (SY = IDENT) do {
@@ -4666,7 +4671,7 @@ var
             curField := curEnum;
             inSymbol;
             if (SY = COMMA) then {
-                lookupMode := 0;
+                lookupMode := lookDef;
                 inSymbol;
             } else {
                 if (SY <> ENDSY) then
@@ -4878,7 +4883,7 @@ var
 {
     case l3arg1z of
     0: {
-        lookupMode := 0;
+        lookupMode := lookDef;
         inSymbol;
         if (SY <> IDENT) then
             errAndSkip(3, skipToSet + [IDENT]);
@@ -5080,7 +5085,7 @@ var
         inSymbol;
     } else if (SY = PERIOD) then {
         if (l4var4z = kindStruct) then {
-55:         lookupMode := 3;
+55:         lookupMode := lookField;
             typ121z := l4typ3z;
             inSymbol;
             if (hashTravPtr = NIL) then {
@@ -6402,7 +6407,7 @@ function allocDataRef(value: integer): integer;
         write(FCST, F@.b);
         get(F);
     };
-    int92z := FcstCnt - dsize;
+    lookup2 := FcstCnt - dsize;
     FcstCnt := dsize;
     lookupMode := setcount;
 
@@ -7104,7 +7109,7 @@ var
     bool48z := 22 IN procName@.flags;
     lineStartOffset := moduleOffset;
     l3var1z := ;
-    int92z := 2;
+    lookup2 := lookWith;
     withList := NIL;
     arithMode := 1;
     set146z := [];
@@ -7450,7 +7455,7 @@ var l : integer;
     programObj@.argList := NIL;
     programObj@.flags := [];
     objBufIdx := 1;
-    lookupMode := 0;
+    lookupMode := lookDef;
     outputObjFile;
     outputFile := NIL;
     inputFile := NIL;
@@ -7486,7 +7491,7 @@ var l : integer;
         programme(l3var6z, programObj);
     until (SY = PERIOD) or (CH = '_000');
     if (CH <> 'D') then {
-        int92z := 0;
+        lookup2 := 0;
         lookupMode := ;
     } else {
         set147z := halfWord;
@@ -7521,14 +7526,14 @@ var
     noComma: boolean;
     expType: tptr;
 {
-    int92z := 0;
+    lookup2 := lookDef;
     l3var5z := 0;
-    lookupMode := 0;
+    lookupMode := lookDef;
     inSymbol;
     l3var2z := NIL;
     if not (SY IN [IDENT,VOIDSY]) then
         errAndSkip(errBadSymbol, (skipToSet + [IDENT,RPAREN]));
-    int92z := 1;
+    lookup2 := lookUse;
     while (SY IN [IDENT,VOIDSY]) do {
         l3sym7z := SY;
         if (SY = IDENT) then
@@ -7543,7 +7548,7 @@ var
             expType := integerType;
         l3var6z := 0;
         if (SY <> IDENT) then {
-            lookupMode := 0;
+            lookupMode := lookDef;
             inSymbol;
         };
         repeat if (SY = IDENT) then {
@@ -7574,7 +7579,7 @@ var
             errAndSkip(errNoIdent, skipToSet + [RPAREN,COMMA,COLON]);
         noComma := (SY <> COMMA);
         if not noComma then {
-            lookupMode := 0;
+            lookupMode := lookDef;
             inSymbol;
         };
         until noComma;
@@ -7593,7 +7598,7 @@ var
         };
 
         if (SY = SEMICOLON) then {
-            lookupMode := 0;
+            lookupMode := lookDef;
             inSymbol;
             if not (SY IN (skipToSet + [IDENT,VOIDSY])) then
                 errAndSkip(errBadSymbol, (skipToSet + [IDENT,RPAREN]));
@@ -7673,7 +7678,7 @@ procedure exitScope(var arg: hashArray);
             } else
                 inSymbol;
             if (SY = SEMICOLON) then {
-                lookupMode := 0;
+                lookupMode := lookDef;
                 inSymbol;
                 if not (SY IN (skipToSet + [IDENT])) then {
                     errAndSkip(errBadSymbol, skipToSet + [IDENT]);
@@ -7724,7 +7729,7 @@ procedure exitScope(var arg: hashArray);
             };
             curIdRec@.next := symHash[ii];
             symHash[ii] := curIdRec;
-            lookupMode := 0;
+            lookupMode := lookDef;
             checkSymAndRead(SEMICOLON);
         };
         while (typelist <> NIL) do {
@@ -7768,7 +7773,7 @@ procedure exitScope(var arg: hashArray);
                 errAndSkip(1, skipToSet + [IDENT,COMMA]);
             done := SY <> COMMA;
             if not done then {
-                lookupMode := 0;
+                lookupMode := lookDef;
                 inSymbol;
             };
             (* 22663 -> 22620 *) until done;
@@ -7814,7 +7819,7 @@ procedure exitScope(var arg: hashArray);
                     makeExtFile;
                 workidr := curIdRec;
             };
-            lookupMode := 0;
+            lookupMode := lookDef;
             checkSymAndRead(SEMICOLON);
             if (SY <> IDENT) and not (SY IN skipToSet) then
                 errAndSkip(errBadSymbol, skipToSet + [IDENT]);
@@ -7876,7 +7881,7 @@ procedure exitScope(var arg: hashArray);
         if (curFrameRegTemplate = 7) then {
             error(81); (* errProcNestingTooDeep *)
         };
-        lookupMode := 0;
+        lookupMode := lookDef;
         inSymbol;
         if (SY <> IDENT) then {
             error(errNoIdent);
@@ -8191,7 +8196,7 @@ var
     sizes[3] := ptr(0);
     sizes[4] := ;
     sizes[7] := ;
-    sizes[9] := ptr(int92z);
+    sizes[9] := ptr(lookup2);
     sizes[10] := ptr(lookupMode);
     curVal.i := moduleOffset - 40000B;
     symTab[74001B] := [24,29] + curVal.m - intZero;
@@ -8235,8 +8240,8 @@ procedure initOptions;
     lineCnt := 1;
     checkFortran := false;
     bool110z := false;
-    lookupMode := 1;
-    int92z := 1;
+    lookupMode := lookUse;
+    lookup2 := lookUse;
     moduleOffset := 16384;
     lineStartOffset := ;
     condLabCnt := 1;

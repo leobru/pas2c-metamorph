@@ -1,0 +1,11 @@
+/*=p-,t-,s8,y+,k9*/
+extern _OUTPUT_;
+type tenbit = int:10;
+var c1, c2: tenbit;
+{
+c2 = 1;
+c1 = 256;
+switch (c1 << 10 | c2) {
+case 1: case 11: case 111: case 1111: writeln(' ones');
+}
+}.

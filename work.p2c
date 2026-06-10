@@ -396,7 +396,7 @@ var
     lineNesting,
     FcstCountTo500,
     objBufIdx,
-    int92z,
+    lookup2,
     lookupMode,
     condLabCnt,
     prevOpcode,
@@ -1441,7 +1441,7 @@ void lexer;
     default:
         prevCH = CH;
         nextCH();
-        switch (prevCH << 8 | CH) {
+        switch (tok(prevCH << 8 | CH)) {
         case tok('<=') >> 32: SY = RELOP; charClass = LEOP; break;
         case tok('<<') >> 32: SY = MULOP; charClass = SHLEFT; break;
         case tok('<:') >> 32: SY = BEGINSY; break;
@@ -1488,7 +1488,7 @@ void lexer;
         lexer();
         prevSY  =  SY;
         commentModeCH  =  ' ';
-        lookupMode  =  int92z;
+        lookupMode  =  lookup2;
 } /* inSymbol */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6009,7 +6009,7 @@ var
         write(FCST, *F);
         get(F);
     }
-    int92z  =  FcstCnt - dsize;
+    lookup2  =  FcstCnt - dsize;
     FcstCnt  =  dsize;
     lookupMode  =  setcount;
 } /* parseData */
@@ -6694,7 +6694,7 @@ var
     bool48z  =  ((E48 >> 22) & procName->flags) >> 25;
     l3var1z  =
     lineStartOffset  =  moduleOffset;
-    int92z  =  2;
+    lookup2  =  2;
     withList  =  NIL;
     arithMode  =  1;
     set146z  =  0U;
@@ -7062,7 +7062,7 @@ void defExtern;
         programme(&l3var6z, programObj);
     } while ((SY != PERIOD) && (CH != '\000'));
     if (CH != 'D') {
-        int92z  =
+        lookup2  =
         lookupMode  =  lookDef;
     } else {
         freeRegs  =  halfWord;
@@ -7097,14 +7097,14 @@ var
     noComma: int;
     expType: tptr;
 {
-    int92z  =  0;
+    lookup2  =  0;
     l3var5z  =  0;
     lookupMode  =  lookDef;
     inSymbol();
     l3var2z  =  NIL;
     if (! (SY IN [IDENT,VOIDSY]))
         errAndSkip(errBadSymbol, (skipToSet | [IDENT,RPAREN]));
-    int92z  =  1;
+    lookup2  =  1;
     while (SY IN [IDENT,VOIDSY]) {
         l3sym7z  =  SY;
         if (SY == IDENT)
@@ -7739,7 +7739,7 @@ var
     sizes[2]  =
     sizes[3]  =
     sizes[6]  =  0;
-    sizes[8]  =  int92z;
+    sizes[8]  =  lookup2;
     sizes[9]  =  lookupMode;
     curVal.i  =  moduleOffset - 040000;
     symTab[074001]  =  [24,29] | curVal.i;
@@ -7783,7 +7783,7 @@ void initOptions;
     lineCnt  =  1;
     checkFortran  =
     abort  =  false;
-    int92z  =  lookupMode  =  1;
+    lookup2  =  lookupMode  =  1;
     lineStartOffset  =  moduleOffset  =  040000;
     condLabCnt  =  1;
     dataCheck  =  inCallArgs  =  false;

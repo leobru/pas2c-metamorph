@@ -13,6 +13,7 @@
  - function pointers
  - operations on pointers to words
  - `char *`, operations of `char *`
+ - nested case labels (Duff's device)
  - vararg functions
  - `printf`
  - nested case labels (Duff's device)
