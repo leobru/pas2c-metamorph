@@ -157,17 +157,16 @@ const
 type
     symbol = enum {
 /*0B*/  IDENT,      INTCONST,   REALCONST,  CHARCONST,
-        STRINGSY,   GTSY,       xNOTSY,     LPAREN,
-/*10B*/ LBRACK,     EXPROP,     xADDOP,     xRELOP,
-        RPAREN,     RBRACK,     COMMA,      SEMICOLON,
-/*20B*/ PERIOD,     ARROW,      COLON,      BECOMES,
-        BEGINSY,    ENDSY,      CONSTSY,    TYPESY,
-/*31B*/ VARSY,      FUNCSY,     VOIDSY,     ENUMSY,
-        PACKEDSY,   ARRAYSY,    STRUCTSY,   FILESY,
-/*40B*/ IFSY,       SWITCHSY,   WHILESY,    FORSY,
-        WITHSY,     GOTOSY,     ELSESY,     OFSY,
-/*50B*/ DOSY,       EXTERNSY,   BREAKSY,    CONTSY,
-        CASESY,     DEFAULTSY,  NOSY
+        STRINGSY,   LPAREN,     LBRACK,     EXPROP,
+/*10B*/ RPAREN,     RBRACK,     COMMA,      SEMICOLON,
+        PERIOD,     ARROW,      COLON,      BECOMES,
+/*20B*/ BEGINSY,    ENDSY,      CONSTSY,    TYPESY,
+        VARSY,      FUNCSY,     VOIDSY,     ENUMSY,
+/*30B*/ PACKEDSY,   ARRAYSY,    STRUCTSY,   FILESY,
+        IFSY,       SWITCHSY,   WHILESY,    FORSY,
+/*40B*/ WITHSY,     GOTOSY,     ELSESY,     OFSY,
+        DOSY,       EXTERNSY,   BREAKSY,    CONTSY,
+/*50B*/ CASESY,     DEFAULTSY,  NOSY
 };
 //
 idclass = enum {
@@ -1554,7 +1553,7 @@ var
     l3var1z: operator; ret: tptr;
 {
     *litValue  =  curToken.i;
-    if (GTSY < SY) {
+    if (SY > STRINGSY) {
         if (allowSign && (charClass IN [PLUSOP, MINUSOP])) {
             l3var1z  =  charClass;
             inSymbol();

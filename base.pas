@@ -138,17 +138,16 @@ type
 %
     symbol = (
 (*0B*)  IDENT,      INTCONST,   REALCONST,  CHARCONST,
-        STRINGSY,   GTSY,       xNOTSY,     LPAREN,
-(*10B*) LBRACK,     EXPROP,     xADDOP,     xRELOP,
-        RPAREN,     RBRACK,     COMMA,      SEMICOLON,
-(*20B*) PERIOD,     ARROW,      COLON,      BECOMES,
-        BEGINSY,    ENDSY,      CONSTSY,    TYPESY,
-(*30B*) VARSY,      FUNCSY,     VOIDSY,     ENUMSY,
-        PACKEDSY,   ARRAYSY,    STRUCTSY,   FILESY,
-(*40B*) IFSY,       SWITCHSY,   WHILESY,    FORSY,
-        WITHSY,     GOTOSY,     ELSESY,     OFSY,
-(*50B*) DOSY,       EXTERNSY,   BREAKSY,    CONTSY,
-        CASESY,     DEFAULTSY,  NOSY
+        STRINGSY,   LPAREN,     LBRACK,     EXPROP,
+(*10B*) RPAREN,     RBRACK,     COMMA,      SEMICOLON,
+        PERIOD,     ARROW,      COLON,      BECOMES,
+(*20B*) BEGINSY,    ENDSY,      CONSTSY,    TYPESY,
+        VARSY,      FUNCSY,     VOIDSY,     ENUMSY,
+(*30B*) PACKEDSY,   ARRAYSY,    STRUCTSY,   FILESY,
+        IFSY,       SWITCHSY,   WHILESY,    FORSY,
+(*40B*) WITHSY,     GOTOSY,     ELSESY,     OFSY,
+        DOSY,       EXTERNSY,   BREAKSY,    CONTSY,
+(*50B*) CASESY,     DEFAULTSY,  NOSY
 );
 %
 idclass = (
@@ -1595,10 +1594,22 @@ done := false;
         curToken.a[1] := prevCH;
         curToken.a[2] := CH;
         case curToken.a of
+(*
+        '+=    ',
+        '-=    ',
+        '*=    ',
+        '/=    ',
+        '%=    ',
+        '&=    ',
+        '|=    ',
+        '^=    ': { SY := BECOMES; nextCH; exit };
+*)
         '<=    ': { charClass := LEOP; nextCH; exit };
-        '<<    ': { charClass := SHLEFT; nextCH; exit };
+        '<<    ': { charClass := SHLEFT; nextCH;
+                    if CH = '=' then { SY := BECOMES; nextCH }; exit };
         '<:    ': { SY := BEGINSY; nextCH; exit };
-        '>>    ': { charClass := SHRIGHT; nextCH; exit };
+        '>>    ': { charClass := SHRIGHT; nextCH;
+                    if CH = '=' then { SY := BECOMES; nextCH }; exit };
         '>=    ': { charClass := GEOP; nextCH; exit };
         ':>    ': { SY := ENDSY; nextCH; exit };
         '==    ': { SY := EXPROP; charClass := EQOP; nextCH; exit };
@@ -1710,7 +1721,7 @@ var
     l3var1z: operator;
 {
     litValue := curToken;
-    if (GTSY < SY) then {
+    if (SY > STRINGSY) then {
         if allowSign and (charClass IN [PLUSOP, MINUSOP]) then {
             l3var1z := charClass;
             inSymbol;
@@ -7577,7 +7588,7 @@ procedure exitScope(var arg: hashArray);
                            symHash[bucket], , ENUMID, NIL];
             symHash[bucket] := workidr;
             inSymbol;
-            if (charClass <> EQOP) then
+            if (charClass <> ASSIGNOP) then
                 error(errBadSymbol)
             else
                 inSymbol;
@@ -7611,7 +7622,7 @@ procedure exitScope(var arg: hashArray);
             ii := bucket;
             l2var12z := curIdent;
             inSymbol;
-            if (charClass <> EQOP) then
+            if (charClass <> ASSIGNOP) then
                 error(errBadSymbol)
             else
                 inSymbol;
@@ -8273,7 +8284,7 @@ procedure initOptions;
     chrClass['*'] := MUL;
     chrClass['/'] := RDIVOP;
     chrClass['%'] := IMODOP;
-    chrClass['='] := EQOP;
+    chrClass['='] := ASSIGNOP;
     chrClass['&'] := SETAND;
     chrClass['|'] := SETOR;
     chrClass['^'] := SETXOR;

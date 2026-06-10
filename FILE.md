@@ -82,3 +82,18 @@ In packed mode (FILE[14] ≠ 0, i.e. `f: file of T` where T is not a text char):
   confirmed to mean "is standard input/output".
 - Original purpose of `[28]`/`[29]` — possibly reserved for an extension never
   used by the released runtime.
+
+## Decimal offsets of useful global constants accessed via M1:
+
+    ASCII '0' - 7
+    1U        - 8
+    integer exponent, bits [0,1,3] - 9
+    multiplication mask - 10
+    positive mantissa, bits [7..47] - 12
+    minus 1 for AVX - 15
+    77777U - 16
+    real 1.0- 17
+    real 0.5 - 19
+    all one bits, ~0U - 20
+    MSB, bit [0] - 21
+    heap pointer - 23
