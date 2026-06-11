@@ -1,0 +1,86 @@
+ C/WI    :,NAME,
+ P/7A    :,SUBP,
+ PASZERO*:,LC,1
+ PASMINS*:,LC,1
+ SPACE*  :,LC,1
+        15,UTM,15    . ALLOCA(15)
+          ,ITS,13
+          ,ITS,8
+         8,BASE,ONETENTH
+        15,XTS,-2    . VALUE
+          ,AAX,=:774 . & EXPONENT FIELD
+          ,UZA,GOOD  . IF NONE, GOOD
+        11,VTM,NOINT . *NO INTEGER*
+        10,VTM,12
+        13,VTM,EXIT
+          ,UJ,P/7A   . FIELD WIDTH IS IGNORED HERE, AS IN THE ORIGINAL
+ GOOD:    ,BSS,
+        15,XTA,-3
+         1,AEX,11B   . =I0 ENFORCE INTEGER EXPONENT ON VALUE
+        15,ATX,-3
+C WITHIN GOOD, AFTER PUSHING R2, THE STACK IS
+C -20   -19    -6   -5     -4    -3  -2 -1
+C WIDTH DIGITS SIGN CURVAL VALUE R13 R8 R2
+          ,ITA,2
+        15,XTS,-4    . <- VALUE
+          ,ASN,64+40 . OR ,ASN,64-8; ,YTA, IF FASTER
+         1,AAX,10B   . =1
+        15,ATX,-6    . -> SIGN
+        15,XTA,-4    . <- VALUE
+         2,VTM,0
+          ,NTR,
+          ,A*X,=R0.1
+          ,NTR,3
+         1,AMX,11B   . =I0 ACC = FLOOR(ABS(VALUE*0.1)))
+        15,ATX,-5    . -> CURVAL (GUARANTEED NON-NEGATIVE)
+          ,A*X,TEN
+          ,YTA,64    . NOW ACC = ABS(VALUE) / 10 * 10
+        15,AVX,-4    . RESTORE SIGN
+        15,AMX,-4    . SUBTRACT VALUE
+         1,AVX,17B   . =I-1 (NEGATE)
+ LOOP:   2,UTC,
+        15,ATX,-19   . -> DIGITS[R2]
+        15,XTA,-5    . <- CURVAL
+        15,ATX,-4    . -> VALUE
+         2,UTM,1     . INCREMENT NUMBER OF DIGITS WRITTEN
+         1,AEX,11B   . =I0
+          ,UZA,OUTPUT . NO MORE DIGITS TO PRODUCE
+        15,XTA,-4    . <- VALUE
+          ,A*X,ONETENTH . NOW WE CAN USE CHEAPER METHODS TO DIVIDE
+        15,ATX,-5    . -> CURVAL
+          ,A*X,TEN
+          ,YTA,64    . ACC = VALUE / 10 * 10
+        15,X-A,-4    . ACC = VALUE - ACC
+          ,UJ,LOOP
+ OUTPUT:  ,ITA,2     . <- NUM_DIGITS
+        15,ARX,-6    . + SIGN
+         1,AEX,11B   . =I0
+        15,A-X,-20   . ACC = NUM_DIGITS + SIGN - WIDTH
+          ,CALL,P/SP . IF ACC < 0, WRITE -ACC SPACES
+        15,XTA,-6    . <- SIGN
+          ,UZA,NOMINUS
+          ,UTC,PASMINS*
+          ,XTA,
+          ,CALL,P/CW . PRINTING MINUS
+ NOMINUS:2,UTC,
+        15,XTA,-20   . <- DIGITS[R2]
+          ,AAX,=377
+          ,UTC,PASZERO*
+          ,ARX,
+         2,UTM,-1
+C ONE WORD LONGER THAN ,CALL,P/CW BUT FASTER (AS IN THE ORIGINAL)
+        12,WTC,
+          ,ATX,
+          ,CALL,P/PF
+         2,V1M,NOMINUS
+        15,XTA,
+          ,ATI,2
+ EXIT:  15,XTA,-1
+          ,ATI,8
+        15,UTM,-19
+        15,WTC,17
+          ,UJ,
+ ONETENTH:,LOG,4001 4631 4631 4632
+ TEN:     ,LOG,4000 0000 0000 0012
+ NOINT:   ,ISO,12H*NO INTEGER*
+          ,END,

@@ -1,0 +1,19 @@
+ c/md    :      , name,
+                , ntr ,
+            1   , aex , 11b
+                , avx ,
+            15  , stx , 1
+            1   , aex , 11b
+                , avx ,
+            15  , atx , 1
+            15  , a/x , 2
+                , ntr , 3
+            1   , a+x , 11b
+                , ntr ,
+            15  , a*x , 2
+            15  , x-a , 1
+                , ntr , 3
+            1   , a+x , 11b
+            1   , aex , 11b
+            13  , uj  ,
+                , end ,

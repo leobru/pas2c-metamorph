@@ -4,9 +4,10 @@ cat << EOF > tmp$$
 *disc:1/local
 *file:libc,67,w
 *     NO LIST
+*assem
 EOF
 if [ "$1" = "-d" ]; then ln -f tmp$$ libc.dub ; shift; fi
-cat libc.src >> tmp$$
+cat *.madlen >> tmp$$
 cat << EOF >> tmp$$
 *to perso:670000
 *end file

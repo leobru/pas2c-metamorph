@@ -3616,8 +3616,10 @@ var
     rhsExpr := innerNode@.expr1;
 
     needsMater := (lhsExpr@.op <> GETVAR) and
+                  ((lhsExpr@.op <> GETFIELD) or
+                   (lhsExpr@.expr1@.op <> GETVAR)) and
                   ((lhsExpr@.op <> GETELT) or
-                  (lhsExpr@.expr2@.op <> GETVAR));
+                   (lhsExpr@.expr2@.op <> GETVAR));
 
     if needsMater then {
         l3bool13z := false;
