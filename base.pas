@@ -175,7 +175,7 @@ operator = (
     IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
     RMWASSIGN,  op37,       GETENUM,    GETFIELD,   DEREF,
-    FILEPTR,    op44,       ALNUM,      PCALL,      FCALL,
+    FILEPTR,    STKLVAL,    ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
     STANDPROC,  NOOP
 );
@@ -446,9 +446,9 @@ var
    entryPtTable: entries;
    frameRestore: array [3..6] of four;
    indexreg: array [1..15] of integer;
-   opToInsn: array [SHLEFT..op44] of integer;
-   opToMode: array [SHLEFT..op44] of integer;
-   opFlags: array [SHLEFT..op44] of opflg;
+   opToInsn: array [SHLEFT..STKLVAL] of integer;
+   opToMode: array [SHLEFT..STKLVAL] of integer;
+   opFlags: array [SHLEFT..STKLVAL] of opflg;
    funcInsn: array [0..23] of integer;
    insnTemp: array [insn] of integer;
    frameRegTemplate: integer;
@@ -3595,15 +3595,20 @@ procedure genRMWAssign;
    assignment (compound op-assign such as `lhs += rhs`, or pre-++/--).
    The naked AST lowering ASSIGNOP(lhs, op(lhs, rhs)) evaluates `lhs`
    twice, which is wrong when computing its address has side effects
-   (or even just clobbers ACC).  RMWASSIGN materialises the lvalue's
-   address once into a local spill slot via spillAcc(op37) whenever
-   that address needs ACC to compute, then synthesises
-   ASSIGNOP(slot, op(slot, rhs)) and re-enters genFullExpr.  Both
-   slot references then refer to the same spilled address, so the
-   original lvalue subtree is walked exactly once.
-   For trivial lvalues that don't touch ACC (plain GETVAR), we skip
-   materialisation and let the synthetic AST share the lvalue node
-   directly -- re-walking is cheap and side-effect free. *)
+   (or even just clobbers ACC).
+   Strategy: compute lhs's address exactly once (walking the lvalue
+   subtree only once), push that address onto the BESM-6 stack TWICE,
+   then synthesise ASSIGNOP(stklval, op(stklval, rhs)) where stklval is
+   a sentinel STKLVAL node.  Each visit to STKLVAL (one for the inner
+   read, one for the outer write) emits `WTC SP' to pop one copy of
+   the address into the working tag, after which prepLoad/prepStore
+   append `XTA 0' / `ATX 0' to do the actual transfer.  Pushing twice
+   (rather than peeking SP-1) works around the BESM-6 not having a
+   non-popping SP-relative read.
+   For trivial lvalues that don't touch ACC (plain GETVAR / GETFIELD
+   off GETVAR / GETELT with GETVAR index) the synthetic AST may share
+   the original lvalue node directly -- re-walking is cheap and side-
+   effect free, and skips the push/pop traffic entirely. *)
 var
     innerNode, rhsExpr, lhsExpr, rmwLhs: eptr;
     synthOp, synthAsn: eptr;
@@ -3627,8 +3632,18 @@ var
         l3bool13z := true;
         setAddrTo(14);
         addToInsnList(KITA + 14);
-        spillAcc(op37);
-        rmwLhs := curExpr;
+        addToInsnList(macro + mcPUSH);
+        addToInsnList(KITA + 14);
+        addToInsnList(macro + mcPUSH);
+        genOneOp;
+        insnList := NIL;
+        new(rmwLhs);
+        with rmwLhs@ do {
+            vt.typ := lhsExpr@.vt.typ;
+            op := STKLVAL;
+            expr1 := NIL;
+            expr2 := NIL;
+        };
     } else {
         rmwLhs := lhsExpr;
     };
@@ -3910,6 +3925,33 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
             } else
             if (curOP = GETENUM) then
                 startInsnList(ilCONST)
+        } else if (curOP = STKLVAL) then {
+            (* Synthetic lvalue produced by genRMWAssign.  The address
+               of the real lvalue has been pushed onto the BESM-6 stack
+               TWICE by the RMW prologue, once for the rvalue read and
+               once for the lvalue write.  Each STKLVAL evaluation pops
+               one copy via `WTC SP' into the working tag M14, and the
+               standard prepLoad/prepStore appends `XTA 0' (load) or
+               `ATX 0' (store) so that the memory transfer uses that
+               popped address.  Pushing twice keeps stack accounting
+               trivial (each visit pops exactly one slot) and sidesteps
+               BESM-6's lack of true non-popping SP-relative addressing
+               for `WTC'. *)
+            new(insnList);
+            with insnList@ do {
+                tail := NIL;
+                head := NIL;
+                typ := exprToGen@.vt.typ;
+                regsused := [];
+                ilm := il1;
+                st := st0;
+                addrmd := 16;
+                payload.i := 0;
+                disp := 0;
+                width := 0;
+                shift := 0;
+            };
+            addToInsnList(KWTC + SP);
         } else if (curOP = ALNUM) then
             genEntry
         else if (curOP IN [TOREAL..BITNEGOP]) then {
