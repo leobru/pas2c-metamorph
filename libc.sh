@@ -7,7 +7,7 @@ cat << EOF > tmp$$
 *assem
 EOF
 if [ "$1" = "-d" ]; then ln -f tmp$$ libc.dub ; shift; fi
-cat *.madlen >> tmp$$
+cat libc/*.madlen >> tmp$$
 cat << EOF >> tmp$$
 *to perso:670000
 *end file

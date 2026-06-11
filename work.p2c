@@ -1018,7 +1018,8 @@ void requiredSymErr(sym: symbol);
 void readToPos80;
 {
     while (linePos < 80) {
-        lineBuf[++linePos]  =  *PASINPUT;
+        ++linePos;
+        lineBuf[linePos]  =  *PASINPUT;
         if (linePos != 80)  get(PASINPUT);
     }
     endOfLine();
@@ -1031,7 +1032,8 @@ void nextCH;
         atEOL  =  eoln(PASINPUT);
         CH  =  *PASINPUT;
         get(PASINPUT);
-        lineBuf[++linePos]  =  CH;
+        ++linePos;
+        lineBuf[linePos]  =  CH;
     } while ((maxLineLen < linePos) && !atEOL);
 } /* nextCH */
 //
@@ -7918,9 +7920,10 @@ var
     for (cnt = 1; cnt <= longSymCnt; ++cnt)
         write(_CHILD_, longSyms[cnt]);
     if (allowCompat) {
+        writeln('     MODULE HEADER:   HDR REL    0    0 LSYM NCODE   0 CONST DATA SETS');
         write((lineCnt - 1):6, ' LINES STRUCTURE ');
         for (idx = 0; idx <= 9; ++idx)
-            write(sizes[idx]:0, ' ');
+            write(sizes[idx]:idx?4:0, ' ');
         writeln;
     }
     entryPtTable[entryPtCnt]  =  0U;

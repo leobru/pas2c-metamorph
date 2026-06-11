@@ -7,7 +7,7 @@ self.o: work.o pascom.bin libc.bin
 work.o: base.o work.p2c pascom.bin
 	./work.sh
 
-libc.bin: $(wildcard *.madlen)
+libc.bin: $(wildcard libc/*.madlen)
 	./libc.sh
 
 base.o: base.pas
