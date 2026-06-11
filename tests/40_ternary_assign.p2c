@@ -1,0 +1,18 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var a, b, c, r: int;
+{
+    a = 1;
+    b = 0;
+    c = 0;
+    r = a ? (b = 5) : (c = 5);
+    writeln(' true r=', r:0, ' b=', b:0, ' c=', c:0);
+
+    a = 0;
+    b = 0;
+    c = 0;
+    r = a ? (b = 5) : (c = 5);
+    writeln(' false r=', r:0, ' b=', b:0, ' c=', c:0);
+}
+.

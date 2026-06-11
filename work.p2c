@@ -231,8 +231,8 @@ oneinsn  = struct {
     mode, code, offset: int;
 };
 //
-ilmode = enum {ilCONST, il1, ilVALINACC, ilCOND};
-state = enum {st0, st1, st2};
+ilmode = enum {ilCONST, ilLVAL, ilRVAL, ilCOND};
+state = enum {stWORD, stSLICE, stPACKED};
 assoc = enum {
     leftAs,     rightAs
 };
@@ -2193,7 +2193,7 @@ var
                 curVal.i  =  getFCSToffset();
             addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
             break;
-        case il1: {
+        case ilLVAL: {
             helper  =  insnList->addrmd;
             l4int2z  =  insnList->payload;
             l4int3z  =  insnList->disp;
@@ -2204,7 +2204,7 @@ var
                     addToInsnList(macro + mcACC2ADDR);
                 } else {
                     helper  =  indexreg[insnList->addrmd];
-                    if ((l4int2z == 0) && (insnList->st == st0)) {
+                    if ((l4int2z == 0) && (insnList->st == stWORD)) {
                         addInsnAndOffset(helper + curInsnTemplate,
                                          l4int3z);
                         goto 4602;
@@ -2214,7 +2214,7 @@ var
                 }
             }
             l4st6z  =  insnList->st;
-            if (l4st6z == st0) {
+            if (l4st6z == stWORD) {
                 addInsnAndOffset(l4int2z + curInsnTemplate, l4int3z);
             } else {
                 l4var5z  =  valueType->k;
@@ -2224,7 +2224,7 @@ var
                 } else {
                     isSimple  =  false;
                 }
-                if (l4st6z == st1) {
+                if (l4st6z == stSLICE) {
                     if (l4int3z != l4int2z ||
                        helper != P_RC ||
                        l4int2z != 0)
@@ -2261,8 +2261,8 @@ var
                 }
             }
             // FALLTHRU
-        } /* il1 */
-        case ilVALINACC:
+        } /* ilLVAL */
+        case ilRVAL:
             if (forValue && (valueType == boolType) &&
                (16 in insnList->regsused))
                 addToInsnList(KAEX+E1);
@@ -2275,7 +2275,7 @@ var
 4602:
     } /* with */
     with *insnList do {
-        ilm  =  ilVALINACC;
+        ilm  =  ilRVAL;
         regsused |= E48;
     }
 } /* prepLoad */
@@ -2351,7 +2351,7 @@ void getOffset;
         }
     } /* with */
     with *insnList do {
-        ilm  =  il1;
+        ilm  =  ilLVAL;
         addrmd  =  reg;
         disp  =  0;
         payload  =  0;
@@ -2378,9 +2378,9 @@ var
     }
     l4bool4z  =  0 in insnList->regsused;
     l4st6z  =  insnList->st;
-    if (l4st6z != st0 || l4bool4z)
+    if (l4st6z != stWORD || l4bool4z)
         prependToInsnList(macro + mcPUSH);
-    if (l4st6z == st0) {
+    if (l4st6z == stWORD) {
         if (l4bool4z) {
             addInsnAndOffset(insnList->payload + KUTC,
                              insnList->disp);
@@ -2393,7 +2393,7 @@ var
         l4int1z  =  insnList->typ->bits;
         l4bool5z  =  l4var7z < kindArray ||
                      (l4var7z == kindStruct && (E48 >> S6) & optSflags);
-        if (l4st6z == st1) {
+        if (l4st6z == stSLICE) {
             l4int2z  =  insnList->shift;
             l4int3z  =  l4int2z + insnList->width;
             if (l4bool5z) {
@@ -2463,15 +2463,15 @@ var
     sjLabel: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void startIL1;
+void startLVal;
 {
     prepLoad();
-    insnList->ilm  =  il1;
-    insnList->st  =  st0;
+    insnList->ilm  =  ilLVAL;
+    insnList->st  =  stWORD;
     insnList->disp  =  0;
     insnList->payload  =  0;
     insnList->addrmd  =  18;
-} /* startIL1 */
+} /* startLVal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genDeref;
@@ -2481,13 +2481,13 @@ var
     doPtrCheck  =  checkBounds && ! (NoPtrCheck in optSflags)
                && (curOP == DEREF);
     /* The optimised path manipulates addrmd/disp/payload, which only
-       carry meaning for il1 (addressable) operands.  For ilVALINACC --
+       carry meaning for ilLVAL (addressable) operands.  For ilRVAL --
        e.g. a function-call result whose pointer value is already in ACC
        -- those fields are uninitialised and would yield garbage; in
        that case fall through to the general mcACC2ADDR path below. */
-    if (! doPtrCheck && (insnList->ilm == il1) && (
-        (insnList->st == st0) ||
-        (insnList->st == st1) &&
+    if (! doPtrCheck && (insnList->ilm == ilLVAL) && (
+        (insnList->st == stWORD) ||
+        (insnList->st == stSLICE) &&
         (insnList->shift == 0)))
      {
         l5var1z  =  insnList->addrmd;
@@ -2510,7 +2510,7 @@ var
             }
         }
     } else {
-        startIL1();
+        startLVal();
         if (doPtrCheck) {
             addToInsnList(KVTM+I14 + lineCnt);
             addToInsnList(getHelperProc(7)); /* "P/CA"*/
@@ -2784,13 +2784,13 @@ var
                 l5var6z  =  (l5var5z-1-l5var4z % l5var5z) *
                            insnCopy.typ->pcksize;
                 switch (insnCopy.st) {
-                case st0: insnCopy.shift  =  l5var6z; break;
-                case st1: insnCopy.shift  =  insnCopy.shift + l5var6z +
+                case stWORD: insnCopy.shift  =  l5var6z; break;
+                case stSLICE: insnCopy.shift  =  insnCopy.shift + l5var6z +
                                            insnCopy.typ->bits - 48; break;
-                case st2: error(errUsingVarAfterIndexingPackedArray);
+                case stPACKED: error(errUsingVarAfterIndexingPackedArray);
                 } /* switch */
                 insnCopy.width  =  insnCopy.typ->pcksize;
-                insnCopy.st  =  st1;
+                insnCopy.st  =  stSLICE;
             }  else {
                 insnCopy.disp  =  curVal.i  * l5var26z->size +
                                   insnCopy.disp;
@@ -2811,13 +2811,13 @@ var
                     addToInsnList(macro + mcMULTI);
            }
            if ((l5ilm28z == ilCOND) ||
-              (l5ilm28z == il1) &&
-              (insnList->st != st0))
+              (l5ilm28z == ilLVAL) &&
+              (insnList->st != stWORD))
                prepLoad();
            l5var23z  =  insnCopy.regsused | insnList->regsused;
            if (! l5var25z) {
                if (insnCopy.addrmd == 18) {
-                    if (insnList->ilm == ilVALINACC) {
+                    if (insnList->ilm == ilRVAL) {
                         insnCopy.addrmd  =  15;
                     } else {
                         insnCopy.addrmd  =  16;
@@ -2856,7 +2856,7 @@ var
                          insnList  =  copyPtr;
                          addInsnAndOffset(macro+mcADDSTK2REG, l5var1z);
                     } else {
-                         if (insnList->ilm == ilVALINACC) {
+                         if (insnList->ilm == ilRVAL) {
                              addInsnAndOffset(macro+mcADDACC2REG, l5var1z);
                          } else {
                              curInsnTemplate  =  KWTC;
@@ -2869,7 +2869,7 @@ var
                      }
                 }
            } else {
-                if (insnCopy.st == st0) {
+                if (insnCopy.st == stWORD) {
                     prepLoad();
                     if (l5var7z != 0) {
                         curVal.i  =  0 - l5var7z;
@@ -2885,7 +2885,7 @@ var
                     if (l5var24z)
                         addToInsnList(macro + mcPOP);
                     l5var23z |= [0, 10, 11, 13, 14];
-                    insnCopy.st  =  st2;
+                    insnCopy.st  =  stPACKED;
                     insnCopy.disp  =  0;
                     insnCopy.payload  =  0;
                     insnCopy.width  =  insnCopy.typ->pcksize;
@@ -3007,7 +3007,7 @@ void formThunk;
     insnList->tail  =  NIL;
     insnList->typ  =  l5idr5z->typ;
     insnList->regsused  =  (l5idr5z->flags | [7:15]) & [0:8, 10:15];
-    insnList->ilm  =  ilVALINACC;
+    insnList->ilm  =  ilRVAL;
     if (isFortrn) {
         firstArg  =  ! isProc;
         if (checkFortran) {
@@ -3044,7 +3044,7 @@ void formThunk;
             paramClass  =  (l5op21z == PCALL) ? ROUTINEID : ENUMID;
         } else {
             genFullExpr(l5exp2z);
-            if (insnList->ilm == il1) {
+            if (insnList->ilm == ilLVAL) {
                 paramClass  =  FORMALID;
             } else
                 paramClass  =  VARID;
@@ -3134,7 +3134,7 @@ void formThunk;
     if (! isProc) {
         insnList->typ  =  l5idr5z->typ;
         insnList->regsused  =  insnList->regsused | E48;
-        insnList->ilm  =  ilVALINACC;
+        insnList->ilm  =  ilRVAL;
         set146z &= ~calleeFl;
     }
 } /* genEntry */
@@ -3152,7 +3152,7 @@ void startInsnList(l5arg1z: ilmode);
         insnList->payload  =  exprToGen->num1;
         insnList->addrmd  =  exprToGen->num2;
     } else {
-        insnList->st  =  st0;
+        insnList->st  =  stWORD;
         insnList->addrmd  =  18;
         insnList->payload  =  curFrameRegTemplate;
         insnList->disp  =  exprToGen->num1;
@@ -3163,16 +3163,27 @@ void startInsnList(l5arg1z: ilmode);
 void genCopy;
 var
     size: int;
+    lhsIns, rhsIns: *insnltyp;
 {
     size  =  insnList->typ->size;
     if (size == 1) {
-        saved  =  insnList;
+        lhsIns  =  insnList;
         insnList  =  otherIns;
         prepLoad();
-        genOneOp();
-        insnList  =  saved;
+        rhsIns  =  insnList;
+        insnList  =  lhsIns;
         prepStore();
-        genOneOp();
+        lhsIns  =  insnList;
+        if (rhsIns->tail == NIL) {
+            rhsIns->head  =  lhsIns->head;
+        } else {
+            rhsIns->tail->next  =  lhsIns->head;
+        }
+        if (lhsIns->tail != NIL)
+            rhsIns->tail  =  lhsIns->tail;
+        rhsIns->regsused  =  rhsIns->regsused | lhsIns->regsused | E48;
+        rhsIns->ilm  =  ilRVAL;
+        insnList  =  rhsIns;
     } else {
         prepMultiWord();
         genOneOp();
@@ -3227,7 +3238,7 @@ var
             otherIns  =  saved;
             nextInsn  =  66;      /* P/IN */
             genHelper();
-            insnList->ilm  =  ilVALINACC;
+            insnList->ilm  =  ilRVAL;
         }
     } else {
         if (negate)
@@ -3246,7 +3257,7 @@ var
             prepMultiWord();
             addInsnAndOffset(KVTM+I11, 1 - size);
             addToInsnList(getHelperProc(89 + l3int3z)); /* P/EQ */
-            insnList->ilm  =  ilVALINACC;
+            insnList->ilm  =  ilRVAL;
             negate  =  ! negate;
         } else if (l3int3z == 0) {
             nextInsn  =  KAEX;
@@ -3288,7 +3299,7 @@ void genCondOp;
  * Code generation for the ternary conditional operator
  *      exprToGen = CONDOP{cond, ALTERN{then, else}}
  *
- * Strategy: build a single deferred ilVALINACC insnList that, when committed by
+ * Strategy: build a single deferred ilRVAL insnList that, when committed by
  * the surrounding expression via genOneOp, emits the full branching
  * sequence and leaves the result in the accumulator. Both branches simply
  * leave their value in ACC -- no PUSH/POP is needed inside genCondOp,
@@ -3361,7 +3372,7 @@ var
             addInsnAndOffset(macro + 2,
                              (elseLab << 12) + insnList->payload);
     } else {
-        /* Simple ilCOND (single comparison, payload=0), or il1/ilVALINACC/ilCONST:
+        /* Simple ilCOND (single comparison, payload=0), or ilLVAL/ilRVAL/ilCONST:
            prepLoad with forValue=false is a no-op for ilCOND, and materializes
            an lvalue/constant to ACC otherwise. Then emit a single deferred
            UZA/U1A to elseLab. */
@@ -3409,16 +3420,16 @@ var
     condChain->regsused = condChain->regsused | thenChain->regsused
                           | insnList->regsused | [0];
 
-    /* Finalize the result insnList as an ilVALINACC (rvalue-in-ACC). Both branches
+    /* Finalize the result insnList as an ilRVAL (rvalue-in-ACC). Both branches
        leave their value in ACC and the chains rejoin at endLab, so the
-       composite chain already meets the ilVALINACC contract without any extra
+       composite chain already meets the ilRVAL contract without any extra
        PUSH/POP. tryFlip / genCopy / genEntry integrate this value into
-       the surrounding expression exactly like any other ilVALINACC chain, spilling
+       the surrounding expression exactly like any other ilRVAL chain, spilling
        ACC to the hardware stack only when actually needed. */
     insnList = condChain;
     insnList->typ = exprToGen->typ;
-    insnList->ilm = ilVALINACC;
-    insnList->st = st0;
+    insnList->ilm = ilRVAL;
+    insnList->st = stWORD;
 } /* genCondOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3569,30 +3580,12 @@ var
                     break;
                 case opfASSN:
                     genCopy();
-                    /* For chained assignment (a = b = c) and embedded
-                       assignments (b = (a = 5) + 1).  On BESM-6, KATX
-                       (store) does not modify ACC, so the value just
-                       stored is still in ACC.  Synthesise a fresh ilVALINACC
-                       (rvalue-in-ACC) insnList with one dummy node
-                       (an unused macro number that the emitter quietly
-                       drops) so that any outer op -- ASSIGNOP, tryFlip,
-                       genCopy -- sees a well-formed head/tail to splice
-                       on, while the chain emits no actual instruction. */
-                    new(insnList);
                     with *insnList do {
-                        tail  =  NIL;
-                        head  =  NIL;
                         typ  =  exprToGen->typ;
-                        regsused  =  [0];
-                        ilm  =  ilVALINACC;
-                        payload  =  0;
-                        disp  =  0;
-                        addrmd  =  0;
-                        st  =  st0;
-                        width  =  0;
-                        shift  =  0;
+                        regsused  =  regsused | E48;
+                        ilm  =  ilRVAL;
+                        st  =  stWORD;
                     }
-                    addToInsnList(macro + mcDUMMY);
                     return;
                 case opfAND:
                     genBoolAnd();
@@ -3672,10 +3665,10 @@ var
                 tail  =  NIL;
                 head  =  NIL;
                 regsused  =  0U;
-                ilm  =  il1;
+                ilm  =  ilLVAL;
                 payload  =  curIdRec->offset;
                 disp  =  curIdRec->high;
-                st  =  st0;
+                st  =  stWORD;
                 addrmd  =  18;
             }
             if (curIdRec->cl == FORMALID) {
@@ -3697,27 +3690,27 @@ var
                 disp += curIdRec->offset;
                 if (curIdRec->pckfield) {
                     switch (st) {
-                    case st0: {
+                    case stWORD: {
                         shift  =  curIdRec->shift;
                         break;
                     }
-                    case st1: {
+                    case stSLICE: {
                         shift += curIdRec->shift;
                         if (! (S6 IN optSflags))
                             shift  =  shift +
                                        curIdRec->uptype->bits - 48;
                         break;
                     }
-                    case st2:
+                    case stPACKED:
                         if (! rhsMode)
                             error(errUsingVarAfterIndexingPackedArray);
                         else {
-                            startIL1();
+                            startLVal();
                             insnList->shift  =  curIdRec->shift;
                         }
                     }
                     insnList->width  =  curIdRec->width;
-                    insnList->st  =  st1;
+                    insnList->st  =  stSLICE;
                     insnList->regsused  =  insnList->regsused | E48;
                 }
             }
@@ -3727,7 +3720,7 @@ var
             genFullExpr(exprToGen->expr1);
             genDeref();
         } else if (curOP == op37) {
-            startInsnList(il1);
+            startInsnList(ilLVAL);
             genDeref();
         } else if (curOP == GETENUM)
             startInsnList(ilCONST);
@@ -3749,8 +3742,8 @@ var
             head = NIL;
             typ = exprToGen->typ;
             regsused = [];
-            ilm = il1;
-            st = st0;
+            ilm = ilLVAL;
+            st = stWORD;
             addrmd = 16;
             payload = 0;
             disp = 0;
@@ -3826,8 +3819,8 @@ var
                 head  =  NIL;
                 typ  =  intType;
                 regsused  =  E48;
-                ilm  =  ilVALINACC;
-                st  =  st0;
+                ilm  =  ilRVAL;
+                st  =  stWORD;
                 payload  =  0;
                 disp  =  0;
                 addrmd  =  0;
@@ -3867,7 +3860,7 @@ var
                     addToInsnList(getHelperProc(work - 6));
                 }
                 with *insnList do {
-                    ilm  =  ilVALINACC;
+                    ilm  =  ilRVAL;
                     regsused |= E48;
                 }
             } else {
@@ -3897,11 +3890,11 @@ var
                 typ  =  exprToGen->expr2->typ;
                 head  =  tail  =  NIL;
                 regsused  =  0U;
-                ilm  =  il1;
+                ilm  =  ilLVAL;
                 addrmd  =  18;
                 payload  =  indexreg[curVal.i];
                 disp  =  0;
-                st  =  st0;
+                st  =  stWORD;
             }
         } else {
             curVal.i  =  14;
@@ -3980,7 +3973,7 @@ var l4exf1z: *extfilerec;
             withList  =  helpExpr;
             helpExpr->op  =  NOOP;
             switch (st) {
-            case st0:
+            case stWORD:
                 if (l3int3z == 0) {
                     l3int2z  =  14;
                 } else {
@@ -4006,11 +3999,11 @@ var l4exf1z: *extfilerec;
                 curVal.i  =  l3int2z;
                 helpExpr->typ  =  curVal.tp;
                 break;
-            case st1:
+            case stSLICE:
                 curVal.i  =  14;
                 helpExpr->typ  =  curVal.tp;
                 break;
-            case st2:
+            case stPACKED:
                 error(errVarTooComplex);
             } /* switch */
         } /* with */
@@ -4027,7 +4020,7 @@ var l4exf1z: *extfilerec;
         curInsnTemplate  =  KXTA;
         break;
     case SETREG9:
-        if (insnList->st != st0)
+        if (insnList->st != stWORD)
             error(errVarTooComplex);
         setAddrTo(9);
         genOneOp();
@@ -4112,7 +4105,7 @@ var l4exf1z: *extfilerec;
                         }
                     }
                 } else {
-                    if (insnList->ilm == il1) {
+                    if (insnList->ilm == ilLVAL) {
                         forValue  =  false;
                         prepLoad();
                         forValue  =  true;
@@ -5590,7 +5583,7 @@ var
 
         if (oper == CONDOP) {
             /* Right-associative ternary: cond ? thenExpr : elseExpr */
-            parsePrc(precCond + 1);
+            parsePrc(precAssign);
             if (SY != COLON)
                 requiredSymErr(COLON);
             else

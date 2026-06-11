@@ -224,8 +224,8 @@ oneinsn  = record
     mode, code, offset: integer;
 end;
 %
-ilmode = (ilCONST, il1, ilVALINACC, ilCOND);
-state = (st0, st1, st2);
+ilmode = (ilCONST, ilLVAL, ilRVAL, ilCOND);
+state = (stWORD, stSLICE, stPACKED);
 %
 insnltyp  = record
     tail, head: oiptr;
@@ -2324,7 +2324,7 @@ var
                 curVal.i := getFCSToffset;
             addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
         };
-        il1: {
+        ilLVAL: {
             helper := insnList@.addrmd;
             baseWidth := insnList@.payload.i;
             offsetShift := insnList@.disp;
@@ -2335,7 +2335,7 @@ var
                     addToInsnList(macro + mcACC2ADDR);
                 } else {
                     helper := indexreg[insnList@.addrmd];
-                    if (baseWidth = 0) and (insnList@.st = st0) then {
+                    if (baseWidth = 0) and (insnList@.st = stWORD) then {
                         addInsnAndOffset(helper + curInsnTemplate,
                                          offsetShift);
                         goto 4602;
@@ -2345,7 +2345,7 @@ var
                 }
             };
             addrState := insnList@.st;
-            if addrState = st0 then {
+            if addrState = stWORD then {
                 addInsnAndOffset(baseWidth + curInsnTemplate, offsetShift);
             } else {
                 typeKind := valueType@.k;
@@ -2354,7 +2354,7 @@ var
                     isSimple := true;
                 } else
                     isSimple := false;
-                if addrState = st1 then {
+                if addrState = stSLICE then {
                     if (offsetShift <> baseWidth) or
                        (helper <> 18) or (* C/RC *)
                        (baseWidth <> 0) then
@@ -2395,7 +2395,7 @@ var
             };
             goto 4545;
         };
-        ilVALINACC: {
+        ilRVAL: {
 4545:       if forValue and (valueType = booleanType) and
                (16 in insnList@.regsused) then
                 addToInsnList(KAEX+E1);
@@ -2409,7 +2409,7 @@ var
 4602:
     }; (* with *)
     with insnList@ do {
-        ilm := ilVALINACC;
+        ilm := ilRVAL;
         regsused := regsused + [0];
     };
 }; (* prepLoad *)
@@ -2489,7 +2489,7 @@ procedure P4613;
             goto 4650;
         }
     }; (* with *)
-    insnList@.ilm := il1;
+    insnList@.ilm := ilLVAL;
     insnList@.addrmd := reg;
     insnList@.disp := 0;
     insnList@.payload.i := 0;
@@ -2515,9 +2515,9 @@ var
     };
     l4bool4z := 0 in insnList@.regsused;
     addrState := insnList@.st;
-    if (addrState <> st0) or l4bool4z then
+    if (addrState <> stWORD) or l4bool4z then
         prependToInsnList(macro + mcPUSH);
-    if (addrState = st0) then {
+    if (addrState = stWORD) then {
         if (l4bool4z) then {
             addInsnAndOffset(insnList@.payload.i + insnTemp[UTC],
                              insnList@.disp);
@@ -2530,7 +2530,7 @@ var
         l4int1z := insnList@.typ@.bits;
         l4bool5z := (typeKind < kindArray) or
                      (typeKind = kindStruct) and (S6 in optSflags.m);
-        if (addrState = st1) then {
+        if (addrState = stSLICE) then {
             l4int2z := insnList@.shift;
             l4int3z := l4int2z + insnList@.width;
             if l4bool5z then {
@@ -2600,15 +2600,15 @@ var
     sjLabel: integer;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure startIL1;
+procedure startLVal;
 {
     prepLoad;
-    insnList@.ilm := il1;
-    insnList@.st := st0;
+    insnList@.ilm := ilLVAL;
+    insnList@.st := stWORD;
     insnList@.disp := 0;
     insnList@.payload.i := 0;
     insnList@.addrmd := 18;
-}; (* startIL1 *)
+}; (* startLVal *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure genDeref;
@@ -2621,13 +2621,13 @@ var
     doPtrCheck := checkBounds and not (NoPtrCheck in optSflags.m)
                and (curOP = DEREF);
     (* The optimised path manipulates addrmd/disp/payload, which only
-       carry meaning for il1 (addressable) operands.  For ilVALINACC --
+       carry meaning for ilLVAL (addressable) operands.  For ilRVAL --
        e.g. a function-call result whose pointer value is already in ACC
        -- those fields are uninitialised and would yield garbage; in
        that case fall through to the general mcACC2ADDR path below. *)
-    if not doPtrCheck and (insnList@.ilm = il1) and (
-        (insnList@.st = st0) or
-        (insnList@.st = st1) and
+    if not doPtrCheck and (insnList@.ilm = ilLVAL) and (
+        (insnList@.st = stWORD) or
+        (insnList@.st = stSLICE) and
         (insnList@.shift = 0))
     then {
         l5var1z.i := insnList@.addrmd;
@@ -2650,7 +2650,7 @@ var
             }
         }
     } else {
-        startIL1;
+        startLVal;
         if (doPtrCheck) then {
             addToInsnList(KVTM+I14 + lineCnt);
             addToInsnList(getHelperProc(7)); (* "P/CA"*)
@@ -2931,13 +2931,13 @@ var
                 l5var6z := (l5var5z-1-l5var4z MOD l5var5z) *
                            insnCopy.typ@.pcksize;
                 case insnCopy.st of
-                st0: insnCopy.shift := l5var6z;
-                st1: insnCopy.shift := insnCopy.shift + l5var6z +
+                stWORD: insnCopy.shift := l5var6z;
+                stSLICE: insnCopy.shift := insnCopy.shift + l5var6z +
                                            insnCopy.typ@.bits - 48;
-                st2: error(errUsingVarAfterIndexingPackedArray);
+                stPACKED: error(errUsingVarAfterIndexingPackedArray);
                 end; (* case *)
                 insnCopy.width := insnCopy.typ@.pcksize;
-                insnCopy.st := st1;
+                insnCopy.st := stSLICE;
             }  else {
                 insnCopy.disp := curVal.i  * l5var26z@.size +
                                   insnCopy.disp;
@@ -2958,13 +2958,13 @@ var
                     addToInsnList(macro + mcMULTI);
            };
            if (l5ilm28z = ilCOND) or
-              (l5ilm28z = il1) and
-              (insnList@.st <> st0) then
+              (l5ilm28z = ilLVAL) and
+              (insnList@.st <> stWORD) then
                prepLoad;
            l5var23z.m := insnCopy.regsused + insnList@.regsused;
            if (not l5var25z) then {
                if (insnCopy.addrmd = 18) then {
-                    if (insnList@.ilm = ilVALINACC) then {
+                    if (insnList@.ilm = ilRVAL) then {
                         insnCopy.addrmd := 15;
                     } else {
                         insnCopy.addrmd := 16;
@@ -3003,7 +3003,7 @@ var
                          insnList := copyPtr;
                          addInsnAndOffset(macro+mcADDSTK2REG, l5var1z);
                     } else {
-                         if (insnList@.ilm = ilVALINACC) then {
+                         if (insnList@.ilm = ilRVAL) then {
                              addInsnAndOffset(macro+mcADDACC2REG, l5var1z);
                          } else {
                              curInsnTemplate := insnTemp[WTC];
@@ -3016,7 +3016,7 @@ var
                      }
                 };
            } else {
-                if (insnCopy.st = st0) then {
+                if (insnCopy.st = stWORD) then {
                     prepLoad;
                     if (l5var7z <> 0) then {
                         curVal.i := 0 - l5var7z;
@@ -3033,7 +3033,7 @@ var
                     if (l5var24z) then
                         addToInsnList(macro + mcPOP);
                     l5var23z.m := l5var23z.m + [0, 10, 11, 13, 14];
-                    insnCopy.st := st2;
+                    insnCopy.st := stPACKED;
                     insnCopy.disp := 0;
                     insnCopy.payload.i := 0;
                     insnCopy.width := insnCopy.typ@.pcksize;
@@ -3108,7 +3108,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
     insnList@.tail := NIL;
     insnList@.typ := l5idr5z@.typ;
     insnList@.regsused := (l5idr5z@.flags + [7:15]) * [0:8, 10:15];
-    insnList@.ilm := ilVALINACC;
+    insnList@.ilm := ilRVAL;
     if (isFortrn) then {
         firstArg := not isProc;
         if (checkFortran) then {
@@ -3195,7 +3195,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
                 paramClass := ENUMID;
         } else {
             genFullExpr(l5exp2z);
-            if (insnList@.ilm = il1) then
+            if (insnList@.ilm = ilLVAL) then
                 paramClass := FORMALID
             else
                 paramClass := VARID;
@@ -3291,7 +3291,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
     if not isProc then {
         insnList@.typ := l5idr5z@.typ;
         insnList@.regsused := insnList@.regsused + [0];
-        insnList@.ilm := ilVALINACC;
+        insnList@.ilm := ilRVAL;
         set146z := set146z - calleeFl.m;
     }
 
@@ -3310,7 +3310,7 @@ procedure startInsnList(l5arg1z: ilmode);
         insnList@.payload.i := exprToGen@.num1;
         insnList@.addrmd := exprToGen@.num2;
     } else {
-        insnList@.st := st0;
+        insnList@.st := stWORD;
         insnList@.addrmd := 18;
         insnList@.payload.i := curFrameRegTemplate;
         insnList@.disp := exprToGen@.num1;
@@ -3321,16 +3321,27 @@ procedure startInsnList(l5arg1z: ilmode);
 procedure genCopy;
 var
     size: integer;
+    lhsIns, rhsIns: @insnltyp;
 {
     size := insnList@.typ@.size;
     if (size = 1) then {
-        saved := insnList;
+        lhsIns := insnList;
         insnList := otherIns;
         prepLoad;
-        genOneOp;
-        insnList := saved;
+        rhsIns := insnList;
+        insnList := lhsIns;
         prepStore;
-        genOneOp;
+        lhsIns := insnList;
+        if (rhsIns@.tail = NIL) then {
+            rhsIns@.head := lhsIns@.head;
+        } else {
+            rhsIns@.tail@.next := lhsIns@.head;
+        };
+        if (lhsIns@.tail <> NIL) then
+            rhsIns@.tail := lhsIns@.tail;
+        rhsIns@.regsused := rhsIns@.regsused + lhsIns@.regsused + [0];
+        rhsIns@.ilm := ilRVAL;
+        insnList := rhsIns;
     } else {
         prepMultiWord;
         genOneOp;
@@ -3388,7 +3399,7 @@ var
             otherIns := saved;
             nextInsn := 66;      (* P/IN *)
             genHelper;
-            insnList@.ilm := ilVALINACC;
+            insnList@.ilm := ilRVAL;
         }
     } else {
         if negate then
@@ -3407,7 +3418,7 @@ var
             prepMultiWord;
             addInsnAndOffset(KVTM+I11, 1 - size);
             addToInsnList(getHelperProc(89 + l3int3z)); (* P/EQ *)
-            insnList@.ilm := ilVALINACC;
+            insnList@.ilm := ilRVAL;
             negate := not negate;
         } else  if l3int3z = 0 then {
             nextInsn := insnTemp[AEX];
@@ -3453,7 +3464,7 @@ procedure genCondOp;
  * Code generation for the ternary conditional operator
  *      exprToGen = CONDOP{cond, ALTERN{then, else}}
  *
- * Strategy: build a single deferred ilVALINACC insnList that, when committed by
+ * Strategy: build a single deferred ilRVAL insnList that, when committed by
  * the surrounding expression via genOneOp, emits the full branching
  * sequence and leaves the result in the accumulator. Both branches simply
  * leave their value in ACC -- no PUSH/POP is needed inside genCondOp,
@@ -3526,7 +3537,7 @@ var
             addInsnAndOffset(macro + 2,
                              elseLab * 10000B + insnList@.payload.i);
     } else {
-        (* Simple ilCOND (single comparison, payload=0), or il1/ilVALINACC/ilCONST:
+        (* Simple ilCOND (single comparison, payload=0), or ilLVAL/ilRVAL/ilCONST:
            prepLoad with forValue=false is a no-op for ilCOND, and materializes
            an lvalue/constant to ACC otherwise. Then emit a single deferred
            UZA/U1A to elseLab. *)
@@ -3577,16 +3588,16 @@ var
     condChain@.regsused := condChain@.regsused + thenChain@.regsused
                            + insnList@.regsused + [0];
 
-    (* Finalize the result insnList as an ilVALINACC (rvalue-in-ACC). Both branches
+    (* Finalize the result insnList as an ilRVAL (rvalue-in-ACC). Both branches
        leave their value in ACC and the chains rejoin at endLab, so the
-       composite chain already meets the ilVALINACC contract without any extra
+       composite chain already meets the ilRVAL contract without any extra
        PUSH/POP. tryFlip / genCopy / genEntry integrate this value into
-       the surrounding expression exactly like any other ilVALINACC chain, spilling
+       the surrounding expression exactly like any other ilRVAL chain, spilling
        ACC to the hardware stack only when actually needed. *)
     insnList := condChain;
     insnList@.typ := exprToGen@.vt.typ;
-    insnList@.ilm := ilVALINACC;
-    insnList@.st := st0;
+    insnList@.ilm := ilRVAL;
+    insnList@.st := stWORD;
 }; (* genCondOp *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3754,30 +3765,12 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     genHelper;
                 opfASSN: {
                     genCopy;
-                    (* For chained assignment (a = b = c) and embedded
-                       assignments (b = (a = 5) + 1).  On BESM-6, KATX
-                       (store) does not modify ACC, so the value just
-                       stored is still in ACC.  We synthesise a fresh
-                       ilVALINACC (rvalue-in-ACC) insnList with one dummy node
-                       (an unused macro number that the emitter quietly
-                       drops) so that any outer op -- ASSIGNOP, tryFlip,
-                       genCopy -- sees a well-formed head/tail to splice
-                       on, while the chain emits no actual instruction. *)
-                    new(insnList);
                     with insnList@ do {
-                        tail := NIL;
-                        head := NIL;
                         typ := exprToGen@.vt.typ;
-                        regsused := [0];
-                        ilm := ilVALINACC;
-                        payload.i := 0;
-                        disp := 0;
-                        addrmd := 0;
-                        st := st0;
-                        width := 0;
-                        shift := 0;
+                        regsused := regsused + [0];
+                        ilm := ilRVAL;
+                        st := stWORD;
                     };
-                    addToInsnList(macro + mcDUMMY);(* deliberately dummy op *)
                     exit
                 };
                 opfAND: {
@@ -3864,10 +3857,10 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     tail := NIL;
                     head := NIL;
                     regsused := [];
-                    ilm := il1;
+                    ilm := ilLVAL;
                     payload.i := curIdRec@.offset;
                     disp := curIdRec@.high.i;
-                    st := st0;
+                    st := stWORD;
                     addrmd := 18;
                 };
                 if (curIdRec@.cl = FORMALID) then {
@@ -3890,24 +3883,24 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     disp := disp + curIdRec@.offset;
                     if (curIdRec@.pckfield) then {
                         case st of
-                        st0:
+                        stWORD:
                             shift := curIdRec@.shift;
-                        st1: {
+                        stSLICE: {
                             shift := shift + curIdRec@.shift;
                             if not (S6 IN optSflags.m) then
                                 shift := shift +
                                            curIdRec@.uptype@.bits - 48;
                         };
-                        st2:
+                        stPACKED:
                             if (not l3bool13z) then
                                 error(errUsingVarAfterIndexingPackedArray)
                             else {
-                                startIL1;
+                                startLVal;
                                 insnList@.shift := curIdRec@.shift;
                             }
                         end; (* 10235*)
                         insnList@.width := curIdRec@.width;
-                        insnList@.st := st1;
+                        insnList@.st := stSLICE;
                         insnList@.regsused := insnList@.regsused + [0];
                     }
                 };
@@ -3920,7 +3913,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 genDeref;
             } else
             if (curOP = op37) then {
-                startInsnList(il1);
+                startInsnList(ilLVAL);
                 genDeref;
             } else
             if (curOP = GETENUM) then
@@ -3943,8 +3936,8 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 head := NIL;
                 typ := exprToGen@.vt.typ;
                 regsused := [];
-                ilm := il1;
-                st := st0;
+                ilm := ilLVAL;
+                st := stWORD;
                 addrmd := 16;
                 payload.i := 0;
                 disp := 0;
@@ -4028,8 +4021,8 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     head := NIL;
                     typ := integerType;
                     regsused := [0];
-                    ilm := ilVALINACC;
-                    st := st0;
+                    ilm := ilRVAL;
+                    st := stWORD;
                     payload.i := 0;
                     disp := 0;
                     addrmd := 0;
@@ -4071,7 +4064,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                         addToInsnList(getHelperProc(work - 6));
                     };
                     with insnList@ do {
-                        ilm := ilVALINACC;
+                        ilm := ilRVAL;
                         regsused := regsused + [0];
                     }
                 } else {
@@ -4103,11 +4096,11 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                         tail := NIL;
                         head := ;
                         regsused := [];
-                        ilm := il1;
+                        ilm := ilLVAL;
                         addrmd := 18;
                         payload.i := indexreg[curVal.i];
                         disp := 0;
-                        st := st0;
+                        st := stWORD;
                     }
                 } else {
                     curVal.i := 14;
@@ -4201,7 +4194,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
             withList := helpExpr;
             helpExpr@.op := NOOP;
             case st of
-            st0: {
+            stWORD: {
                 if (l3int3z = 0) then {
                     l3int2z := 14;
                 } else {
@@ -4227,11 +4220,11 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                 curVal.i := l3int2z;
                 helpExpr@.vt := curVal;
             };
-            st1: {
+            stSLICE: {
                 curVal.i := 14;
                 helpExpr@.vt := curVal;
             };
-            st2:
+            stPACKED:
                 error(errVarTooComplex);
             end; (* case *)
         }; (* with *)
@@ -4247,7 +4240,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
         curInsnTemplate := insnTemp[XTA];
     };
     SETREG9: {
-        if (insnList@.st <> st0) then
+        if (insnList@.st <> stWORD) then
             error(errVarTooComplex);
         setAddrTo(9);
         genOneOp;
@@ -4330,7 +4323,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                         }
                     };
                 } else {
-                    if (insnList@.ilm = il1) then {
+                    if (insnList@.ilm = ilLVAL) then {
                         forValue := false;
                         prepLoad;
                         forValue := true;
@@ -5884,7 +5877,7 @@ var
 
         if (oper = CONDOP) then {
             (* Right-associative ternary: cond ? thenExpr : elseExpr *)
-            parsePrc(precCond + 1);
+            parsePrc(precAssign);
             if (SY <> COLON) then
                 requiredSymErr(COLON)
             else

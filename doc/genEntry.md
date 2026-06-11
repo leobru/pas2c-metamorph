@@ -71,14 +71,14 @@ Then the new instruction-list buffer is allocated:
     insnList@.next := NIL;
     insnList@.typ := l5idr5z@.typ;
     insnList@.regsused := (l5idr5z@.flags + [7:15]) * [0:8, 10:15];
-    insnList@.ilm := ilVALINACC;
+    insnList@.ilm := ilRVAL;
 ```
 
 `regsused` starts with **bits 7..15 except bit 9** added to the routine's
 clobber set, so the register allocator knows the callee will trash the display
 registers and accumulator-related bits.
 
-`ilm = ilVALINACC` declares the resulting "instruction list" produces an **rvalue in
+`ilm = ilRVAL` declares the resulting "instruction list" produces an **rvalue in
 the accumulator**.
 
 Frame reservation:
@@ -227,7 +227,7 @@ passed) or `ENUMID` (function passed):
 ```pascal
         } else {
             genFullExpr(l5exp2z);
-            if (insnList@.ilm = il1) then
+            if (insnList@.ilm = ilLVAL) then
                 paramClass := FORMALID
             else
                 paramClass := VARID;
@@ -235,7 +235,7 @@ passed) or `ENUMID` (function passed):
 ```
 
 `genFullExpr` emits code for the argument expression. If the result is in
-**lvalue mode** (`il1` — an address), this is a "formal/by-reference" actual;
+**lvalue mode** (`ilLVAL` — an address), this is a "formal/by-reference" actual;
 otherwise it's a plain value (`VARID`).
 
 ### 3c. Coerce to formal when the formal is by-reference
@@ -425,7 +425,7 @@ nesting level than the callee. Skipped for Fortran calls.
     if not l5bool7z then {
         insnList@.typ := l5idr5z@.typ;
         insnList@.regsused := insnList@.regsused + [0];
-        insnList@.ilm := ilVALINACC;
+        insnList@.ilm := ilRVAL;
         set146z := set146z - l5var12z.m;
     }
 ```
@@ -438,7 +438,7 @@ nesting level than the callee. Skipped for Fortran calls.
   (helper 93) when `checkFortran` mode is on.
 - **Function** (`not l5bool7z`): `KXTA, SP+frameSize-1` pulls the return value
   off the stack into the accumulator. The result `typ` is set to the routine's
-  return type, `regsused` records bit 0 (accumulator used), and `ilm = ilVALINACC`
+  return type, `regsused` records bit 0 (accumulator used), and `ilm = ilRVAL`
   declares an rvalue available.
 
 `set146z := set146z - l5var12z.m` clears bits in `set146z` that the callee was
@@ -495,5 +495,5 @@ That is `genEntry` end-to-end: it walks the argument chain, materialises each
 actual according to the formal's kind and the call style
 (Fortran / direct / indirect), emits the BESM-6 call, restores the display
 registers across the lexical-level mismatch, and (for functions) leaves the
-result in the accumulator with an `ilVALINACC` instruction list ready to be consumed
+result in the accumulator with an `ilRVAL` instruction list ready to be consumed
 by the surrounding expression.
