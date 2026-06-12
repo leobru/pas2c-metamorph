@@ -147,7 +147,7 @@ type
         IFSY,       SWITCHSY,   WHILESY,    FORSY,
 (*40B*) WITHSY,     GOTOSY,     ELSESY,     OFSY,
         DOSY,       EXTERNSY,   BREAKSY,    CONTSY,
-(*50B*) CASESY,     DEFAULTSY,  NOSY
+(*50B*) CASESY,     DEFAULTSY,  UNIONSY,    NOSY
 );
 %
 idclass = (
@@ -263,7 +263,7 @@ types = record
                  ptr2:      irptr;
                  flag,
                  pckrec:    boolean);
-    kindCases:  (sel:       word;
+    kindCases:  (unusedButNeeded:       word;
                  first,
                  next:      tptr;
                  alt:       tptr)
@@ -393,7 +393,7 @@ var
    checkTypes: boolean;
    isDefined, putLeft, readNext: boolean;
    errors: boolean;
-   declExternal: boolean;
+   declEntry: boolean;
    rangeMismatch: boolean;
    doPMD: boolean;
    checkBounds: boolean;
@@ -1230,7 +1230,7 @@ procedure readOptFlag(var res: boolean);
             optSflags.m := optSflags.m * [0..40] + curVal.m * [41..47];
         };
         'Y': readOptFlag(allowCompat);
-        'E': readOptFlag(declExternal);
+        'E': readOptFlag(declEntry);
         'S': {
             readOptVal(curVal.i, 8);
             if curVal.i = 3 then lineCnt := 1
@@ -4457,7 +4457,7 @@ var
     l5var1z, pairIdx, l5var3z, l5var4z, l5var5z: integer;
     l5var6z: @pair;
 {
-    parseTypeRef(selType, skipTarget + [SWITCHSY]);
+    parseTypeRef(selType, skipTarget + [UNIONSY]);
     if (curType@.ptr2 = NIL) then {
         curType@.ptr2 := curField;
     } else {
@@ -4574,72 +4574,34 @@ var
             inSymbol;
         }
     };
-    if (SY = SWITCHSY) then {
+    if (SY = UNIONSY) then {
         lookupMode := lookField;
         inSymbol;
-        selType := integerType;
-(identif)
-        if (SY <> IDENT) then {
-            error(3);
-            skip(skipTarget + [OFSY]);
-        } else {
-            l4var8z := curIdent;
-            l4var9z := bucket;
-            curEnum := hashTravPtr;
-            inSymbol;
-            curEnum := symHash[l4var9z];
-            while (curEnum <> NIL) do {
-                if (curEnum@.id <> l4var8z) then {
-                    curEnum := curEnum@.next;
-                } else {
-                    if (curEnum@.cl <> TYPEID) then {
-                        error(errNotAType);
-                        selType := integerType;
-                    } else {
-                        selType := curEnum@.typ;
-                    };
-                    exit identif;
-                };
-            };
-            error(errNotDefined)
-        };
-        checkSymAndRead(OFSY);
+        if (SY <> BEGINSY) then
+            requiredSymErr(BEGINSY);
+        lookupMode := lookField;
+        inSymbol;
         cases1 := cases;
         cases2 := cases;
         l4typ1z := NIL;
-        repeat
-            l4var3z := NIL;
-            repeat
-                parseLiteral(l4var4z, l4var7z, false);
-                if (l4var4z = NIL) then
-                    error(errNoConstant)
-                else if (not typeCheck(l4var4z, selType)) then
-                    error(errConstOfOtherTypeNeeded);
-                new(l4var5z = 7);
-                l4var5z@ := [cases.size, 48, kindCases,
-                                    l4var7z, NIL, NIL, NIL];
-                if (l4var3z = NIL) then {
-                    tempType := l4var5z;
-                } else {
-                    l4var3z@.alt := l4var5z;
-                };
-                l4var3z := l4var5z;
-                inSymbol;
-                cond := (SY <> COMMA);
-                if (not cond) then
-                    inSymbol;
-            until cond;
+        l4var7z.i := 0;
+        while (SY = STRUCTSY) do {
+            lookupMode := lookField;
+            inSymbol;
+            new(l4var5z = 7);
+            l4var5z@ := [cases.size, 48, kindCases,
+                                l4var7z, NIL, NIL, NIL];
             if (l4typ1z = NIL) then {
                 if (curType@.base = NIL) then {
-                    curType@.base := tempType;
+                    curType@.base := l4var5z;
                 } else {
-                    rectype@.first := tempType;
+                    rectype@.first := l4var5z;
                 }
             } else {
-                l4typ1z@.next := tempType;
+                l4typ1z@.next := l4var5z;
             };
-            l4typ1z := tempType;
-            checkSymAndRead(COLON);
+            l4typ1z := l4var5z;
+            tempType := l4var5z;
             parseRecordDecl(tempType, false);
             if (cases2.size < cases.size) or
                isPacked and (cases.size = 1) and (cases2.size = 1) and
@@ -4648,13 +4610,21 @@ var
                 cases2 := cases;
             };
             cases := cases1;
-            cond := SY <> SEMICOLON;
-            if (not cond) then
+            l4var7z.i := l4var7z.i + 1;
+            if (SY = SEMICOLON) then {
+                lookupMode := lookField;
                 inSymbol;
-            if (SY = ENDSY) then
-                cond := true;
-        until cond;
+            };
+        };
         cases := cases2;
+        if (SY <> ENDSY) then
+            requiredSymErr(ENDSY);
+        lookupMode := lookField;
+        inSymbol;
+        if (SY = SEMICOLON) then {
+            lookupMode := lookField;
+            inSymbol;
+        };
     };
     rectype@.size := cases.size;
     if isPacked and (cases.size = 1) and (cases.count = 1) then {
@@ -6840,13 +6810,12 @@ var
             formOperator(FILEACCESS);
         }
     };
-    5: { (* new, free *)
+    5: { (* free *)
         if (curVarKind <> kindPtr) then
             error(13); (* errVarIsNotPointer *)
         heapCallsCnt := heapCallsCnt + 1;
         workExpr := curExpr;
-        if (procNo = 5) then
-            formOperator(SETREG9);
+        formOperator(SETREG9);
         l2typ13z := arg1Type@.base;
         ii := l2typ13z@.size;
         if (SY = COLON) then {
@@ -6864,10 +6833,6 @@ var
 44:         form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
         };
         formAndAlign(jumpTarget);
-        if (procNo = 4) then {
-            curExpr := workExpr;
-            formOperator(STORE);
-        }
     };
     6: { (* halt *)
         formAndAlign(jumpTarget);
@@ -6960,22 +6925,6 @@ var
         expression;
         formOperator(LITINSN);
         formAndAlign(curVal.i);
-    };
-    18: { (* mapai *)
-        l4typ1z := alfaType;
-        l4typ2z := integerType;
-        expression;
-        if not typeCheck(curExpr@.vt.typ, l4typ1z) then
-            error(errNeedOtherTypesOfOperands);
-        checkSymAndRead(COMMA);
-        formOperator(LOAD);
-        if (procNo = 17) then {
-            form3Insn(ASN64-33, KAUX+BITS15, KAEX+ASCII0);
-        } else {
-            form2Insn(KAPX+BITS15, ASN64+33);
-        };
-        verifyType(l4typ2z);
-        formOperator(STORE);
     };
     19, 20: { (* pck, unpck *)
         inSymbol;
@@ -8030,7 +7979,7 @@ procedure exitScope(var arg: hashArray);
                 value := 0;
                 argList := NIL;
                 preDefLink := NIL;
-                if (declExternal) then
+                if (declEntry) then
                     flags := [0:15,22]
                 else
                     flags := [0:15];
@@ -8376,7 +8325,7 @@ procedure initOptions;
     checkTypes := true;
     fixMult := true;
     checkBounds := not (44 in curVal.m);
-    declExternal := false;
+    declEntry := false;
     errors := false;
     allowCompat := false;
     litForward.i := 46576267416244C;
@@ -8449,7 +8398,8 @@ procedure initOptions;
         4262454153C             (*"   BREAK"*),
         4357566451566545C       (*"CONTINUE"*),
         43416345C               (*"    CASE"*),
-        44454641655464C         (*" DEFAULT"*);
+        44454641655464C         (*" DEFAULT"*),
+        6556515756C             (*"   UNION"*);
 %
     charSym := NOSY:128;
     chrClass := NOOP:128;
@@ -8678,7 +8628,7 @@ procedure initOptions;
         54575647525560C        (*" LONGJMP"*),
         42456355C              (*"    BESM"*),
         0C                     (*"   MAPIA"*),
-        5541604151C            (*"   MAPAI"*),
+        0C                     (*"   MAPAI"*),
         604353C                (*"     PCK"*),
 (*20*)  6556604353C            (*"   UNPCK"*),
         60414353C              (*"    PACK"*),

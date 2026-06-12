@@ -136,6 +136,7 @@ const
     /*=A3*/
     litForward  =  ' FORWARD';
     litFortran  =  ' FORTRAN';
+    litAssembler = 'ASSEMBLE';
     litOct  =  '     OCT';
     litOutput  =  '*OUTPUT*';
     litInput  =  ' *INPUT*';
@@ -166,7 +167,7 @@ type
         IFSY,       SWITCHSY,   WHILESY,    FORSY,
 /*40B*/ WITHSY,     GOTOSY,     ELSESY,     OFSY,
         DOSY,       EXTERNSY,   BREAKSY,    CONTSY,
-/*50B*/ CASESY,     DEFAULTSY,  NOSY
+/*50B*/ CASESY,     DEFAULTSY,  UNIONSY,    NOSY
 };
 //
 idclass = enum {
@@ -214,14 +215,16 @@ tptr = *types;
 irptr = *identrec;
 //
 textchar = int:6;
-word = struct { switch int of
-    0: {i: int};
-    1: {r: real};
-    3: {a: alfa};
-    4: {t: __packed array[8] of textchar};
-    7: {c: char};
-    8: {cl: idclass};
-    9: {tp: tptr};
+word = struct {
+    union {
+        struct {i: int};
+        struct {r: real};
+        struct {a: alfa};
+        struct {t: __packed array[8] of textchar};
+        struct {c: char};
+        struct {cl: idclass};
+        struct {tp: tptr};
+    };
 };
 //
 oiptr = *oneinsn;
@@ -253,27 +256,28 @@ types = struct {
     size,
     bits:   int;
     k:      kind;
-    switch kind of
-    kindReal:   {szReal:int};
-    kindArray:  {abase,
-                 rbase:     tptr;
-                 pck:       int;
-                 perword,
-                 pcksize, aleft, aright:   int; szArray:int};
-    kindScalar: {enums:     irptr;
-                 numen,
-                 start:     int; szScalar: int};
-    kindPtr:    {base:      tptr; szPtr: int};
-    kindFile:   {fbase:      tptr;
-                 elsize:    int; szFile: int};
-    kindStruct: {ptr1,
-                 ptr2:      irptr;
-                 flag,
-                 pckrec:    int; szStruct: int};
-    kindCases:  {sel:       int;
-                 first,
-                 next:      tptr;
-                 alt:       tptr; szCases: int}
+    union {
+        struct {szReal: int};
+        struct {abase,
+                rbase:     tptr;
+                pck:       int;
+                perword,
+                pcksize, aleft, aright: int; szArray: int};
+        struct {enums:     irptr;
+                numen,
+                start:     int; szScalar: int};
+        struct {base:      tptr; szPtr: int};
+        struct {fbase:     tptr;
+                elsize:    int; szFile: int};
+        struct {ptr1,
+                ptr2:      irptr;
+                flag,
+                pckrec:    int; szStruct: int};
+        struct {unusedButNeeded:       int;
+                first,
+                next:      tptr;
+                alt:       tptr; szCases: int};
+    };
 };
 //
 charmap   = __packed array ['\000'..'\176'] of char;
@@ -285,11 +289,12 @@ entries   = array [42] of int;
 expr = struct {
     typ:       tptr;
     op:        operator;
-    switch operator of
-    MUL:        {expr1, expr2: eptr};
-    GETFIELD:   {typ1, typ2: tptr};
-    NOTOP:      {id1, id2: irptr};
-    STANDPROC:  {num1, num2: int};
+    union {
+        struct {expr1, expr2: eptr};
+        struct {typ1, typ2: tptr};
+        struct {id1, id2: irptr};
+        struct {num1, num2: int};
+    };
 };
 //
 kword = struct {
@@ -318,28 +323,20 @@ identrec = struct {
     next:   irptr;
     typ: tptr;
     cl: idclass;
-    switch idclass of
-    TYPEID: {};
-    VARID,
-    ENUMID,
-    FORMALID:
-            {list: irptr; value: int; szIdent: int};
-    FIELDID:
-            {maybeUnused: int;
-             uptype: tptr;
-             pckfield:  int;
-             shift:     int;
-             width:     int; szField: int};
-    ROUTINEID:
-            {low, high: int;
-             argList, preDefLink: irptr;
-             level, pos: int;
-             flags: int; szRoutine: int
-            };
-    SYSID:
-            {sysnum: int; szSys: int
-            };
-
+    union {
+        struct {};
+        struct {list: irptr; value: int; szIdent: int};
+        struct {maybeUnused: int;
+                uptype: tptr;
+                pckfield:  int;
+                shift:     int;
+                width:     int; szField: int};
+        struct {low, high: int;
+                argList, preDefLink: irptr;
+                level, pos: int;
+                flags: int; szRoutine: int};
+        struct {sysnum: int; szSys: int};
+    };
 };
 pextf = *extfilerec;
 extfilerec = struct {
@@ -405,7 +402,7 @@ var
     checkTypes,
     isDefined, putLeft, readNext,
     errors,
-    declExternal,
+    declEntry,
     rangeMismatch,
     doPMD,
     checkBounds,
@@ -503,6 +500,9 @@ var
        /*18*/ flags:        int;
 };
     paseofcd:alfa;
+
+int mapai(a:alfa); assembler;
+
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
@@ -598,7 +598,7 @@ var res: tptr;
 void addToHashTab(arg: irptr);
 {
     curVal.i  =  arg->id & hashMask;
-    mapai(curval.a, curval.i);
+    curVal.i = mapai(curVal.a);
     arg->next  =  symHash[curval.i];
     symHash[curval.i]  =  arg;
 } /* addToHashTab */
@@ -1082,7 +1082,7 @@ void readOptFlag(res: *int);
             optSflags  =  optSflags & [0..40] | curVal.i & [41..47];
             break;
         case 'Y': readOptFlag(&allowCompat); break;
-        case 'E': readOptFlag(&declExternal); break;
+        case 'E': readOptFlag(&declEntry); break;
         case 'S':
             curVal.i = readOptVal(8);
             if (curVal.i == 3)  lineCnt  =  1;
@@ -1195,7 +1195,7 @@ void lexer;
             }
         } while (chrClass[CH] == ALNUM);
         curVal.i  =  curToken.i & hashMask;
-        mapAI(curVal.a, bucket);
+        bucket = mapAI(curVal.a);
         curIdent  =  curToken.i;
         keywordHashPtr  =  kwordHash[bucket];
         while (keywordHashPtr != NIL) {
@@ -1619,7 +1619,7 @@ var
 {
     if (l3arg1z == NIL) {
         curVal.i  =  l3arg2z->id & hashMask;
-        mapAI(curVal.a, l3var2z);
+        l3var2z = mapAI(curVal.a);
         l3var1z  =  true;
         l3arg1z  =  symHash[l3var2z];
     } else {
@@ -2931,7 +2931,7 @@ void genEntry;
 var
     l5exp1z, l5exp2z: eptr;
     l5idr3z, l5idr4z, l5idr5z, curForml: irptr;
-    isProc, firstArg, isDirect, isFortrn, allByRef: int;
+    isProc, firstArg, isDirect, isFortrn, isAssembler, allByRef: int;
     calleeFl, frameSiz, numArgs: int;
     l5var15z: int;
     l5var16z, l5var17z, l5var18z, l5var19z: int;
@@ -2995,6 +2995,7 @@ void formThunk;
     frameSiz  =  isProc ? 3 : 4;
     calleeFl  =  l5idr5z->flags;
     isFortrn  =  21 in calleeFl;
+    isAssembler  =  26 in calleeFl;
     allByRef  =  24 in calleeFl;
     if (isDirect) {
         numArgs  =  argCount(l5idr5z);
@@ -3008,7 +3009,9 @@ void formThunk;
     insnList->typ  =  l5idr5z->typ;
     insnList->regsused  =  (l5idr5z->flags | [7:15]) & [0:8, 10:15];
     insnList->ilm  =  ilRVAL;
-    if (isFortrn) {
+    if (isAssembler) {
+        firstArg  =  false;
+    } else if (isFortrn) {
         firstArg  =  ! isProc;
         if (checkFortran) {
             addToInsnList(getHelperProc(92)); /* "P/MF" */
@@ -3104,7 +3107,7 @@ void formThunk;
         l5var17z  =  1;
     }
     insnList->tail->mode  =  2;
-    if (curProcNesting != l5var17z) {
+    if (! isAssembler && curProcNesting != l5var17z) {
         if (! isFortrn) {
             if (l5var17z + 1 == curProcNesting) {
                 addToInsnList(KMTJ+I7 + curProcNesting);
@@ -3122,7 +3125,8 @@ void formThunk;
             }
         }
     }
-    if (! isDirect || [20, 21] & calleeFl) {
+    if (! isAssembler &&
+        (! isDirect || [20, 21] & calleeFl)) {
         addToInsnList(KVTM+040074001);
     }
     set145z  =  (set145z | calleeFl) & [1:15];
@@ -4224,7 +4228,7 @@ var
     l5var1z, pairIdx, l5var3z, l5var4z, l5var5z: int;
     l5var6z: *pair;
 {
-    selType = parseTypeRef(skipTarget | [SWITCHSY]);
+    selType = parseTypeRef(skipTarget | [UNIONSY]);
     if (curType->ptr2 == NIL) {
         curType->ptr2  =  curField;
     } else {
@@ -4339,67 +4343,34 @@ var
             inSymbol();
         }
     }
-    if (SY == SWITCHSY) {
+    if (SY == UNIONSY) {
         lookupMode  =  3;
         inSymbol();
-        selType  =  intType;
-        if (SY != IDENT) {
-            error(3);
-            skip(skipTarget | [OFSY]);
-        } else {
-            l4var8z  =  curIdent;
-            l4var9z  =  bucket;
-            curEnum  =  hashTravPtr;
-            inSymbol();
-            curEnum  =  symHash[l4var9z];
-            while (curEnum != NIL && curEnum->id != l4var8z)
-                 curEnum  =  curEnum->next;
-            if (curEnum == NIL)
-                error(errNotDefined);
-            else if (curEnum->cl != TYPEID) {
-                error(errNotAType);
-                selType  =  intType;
-            } else {
-                selType  =  curEnum->typ;
-            }
-        }
-        checkSymAndRead(OFSY);
+        if (SY != BEGINSY)
+            requiredSymErr(BEGINSY);
+        lookupMode  =  3;
+        inSymbol();
         cases1  =  cases;
         cases2  =  cases;
         l4typ1z  =  NIL;
-        do {
-            l4var3z  =  NIL;
-            do {
-                l4typ4z = parseLiteral(&l4int7z, false);
-                if (l4typ4z == NIL)
-                    error(errNoConstant);
-                else if (! typeCheck(l4typ4z, selType))
-                    error(errConstOfOtherTypeNeeded);
-                l4var5z = malloc(offsetof(types, szCases));
-                CTOR(*l4var5z, cases.size, 48, kindCases,
-                              l4int7z, NIL, NIL, NIL);
-                if (l4var3z == NIL) {
-                    tempType  =  l4var5z;
-                } else {
-                    l4var3z->alt  =  l4var5z;
-                }
-                l4var3z  =  l4var5z;
-                inSymbol();
-                cond  =  (SY != COMMA);
-                if (! cond)
-                    inSymbol();
-            } while (! cond);
+        l4int7z  =  0;
+        while (SY == STRUCTSY) {
+            lookupMode  =  3;
+            inSymbol();
+            l4var5z = malloc(offsetof(types, szCases));
+            CTOR(*l4var5z, cases.size, 48, kindCases,
+                          l4int7z, NIL, NIL, NIL);
             if (l4typ1z == NIL) {
                 if (curType->base == NIL) {
-                    curType->base  =  tempType;
+                    curType->base  =  l4var5z;
                 } else {
-                    rectype->first  =  tempType;
+                    rectype->first  =  l4var5z;
                 }
             } else {
-                l4typ1z->next  =  tempType;
+                l4typ1z->next  =  l4var5z;
             }
-            l4typ1z  =  tempType;
-            checkSymAndRead(COLON);
+            l4typ1z  =  l4var5z;
+            tempType  =  l4var5z;
             parseRecordDecl(tempType, false);
             if ((cases2.size < cases.size) ||
                isPacked && (cases.size == 1) && (cases2.size == 1) &&
@@ -4408,13 +4379,21 @@ var
                 cases2  =  cases;
             }
             cases  =  cases1;
-            cond  =  SY != SEMICOLON;
-            if (! cond)
+            ++l4int7z;
+            if (SY == SEMICOLON) {
+                lookupMode  =  3;
                 inSymbol();
-            if (SY == ENDSY)
-                cond  =  true;
-        } while (! cond);
+            }
+        }
         cases  =  cases2;
+        if (SY != ENDSY)
+            requiredSymErr(ENDSY);
+        lookupMode  =  3;
+        inSymbol();
+        if (SY == SEMICOLON) {
+            lookupMode  =  3;
+            inSymbol();
+        }
     }
     rectype->size  =  cases.size;
     if (isPacked && (cases.size == 1) && (cases.count == 1)) {
@@ -6640,18 +6619,6 @@ var
         formOperator(LITINSN);
         formAndAlign(curVal.i);
         break;
-    case 18: /* mapai */
-        l4typ1z  =  alfaType;
-        l4typ2z  =  intType;
-        expression();
-        if (! typeCheck(curExpr->typ, l4typ1z))
-            error(errNeedOtherTypesOfOperands);
-        checkSymAndRead(COMMA);
-        formOperator(LOAD);
-        form2Insn(KAPX+BITS15, ASN64+33);
-        verifyType(l4typ2z);
-        formOperator(STORE);
-        break;
     case 19: case 20: /* pck, unpck */
         inSymbol();
         verifyType(charType);
@@ -7678,7 +7645,7 @@ void exitScope(a: int);
                 value  =  0;
                 argList  =  NIL;
                 preDefLink  =  NIL;
-                flags  =  declExternal ? [0:15,22] : [0:15];
+                flags  =  declEntry ? [0:15,22] : [0:15];
                 pos  =  0;
                 curFrameRegTemplate += frameRegTemplate;
                 l2int18z  =  l2bool8z ? 3 : 4;
@@ -7743,9 +7710,12 @@ void exitScope(a: int);
             preDefLink  =  preDefHead;
             preDefHead  =  curIdRec;
         } else if ((SY == EXTERNSY) ||
-            (curIdent == litFortran)) {
+            (curIdent == litFortran) ||
+            (curIdent == litAssembler)) {
             if (SY == EXTERNSY) {
                 curVal.i  =  [20];
+            } else if (curIdent == litAssembler) {
+                curVal.i  =  [20,26];
             } else if (checkFortran) {
                 curVal.i  =  [21,24];
                 checkFortran  =  false;
@@ -7875,7 +7845,7 @@ var
     kw: *kword;
 {
     curVal.i  =  keyword & hashMask;
-    mapai(curVal.a, curVal.i);
+    curVal.i = mapai(curVal.a);
     kw = malloc(sizeof(kword));
     with *kw do {
         w  =  keyword;
@@ -7995,7 +7965,7 @@ void initOptions;
     checkTypes  =  true;
     fixMult  =  true;
     checkBounds  =  ! (44 in curVal.i);
-    declExternal  =
+    declEntry  =
     errors  =
     allowCompat  =  false;
     fileBufSize  =  1;
@@ -8061,7 +8031,8 @@ void initOptions;
         '   BREAK',
         'CONTINUE',
         '    CASE',
-        ' DEFAULT';
+        ' DEFAULT',
+        '   UNION';
 /*=A2*/
     charSym  =  NOSY:128;
     chrClass  =  NOOP:128;
@@ -8291,7 +8262,7 @@ void initOptions;
         ' LONGJMP',
         '    BESM',
         '        ',  // was MAPIA, unused
-        '   MAPAI',
+        '        ',  // was MAPAI, unused
         '     PCK',
 /*20*/  '   UNPCK',
         '    PACK',
