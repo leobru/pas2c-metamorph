@@ -27,9 +27,9 @@ the literal that appears in `p_sys.dtran` (`12, ATX ,nnB`).
 | 17  | 21  | Bit step / increment per packed element   | Set in P/CO from M11 (= `l4var2z->size`); used in `12, ARX ,21B` to advance [0] and [19] |
 | 18  | 22  | Element width in bits (= M9 = `elSize`)   | Set in P/CO via `ITA 9; 12, ATX ,22B`; checked for 0 (text vs binary) in P/GF/P/PF/P/RF |
 | 19  | 23  | Current buffer pointer (packed write cur.) | P/CO init = SP; OR'd with caller index in P/PF / P/GF; XOR'd with [13]/[15] to detect end |
-| 20  | 24  | Instruction template (ATX 0) for codegen  | Loaded from *0104B in P/CO; used by P/RACPAK as runtime-modified op |
-| 21  | 25  | Instruction template (ATX 70B) for codegen | Loaded from *0104B+1; companion to [20], used in `12, WTC ,25B` self-mod |
-| 22  | 26  | Negative shift count for `ASN` (= -[5])   | `XTA 25B; ASN 64-20; 12, ATX ,11B; XTA 25B; 12, ATX ,26B` — derived in P/CO |
+| 20  | 24  | `ASN` shift amount (= 64 − elSize)        | Default 56 from `*0104B` (text); else `64 − elSize` in P/CO. Loaded by P/RACPAK / packed-put as `12, XTA ,24B` and consumed by the following `,ASN,` |
+| 21  | 25  | VLM loop-count base (= 50 − 48/elSize)    | Default −4 from `*0104B+1` (text); else `50 − 48/elSize` in P/CO. Used both as `12, XTA ,25B` (load count into ACC) and as `12, WTC ,25B` (set working tag for the next instruction in the unpack loop) |
+| 22  | 26  | Negative shift seed for `ASX`             | Default = MSB constant (`[M1+21]`); else derived from elSize in P/CO. Consumed only as `12, ASX ,26B` to apply the per-element shift inside the packed unpack loop |
 | 23  | 27  | I/O kind bits (bit 1 = stdin/out, bit 3 = `BREAK` arg) | P/GF *0330B*: `XTA 27B; UTC *0026B; AAX` masks bit 1; cleared by P/CO |
 | 24  | 30  | EOLN / line-state flag                    | Cleared by P/CO; XOR'd with newline char in P/GF stdin path *0330B*; → branches to PASEOF |
 | 25  | 31  | OR-pattern to apply after unpacking (sign/tag bits) | Cleared by P/CO; per `formFileInit` comment, "bit pattern to add after unpacking" |
@@ -70,10 +70,15 @@ In packed mode (FILE[14] ≠ 0, i.e. `f: file of T` where T is not a text char):
 1. `[0]` holds the *bit address* of the current element inside the buffer.
 2. Each `get`/`put` does `[0] |= [17]; if ([0] == [1]) flush/refill`.
 3. `[5]` tracks the within-word bit shift; when it equals `[15]` (wrap) the
-   logic advances to the next 48-bit word using `[20]`/`[21]` as templates for
-   the `ATX`/`XTA` instruction patched via `WTC`.
-4. `[22]` is the negative of `[5]` (precomputed so `ASN 64-22B` is a single
-   instruction needing no further setup).
+   logic advances to the next 48-bit word.
+4. `[20]`, `[21]`, `[22]` are **plain numeric values** (an `ASN` shift amount,
+   a VLM loop count, and an `ASX` shift seed respectively), **not** patched
+   instruction templates. They are computed once in `P/CO` from `elSize`
+   (with text-mode defaults `56` / `−4` / MSB-constant pulled from
+   `*0104B`/`[M1+21]`) and are then consumed verbatim by `XTA`, `WTC` and
+   `ASX` instructions inside `P/RACPAK` and the packed-put path. There is
+   **no self-modifying code** in `p_sys.asm`: every `WTC` only sets the
+   working tag for the *next* instruction.
 
 ## Open questions
 
