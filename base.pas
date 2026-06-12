@@ -433,6 +433,7 @@ var
    litOct: word;
    litForward: word;
    litFortran: word;
+   litAssembler: word;
    uVarPtr: eptr;
    curExpr: eptr;
    insnList: @insnltyp;
@@ -3064,7 +3065,7 @@ procedure genEntry;
 var
     l5exp1z, l5exp2z: eptr;
     l5idr3z, l5idr4z, l5idr5z, curForml: irptr;
-    isProc, firstArg, isDirect, isFortrn, allByRef: boolean;
+    isProc, firstArg, isDirect, isFortrn, isAssembler, allByRef: boolean;
     calleeFl, frameSiz, numArgs: word;
     l5var15z: integer;
     l5var16z, l5var17z, l5var18z, l5var19z: word;
@@ -3096,6 +3097,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
         frameSiz.i := 3 else frameSiz.i := 4;
     calleeFl.m := l5idr5z@.flags;
     isFortrn := 21 in calleeFl.m;
+    isAssembler := 26 in calleeFl.m;
     allByRef := 24 in calleeFl.m;
     if (isDirect) then {
         numArgs.i := argCount(l5idr5z);
@@ -3109,7 +3111,9 @@ function allocGlobalObject(l6arg1z: irptr): integer;
     insnList@.typ := l5idr5z@.typ;
     insnList@.regsused := (l5idr5z@.flags + [7:15]) * [0:8, 10:15];
     insnList@.ilm := ilRVAL;
-    if (isFortrn) then {
+    if (isAssembler) then {
+        firstArg := false;
+    } else if (isFortrn) then {
         firstArg := not isProc;
         if (checkFortran) then {
             addToInsnList(getHelperProc(92)); (* "P/MF" *)
@@ -3255,7 +3259,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
         l5var17z.i := 1;
     };
     insnList@.tail@.mode := 2;
-    if (curProcNesting <> l5var17z.i) then {
+    if (not isAssembler) and (curProcNesting <> l5var17z.i) then {
         if not isFortrn then {
             if (l5var17z.i + 1 = curProcNesting) then {
                 addToInsnList(KMTJ+I7 + curProcNesting);
@@ -3277,7 +3281,8 @@ function allocGlobalObject(l6arg1z: irptr): integer;
             }
         }
     };
-    if not isDirect or ([20, 21] * calleeFl.m <> []) then {
+    if (not isAssembler) and
+       (not isDirect or ([20, 21] * calleeFl.m <> [])) then {
         addToInsnList(KVTM+40074001B);
     };
     set145z := (set145z + calleeFl.m) * [1:15];
@@ -8096,9 +8101,12 @@ procedure exitScope(var arg: hashArray);
             preDefLink := preDefHead;
             preDefHead := curIdRec;
         } else  if (SY = EXTERNSY) or
-            (curIdent = litFortran) then {
+            (curIdent = litFortran) or
+            (curIdent = litAssembler) then {
             if (SY = EXTERNSY) then {
                 curVal.m := [20];
+            } else if (curIdent = litAssembler) then {
+                curVal.m := [20,26];
             } else if (checkFortran) then {
                 curVal.m := [21,24];
                 checkFortran := false;
@@ -8373,6 +8381,7 @@ procedure initOptions;
     allowCompat := false;
     litForward.i := 46576267416244C;
     litFortran.i := 46576264624156C;
+    litAssembler.i := 4163634555425445C;
     fileBufSize := 1;
     charEncoding := 2;
     litOct.i := 574364C;

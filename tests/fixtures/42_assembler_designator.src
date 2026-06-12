@@ -1,0 +1,11 @@
+/*=p-,t-,s8,y+,l0*/
+void asmcall(a: int; b: int);
+ASSEMBLER;
+
+var x: int;
+
+{
+    x = 7;
+    asmcall(x, 3);
+}
+.
