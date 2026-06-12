@@ -1,0 +1,34 @@
+ P/EL:,NAME,DTRAN  /01.06.84/
+C===========================================================
+C P/EL - "End-of-Line" predicate, returns Pascal eoln(f).
+C
+C Caller convention:
+C   M12  = FILE record base (the f argument)
+C   M13  = link from VJM
+C
+C Result:
+C   ACC  = 1U  if f^ is the end-of-line marker (= PASEOLSY)
+C   ACC  = FILE[24] (EOLN state cached by P/GF) otherwise.
+C
+C Implementation walks the head of the current buffer: WTC
+C FILE[0] sets WT to the bit cursor, then XTA loads f^.  The
+C AEX against PASEOLSY zeroes ACC iff f^ already equals the
+C newline character.  PASEOLSY is initialised by the ,DATA,
+C image at the bottom to ASCII LF (0o12).
+C===========================================================
+ PASEOLSY:,LC,1               . global newline char (set to LF)
+ 12,WTC,                      . WT := FILE[0] (current cursor)
+ ,XTA,                        . ACC := mem[WT] = current f^
+ ,UTC,PASEOLSY                . WT := &PASEOLSY
+ ,AEX,                        . ACC ^= LF; zero if f^ = LF
+ ,UZA,*0004B                  . match -> return TRUE branch
+ 12,XTA,30B                   . non-LF: ACC := FILE[24] (cached)
+ 13,UJ,                       . return via M13
+ *0004B:1,XTA,10B             . LF case: ACC := [M1+8] = 1U
+ 13,UJ,                       . return TRUE
+C--- Initialiser: arrange for PASEOLSY to hold the LF char 0o12
+ ,DATA,
+ /0005B:,LOG,12               . the constant value LF (0o12)
+ 1,SET,/0005B                 . pointer to it
+ 1,,PASEOLSY                  . copies /0005B into PASEOLSY at load
+ ,END,
