@@ -3203,11 +3203,18 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genConstDiv;
-    real PASDIV(r: real);
-        extern;
+var r: real;
 {
-    curVal.r = PASDIV(1.0/arg2Val.i);
-    addToInsnList(KMUL+I8 + getFCSToffset());
+    if (card(arg2val.i) > 1) {
+        curVal.r = 1.0 / arg2Val.i;
+        r = curVal.r * arg2Val.i;
+        curVal.i = curVal.i & [7..47];
+        if (r < 1.0)
+            curVal.i = curVal.i + 1;
+        curVal.i = curVal.i | E48;
+        addToInsnList(KMUL+I8 + getFCSToffset());
+    }
+    addToInsnList(ASN64+47-minel(arg2val.i));
 } /* genConstDiv */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3609,7 +3616,7 @@ var
                     negateCond();
                     return;
                 case opfMOD:
-                    if (arg2Const) {
+                    if (arg2Const && arg2Val.i > 0) {
                         prepLoad();
                         if (card(arg2Val.i) == 1) {
                             curVal.i  =  all1 >> 1 >> minel(arg2Val.i);
@@ -3629,7 +3636,7 @@ var
                         genHelper();
                     break;
                 case opfDIV:
-                    if (arg2Const) {
+                    if (arg2Const && arg2Val.i > 0) {
                         prepLoad();
                         genConstDiv();
                         l3int3z  =  1;

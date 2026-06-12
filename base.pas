@@ -3362,12 +3362,22 @@ var
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure genConstDiv;
-    function PASDIV(r: real): word;
-        external;
+var r :  real;
 {
-    arg2Val.m := arg2Val.m + intZero;
-    curVal := PASDIV(1.0/arg2Val.i);
-    addToInsnList(KMUL+I8 + getFCSToffset);
+    if card(arg2val.m) > 1 then {
+        arg2Val.m := arg2Val.m + intZero;
+        curVal.r := 1.0 / arg2Val.i;
+        r := curVal.r * arg2Val.i;
+        curVal.m := curVal.m * [7..47] + intZero;
+        (*=r- forcing exact comparisons of reals,
+         * the stock Pascal compiler needs it.
+         *)
+        if (r < 1.0) then
+            curVal.i := curVal.i + 1;
+        curVal.m := curVal.m - [1,3];
+        addToInsnList(KMUL+I8 + getFCSToffset);
+    };
+    addToInsnList(ASN64+47-minel(arg2val.m - intZero))
 }; (* genConstDiv *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3798,7 +3808,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     exit
                 };
                 opfMOD:
-                    if (arg2Const) then {
+                    if arg2Const and (arg2Val.i > 0) then {
                         prepLoad;
                         if (card(arg2Val.m) = 1) then {
                             curVal.m := [minel(arg2Val.m)+1..47];
@@ -3818,7 +3828,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                         genHelper;
                     };
                 opfDIV: {
-                    if arg2Const then {
+                    if arg2Const and (arg2Val.i > 0) then {
                         prepLoad;
                         genConstDiv;
                         l3int3z := 1;
