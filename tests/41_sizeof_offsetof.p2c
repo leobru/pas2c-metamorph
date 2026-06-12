@@ -1,0 +1,24 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+type
+    point = struct {
+        x, y: int
+    };
+    tiny = __packed struct {
+        a, b: char;
+        c: int
+    };
+var
+    p: point;
+    words: array [1..8] of int;
+{
+    writeln(' size int=', sizeof(int):0);
+    writeln(' size point=', sizeof(point):0);
+    writeln(' size words=', sizeof(words):0);
+    writeln(' off x=', offsetof(point, x):0);
+    writeln(' off y=', offsetof(point, y):0);
+    writeln(' off packed b=', offsetof(tiny, b):0);
+    writeln(' off packed c=', offsetof(tiny, c):0);
+}
+.

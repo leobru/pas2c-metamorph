@@ -6,7 +6,7 @@ const
 //
     fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
     fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
-    fnMALLOC = 10;/*   11  */  /*   12  */  /*    13  */  fnEOF  = 14;
+    fnOFFSETOF=10;/*   11  */  /*    12  */  fnMALLOC = 13;fnEOF  = 14;
     fnREF   = 15; fnEOLN = 16; fnSETJMP = 17; fnROUND = 18; fnCARD = 19;
     fnMINEL = 20; fnABSI = 21;
 //
@@ -254,26 +254,26 @@ types = struct {
     bits:   int;
     k:      kind;
     switch kind of
-    kindReal:   {};
+    kindReal:   {szReal:int};
     kindArray:  {abase,
                  rbase:     tptr;
                  pck:       int;
                  perword,
-                 pcksize, aleft, aright:   int};
+                 pcksize, aleft, aright:   int; szArray:int};
     kindScalar: {enums:     irptr;
                  numen,
-                 start:     int};
-    kindPtr:    {base:      tptr};
+                 start:     int; szScalar: int};
+    kindPtr:    {base:      tptr; szPtr: int};
     kindFile:   {fbase:      tptr;
-                 elsize:    int};
+                 elsize:    int; szFile: int};
     kindStruct: {ptr1,
                  ptr2:      irptr;
                  flag,
-                 pckrec:    int};
+                 pckrec:    int; szStruct: int};
     kindCases:  {sel:       int;
                  first,
                  next:      tptr;
-                 alt:       tptr}
+                 alt:       tptr; szCases: int}
 };
 //
 charmap   = __packed array ['\000'..'\176'] of char;
@@ -323,21 +323,21 @@ identrec = struct {
     VARID,
     ENUMID,
     FORMALID:
-            {list: irptr; value: int};
+            {list: irptr; value: int; szIdent: int};
     FIELDID:
             {maybeUnused: int;
              uptype: tptr;
              pckfield:  int;
              shift:     int;
-             width:     int};
+             width:     int; szField: int};
     ROUTINEID:
             {low, high: int;
              argList, preDefLink: irptr;
              level, pos: int;
-             flags: int
+             flags: int; szRoutine: int
             };
     SYSID:
-            {sysnum: int;
+            {sysnum: int; szSys: int
             };
 
 };
@@ -576,7 +576,7 @@ var res: tptr;
 {
     if (maxSmallString >= strLen)
         return smallStringType[strLen];
-    new(res, kindArray);
+    res = malloc(offsetof(types, szArray));
     with *res do {
         size  =  (strLen + 5) / 6;
         bits  =  size == 1 ? strLen << 3 : 0;
@@ -928,7 +928,7 @@ var
         error(errNumberTooLarge);
         return intType;
     }
-    new(res, kindScalar);
+    res = malloc(offsetof(types, szScalar));
     with *res do {
         size = 1;
         k = kindScalar;
@@ -1847,7 +1847,7 @@ int findLabel;
 void addJumpInsn(opcode: int);
 {
     if (!findLabel()) {
-        new(l4inl7z);
+        l4inl7z = malloc(sizeof(oneinsn));
         l4inl7z->next  =  l4inl6z;
         l4inl7z->mode  =  curInsn;
         l4inl7z->code  =  0;
@@ -2134,7 +2134,7 @@ void processInsn;
 void addToInsnList(insn: int);
 var elt: oiptr;
 {
-    new(elt);
+    elt = malloc(sizeof(oneinsn));
     with *elt do {
         next  =  NIL;
         mode  =  0;
@@ -2162,7 +2162,7 @@ void prependToInsnList(insn: int);
 var
     elt: oiptr;
 {
-    new(elt);
+    elt = malloc(sizeof(oneinsn));
     with *elt do {
         next  =  insnList->head;
         mode  =  0;
@@ -2426,7 +2426,7 @@ var
 void spillAcc(op: operator);
 {
     addInsnAndOffset(curFrameRegTemplate, localSize);
-    new(curExpr);
+    curExpr = malloc(sizeof(expr));
     with *curExpr do
         typ  =  insnList->typ;
     genOneOp();
@@ -3002,7 +3002,7 @@ void formThunk;
     } else {
         frameSiz += 2;
     }
-    new(insnList);
+    insnList = malloc(sizeof(insnltyp));
     insnList->head  =  NIL;
     insnList->tail  =  NIL;
     insnList->typ  =  l5idr5z->typ;
@@ -3029,7 +3029,7 @@ void formThunk;
         l5inl20z  =  insnList;
         if (l5op21z == PCALL || l5op21z == FCALL) {
             l5idr4z  =  l5exp2z->id2;
-            new(insnList);
+            insnList = malloc(sizeof(insnltyp));
             insnList->head  =  NIL;
             insnList->tail  =  NIL;
             insnList->regsused  =  0U;
@@ -3142,7 +3142,7 @@ void formThunk;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void startInsnList(l5arg1z: ilmode);
 {
-    new(insnList);
+    insnList = malloc(sizeof(insnltyp));
     insnList->tail  =  NIL;
     insnList->head  =  NIL;
     insnList->typ  =  exprToGen->typ;
@@ -3473,6 +3473,10 @@ var
         rhsMode = false;
         genFullExpr(lhsExpr);
         rhsMode = true;
+        if (insnList->st != stWORD) {
+            error(errVarTooComplex);
+            return;
+        }
         setAddrTo(14);
         addToInsnList(KITA + 14);
         addToInsnList(macro + mcPUSH);
@@ -3480,7 +3484,7 @@ var
         addToInsnList(macro + mcPUSH);
         genOneOp();
         insnList = NIL;
-        new(rmwLhs);
+        rmwLhs = malloc(sizeof(expr));
         with *rmwLhs do {
             typ = lhsExpr->typ;
             op = STKLVAL;
@@ -3491,7 +3495,7 @@ var
         rmwLhs = lhsExpr;
     }
 
-    new(synthOp);
+    synthOp = malloc(sizeof(expr));
     with *synthOp do {
         typ = innerNode->typ;
         op = innerOp;
@@ -3499,7 +3503,7 @@ var
         expr2 = rhsExpr;
     }
 
-    new(synthAsn);
+    synthAsn = malloc(sizeof(expr));
     with *synthAsn do {
         typ = exprToGen->typ;
         op = ASSIGNOP;
@@ -3659,7 +3663,7 @@ var
         }
     } else if (FILEPTR >= curOP) {
         if (curOP == GETVAR) {
-            new(insnList);
+            insnList = malloc(sizeof(insnltyp));
             curIdRec  =  exprToGen->id1;
             with *insnList do {
                 tail  =  NIL;
@@ -3736,7 +3740,7 @@ var
            trivial (each visit pops exactly one slot) and sidesteps
            BESM-6's lack of true non-popping SP-relative addressing
            for `WTC'. */
-        new(insnList);
+        insnList = malloc(sizeof(insnltyp));
         with *insnList do {
             tail = NIL;
             head = NIL;
@@ -3813,7 +3817,7 @@ var
                       KATX + I14,             /* jb := packed */
                       KXTA + 0);              /* ACC := 0 */
             fixup(0, sjLabel);
-            new(insnList);
+            insnList = malloc(sizeof(insnltyp));
             with *insnList do {
                 tail  =  NIL;
                 head  =  NIL;
@@ -3837,7 +3841,7 @@ var
             } else
                 arg1Const  =  false;
             arg2Const  =  (insnList->typ == realType);
-            if (arg1Const && work != fnMALLOC) {
+            if (arg1Const) {
                 switch (work) {
                 case fnABS:   arg1Val.r  =  abs(arg1Val.r); break;
                 case fnTRUNC: arg1Val.i  =  trunc(arg1Val.r); break;
@@ -3845,6 +3849,15 @@ var
                 case fnCARD:  arg1Val.i  =  card(arg1Val.i); break;
                 case fnMINEL: arg1Val.i  =  minel(arg1Val.i); break;
                 case fnABSI:  arg1Val.i  =  abs(arg1Val.i); break;
+                case fnMALLOC:
+                    addToInsnList(KVTM+I14 + getValueOrAllocSymtab(arg1Val.i));
+                    addToInsnList(getHelperProc(33)); /*"P/NW"*/
+                    with *insnList do {
+                        ilm  =  ilRVAL;
+                        regsused |= E48;
+                        typ = exprToGen->typ;
+                    };
+                    return;
                 case fnEOF:
                 case fnREF:
                 case fnEOLN:
@@ -3885,7 +3898,7 @@ var
     } else if (curOP == NOOP) {
         curVal.tp  =  exprToGen->typ;
         if (curVal.i IN set146z) {
-            new(insnList);
+            insnList = malloc(sizeof(insnltyp));
             with *insnList do {
                 typ  =  exprToGen->expr2->typ;
                 head  =  tail  =  NIL;
@@ -3968,7 +3981,7 @@ var l4exf1z: *extfilerec;
     case SETREG: {
         with *insnList do {
             l3int3z  =  insnCount();
-            new(helpExpr);
+            helpExpr = malloc(sizeof(expr));
             helpExpr->expr1  =  withList;
             withList  =  helpExpr;
             helpExpr->op  =  NOOP;
@@ -4180,9 +4193,9 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void definePtrType(toType: tptr);
 {
-    new(curType, kindPtr);
+    curType = malloc(offsetof(types, szPtr));
     CTOR(*curType, 1, 15, kindPtr, toType);
-    new(curEnum, TYPEID);
+    curEnum = malloc(offsetof(identrec, szIdent));
     CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
     typelist  =  curEnum;
 } /* definePtrType */
@@ -4302,7 +4315,7 @@ var
             } else {
                 if (hashTravPtr != NIL)
                     error(errIdentAlreadyDefined);
-                new(curEnum, FIELDID);
+                curEnum = malloc(offsetof(identrec, szField));
                 addFieldToHash();
                 if (l4var6z == NIL) {
                     curField  =  curEnum;
@@ -4362,7 +4375,7 @@ var
                     error(errNoConstant);
                 else if (! typeCheck(l4typ4z, selType))
                     error(errConstOfOtherTypeNeeded);
-                new(l4var5z, kindCases);
+                l4var5z = malloc(offsetof(types, szCases));
                 CTOR(*l4var5z, cases.size, 48, kindCases,
                               l4int7z, NIL, NIL, NIL);
                 if (l4var3z == NIL) {
@@ -4443,11 +4456,11 @@ void parseRange(aleft, aright: *int; rbase: *tptr);
         span  =  0;
         lookupMode  =  lookDef;
         curField  =  NIL;
-        new(curType, kindScalar);
+        curType = malloc(offsetof(types, szScalar));
         while (SY == IDENT) {
             if (isDefined)
                 error(errIdentAlreadyDefined);
-            new(curEnum, ENUMID);
+            curEnum = malloc(offsetof(identrec, szIdent));
             CTOR(*curEnum, curIdent, curFrameRegTemplate,
                            symHash[bucket], curType,
                            ENUMID, NIL, span);
@@ -4497,7 +4510,7 @@ void parseRange(aleft, aright: *int; rbase: *tptr);
                 if (hashTravPtr->cl != TYPEID) {
                     goto 12366
                 }
-                new(curType, kindPtr);
+                curType = malloc(offsetof(types, szPtr));
                 with *curType do {
                     size  =  1;
                     bits  =  15;
@@ -4546,7 +4559,7 @@ void parseRange(aleft, aright: *int; rbase: *tptr);
             goto 12247;
         }
         if (SY == STRUCTSY) {
-            new(curType, kindStruct);
+            curType = malloc(offsetof(types, szStruct));
             typ121z  =  curType;
             with *curType do {
                 size  =  0;
@@ -4564,7 +4577,7 @@ void parseRange(aleft, aright: *int; rbase: *tptr);
         } else if (SY == ARRAYSY) {
             inSymbol();
             checkSymAndRead(LBRACK);
-            new(arrayType, kindArray);
+            arrayType = malloc(offsetof(types, szArray));
             with *arrayType do {
                 bits  =  48;
                 k  =  kindArray;
@@ -4619,7 +4632,7 @@ void parseRange(aleft, aright: *int; rbase: *tptr);
                 if (24 < l3int22z)
                     isPacked  =  false;
             }
-            new(curType, kindFile);
+            curType = malloc(offsetof(types, szFile));
             if (! isPacked)
                 l3int22z  =  0;
             with *curType do {
@@ -4826,7 +4839,7 @@ var
     if (SY == ARROW) {
         /* '->' is deref + struct field selection; build DEREF here,
            then jump to label 55 to consume the field IDENT. */
-        new(l4exp1z);
+        l4exp1z = malloc(sizeof(expr));
         l4exp1z->expr1  =  curExpr;
         if ((l4var4z == kindPtr) &&
             (l4typ3z->base->k == kindStruct)) {
@@ -4858,7 +4871,7 @@ var
             if (hashTravPtr == NIL) {
                 error(20); /* errDigitGreaterThan7 ??? */
             } else {
-                new(l4exp1z);
+                l4exp1z = malloc(sizeof(expr));
                 with *l4exp1z do {
                     typ  =  hashTravPtr->typ;
                     op  =  GETFIELD;
@@ -4883,7 +4896,7 @@ var
         } else {
             if (! typeCheck(l4typ3z->rbase, curExpr->typ))
                 error(66 /*errOtherIndexTypeNeeded */);
-            new(l4exp2z);
+            l4exp2z = malloc(sizeof(expr));
             with *l4exp2z do {
                 typ  =  l4typ3z->base;
                 expr1  =  l4exp1z;
@@ -4908,7 +4921,7 @@ var
     if (hashTravPtr->cl == FIELDID) {
         /* Implicit field of the `with` variable: build GETFIELD on
            withIter directly, then continue with any further postfix. */
-        new(l4exp1z);
+        l4exp1z = malloc(sizeof(expr));
         with *l4exp1z do {
             typ  =  hashTravPtr->typ;
             op  =  GETFIELD;
@@ -4917,7 +4930,7 @@ var
         }
         curExpr  =  l4exp1z;
     } else {
-        new(curExpr);
+        curExpr = malloc(sizeof(expr));
         with *curExpr do {
             typ  =  hashTravPtr->typ;
             op  =  GETVAR;
@@ -4933,7 +4946,7 @@ void castToReal(value: *eptr);
 var
     cast: eptr;
 {
-    new(cast);
+    cast = malloc(sizeof(expr));
     with *cast do {
         typ  =  realType;
         op  =  TOREAL;
@@ -4971,7 +4984,7 @@ var
             set146z &= ~flags;
         noArgs  =  (list == NIL) && ! (24 in flags);
     }
-    new(callExpr);
+    callExpr = malloc(sizeof(expr));
     argList  =  callExpr;
     bool48z  =  true;
     with *callExpr do {
@@ -5036,7 +5049,7 @@ var
                         error(40); /*errIncompatibleArgumentTypes*/
                 }
             } while (false);
-            new(curActual);
+            curActual = malloc(sizeof(expr));
             with *curActual do {
                 typ  =  NIL;
                 expr1  =  NIL;
@@ -5078,7 +5091,7 @@ var finalExpr: eptr;
         curExpr = uVarPtr;
         return;
     }
-    new(finalExpr);
+    finalExpr = malloc(sizeof(expr));
     with *finalExpr do {
         op = oper;
         expr1 = leftArg;
@@ -5101,7 +5114,7 @@ var
 1:      curExpr = uVarPtr;
         return;
     }
-    new(finalExpr);
+    finalExpr = malloc(sizeof(expr));
     with *finalExpr do {
         if (k1 == kindReal || k2 == kindReal) {
             if (oper == IMODOP) {
@@ -5145,7 +5158,7 @@ var ex1: eptr;
             goto 1;
         }
     }
-    new(ex1);
+    ex1 = malloc(sizeof(expr));
     with *ex1 do {
         typ = boolType;
         if (oper IN [GTOP, LEOP]) {
@@ -5169,7 +5182,7 @@ var finalExpr: eptr;
         error(errNeedOtherTypesOfOperands);
         finalExpr = uVarPtr;
     } else {
-        new(finalExpr);
+        finalExpr = malloc(sizeof(expr));
         with *finalExpr do {
             typ = boolType;
             op = oper;
@@ -5200,14 +5213,14 @@ var altExpr, condOpExpr: eptr;
         error(errNeedOtherTypesOfOperands);
         return;
     }
-    new(altExpr);
+    altExpr = malloc(sizeof(expr));
     with *altExpr do {
         typ = resType;
         op = ALTERN;
         expr1 = thenExpr;
         expr2 = curExpr;
     }
-    new(condOpExpr);
+    condOpExpr = malloc(sizeof(expr));
     with *condOpExpr do {
         typ = resType;
         op = CONDOP;
@@ -5234,12 +5247,73 @@ var
     l5var2z: tptr;
     argKind: kind;
     asBitset: int;
-    stProcNo, checkMode: int;
+    stProcNo, checkMode, resultValue: int;
 {
     stProcNo  =  routine->low;
     if (SY != LPAREN) {
         requiredSymErr(LPAREN);
         longjmp(jb8888);
+    }
+    if (stProcNo IN [fnSIZEOF, fnOFFSETOF]) {
+        lookupMode = lookUse;
+        inSymbol();
+        if ((SY == IDENT) && (hashTravPtr != NIL) &&
+           (hashTravPtr->cl == TYPEID)) {
+            l5var2z = hashTravPtr->typ;
+            inSymbol();
+        } else {
+            if (stProcNo == fnSIZEOF) {
+                if ((SY == IDENT) && (hashTravPtr != NIL) &&
+                   (hashTravPtr->cl IN [VARID, FORMALID, FIELDID]) &&
+                   (charSym[CH] == RPAREN)) {
+                    l5var2z = hashTravPtr->typ;
+                    inSymbol();
+                } else {
+                    readNext = false;
+                    expression();
+                    l5var2z = curExpr->typ;
+                }
+            } else {
+                error(errNotAType);
+                l5var2z = intType;
+                if (SY == IDENT)
+                    inSymbol();
+            }
+        }
+        if (stProcNo == fnOFFSETOF) {
+            if (l5var2z->k != kindStruct)
+                error(errWrongVarTypeBefore);
+            if (SY != COMMA)
+                requiredSymErr(COMMA);
+            else {
+                typ121z = l5var2z;
+                lookupMode = lookField;
+                inSymbol();
+            }
+            if (SY != IDENT) {
+                error(errNoIdent);
+                resultValue = 0;
+            } else {
+                if (hashTravPtr == NIL) {
+                    error(errNotDefined);
+                    resultValue = 0;
+                } else {
+                    resultValue = hashTravPtr->offset;
+                }
+                inSymbol();
+            }
+        } else {
+            resultValue = l5var2z->size;
+        }
+        newExpr = malloc(sizeof(expr));
+        with *newExpr do {
+            op = GETENUM;
+            num1 = resultValue;
+            typ = intType;
+        }
+        curExpr = newExpr;
+        checkSymAndRead(RPAREN);
+        return;
     }
     expression();
     if ((stProcNo IN [fnEOF..fnEOLN,fnSETJMP]) &&
@@ -5268,7 +5342,7 @@ var
     } else if ((arg1Type == intType) && (stProcNo == fnABS)) {
         stProcNo  =  fnABSI;
     }
-    new(newExpr);
+    newExpr = malloc(sizeof(expr));
     if (stProcNo == fnSIZEOF) {
         newExpr->op  =  GETENUM;
         newExpr->num1  =  arg1Type->size;
@@ -5306,7 +5380,7 @@ var
                 curExpr->typ = l4typ11z;
                 break;
             case ENUMID:
-                new(curExpr);
+                curExpr = malloc(sizeof(expr));
                 with *curExpr do {
                     typ  =  hashTravPtr->typ;
                     op  =  GETENUM;
@@ -5343,7 +5417,7 @@ var
                         break;
                     }
                 }
-                new(curExpr);
+                curExpr = malloc(sizeof(expr));
                 if (! (SY IN [RPAREN, COMMA])) {
                     error(errNoCommaOrParenOrTooFewArgs);
                     longjmp(jb8888);
@@ -5364,14 +5438,14 @@ var
         checkSymAndRead(RPAREN);
         break;
     case INTCONST: case REALCONST: case CHARCONST: case STRINGSY:
-        new(curExpr);
+        curExpr = malloc(sizeof(expr));
         curExpr->typ = parseLiteral(&curExpr->num1, false);
         curExpr->num2  =  int(numFormat);
         curExpr->op  =  GETENUM;
         inSymbol();
         break;
     case LBRACK: {
-        new(curExpr);
+        curExpr = malloc(sizeof(expr));
         inSymbol();
         l4var8z  =  curExpr;
         l4var1z  =  0U;
@@ -5414,7 +5488,7 @@ var
                     }
                     error(errNoConstant);
                 }
-                new(curExpr);
+                curExpr = malloc(sizeof(expr));
                 with *curExpr do {
                     typ  =  intType;
                     op  =  SETOR;
@@ -5461,7 +5535,7 @@ var
         factor();
     if (oper != NOOP) {
         arg1Type = curExpr->typ;
-        new(leftExpr);
+        leftExpr = malloc(sizeof(expr));
         with *leftExpr do {
             typ = arg1Type;
             expr1 = curExpr;
@@ -5493,7 +5567,7 @@ var
                     leftExpr->op = NOTOP;
                 } else if (arg1Type == intType) {
                     leftExpr->op = EQOP;
-                    new(leftExpr->expr2);
+                    leftExpr->expr2 = malloc(sizeof(expr));
                     CTOR(*leftExpr->expr2, intType, GETENUM, 0U);
                 } else {
                     error(errNeedOtherTypesOfOperands);
@@ -5539,9 +5613,9 @@ var
                     error(62); /* errIntegerNeeded */
                     return;
                 }
-                new(oneExpr);
+                oneExpr = malloc(sizeof(expr));
                 CTOR(*oneExpr, intType, GETENUM, 1U);
-                new(addExpr);              /* INTPLUS / INTMINUS node */
+                addExpr = malloc(sizeof(expr));              /* INTPLUS / INTMINUS node */
                 with *addExpr do {
                     typ = intType;
                     op = (oper == INCROP) ? INTPLUS : INTMINUS;
@@ -5643,7 +5717,7 @@ var
             } else if (arg2Type->k == kindFile) {
                 error(75); /* errCannotAssignFiles */
             }
-            new(thenExpr);
+            thenExpr = malloc(sizeof(expr));
             with *thenExpr do {
                 typ  =  arg1Type;
                 if (oper != ASSIGNOP)
@@ -5712,7 +5786,7 @@ void expression;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void setStrLab(id:int);
 {
-    new(strLabPtr);
+    strLabPtr = malloc(sizeof(strLabel));
     padToLeft();
     disableNorm();
     with *strLabPtr do {
@@ -5902,7 +5976,7 @@ var
                         if (! typeCheck(itemtype, firstType))
                             error(errConstOfOtherTypeNeeded);
                     }
-                    new(clause);
+                    clause = malloc(sizeof(casechain));
                     clause->value.i  =  itemvalue;
                     clause->offset  =  moduleOffset;
                     curClause  =  allClauses;
@@ -6204,7 +6278,7 @@ void startWrite;
         if (l4typ3z->k == kindFile) {
             workExpr  =  curExpr;
         } else {
-            new(workExpr);
+            workExpr = malloc(sizeof(expr));
             workExpr->typ  =  textType;
             workExpr->op  =  GETVAR;
             workExpr->id1  =  outputFile;
@@ -6213,11 +6287,11 @@ void startWrite;
         /* typeCheck(arg2Type->base, charType); */
         isCharFile  =  arg2Type->base == charType;
         needR12  =  true;
-        new(l4exp8z);
+        l4exp8z = malloc(sizeof(expr));
         l4exp8z->typ  =  arg2Type->base;
         l4exp8z->op  =  FILEPTR;
         l4exp8z->expr1  =  workExpr;
-        new(l4exp6z);
+        l4exp6z = malloc(sizeof(expr));
         l4exp6z->typ  =  l4exp8z->typ;
         l4exp6z->op  =  ASSIGNOP;
         l4exp6z->expr1  =  l4exp8z;
@@ -6400,7 +6474,7 @@ void doPackUnpack;
 var
     t: tptr;
 {
-    new(l4exp7z);
+    l4exp7z = malloc(sizeof(expr));
     l4exp7z->typ  =  l4typ1z->base;
     l4exp7z->op  =  GETELT;
     l4exp7z->expr1  =  workExpr;
@@ -6411,7 +6485,7 @@ var
        (t->base->k != kindScalar) ||
        (l4typ1z->base->k != kindScalar))
         error(errNeedOtherTypesOfOperands);
-    new(curExpr);
+    curExpr = malloc(sizeof(expr));
     curExpr->typ  =  tptr(procNo + 50);
     curExpr->expr1  =  l4exp7z;
     curExpr->expr2  =  l4exp6z;
@@ -6451,16 +6525,15 @@ var
             formOperator(FILEACCESS);
         }
         break;
-    case 4: case 5: /* new, free */
+    case 5: /* free */
         if (curVarKind != kindPtr)
             error(13); /* errVarIsNotPointer */
         ++heapCallsCnt;
         workExpr  =  curExpr;
-        if (procNo == 5)
-            formOperator(SETREG9);
+        formOperator(SETREG9);
         l2typ13z  =  arg1Type->base;
         ii  =  l2typ13z->size;
-        if (procNo == 5 && SY == COLON) {
+        if (SY == COLON) {
             expression();
             if (! typeCheck(intType, curExpr->typ))
                 error(14); /* errExprIsNotInt */
@@ -6472,35 +6545,9 @@ var
                 form1Insn(KATI+14);
             }
         } else {
-            if (arg1Type->base->k == kindStruct) {
-                l4typ1z  =  l2typ13z->base;
-                while (SY == COMMA && l4typ1z != NIL) {
-                    inSymbol();
-                    l4typ2z = parseLiteral(&curVal.i, true);
-                    if (l4typ2z == NIL)
-                        break;
-                    else {
-                        inSymbol();
-                        while (l4typ1z != NIL) {
-                            l4typ2z  =  l4typ1z;
-                            while (l4typ2z != NIL && l4typ2z->sel != curVal.i)
-                                l4typ2z  =  l4typ2z->alt;
-                            if (l4typ2z != NIL) {
-                                ii  =  l4typ1z->size;
-                                break;
-                            }
-                            l4typ1z  =  l4typ1z->next;
-                        }
-                    }
-                }
-            }
 44:         form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
         }
         formAndAlign(jumpTarget);
-        if (procNo == 4) {
-            curExpr  =  workExpr;
-            formOperator(STORE);
-        }
         break;
     case 6: /* halt */
         formAndAlign(jumpTarget);
@@ -6633,7 +6680,7 @@ var
         checkSymAndRead(COMMA);
         checkArrayArg();
         doPackUnpack();
-    case 13: case 17: // unused, listed for completeness
+    case 4: case 13: case 17: // unused, listed for completeness
     }
     if (procNo in [0,1,2,3,5,10,11,13,21,22])
         arithMode  =  1;
@@ -6778,7 +6825,7 @@ var
         } else {
             jumpTarget  =  curOffset;
             whileExpr  =  curExpr;
-            new (curExpr);
+            curExpr = malloc(sizeof(expr));
             with *curExpr do {
                 typ  =  boolType;
                 op  =  NOTOP;
@@ -6954,7 +7001,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysType(l4arg1z:int; l4arg2z: tptr);
 {
-    new(curIdRec, TYPEID);
+    curIdRec = malloc(offsetof(identrec, szIdent));
     CTOR(*curIdRec, l4arg1z, 0, , l4arg2z, TYPEID);
     addToHashTab(curIdRec);
 } /* regSysType */
@@ -6962,7 +7009,7 @@ void regSysType(l4arg1z:int; l4arg2z: tptr);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysEnum(l4arg1z: int; l4arg2z: int);
 {
-    new(curIdRec, ENUMID);
+    curIdRec = malloc(offsetof(identrec, szIdent));
     CTOR(*curIdRec, l4arg1z, 48, , temptype, ENUMID, NIL, l4arg2z);
     addToHashTab(curIdRec);
 } /* regSysEnum */
@@ -6970,7 +7017,7 @@ void regSysEnum(l4arg1z: int; l4arg2z: int);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysProc(l4arg1z: int);
 {
-    new(curIdRec, SYSID);
+    curIdRec = malloc(offsetof(identrec, szSys));
     CTOR(*curIdRec, l4arg1z, 0, , temptype, ROUTINEID, sysProcNum);
     ++sysProcNum;
     addToHashTab(curIdRec);
@@ -6983,7 +7030,7 @@ void defExtern;
     l3var11z  =  30U | [24,27,28,29];
     l3var1z  =  leftAlign(curIdent);
     if (curIdent == litInput) {
-        new(inputFile, 12);
+        inputFile = malloc(offsetof(identrec, szIdent));
         with *inputFile do {
             id  =  curIdent;
             offset  =  0;
@@ -7008,7 +7055,7 @@ void defExtern;
             curExternFile  =  curExternFile->next;
         }
     }
-    new(curExternFile);
+    curExternFile = malloc(sizeof(extFileRec));
     with *curExternFile do {
         id  =  curIdent;
         next  =  externFileList;
@@ -7028,7 +7075,7 @@ void defExtern;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* mainProgram */
-    new(boolType, kindScalar);
+    boolType = malloc(offsetof(types, szScalar));
     with *boolType do {
         size  =  1;
         bits  =  1;
@@ -7037,7 +7084,7 @@ void defExtern;
         start  =  -1;
         enums  =  NIL;
     }
-    new(intType, kindScalar);
+    intType = malloc(offsetof(types, szScalar));
     with *intType do {
         size  =  1;
         bits  =  48;
@@ -7046,7 +7093,7 @@ void defExtern;
         start  =  -1;
         enums  =  NIL;
     }
-    new(charType, kindScalar);
+    charType= malloc(offsetof(types, szScalar));
     with *charType do {
         size  =  1;
         bits  =  8;
@@ -7055,20 +7102,20 @@ void defExtern;
         start  =  -1;
         enums  =  NIL;
     }
-    new(realType, kindReal);
+    realType = malloc(offsetof(types, szReal));
     with *realType do {
         size  =  1;
         bits  =  48;
         k  =  kindReal;
     }
-    new(voidPtr, kindPtr);
+    voidPtr = malloc(offsetof(types, szPtr));
     with *voidPtr do {
         size  =  1;
         bits  =  48;
         k  =  kindPtr;
         base  =  voidPtr;
     }
-    new(textType, kindFile);
+    textType = malloc(offsetof(types, szFile));
     with *textType do {
         size  =  30;
         bits  =  48;
@@ -7076,7 +7123,7 @@ void defExtern;
         base  =  charType;
         elsize  =  8;
     }
-    new(alfaType,kindArray);
+    alfaType = malloc(offsetof(types, szArray));
     with *alfaType do {
         size  =  1;
         bits  =  48;
@@ -7102,7 +7149,7 @@ void defExtern;
     for (strLen = 2; strLen <= 5; ++strLen)
         smallStringType[strlen] = makeStringType();
     maxSmallString  =  6;
-    new(curIdRec, VARID);
+    curIdRec = malloc(offsetof(identrec, szIdent));
     with *curIdRec do {
         offset  =  0;
         typ  =  intType;
@@ -7110,13 +7157,13 @@ void defExtern;
         list  =  NIL;
         value  =  7;
     }
-    new(uVarPtr);
+    uVarPtr = malloc(sizeof(identrec));
     with *uVarPtr do {
         typ  =  intType;
         op  =  GETVAR;
         id1  =  curIdRec;
     }
-    new(uProcPtr, 12);
+    uProcPtr = malloc(offsetof(identrec, szRoutine));
     with *uProcPtr do {
         typ  =  NIL;
         list  =  NIL;
@@ -7141,12 +7188,11 @@ void defExtern;
     temptype  =  intType;
     regSysProc('   TRUNC');
     regSysProc('  SIZEOF');
-    tempType  =  voidPtr;
-    regSysProc('  MALLOC');
-    temptype  =  charType;
-    regSysProc('was chr ');
+    regSysProc('OFFSETOF');
     regSysProc('was SUCC');
     regSysProc('was PRED');
+    tempType  =  voidPtr;
+    regSysProc('  MALLOC');
     temptype  =  boolType;
     regSysProc('     EOF');
     regSysProc('resrv   '); /* was REF, fnREF still used */
@@ -7158,7 +7204,7 @@ void defExtern;
     regSysProc('   MINEL');
     l3var11z  =  30;
     l3var11z  =  l3var11z & halfWord | [24,27,28,29];
-    new(programObj, ROUTINEID);
+    programObj = malloc(offsetof(identrec, szRoutine));
     if (SY != EXTERNSY) {
         requiredSymErr(EXTERNSY);
         skip(skipToSet | [IDENT,LPAREN]);
@@ -7186,7 +7232,7 @@ void defExtern;
     outputFile  =  NIL;
     inputFile  =  NIL;
     externFileList  =  NIL;
-    new(l3var7z, 12);
+    l3var7z = malloc(offsetof(identrec, szIdent));
     lineStartOffset  =  moduleOffset;
     with *l3var7z do {
         id  =  litOutput;
@@ -7231,7 +7277,7 @@ void defExtern;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void makeExtFile;
 {
-    new(l2var10z);
+    l2var10z = malloc(sizeof(expr));
     with *l2var10z do {
         typ  =  tptr(curExternFile);
         id2  =  workidr;
@@ -7277,7 +7323,7 @@ var
             if (isDefined)
                 error(errIdentAlreadyDefined);
             ++l3var6z;
-            new(l3var1z, FORMALID);
+            l3var1z = malloc(offsetof(identrec, szIdent));
             with *l3var1z do {
                 id  =  curIdent;
                 offset  =  curFrameRegTemplate;
@@ -7379,7 +7425,7 @@ void exitScope(a: int);
         while  (SY == IDENT) {
             if (isDefined)
                 error(errIdentAlreadyDefined);
-            new(workidr, ENUMID);
+            workidr = malloc(offsetof(identrec, szIdent));
             CTOR(*workidr, curIdent, curFrameRegTemplate,
                            symHash[bucket], , ENUMID, NIL);
             symHash[bucket]  =  workidr;
@@ -7438,7 +7484,7 @@ void exitScope(a: int);
                 }
                 typelist = hash(typelist, curIdRec);
             } else {
-                new(curIdRec, TYPEID);
+                curIdRec = malloc(offsetof(identrec, szIdent));
                 with *curIdRec do {
                     id  =  l2var12z;
                     offset  =  curFrameRegTemplate;
@@ -7467,7 +7513,7 @@ void exitScope(a: int);
             workidr  =  NIL;
             do {
             if (SY == IDENT) {
-                new(curIdRec, VARID);
+                curIdRec = malloc(offsetof(identrec, szIdent));
                 if (isDefined)
                     error(errIdentAlreadyDefined);
                 with *curIdRec do {
@@ -7620,7 +7666,7 @@ void exitScope(a: int);
                 isPredefined  =  false;
         }
         if (! isPredefined) {
-            new(curIdRec, 12);
+            curIdRec = malloc(offsetof(identrec, szRoutine));
             with *curIdRec do {
                 id  =  curIdent;
                 offset  =  curFrameRegTemplate;
@@ -7830,7 +7876,7 @@ var
 {
     curVal.i  =  keyword & hashMask;
     mapai(curVal.a, curVal.i);
-    new(kw);
+    kw = malloc(sizeof(kword));
     with *kw do {
         w  =  keyword;
         sym  =  SY;
@@ -8231,7 +8277,7 @@ void initOptions;
         '     GET',
         ' REWRITE',
         '   RESET',
-        '     NEW',
+        ' was NEW',
         '    FREE',
         '    HALT',
         '    STOP',

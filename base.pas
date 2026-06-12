@@ -8,7 +8,7 @@ const
 %
     fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
     fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
-    fnMALLOC = 10;(* fnCHR  = 11; fnSUCC = 12; fnPRED = 13;*) fnEOF  = 14;
+    fnOFFSETOF=10;(*  11         12     *)  fnMALLOC = 13;fnEOF  = 14;
     fnREF   = 15; fnEOLN = 16; fnSETJMP = 17; fnROUND = 18; fnCARD = 19;
     fnMINEL = 20; fnPTR  = 21; fnABSI = 22;
 %
@@ -1920,7 +1920,7 @@ var
     noTarget                  : boolean;
     l3var10z, l3var11z        : word;
     saved                     : @insnltyp;
-    l3bool13z                 : boolean;
+    rhsMode                 : boolean;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure genOneOp;
@@ -3638,9 +3638,13 @@ var
                    (lhsExpr@.expr2@.op <> GETVAR));
 
     if needsMater then {
-        l3bool13z := false;
+        rhsMode := false;
         genFullExpr(lhsExpr);
-        l3bool13z := true;
+        rhsMode := true;
+        if (insnList@.st <> stWORD) then {
+            error(errVarTooComplex);
+            exit;
+        };
         setAddrTo(14);
         addToInsnList(KITA + 14);
         addToInsnList(macro + mcPUSH);
@@ -3708,10 +3712,10 @@ var i    : integer; ret: word;
         genFullExpr(exprToGen@.expr2);
         otherIns := insnList;
         if (curOP = ASSIGNOP) then
-            l3bool13z := false;
+            rhsMode := false;
         genFullExpr(exprToGen@.expr1);
         if (curOP = ASSIGNOP) then
-            l3bool13z := true;
+            rhsMode := true;
         if (insnList@.ilm = ilCONST) then {
             arg1Const := true;
             arg1Val := insnList@.payload;
@@ -3892,7 +3896,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                                            curIdRec@.uptype@.bits - 48;
                         };
                         stPACKED:
-                            if (not l3bool13z) then
+                            if (not rhsMode) then
                                 error(errUsingVarAfterIndexingPackedArray)
                             else {
                                 startLVal;
@@ -4039,7 +4043,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 } else
                     arg1Const := false;
                 arg2Const := insnList@.typ = realType;
-                if arg1Const and (work <> fnMALLOC) then {
+                if arg1Const then {
                     case work of
                     fnABS:   arg1Val.r := abs(arg1Val.r);
                     fnTRUNC: arg1Val.i := trunc(arg1Val.r);
@@ -4048,6 +4052,18 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                     fnCARD:  arg1Val.i := card(arg1Val.m);
                     fnMINEL: arg1Val.i := minel(arg1Val.m);
                     fnABSI:  arg1Val.i := abs(arg1Val.i);
+                    fnMALLOC: {
+                        arg1Val.m := arg1Val.m + intZero;
+                        addToInsnList(KVTM+I14+
+                              getValueOrAllocSymtab(arg1Val.i));
+                        addToInsnList(getHelperProc(33)); (*"P/NW"*)
+                        with insnList@ do {
+                            ilm := ilRVAL;
+                            regsused := regsused + [0];
+                            typ := exprToGen@.vt.typ;
+                        };
+                        exit
+                    };
                     fnEOF,
                     fnREF,
                     fnEOLN:
@@ -4177,7 +4193,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* formOperator *)
 %   writeln(' formoperator ', l3arg1z);
-    l3bool13z := true;
+    rhsMode := true;
     if (errors and (l3arg1z <> SETREG)) or (curExpr = NIL) then
         exit;
     if not (l3arg1z IN [FORMOP, STOREAT9, DFLTWDTH, FILEINIT, PCKUNPCK]) then {
@@ -5506,13 +5522,74 @@ var
     l5var2z: tptr;
     argKind: kind;
     asBitset: bitset;
-    stProcNo, checkMode: integer;
+    stProcNo, checkMode, resultValue: integer;
 {
     curVal.i := routine@.low;
     stProcNo := curVal.i;
     if (SY <> LPAREN) then {
         requiredSymErr(LPAREN);
         goto 8888;
+    };
+    if (stProcNo IN [fnSIZEOF, fnOFFSETOF]) then {
+        lookupMode := lookUse;
+        inSymbol;
+        if (SY = IDENT) and (hashTravPtr <> NIL) and
+           (hashTravPtr@.cl = TYPEID) then {
+            l5var2z := hashTravPtr@.typ;
+            inSymbol;
+        } else {
+            if (stProcNo = fnSIZEOF) then {
+                if (SY = IDENT) and (hashTravPtr <> NIL) and
+                   (hashTravPtr@.cl IN [VARID, FORMALID, FIELDID]) and
+                   (charSym[CH] = RPAREN) then {
+                    l5var2z := hashTravPtr@.typ;
+                    inSymbol;
+                } else {
+                    readNext := false;
+                    expression;
+                    l5var2z := curExpr@.vt.typ;
+                }
+            } else {
+                error(errNotAType);
+                l5var2z := integerType;
+                if (SY = IDENT) then
+                    inSymbol;
+            }
+        };
+        if (stProcNo = fnOFFSETOF) then {
+            if (l5var2z@.k <> kindStruct) then
+                error(errWrongVarTypeBefore);
+            if (SY <> COMMA) then
+                requiredSymErr(COMMA)
+            else {
+                typ121z := l5var2z;
+                lookupMode := lookField;
+                inSymbol;
+            };
+            if (SY <> IDENT) then {
+                error(errNoIdent);
+                resultValue := 0;
+            } else {
+                if (hashTravPtr = NIL) then {
+                    error(errNotDefined);
+                    resultValue := 0;
+                } else {
+                    resultValue := hashTravPtr@.offset;
+                };
+                inSymbol;
+            }
+        } else {
+            resultValue := l5var2z@.size;
+        };
+        new(newExpr);
+        with newExpr@ do {
+            op := GETENUM;
+            lit.c := chr(resultValue);
+            vt.typ := integerType;
+        };
+        curExpr := newExpr;
+        checkSymAndRead(RPAREN);
+        exit;
     };
     expression;
     if ((stProcNo >= fnEOF) and (fnEOLN >= stProcNo)
@@ -6758,7 +6835,7 @@ var
             formOperator(FILEACCESS);
         }
     };
-    4, 5: { (* new, free *)
+    5: { (* new, free *)
         if (curVarKind <> kindPtr) then
             error(13); (* errVarIsNotPointer *)
         heapCallsCnt := heapCallsCnt + 1;
@@ -6767,7 +6844,7 @@ var
             formOperator(SETREG9);
         l2typ13z := arg1Type@.base;
         ii := l2typ13z@.size;
-        if (procNo = 5) and (SY = COLON) then {
+        if (SY = COLON) then {
             expression;
             if not typeCheck(integerType, curExpr@.vt.typ) then
                 error(14); (* errExprIsNotInteger *)
@@ -6779,29 +6856,6 @@ var
                 form1Insn(KATI+14);
             }
         } else {
-            if (arg1Type@.base@.k = kindStruct) then {
-                l4typ1z := l2typ13z@.base;
-(loop)          while (SY = COMMA) and (l4typ1z <> NIL) do {
-                    inSymbol;
-                    parseLiteral(l4typ2z, curVal, true);
-                    if (l4typ2z = NIL) then
-                        exit loop
-                    else {
-                        inSymbol;
-(loop2)                 while (l4typ1z <> NIL) do {
-                            l4typ2z := l4typ1z;
-                            while (l4typ2z <> NIL) do {
-                                if (l4typ2z@.sel = curVal) then {
-                                    ii := l4typ1z@.size;
-                                    exit loop2;
-                                };
-                                l4typ2z := l4typ2z@.alt;
-                            };
-                            l4typ1z := l4typ1z@.next;
-                        }
-                    }
-                }
-            };
 44:         form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
         };
         formAndAlign(jumpTarget);
@@ -7470,12 +7524,11 @@ var l : integer;
     temptype := integerType;
     regSysProc(6462655643C(*"   TRUNC"*));
     regSysProc(635172455746C(*"  SIZEOF" *));
-    temptype := voidPtr;
-    regSysProc(554154545743C(*"  MALLOC"*));
-    temptype := charType;
-    regSysProc(0C(*" was CHR"*));
+    regSysProc(5746466345645746C(*"OFFSETOF"*));
     regSysProc(0C(*" was SUCC"*));
     regSysProc(0C(*" was PRED"*));
+    temptype := voidPtr;
+    regSysProc(554154545743C(*"  MALLOC"*));
     temptype := booleanType;
     regSysProc(455746C(*"     EOF"*));
     temptype := voidPtr;
@@ -8602,7 +8655,7 @@ procedure initOptions;
         474564C                (*"     GET"*),
         62456762516445C        (*" REWRITE"*),
         6245634564C            (*"   RESET"*),
-        564567C                (*"     NEW"*),
+        0C                     (*" was NEW"*),
         44516360576345C        (*"    FREE"*),
         50415464C              (*"    HALT"*),
         63645760C              (*"    STOP"*),

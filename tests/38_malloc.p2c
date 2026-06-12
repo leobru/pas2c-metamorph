@@ -3,10 +3,12 @@ extern _output_;
 //
 type intptr = *int;
 var p, q: intptr;
+    n: int;
 {
     p = MALLOC(1);
     *p = 42;
-    new(q);
+    n = 2;
+    q = MALLOC(n);
     *q = 99;
     writeln('p=', *p:0, ' q=', *q:0);
 }
