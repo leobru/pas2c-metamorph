@@ -2,7 +2,7 @@
 extern _output_;
 
 var
-    words: array [1..8] of int;
+    words: int[1..8];
 
 {
     writeln('RESULT ', sizeof(words):0);

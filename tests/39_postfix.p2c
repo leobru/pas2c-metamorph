@@ -8,7 +8,7 @@ type
 var
     obj: point;
     p: ptpr;
-    arr: array [1..3] of int;
+    arr: int[1..3];
 //
 ptpr getp;
 {

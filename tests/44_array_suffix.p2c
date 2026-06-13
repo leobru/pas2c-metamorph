@@ -1,0 +1,32 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var
+    arr: int[1..5];
+    chars: char[1..5];
+    packed: __packed int:8[0..13];
+    matrix: int[1..2][1..3];
+    idx: int;
+{
+    arr[3] = 33;
+    idx = 3;
+    writeln('arr ', arr[idx]:0);
+
+    chars[1] = 'H';
+    chars[2] = 'I';
+    idx = 2;
+    writeln('char ', chars[idx]);
+
+    packed[0] = 7;
+    packed[13] = 123;
+    if (packed[13] == 123)
+        writeln('packed ', sizeof(packed):0, ' ok');
+    else
+        writeln('packed fail');
+
+    matrix[1][2] = 12;
+    matrix[2][3] = 23;
+    writeln('matrix ', matrix[1][2]:0, ' ', matrix[2][3]:0,
+            ' size ', sizeof(matrix):0);
+}
+.

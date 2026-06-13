@@ -7,7 +7,7 @@ type
     };
 
 var
-    tab: __packed array [1..4] of pair;
+    tab: __packed pair[1..4];
     i: int;
     p: pair;
 

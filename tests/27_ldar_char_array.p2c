@@ -3,7 +3,7 @@ extern _output_;
 //
 // Test P/LDAR helper: char array with variable index
 var 
-    chars: array [1..5] of char;
+    chars: char[1..5];
     idx: int;
     ch: char;
 {

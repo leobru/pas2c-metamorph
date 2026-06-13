@@ -3,7 +3,7 @@ extern _output_;
 //
 // Test P/LDARIN helper: integer array with variable index
 var 
-    arr: array [1..10] of int;
+    arr: int[1..10];
     idx, value: int;
 {
     arr[1] = 100;

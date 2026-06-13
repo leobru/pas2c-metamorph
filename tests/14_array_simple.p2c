@@ -1,7 +1,7 @@
 /*=p-,t-,s8,y+,k9,l0*/
 extern _output_;
 //
-var arr: array [1..5] of int;
+var arr: int[1..5];
     i: int;
 {
     arr[1] = 10;

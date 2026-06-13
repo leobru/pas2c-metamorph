@@ -15,6 +15,7 @@ cat << EOF > tmp$$
 P 2 0 1000440000B .
 *call *pascom
 EOF
+if [ "$1" = "-d" ]; then ln -f tmp$$ run.dub ; shift; fi
 sed 's/{/<:/g;s/}/:>/g' < $1 > tmpsrc.utxt
 echo '                                                                                 ' >> tmpsrc.utxt
 cat << EOF >> tmp$$
@@ -29,7 +30,6 @@ cat << EOF >> tmp$$
 *execute
 *end file
 EOF
-if [ "$1" = "-d" ]; then ln -f tmp$$ run.dub ; fi
 rm -f tmpsrc.bin
 ulimit -t 3
 dubna tmp$$ | sed 1,/METAMORPH/d | tee runbase.lst

@@ -11,7 +11,7 @@ type
     };
 var
     p: point;
-    words: array [1..8] of int;
+    words: int[1..8];
 {
     writeln(' size int=', sizeof(int):0);
     writeln(' size point=', sizeof(point):0);

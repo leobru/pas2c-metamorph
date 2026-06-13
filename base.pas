@@ -4453,13 +4453,15 @@ type
             size, count: integer;
             pairs: pair7;
         end;
+    rangeList = array [1..20] of tptr;
 var
     isPacked: boolean;
     cond: boolean;
     cases: caserec;
-    numBits, l3int22z, span: integer;
+    numBits, l3int22z, span, rangeCnt, curDim: integer;
     curEnum, curField: irptr;
     arrayType, nestedType, tempType, curType: tptr;
+    ranges: rangeList;
     l3idr31z: irptr;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4703,6 +4705,59 @@ var
 }; (* parseRange *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function makeArrayType(rangeType, elementType: tptr; packedFlag: boolean): tptr;
+var
+    makePacked: boolean;
+{
+    makePacked := packedFlag;
+    new(arrayType, kindArray);
+    with arrayType@ do {
+        bits := 48;
+        k := kindArray;
+        aleft := rangeType@.left;
+        aright := rangeType@.right;
+        rbase := rangeType@.base;
+        base := elementType;
+    };
+    if isFileType(elementType) then
+        error(errTypeMustNotBeFile);
+    with arrayType@ do {
+        span := aright - aleft + 1;
+        l3int22z := base@.bits;
+        if (24 < l3int22z) then
+            makePacked := false;
+        bits := 48;
+        if (makePacked) then {
+            l3int22z := 48 DIV l3int22z;
+            if (l3int22z = 9) then {
+                l3int22z := 8;
+            } else if (l3int22z = 5) then {
+                l3int22z := 4
+            };
+            perword := l3int22z;
+            pcksize := 48 DIV l3int22z;
+            l3int22z := span * pcksize;
+            if l3int22z mod 48 = 0 then
+                numBits := 0
+            else
+                numBits := 1;
+            size := l3int22z div 48 + numBits;
+            if (size = 1) then
+                bits := l3int22z;
+        } else {
+            size := span * base@.size;
+            curVal.i := base@.size;
+            curVal.m := curVal.m * [7:47] + [0];
+            if (rbase <> integerType) then
+                curVal.m := curVal.m + [1, 3];
+            arrayType@.perword := KMUL+ I8 + getFCSToffset;
+        };
+        pck := makePacked;
+    };
+    makeArrayType := arrayType;
+}; (* makeArrayType *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* parseTypeRef *)
     isPacked := false;
 12247:
@@ -4832,60 +4887,6 @@ var
             cases.count := 0;
             inSymbol;
             parseRecordDecl(curType, true);
-        } else
-        if (SY = ARRAYSY) then {
-            inSymbol;
-            checkSymAndRead(LBRACK);
-            nestedType := parseRange;
-            new(arrayType, kindArray);
-            with arrayType@ do {
-                bits := 48;
-                k := kindArray;
-                aleft := nestedType@.left;
-                aright := nestedType@.right;
-                rbase := nestedType@.base;
-            };
-            curType := arrayType;
-            checkSymAndRead(RBRACK);
-            checkSymAndRead(OFSY);
-            parseTypeRef(nestedType, skipTarget);
-            arrayType@.base := nestedType;
-            if isFileType(nestedType) then
-                error(errTypeMustNotBeFile);
-            with arrayType@ do {
-                span := aright - aleft + 1;
-                l3int22z := base@.bits;
-                if (24 < l3int22z) then
-                    isPacked := false;
-                bits := 48;
-                if (isPacked) then {
-                    l3int22z := 48 DIV l3int22z;
-                    if (l3int22z = 9) then {
-                        l3int22z := 8;
-                    } else if (l3int22z = 5) then {
-                        l3int22z := 4
-                    };
-                    perword := l3int22z;
-                    pcksize := 48 DIV l3int22z;
-                    l3int22z := span * pcksize;
-                    if l3int22z mod 48 = 0 then
-                        numBits := 0
-                    else
-                        numBits := 1;
-                    size := l3int22z div 48 + numBits;
-                    if (size = 1) then
-                        bits := l3int22z;
-                } else {
-                    size := span * base@.size;
-                    curVal.i := base@.size;
-                    curVal.m := curVal.m * [7:47] + [0];
-                    if (rbase <> integerType) then
-                        curVal.m := curVal.m + [1, 3];
-                    arrayType@.perword := KMUL+ I8 + getFCSToffset;
-                };
-                pck := isPacked;
-            };
-            isPacked := false;
         } else if (SY = FILESY) then {
             inSymbol;
             checkSymAndRead(OFSY);
@@ -4911,6 +4912,26 @@ var
             error(errNotAType);
         };
     };
+    tempType := curType;
+    rangeCnt := 0;
+    while (SY = LBRACK) do {
+        inSymbol;
+        nestedType := parseRange;
+        if (rangeCnt = 20) then {
+            error(errVarTooComplex);
+        } else {
+            rangeCnt := rangeCnt + 1;
+            ranges[rangeCnt] := nestedType;
+        };
+        checkSymAndRead(RBRACK);
+    };
+    curType := tempType;
+    for curDim := rangeCnt downto 1 do {
+        curType := makeArrayType(ranges[curDim], curType,
+                                 isPacked and (curDim = 1));
+    };
+    if (rangeCnt <> 0) then
+        isPacked := false;
 13020:
     if (errors) then
         skip(skipToSet + [RPAREN, RBRACK, SEMICOLON, OFSY]);
@@ -8413,7 +8434,7 @@ procedure initOptions;
         66575144C               (*"    VOID"*),
         45566555C               (*"    ENUM"*),
         1212604143534544C       (*"**PACKED"*),
-        4162624171C             (*"   ARRAY"*),
+        0C                      (*"was ARRAY"*),
         636462654364C           (*"  STRUCT"*),
         46515445C               (*"    FILE"*),
         5146C                   (*"      IF"*),

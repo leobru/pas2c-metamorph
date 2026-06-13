@@ -221,7 +221,7 @@ word = struct {
         struct {i: int};
         struct {r: real};
         struct {a: alfa};
-        struct {t: __packed array[8] of textchar};
+        struct {t: __packed textchar[8]};
         struct {c: char};
         struct {cl: idclass};
         struct {tp: tptr};
@@ -281,11 +281,11 @@ types = struct {
     };
 };
 //
-charmap   = __packed array ['\0'..'\176'] of char;
-textmap   = __packed array ['\52'..'\177'] of int:6;
+charmap   = __packed char['\0'..'\176'];
+textmap   = __packed int:6['\52'..'\177'];
 //
-four = array [1..4] of int;
-entries   = array [42] of int;
+four = int[1..4];
+entries   = int[42];
 //
 expr = struct {
     typ:       tptr;
@@ -348,7 +348,7 @@ extfilerec = struct {
     line: int
 };
 NumberFormat = enum {DECIMAL, OCTAL, FULLWORD, HEX};
-hashArray = array [128] of irptr;
+hashArray = irptr[128];
 tok = int:15;
 //
 var
@@ -427,7 +427,7 @@ var
     alfaType: tptr;
     arg1Type: tptr;
     arg2Type: tptr;
-    numLabs: array [1..20] of numLabel;
+    numLabs: numLabel[1..20];
     numLabTop: int;
     curToken: word;
     curVal: word;
@@ -445,44 +445,44 @@ var
     insnList: *insnltyp;
     fileForOutput, fileForInput: *extfilerec;
     maxSmallString: int;
-    smallStringType: array [2..6] of tptr;
+    smallStringType: tptr[2..6];
     symTabCnt: int;
-    symtabarray: array [80] of word;
-    symtbidx: array [80] of int;
-    intOpMap: array [MUL..MINUSOP] of operator;
+    symtabarray: word[80];
+    symtbidx: int[80];
+    intOpMap: operator[MUL..MINUSOP];
     entryPtTable: entries;
-    frameRestore: array [3..6] of four;
-    indexreg: array [1..15] of int;
-    opToInsn: array [SHLEFT..STKLVAL] of int;
-    opToMode: array [SHLEFT..STKLVAL] of int;
-    opFlags: array [SHLEFT..STKLVAL] of opflg;
-    funcInsn: array [24] of int;
+    frameRestore: four[3..6];
+    indexreg: int[1..15];
+    opToInsn: int[SHLEFT..STKLVAL];
+    opToMode: int[SHLEFT..STKLVAL];
+    opFlags: opflg[SHLEFT..STKLVAL];
+    funcInsn: int[24];
     frameRegTemplate: int;
     constRegTemplate: int;
     disNormTemplate: int;
     jb9999: int;
-    lineBuf: array [130] of char;
-    errMap: array [10] of int;
-    chrClass: array ['\200'] of operator;
-    kwordHash: array [128] of *kword;
-    charSym: array ['\200'] of symbol;
+    lineBuf: char[130];
+    errMap: int[10];
+    chrClass: operator['\200'];
+    kwordHash: *kword[128];
+    charSym: symbol['\200'];
     symHash, fieldHash: hashArray;
-    helperMap: array [1..99] of int;
-    helperNames: array [1..99] of int;
-    opPrec: array [SHLEFT..ALTERN] of int;
-    opAssoc: array [SHLEFT..ALTERN] of assoc;
+    helperMap: int[1..99];
+    helperNames: int[1..99];
+    opPrec: int[SHLEFT..ALTERN];
+    opAssoc: assoc[SHLEFT..ALTERN];
 //
-    symTab: array [074000 .. 075500] of int;
-    systemProcNames: array [23] of int;
-    resWordName: array [27] of int;
+    symTab: int[074000 .. 075500];
+    systemProcNames: int[23];
+    resWordName: int[27];
     longSymCnt: int;
-    longSym: array [1..90] of int;
-    longSyms: array [1..90] of int;
-    constVals: array [1..500] of alfa;
-    constNums: array [1..500] of int;
-    objBuffer: array [1..1024] of int;
-    iso2text: array ['\052'..'\177'] of char;
-    text2iso: __packed array ['\0'..'\77'] of char;
+    longSym: int[1..90];
+    longSyms: int[1..90];
+    constVals: alfa[1..500];
+    constNums: int[1..500];
+    objBuffer: int[1..1024];
+    iso2text: char['\052'..'\177'];
+    text2iso: __packed char['\0'..'\77'];
     maxHeap: int;
     fcst: file of int; /* last */
 //
@@ -497,7 +497,7 @@ var
         /*3*/ startOffset:  int;
       /*4-6*/ a0, a1, a4:   *charmap;
         /*7*/ a3:           *textmap;
-     /*8-17*/ sizes:        array [10] of int;
+     /*8-17*/ sizes:        int[10];
        /*18*/ flags:        int;
 };
     paseofcd:alfa;
@@ -512,11 +512,11 @@ void longjmp(jmpbuf, val: int); assembler;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void printErrMsg(errno: int);
 type
-    errtxt = __packed array [101] of textchar;
+    errtxt = __packed textchar[101];
     perrtxt = *errtxt;
 var
     errptr: perrtxt;
-    errtext: array [101] of textchar;
+    errtext: textchar[101];
     i: int;
     c: char;
 //
@@ -992,7 +992,7 @@ var
         arg  -=  curVal.i;
         offset  =  getFCSToffset();
         if (mode == 1)
-            work  =  getHelperProc(68) + (-064200000); /* P/DA */
+            work  =  getHelperProc(68) + (KU1A-KVJM-I13); /* P/DA */
         else
             work  =  -mode;
         curVal.i  =  arg;
@@ -1124,13 +1124,13 @@ void readOptFlag(res: *int);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void inSymbol;
 var
-    localBuf: array [131] of char;
+    localBuf: char[131];
     tokenLen, tokenIdx: int;
     expSign: int;
     chain: irptr;
     expMultiple, expValue: real;
     curChar: char;
-    numstr: array [17] of word;
+    numstr: word[17];
     expLiteral, expMagnitude: int;
     val: int;
     jb1473: int;
@@ -1823,7 +1823,7 @@ var
     i, l4var3z, l4var4z: int;
     l4inl6z, l4inl7z, l4inl8z: oiptr;
     l4var9z: int;
-    insnBuf: array [1..200] of int;
+    insnBuf: int[1..200];
     curInsn: int;
     tempInsn: int;
     l4oi212z: oiptr;
@@ -2760,7 +2760,7 @@ var
     l5var26z, l5var27z: tptr;
     l5ilm28z: ilmode;
     l5var29z: eptr;
-    getEltInsns: array [1..10] of *insnltyp;
+    getEltInsns: *insnltyp[1..10];
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* genGetElt */
@@ -2982,7 +2982,7 @@ void formThunk;
                             form1Insn(KUTM+SP + l5var15z);
                         else
                             form1Insn(0);
-                        form2Insn(getHelperProc(63/*P/B6*/) + (-0500000),
+                        form2Insn(getHelperProc(63/*P/B6*/) + (KVTM-KVJM),
                             allocGlobalObject(l5idr4z) + KUJ);
                         if (l5idr3z != NIL) {
                             do {
@@ -3992,7 +3992,7 @@ var l4exf1z: *extfilerec;
 // No need to do that for integers with zero exponent
         curExpr  =  curExpr->expr1;
     }
-    form1Insn(getHelperProc(70)/*"P/IT"*/ + (-I13-0100000));
+    form1Insn(getHelperProc(70)/*"P/IT"*/ + (KUJ-KVJM-I13));
     padToLeft();
 } /* formFileInit */
 //
@@ -4205,18 +4205,25 @@ type
     pair = struct {
             first, second: int
     };
-    pair7 = array [1..7] of pair;
+    pair7 = pair[1..7];
     caserec = struct {
             size, count: int;
             pairs: pair7;
     };
+    rangeRec = struct {
+            aleft, aright: int;
+            rbase: tptr;
+    };
+    rangeList = rangeRec[1..20];
 var
     isPacked: int;
     cond: int;
     cases: caserec;
-    numBits, l3int22z, span: int;
+    numBits, l3int22z, span, rangeCnt, curDim: int;
     curEnum, curField: irptr;
     arrayType, nestedType, tempType, curType: tptr;
+    ranges: rangeList;
+    curRange: rangeRec;
     l3idr31z: irptr;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4451,6 +4458,56 @@ void parseRange(aleft, aright: *int; rbase: *tptr);
 } /* parseRange */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+tptr makeArrayType(rangeInfo: rangeRec; elementType: tptr; packedFlag: int);
+var
+    makePacked: int;
+{
+    makePacked  =  packedFlag;
+    arrayType = malloc(offsetof(types, szArray));
+    with *arrayType do {
+        bits  =  48;
+        k  =  kindArray;
+        aleft  =  rangeInfo.aleft;
+        aright  =  rangeInfo.aright;
+        rbase  =  rangeInfo.rbase;
+        base  =  elementType;
+    }
+    if (isFileType(elementType))
+        error(errTypeMustNotBeFile);
+    with *arrayType do {
+        span  =  aright - aleft + 1;
+        l3int22z  =  base->bits;
+        if (24 < l3int22z)
+            makePacked  =  false;
+        bits  =  48;
+        if (makePacked) {
+            l3int22z  =  48 / l3int22z;
+            if (l3int22z == 9) {
+                l3int22z  =  8;
+            } else if (l3int22z == 5) {
+                l3int22z  =  4;
+            }
+            perword  =  l3int22z;
+            pcksize  =  48 / l3int22z;
+            l3int22z  =  span * pcksize;
+            numBits  =  (l3int22z % 48 == 0) ? 0 : 1;
+            size  =  l3int22z / 48 + numBits;
+            if (size == 1)
+                bits  =  l3int22z;
+        } else {
+            size  =  span * base->size;
+            curVal.i  =  base->size;
+            curVal.i  =  curVal.i & [7:47] | E48;
+            if (rbase != intType)
+                curVal.i |= [1, 3];
+            arrayType->perword  =  KMUL+ I8 + getFCSToffset();
+        }
+        pck  =  makePacked;
+    }
+    return arrayType;
+} /* makeArrayType */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* parseTypeRef */
     isPacked  =  false;
 12247:
@@ -4578,53 +4635,6 @@ void parseRange(aleft, aright: *int; rbase: *tptr);
             cases.count  =  0;
             inSymbol();
             parseRecordDecl(curType, true);
-        } else if (SY == ARRAYSY) {
-            inSymbol();
-            checkSymAndRead(LBRACK);
-            arrayType = malloc(offsetof(types, szArray));
-            with *arrayType do {
-                bits  =  48;
-                k  =  kindArray;
-                parseRange(&aleft, &aright, &rbase);
-            }
-            curType  =  arrayType;
-            checkSymAndRead(RBRACK);
-            checkSymAndRead(OFSY);
-            nestedType = parseTypeRef(skipTarget);
-            arrayType->base  =  nestedType;
-            if (isFileType(nestedType))
-                error(errTypeMustNotBeFile);
-            with *arrayType do {
-                span  =  aright - aleft + 1;
-                l3int22z  =  base->bits;
-                if (24 < l3int22z)
-                    isPacked  =  false;
-                bits  =  48;
-                if (isPacked) {
-                    l3int22z  =  48 / l3int22z;
-                    if (l3int22z == 9) {
-                        l3int22z  =  8;
-                    } else if (l3int22z == 5) {
-                        l3int22z  =  4;
-                    }
-                    perword  =  l3int22z;
-                    pcksize  =  48 / l3int22z;
-                    l3int22z  =  span * pcksize;
-                    numBits  =  (l3int22z % 48 == 0) ? 0 : 1;
-                    size  =  l3int22z / 48 + numBits;
-                    if (size == 1)
-                        bits  =  l3int22z;
-                } else {
-                    size  =  span * base->size;
-                    curVal.i  =  base->size;
-                    curVal.i  =  curVal.i & [7:47] | E48;
-                    if (rbase != intType)
-                        curVal.i |= [1, 3];
-                    arrayType->perword  =  KMUL+ I8 + getFCSToffset();
-                }
-                pck  =  isPacked;
-            }
-            isPacked  =  false;
         } else if (SY == FILESY) {
             inSymbol();
             checkSymAndRead(OFSY);
@@ -4650,6 +4660,26 @@ void parseRange(aleft, aright: *int; rbase: *tptr);
             error(errNotAType);
         }
     }
+    tempType  =  curType;
+    rangeCnt  =  0;
+    while (SY == LBRACK) {
+        inSymbol();
+        parseRange(&curRange.aleft, &curRange.aright, &curRange.rbase);
+        if (rangeCnt == 20) {
+            error(errVarTooComplex);
+        } else {
+            ++rangeCnt;
+            ranges[rangeCnt]  =  curRange;
+        }
+        checkSymAndRead(RBRACK);
+    }
+    curType  =  tempType;
+    for (curDim = rangeCnt; curDim >= 1; --curDim) {
+        curType  =  makeArrayType(ranges[curDim], curType,
+                                  isPacked && (curDim == 1));
+    }
+    if (rangeCnt != 0)
+        isPacked  =  false;
 13020:
     if (errors)
         skip(skipToSet | [RPAREN, RBRACK, SEMICOLON, OFSY]);
@@ -4716,7 +4746,7 @@ var
         }
         if (l3var3z)
             form2Insn((KVTM+I14) + l3arg1z + ((frame - 3) << 9),
-                      getHelperProc(94 /*"P/NN"*/) - 010000000);
+                      getHelperProc(94 /*"P/NN"*/) - 010000000); // Use I11 instead of I13
         if (1 < l3arg1z) {
             frame  =  getValueOrAllocSymtab(-(frame+l3arg1z));
         }
@@ -4725,7 +4755,7 @@ var
             l3int1z  =  59;  /* P/LV */
         else
             l3int1z  =  curProcNesting;
-        l3int1z  =  getHelperProc(l3int1z) - (-04000000);
+        l3int1z  =  getHelperProc(l3int1z) + 04000000; // Use I14 instead of I13
         if (l3arg1z == 1) {
             form1Insn((KATX+SP) + frame);
         } else if (l3arg1z != 0) {
@@ -6954,7 +6984,7 @@ var
             jj  =  27;    /* C/E */
         else
             jj  =  28;   /* C/EF */
-        form1Insn(getHelperProc(jj) - (KVJM+I13-KUJ));
+        form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
         if (curProcNesting == 1) {
             parseDecls(2);
             if ((E48 >> S3) & optSflags)
@@ -7915,7 +7945,7 @@ var
 void finalize;
 var
     idx, cnt: int;
-    sizes: array [10] of int;
+    sizes: int[10];
 {
     sizes[0]  =  1;
     sizes[1]  =  symTabPos - 074000 - 1;
@@ -8028,11 +8058,11 @@ void initOptions;
         '   CONST',
         '    TYPE',
         '     VAR',
-        'FUNCTION',
+        '        ',             	// was FUNCTION
         '    VOID',
         '    ENUM',
         '**PACKED',
-        '   ARRAY',
+        '        ',             	// was ARRAY
         '  STRUCT',
         '    FILE',
         '      IF',
