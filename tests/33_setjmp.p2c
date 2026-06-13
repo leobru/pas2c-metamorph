@@ -1,5 +1,6 @@
 /*=p-,t-,s8,y+,k9,l0*/
 extern _output_;
+void longjmp(jmpbuf, val: int); assembler;
 //
 var jb: int;
 var n: int;
@@ -7,7 +8,7 @@ var n: int;
 void inner;
 {
     writeln(' inner: about to longjmp');
-    longjmp(jb);
+    longjmp(jb, 1);
     writeln(' inner: unreachable');
 }
 //

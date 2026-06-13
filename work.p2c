@@ -501,9 +501,11 @@ var
        /*18*/ flags:        int;
 };
     paseofcd:alfa;
-
+//
+// %%%%%%%%%%%% Libc functions %%%%%%%%%%%
+//
 int mapai(a:alfa); assembler;
-
+void longjmp(jmpbuf, val: int); assembler;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
@@ -691,7 +693,7 @@ var
     ++lineCnt;
     if (eof(pasinput)) {
         error(errEOFEncountered);
-        longjmp(jb9999);
+        longjmp(jb9999, 1);
     }
 } /* endOfLine */
 //
@@ -1486,8 +1488,8 @@ void lexer;
         case tok('++') >> 32: charClass = INCROP; break;
         case tok('||') >> 32: charClass = OROP; break;
         case tok('&&') >> 32: charClass = ANDOP; break;
-        case tok('/*') >> 32: parseComment(); longjmp(jb1473);
-        case tok('//') >> 32: while (!atEOL) nextCH(); longjmp(jb1473);
+        case tok('/*') >> 32: parseComment(); longjmp(jb1473, 1);
+        case tok('//') >> 32: while (!atEOL) nextCH(); longjmp(jb1473, 1);
         case tok('..') >> 32: SY = COLON; break;
         default:
             if (prevCH == '.' && prevSY == ENDSY)
@@ -1503,7 +1505,7 @@ void lexer;
         if (dataCheck) {
             error(errEOFEncountered);
             readToPos80();
-            longjmp(jb9999);
+            longjmp(jb9999, 1);
         }
 1473:   if(setjmp(jb1473));
         while ((CH == ' ' || CH == '\t') && !atEOL)
@@ -1535,7 +1537,7 @@ var
     if (CH == 'D')
         while ((CH != '\0') && (SY != ENDSY))
             inSymbol();
-    longjmp(jb9999);
+    longjmp(jb9999, 1);
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5002,7 +5004,7 @@ var
                 inSymbol();
                 if (SY != RPAREN) {
                     error(errTooManyArguments);
-                    longjmp(jb8888);
+                    longjmp(jb8888, 1);
                 }
                 curExpr = callExpr;
                 inSymbol();
@@ -5012,7 +5014,7 @@ var
         do {
             if (noArgs && subroutine == curFormal) {
                 error(errTooManyArguments);
-                longjmp(jb8888);
+                longjmp(jb8888, 1);
             }
             inCallArgs  =  true;
             expression();
@@ -5254,7 +5256,7 @@ var
     stProcNo  =  routine->low;
     if (SY != LPAREN) {
         requiredSymErr(LPAREN);
-        longjmp(jb8888);
+        longjmp(jb8888, 1);
     }
     if (stProcNo IN [fnSIZEOF, fnOFFSETOF]) {
         lookupMode = lookUse;
@@ -5422,7 +5424,7 @@ var
                 curExpr = malloc(sizeof(expr));
                 if (! (SY IN [RPAREN, COMMA])) {
                     error(errNoCommaOrParenOrTooFewArgs);
-                    longjmp(jb8888);
+                    longjmp(jb8888, 1);
                 }
                 with *curExpr do {
                     typ  =  routine->typ;
@@ -5510,7 +5512,7 @@ var
     }; /* LBRACK */
     default:
         error(errBadSymbol);
-        longjmp(jb8888);
+        longjmp(jb8888, 1);
     } /* switch */
     /* Any factor producing an rvalue/lvalue may be followed by postfix
        operators (->field for ptr-to-struct deref+select, .field for struct member,
@@ -5913,7 +5915,7 @@ var
         curLab  =  curLab->next;
     }
     error(errNotDefined);
-    longjmp(jb8888);
+    longjmp(jb8888, 1);
 } /* structBranch */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6629,14 +6631,6 @@ var
             error(errNeedOtherTypesOfOperands);
         form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
         return;
-    case 15: /* longjmp(jmpbuf) - inline non-local goto via P/RC */
-        if (arg1Type != intType)
-            error(errNeedOtherTypesOfOperands);
-        formOperator(LOAD);             /* KXTA jmpbuf -> ACC = packed */
-        form1Insn(KXTS + E1);           /* send 1 */
-        form1Insn(getHelperProc(18)     /* C/RC, tail-jump (UJ) form */
-                  + (KUJ-KVJM-I13));
-        break;
     case 16: /* besm */
         expression();
         formOperator(LITINSN);
@@ -6670,7 +6664,7 @@ var
         checkSymAndRead(COMMA);
         checkArrayArg();
         doPackUnpack();
-    case 4: case 13: case 17: // unused, listed for completeness
+    case 4: case 13: case 15: case 17: // unused, listed for completeness
     }
     if (procNo in [0,1,2,3,5,10,11,13,21,22])
         arithMode  =  1;
@@ -8282,7 +8276,7 @@ void initOptions;
         '    CTOR',
         '        ',  // was READLN
         '  RETURN',
-        ' LONGJMP',
+        '        ',
         '    BESM',
         '        ',  // was MAPIA, unused
         '        ',  // was MAPAI, unused

@@ -1,7 +1,9 @@
- c/rc    :      , name,
-                , ntr , 3
+ longjmp:       , name,
+                , ntr , 7
             12  , base, area
-                , stx , ret
+                , u1a , nonzero
+             1  , xta , 8   
+ nonzero :      , stx , ret
                 , atx , dest
                 , asn , 64+15
                 , atx , frame

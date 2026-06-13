@@ -6953,14 +6953,6 @@ var
         form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
         exit
     };
-    15: { (* longjmp(jmpbuf) - inline non-local goto via C/RC *)
-        if (arg1Type <> integerType) then
-            error(errNeedOtherTypesOfOperands);
-        formOperator(LOAD);             (* KXTA jmpbuf -> ACC = packed *)
-        form1Insn(KXTS + E1);           (* send 1 to C/RC *)
-        form1Insn(getHelperProc(18)     (* C/RC, tail-jump (UJ) form *)
-                  + (KUJ-KVJM-I13));
-    };
     16: { (* besm *)
         expression;
         formOperator(LITINSN);
@@ -8664,7 +8656,7 @@ procedure initOptions;
         43645762C              (*"    CTOR"*),
         0C                     (*"  READLN"*),
         624564656256C          (*"  RETURN"*),
-        54575647525560C        (*" LONGJMP"*),
+        0C                     (*"was LONGJMP"*),
         42456355C              (*"    BESM"*),
         0C                     (*"   MAPIA"*),
         0C                     (*"   MAPAI"*),
