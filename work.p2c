@@ -154,7 +154,8 @@ const
     lookUse = 1;
     lookWith = 2;
     lookField = 3;
-
+//
+    BACKSLASH = '\35'; // deliberately not \\
 type
     symbol = enum {
 /*0B*/  IDENT,      INTCONST,   REALCONST,  CHARCONST,
@@ -280,8 +281,8 @@ types = struct {
     };
 };
 //
-charmap   = __packed array ['\000'..'\176'] of char;
-textmap   = __packed array ['\052'..'\177'] of int:6;
+charmap   = __packed array ['\0'..'\176'] of char;
+textmap   = __packed array ['\52'..'\177'] of int:6;
 //
 four = array [1..4] of int;
 entries   = array [42] of int;
@@ -481,7 +482,7 @@ var
     constNums: array [1..500] of int;
     objBuffer: array [1..1024] of int;
     iso2text: array ['\052'..'\177'] of char;
-    text2iso: __packed array ['\000'..'\077'] of char;
+    text2iso: __packed array ['\0'..'\77'] of char;
     maxHeap: int;
     fcst: file of int; /* last */
 //
@@ -1081,7 +1082,7 @@ void readOptFlag(res: *int);
             curVal.i = readOptVal(15);
             optSflags  =  optSflags & [0..40] | curVal.i & [41..47];
             break;
-        case 'Y': readOptFlag(&allowCompat); break;
+        case 'Y': readOptFlag(&allowCompat); break; // just for LINES STRUCTURE
         case 'E': readOptFlag(&declEntry); break;
         case 'S':
             curVal.i = readOptVal(8);
@@ -1134,49 +1135,64 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void doCharConst(lim:char);
+// Set of characters that are not themselves after \
+// 0123 4567 89:; <=>? @ABC DEFG HIJK LMNO PQRS TUVW XYZ
+// ++++ ++++            ++    +         +    +  + +
+//             11 1111 1111 2222 2222 2233 3333 3333 4444 4444
+//             01 2345 6789 0123 4567 8901 2345 6789 0123 4567
+const escSet = 0xFF0062022A00;
+escMap = 007101412151113;
 {
-                    for (tokenIdx = 6; tokenIdx <= 130; ++tokenIdx) {
-                        nextCH();
-                        if (CH == lim) {
+   for (tokenIdx = 6; tokenIdx <= 130; ++tokenIdx) {
+       nextCH();
+       if (CH == lim) {
+           nextCH();
+           return;
+       }
+       if (atEOL) {
+2175:      error(59); /* errEOLNInStringLiteral */
+            return;
+        } else if (CH == BACKSLASH) {
+            nextCH();
+            if (CH-'0' IN escSet) {
+                if (CH <= '7') {
+                    expLiteral  =  0;
+                    tokenLen  =  0;
+                    do {
+                        expLiteral  =  8*expLiteral + CH - '0';
+                        ++tokenLen;
+                        if ((tokenLen < 3) &&
+                            ('0' <= *PASINPUT) && (*PASINPUT <= '7'))
                             nextCH();
-                            if (CH != lim)
-                                return;
-                            else
-                                goto 2233;
-                        }
-                        if (atEOL) {
-2175:                       error(59); /* errEOLNInStringLiteral */
-                            return;
-                        } else if ((CH == '\035')
-                               && (charSym[*PASINPUT] == INTCONST))
-                         {
-                            expLiteral  =  0;
-                            for (tokenLen = 1; tokenLen <= 3; ++tokenLen) {
-                                nextCH();
-                                if ('7' < CH) {
-                                  error(errFirstDigitInCharLiteralGreaterThan3);
-                                }
-                                expLiteral  =  8*expLiteral + CH - '0';
-                            }
-                            if (255 < expLiteral) {
-                                error(errFirstDigitInCharLiteralGreaterThan3);
-                            }
-                            localBuf[tokenIdx]  =  expLiteral;
-                        } else
-2233:                       with PASINFOR do {
-                                if (charEncoding == 3) {
-                                    if (ch < '*' || '\176' < CH)
-                                        curChar  =  '\000';
-                                    else {
-                                        curChar  =  iso2text[CH];
-                                    }
-                                } else {
-                                    curChar  =  CH;
-                                }
-                                localBuf[tokenIdx]  =  curChar;
-                            }
+                        else
+                            break;
+                    } while (true);
+                    if (255 < expLiteral) {
+                        error(errFirstDigitInCharLiteralGreaterThan3);
                     }
-                    goto 2175
+                    localBuf[tokenIdx]  =  expLiteral;
+                } else {
+                    val = card(escSet << (CH-'0')) - 1;
+                    localBuf[tokenIdx]  =  (escMap >> (6*val)) & 077;
+                }
+            } else {
+                goto 2233;
+            }
+        } else
+2233:       with PASINFOR do {
+                if (charEncoding == 3) {
+                    if (ch < '*' || '\176' < CH)
+                        curChar  =  '\0';
+                    else {
+                        curChar  =  iso2text[CH];
+                    }
+                } else {
+                    curChar  =  CH;
+                }
+                localBuf[tokenIdx]  =  curChar;
+            }
+    }
+    goto 2175
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1490,7 +1506,7 @@ void lexer;
             longjmp(jb9999);
         }
 1473:   if(setjmp(jb1473));
-        while ((CH == ' ' || CH == '\011') && !atEOL)
+        while ((CH == ' ' || CH == '\t') && !atEOL)
             nextCH();
         if (atEOL) {
             endOfLine();
@@ -1512,12 +1528,12 @@ var
     sym: symbol;
 {
     sym  =  SY;
-    while ((CH != '\000') && ((sym != ENDSY) || (SY != PERIOD))) {
+    while ((CH != '\0') && ((sym != ENDSY) || (SY != PERIOD))) {
         sym  =  SY;
         inSymbol();
     }
     if (CH == 'D')
-        while ((CH != '\000') && (SY != ENDSY))
+        while ((CH != '\0') && (SY != ENDSY))
             inSymbol();
     longjmp(jb9999);
 }
@@ -6907,9 +6923,9 @@ var
     do {
         statement();
         if (curProcNesting == 1)
-            l2bool8z = (SY == PERIOD) || (CH == '\000');
+            l2bool8z = (SY == PERIOD) || (CH == '\0');
         else
-            l2bool8z = (SY IN blockBegSys) || (CH == '\000') ||
+            l2bool8z = (SY IN blockBegSys) || (CH == '\0') ||
                        ((SY == IDENT) && (hashTravPtr != NIL) &&
                         (hashTravPtr->cl == TYPEID));
         if (! l2bool8z) {
@@ -7233,7 +7249,7 @@ void defExtern;
     l3var6z  =  40;
     do {
         programme(&l3var6z, programObj);
-    } while ((SY != PERIOD) && (CH != '\000'));
+    } while ((SY != PERIOD) && (CH != '\0'));
     if (CH != 'D') {
         lookup2  =
         lookupMode  =  lookDef;
@@ -7734,7 +7750,7 @@ void exitScope(a: int);
             do {
                 setup(scopeBound);
                 programme(&l2int18z, curIdRec);
-                if (CH == '\000')
+                if (CH == '\0')
                     break;
                 /* A type-ident also opens a new C-style routine decl. */
                 if (! (SY IN [VOIDSY,BEGINSY]) &&
@@ -7761,7 +7777,7 @@ void exitScope(a: int);
         curFrameRegTemplate -= indexreg[1];
         --curProcNesting;
     }
-    if (CH == '\000')
+    if (CH == '\0')
         return;
     if ((SY != BEGINSY) &&
        (! allowCompat || ! (SY IN blockBegSys)))
@@ -8060,7 +8076,7 @@ void initOptions;
     intOpMap[MUL] = IMULOP,IDIVOP;
     intOpMap[IMODOP] = IMODOP,INTPLUS,INTMINUS;
     frameRestore = 0:16;
-    charSym['''']  =  CHARCONST;
+    charSym['\'']  =  CHARCONST;
     charSym['"']  =  CHARCONST;
     charSym['_']  =  IDENT;
     charSym['<']  =  EXPROP;

@@ -133,6 +133,8 @@ const
    lookWith = 2;
    lookField = 3;
 %
+   BACKSLASH = '\035';
+%
 type
     assoc = (leftAs, rightAs);
 %
@@ -1229,7 +1231,7 @@ procedure readOptFlag(var res: boolean);
             readOptVal(curVal.i, 15);
             optSflags.m := optSflags.m * [0..40] + curVal.m * [41..47];
         };
-        'Y': readOptFlag(allowCompat);
+        'Y': readOptFlag(allowCompat); (* just for LINES STRUCTURE *)
         'E': readOptFlag(declEntry);
         'S': {
             readOptVal(curVal.i, 8);
@@ -1264,6 +1266,19 @@ procedure readOptFlag(var res: boolean);
     until CH = '/';
     nextCH;
 }; (* parseComment *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function shift(s: bitset; amt: integer): bitset;
+var res : bitset; cur: integer;
+{
+res := [];
+repeat
+cur := minel(s);
+s := s - [cur];
+res := res + [cur+amt]
+until s = [];
+shift := res;
+};
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure lexer;
@@ -1509,30 +1524,45 @@ done := false;
                         nextCH;
                         if charSym[CH] = CHARCONST then {
                             nextCH;
-                            if charSym[CH] <> CHARCONST then
-                                exit loop
-                            else
-                                goto 2233;
+                            exit loop;
                         };
-                        if atEOL then {
-2175:                       error(59); (* errEOLNInStringLiteral *)
-                            exit loop
-                        } else if (CH = '_035')
-                               and (charSym[PASINPUT@] = INTCONST)
-                        then {
-                            expLiteral := 0;
-                            for tokenLen to 3 do {
-                                nextCH;
-                                if '7' < CH then
-                                    error(
-                                        errFirstDigitInCharLiteralGreaterThan3
-                                    );
-                                expLiteral := 8*expLiteral + ord(CH) - 48;
-                            };
-                            if 255 < expLiteral then
-                                error(errFirstDigitInCharLiteralGreaterThan3);
-                            localBuf[tokenIdx] := chr(expLiteral);
-                        } else
+            if atEOL then {
+2175:           error(59); (* errEOLNInStringLiteral *)
+                exit loop
+            } else if CH = BACKSLASH then {
+                curToken.m := [0..7,17,18,22,30,34,36,38]; (* escSet *)
+                nextCH;
+                if ord(CH) - ord('0') IN curToken.m then {
+                    if (CH <= '7') then {
+                        expLiteral  :=  0;
+                        tokenLen  :=  0;
+(octal)                 repeat
+                            expLiteral := 8*expLiteral + ord(CH) - ord('0');
+                            tokenLen := tokenLen + 1;
+                            if ((tokenLen < 3) and
+                                ('0' <= PASINPUT@) and (PASINPUT@ <= '7')) then
+                                nextCH
+                            else
+                                exit octal;
+                        until false;
+                        if (255 < expLiteral) then
+                            error(errFirstDigitInCharLiteralGreaterThan3);
+                        localBuf[tokenIdx] := chr(expLiteral);
+                    } else {
+                           writeln(' set ', curtoken.m oct);
+                        curVal.m := shift(curToken.m, -ord(CH)+ord('0'));
+                           writeln(' after shift ', curval.m oct);
+                        curVal.i := card(curVal.m) - 1;
+                           writeln(' char num ', curval.i:0);
+                        curToken.i := 007101412151113C; (* escMap *)
+                        curVal.m := shift(curToken.m, 6*curVal.i);
+                        curVal.m := curVal.m * [42..47];
+                       localBuf[tokenIdx]  :=  curVal.c;
+                    }
+                } else {
+                    goto 2233;
+                }
+            } else
 2233:                       with PASINFOR do {
                                 if charEncoding = 3 then {
                                     if (ch < '*') or ('_176' < CH) then
@@ -8105,8 +8135,7 @@ procedure exitScope(var arg: hashArray);
         curProcNesting := curProcNesting - 1;
     };
     if CH = '_000' then exit;
-    if (SY <> BEGINSY) and
-       (not allowCompat or not (SY IN blockBegSys)) then
+    if not (SY IN blockBegSys) then
         errAndSkip(84 (* errErrorInDeclarations *), skipToSet);
     until SY in statBegSys;
     if (preDefHead <> ptr(0)) then {

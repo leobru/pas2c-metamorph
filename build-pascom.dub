@@ -104,14 +104,6 @@
  *0054В  :  , LОG ,2
  *0055В  :  , LОG ,52
             , ЕND ,
- PASDIV:,NAME,
- ,NTR,3
- ,UTC,=:4
- ,A+X,
- 1,ARX,10B
- 15,ATX,3
- 13,UJ,
- ,END,
  PASMITXT:,NAME,
  15,ATX,
  1,AAX,10B
