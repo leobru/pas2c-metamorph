@@ -35,3 +35,4 @@ test_results/
 !work.p2c
 !base.pas
 !build_pascom.dub
+!tests/*.p2c

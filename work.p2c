@@ -208,12 +208,18 @@ opflg = enum {
 kind = enum {
     kindReal, kindScalar, kindPtr,
     kindArray, kindStruct, kindFile,
-    kindCases
+    kindCases, kindRoutine
 };
 //
 eptr = *expr;
 tptr = *types;
 irptr = *identrec;
+sigptr = *sigrec;
+sigrec = struct {
+    pclass: idclass;
+    ptyp: tptr;
+    next: sigptr
+};
 //
 textchar = int:6;
 word = struct {
@@ -278,6 +284,10 @@ types = struct {
                 first,
                 next:      tptr;
                 alt:       tptr; szCases: int};
+        struct {rresult:   tptr;
+                rparams:   sigptr;
+                rargc:     int;
+                rflags:    int; szRtype: int};
     };
 };
 //
@@ -335,7 +345,8 @@ identrec = struct {
         struct {low, high: int;
                 argList, preDefLink: irptr;
                 level, pos: int;
-                flags: int; szRoutine: int};
+                flags: int;
+                sigtyp: tptr; szRoutine: int};
         struct {sysnum: int; szSys: int};
     };
 };
@@ -1693,9 +1704,47 @@ var
         while (it != p) {
             ++i;
             it  =  it->list;
-        }
+    }
     return i;
 } /* argCount */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+tptr makeRoutineType(routine: irptr);
+var
+    resultTyp: tptr;
+    srcParam: irptr;
+    newParam, lastParam: sigptr;
+{
+    resultTyp = malloc(offsetof(types, szRtype));
+    with *resultTyp do {
+        size  =  1;
+        bits  =  15;
+        k  =  kindRoutine;
+        rresult  =  routine->typ;
+        rparams  =  NIL;
+        rargc  =  0;
+        rflags  =  routine->flags;
+    }
+    lastParam  =  NIL;
+    srcParam  =  routine->argList;
+    if (srcParam != NIL)
+        while (srcParam != routine) {
+            newParam = malloc(sizeof(sigrec));
+            with *newParam do {
+                pclass  =  srcParam->cl;
+                ptyp  =  srcParam->typ;
+                next  =  NIL;
+            }
+            if (lastParam == NIL)
+                resultTyp->rparams  =  newParam;
+            else
+                lastParam->next  =  newParam;
+            ++resultTyp->rargc;
+            lastParam  =  newParam;
+            srcParam  =  srcParam->list;
+        }
+    return resultTyp;
+} /* makeRoutineType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int leftAlign(val:int);
@@ -1756,6 +1805,39 @@ var
     kind1, kind2: kind;
     enums1, enums2: irptr;
     span1, span2: int;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int sameRoutineType(type1, type2: tptr);
+var
+    p1, p2: sigptr;
+{
+    if (type1->rargc != type2->rargc ||
+        ((type1->rflags & [20,21,24,26]) !=
+         (type2->rflags & [20,21,24,26]))) {
+        return false;
+    }
+    if (type1->rresult != type2->rresult &&
+        (type1->rresult == NIL || type2->rresult == NIL ||
+         ! typeCheck(type1->rresult, type2->rresult))) {
+        return false;
+    }
+    p1  =  type1->rparams;
+    p2  =  type2->rparams;
+    while (p1 != NIL && p2 != NIL) {
+        if (p1->pclass != p2->pclass)
+            return false;
+        if (p1->ptyp != p2->ptyp &&
+            (p1->ptyp == NIL || p2->ptyp == NIL ||
+             ! typeCheck(p1->ptyp, p2->ptyp))) {
+            return false;
+        }
+        p1  =  p1->next;
+        p2  =  p2->next;
+    }
+    return p1 == NIL && p2 == NIL;
+} /* sameRoutineType */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* typeCheck */
     rangeMismatch  =  false;
     if (!checkTypes || type1 == type2)
@@ -1796,6 +1878,10 @@ var
                     break;
                 case kindFile:
                     if (typeCheck(type1->base, type2->base))
+                        goto 1;
+                    break;
+                case kindRoutine:
+                    if (sameRoutineType(type1, type2))
                         goto 1;
                     break;
                 } /* switch */
@@ -7184,6 +7270,7 @@ void defExtern;
         argList  =  NIL;
         preDefLink  =  NIL;
         pos  =  0;
+        sigtyp  =  NIL;
     }
     temptype  =  NIL;
     sysProcNum  =  0;
@@ -7240,6 +7327,7 @@ void defExtern;
     moduleOffset  =  040001;
     programObj->argList  =  NIL;
     programObj->flags  =  0U;
+    programObj->sigtyp  =  NIL;
     objBufIdx  =  1;
     lookupMode  =  lookDef;
     outputObjFile();
@@ -7692,6 +7780,7 @@ void exitScope(a: int);
                 value  =  0;
                 argList  =  NIL;
                 preDefLink  =  NIL;
+                sigtyp  =  NIL;
                 flags  =  declEntry ? [0:15,22] : [0:15];
                 pos  =  0;
                 curFrameRegTemplate += frameRegTemplate;
@@ -7756,6 +7845,7 @@ void exitScope(a: int);
             level  =  l2int18z;
             preDefLink  =  preDefHead;
             preDefHead  =  curIdRec;
+            sigtyp  =  makeRoutineType(curIdRec);
         } else if ((SY == EXTERNSY) ||
             (curIdent == litFortran) ||
             (curIdent == litAssembler)) {
@@ -7770,6 +7860,7 @@ void exitScope(a: int);
                 curVal.i  =  [21];
             }
             curIdRec->flags  =  curIdRec->flags | curVal.i;
+            curIdRec->sigtyp  =  makeRoutineType(curIdRec);
         } else {
             do {
                 setup(scopeBound);
@@ -7784,6 +7875,7 @@ void exitScope(a: int);
             } while (! (SY IN [VOIDSY,BEGINSY]) &&
                      ! ((SY == IDENT) && (hashTravPtr != NIL) &&
                         (hashTravPtr->cl == TYPEID)));
+            curIdRec->sigtyp  =  makeRoutineType(curIdRec);
             myrollup(int(scopeBound));
             exitScope(0);
             exitScope(1);

@@ -198,7 +198,7 @@ opflg = (
 kind = (
     kindReal, kindScalar, kindRange, kindPtr,
     kindArray, kindStruct, kindFile,
-    kindCases
+    kindCases, kindRoutine
 );
 %
 bitset = set of 0..47;
@@ -206,6 +206,12 @@ bitset = set of 0..47;
 eptr = @expr;
 tptr = @types;
 irptr = @identrec;
+sigptr = @sigrec;
+sigrec = record
+    pclass: idclass;
+    ptyp: tptr;
+    next: sigptr
+end;
 %
 word = record case integer of
     0: (i: integer);
@@ -268,7 +274,11 @@ types = record
     kindCases:  (unusedButNeeded:       word;
                  first,
                  next:      tptr;
-                 alt:       tptr)
+                 alt:       tptr);
+    kindRoutine:(rresult:   tptr;
+                 rparams:   sigptr;
+                 rargc:     integer;
+                 rflags:    bitset)
     end;
 %
 charmap   = packed array ['_000'..'_176'] of char;
@@ -331,7 +341,8 @@ identrec = record
              high: word;
              argList, preDefLink: irptr;
              level, pos: integer;
-             flags: bitset
+             flags: bitset;
+             sigtyp: tptr
             );
 end;
 hashArray = array [0..127] of irptr;
@@ -1866,6 +1877,44 @@ var
     kind1, kind2: kind;
     enums1, enums2: irptr;
     span1, span2: integer;
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function sameRoutineType(type1, type2: tptr): boolean;
+var
+    p1, p2: sigptr;
+{
+    if (type1@.rargc <> type2@.rargc) or
+       ((type1@.rflags * [20,21,24,26]) <>
+        (type2@.rflags * [20,21,24,26])) then {
+        sameRoutineType := false;
+        exit;
+    };
+    if (type1@.rresult <> type2@.rresult) and
+       ((type1@.rresult = NIL) or (type2@.rresult = NIL) or
+        not typeCheck(type1@.rresult, type2@.rresult)) then {
+        sameRoutineType := false;
+        exit;
+    };
+    p1 := type1@.rparams;
+    p2 := type2@.rparams;
+    while (p1 <> NIL) and (p2 <> NIL) do {
+        if (p1@.pclass <> p2@.pclass) then {
+            sameRoutineType := false;
+            exit;
+        };
+        if (p1@.ptyp <> p2@.ptyp) and
+           ((p1@.ptyp = NIL) or (p2@.ptyp = NIL) or
+            not typeCheck(p1@.ptyp, p2@.ptyp)) then {
+            sameRoutineType := false;
+            exit;
+        };
+        p1 := p1@.next;
+        p2 := p2@.next;
+    };
+    sameRoutineType := (p1 = NIL) and (p2 = NIL);
+}; (* sameRoutineType *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* typeCheck *)
     rangeMismatch := false;
     if not checkTypes or (type1 = type2) then
@@ -1907,6 +1956,10 @@ var
                 kindFile: {
                     if typeCheck(type1@.base, type2@.base) then
                         goto 1;
+                };
+                kindRoutine: {
+                    if sameRoutineType(type1, type2) then
+                        goto 1;
                 }
                 end (* case *)
             };
@@ -1929,6 +1982,44 @@ var
         };
     argCount := l3var1z;
 }; (* argCount *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function makeRoutineType(routine: irptr): tptr;
+var
+    resultTyp: tptr;
+    srcParam: irptr;
+    newParam, lastParam: sigptr;
+{
+    new(resultTyp, kindRoutine);
+    with resultTyp@ do {
+        size := 1;
+        bits := 15;
+        k := kindRoutine;
+        rresult := routine@.typ;
+        rparams := NIL;
+        rargc := 0;
+        rflags := routine@.flags;
+    };
+    lastParam := NIL;
+    srcParam := routine@.argList;
+    if (srcParam <> NIL) then
+        while (srcParam <> routine) do {
+            new(newParam);
+            with newParam@ do {
+                pclass := srcParam@.cl;
+                ptyp := srcParam@.typ;
+                next := NIL;
+            };
+            if (lastParam = NIL) then
+                resultTyp@.rparams := newParam
+            else
+                lastParam@.next := newParam;
+            resultTyp@.rargc := resultTyp@.rargc + 1;
+            lastParam := newParam;
+            srcParam := srcParam@.list;
+        };
+    makeRoutineType := resultTyp;
+}; (* makeRoutineType *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function leftAlign: bitset;
@@ -7506,13 +7597,14 @@ var l : integer;
         op := GETVAR;
         id1 := curIdRec;
     };
-    new(uProcPtr, 12);
+    new(uProcPtr, 13);
     with uProcPtr@ do {
         typ := NIL;
         list := NIL;
         argList := NIL;
         preDefLink := NIL;
         pos := 0;
+        sigtyp := NIL;
     };
     temptype := NIL;
     sysProcNum := 0;
@@ -7551,7 +7643,7 @@ var l : integer;
     regSysProc(606462C(*"     PTR"*));
     l3var11z.i := 30;
     l3var11z.m := l3var11z.m * halfWord + [24,27,28,29];
-    new(programObj, 12);
+    new(programObj, 13);
     outName.i := 1257656460656412C(*"*OUTPUT*"*);
     inName.i := 12515660656412C(*" *INPUT*"*);
     symTabPos := 74004B;
@@ -7571,6 +7663,7 @@ var l : integer;
     moduleOffset := 40001B;
     programObj@.argList := NIL;
     programObj@.flags := [];
+    programObj@.sigtyp := NIL;
     objBufIdx := 1;
     lookupMode := lookDef;
     outputObjFile;
@@ -8020,7 +8113,7 @@ procedure exitScope(var arg: hashArray);
                 isPredefined := false;
         };
         if not isPredefined then {
-            new(curIdRec, 12);
+            new(curIdRec, 13);
             with curIdRec@ do {
                 id := curIdent;
                 offset := curFrameRegTemplate;
@@ -8032,6 +8125,7 @@ procedure exitScope(var arg: hashArray);
                 value := 0;
                 argList := NIL;
                 preDefLink := NIL;
+                sigtyp := NIL;
                 if (declEntry) then
                     flags := [0:15,22]
                 else
@@ -8102,6 +8196,7 @@ procedure exitScope(var arg: hashArray);
             level := l2int18z;
             preDefLink := preDefHead;
             preDefHead := curIdRec;
+            sigtyp := makeRoutineType(curIdRec);
         } else  if (SY = EXTERNSY) or
             (curIdent = litFortran) or
             (curIdent = litAssembler) then {
@@ -8116,6 +8211,7 @@ procedure exitScope(var arg: hashArray);
                 curVal.m := [21];
             };
             curIdRec@.flags := curIdRec@.flags + curVal.m;
+            curIdRec@.sigtyp := makeRoutineType(curIdRec);
         } else  {
             (loop) repeat
                 setup(scopeBound);
@@ -8129,6 +8225,7 @@ procedure exitScope(var arg: hashArray);
             until (SY IN [VOIDSY,BEGINSY]) or
                   ((SY = IDENT) and (hashTravPtr <> NIL) and
                    (hashTravPtr@.cl = TYPEID));
+            curIdRec@.sigtyp := makeRoutineType(curIdRec);
             myrollup(ord(scopeBound));
             exitScope(symHash);
             exitScope(fieldHash);

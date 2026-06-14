@@ -1,0 +1,29 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+type intptr = *int;
+var g: int;
+//
+void ping;
+{
+    writeln('PING');
+}
+//
+int add(a, b: int);
+{
+    return a + b;
+}
+//
+void addto(p: intptr; delta: int);
+{
+    *p = *p + delta;
+}
+//
+{
+    g = 10;
+    ping();
+    writeln('ADD=', add(2, 3):0);
+    addto(&g, 7);
+    writeln('G=', g:0);
+}
+.
