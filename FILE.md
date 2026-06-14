@@ -126,17 +126,43 @@ and `OPENIN`. `READ*` is **not** a disk primitive: it reads a single stdin line
 - Original purpose of `[28]`/`[29]` — possibly reserved for an extension never
   used by the released runtime.
 
-## Decimal offsets of useful global constants accessed via M1:
+## The M1 block (`P/1D`)
 
-    ASCII '0' - 7
-    1U        - 8
-    integer exponent, bits [0,1,3] - 9
-    multiplication mask - 10
-    positive mantissa, bits [7..47] - 12
-    minus 1 for AVX - 15
-    77777U - 16
-    real 1.0- 17
-    real 0.5 - 19
-    all one bits, ~0U - 20
-    MSB, bit [0] - 21
-    heap pointer - 23
+`M1` points at the runtime block `P/1D` (declared in `p_bx.asm`, `,LC,40` =
+32 words, offsets 0..31 decimal). Offsets 6..22 are read-only **constants**
+seeded at load time from the static image in `p_bx.asm` (image word *k* lands
+at `[M1+6+k]`); the rest are runtime **variables** — frame/divide scratch and
+the heap / disk-allocator state. Offsets are shown in decimal and octal.
+
+| Dec | Oct | Contents | Kind / set by |
+|----:|----:|----------|---------------|
+| 0–2 | 0–2 | frame setup / link scratch (`[1]` = P/EN save-tail addr) | variable (P/BX, P/EN) |
+| 3   | 3   | scratch: FCST literal, drum descriptor, divide operand | variable (scratch) |
+| 4   | 4   | scratch | variable (scratch) |
+| 5   | 5   | scratch | variable (scratch) |
+| 6   | 6   | `0` (first word of the constant image) | constant |
+| 7   | 7   | `000000` — six `'0'` chars (number-format fill) | constant |
+| 8   | 10  | `1U` (the 1-bit unit for `ARX`/`AOX`/`AEX`) | constant |
+| 9   | 11  | integer exponent / tag mask (bits 0,1,3) | constant |
+| 10  | 12  | multiplication mask | constant |
+| 11  | 13  | MAXREAL (all ones without the sign bit) | constant |
+| 12  | 14  | positive-mantissa mask (bits 7..47) | constant |
+| 13  | 15  | real `1.0e-6` | constant |
+| 14  | 16  | real `1.0` | constant |
+| 15  | 17  | minus 1 (for `AVX`) | constant |
+| 16  | 20  | `77777B` (15-bit address mask) | constant |
+| 17  | 21  | integer `1` | constant |
+| 18  | 22  | chars `\0\7\7\7\7\7` | constant |
+| 19  | 23  | real `0.5` | constant |
+| 20  | 24  | all-ones (`~0U`) | constant |
+| 21  | 25  | MSB, bit 48 | constant |
+| 22  | 26  | mantissa without the 6 low bits | constant |
+| 23  | 27  | **HEAPPTR** — heap bump pointer | variable (load-init `0o76000`; `P/GD` sets = SP) |
+| 24  | 30  | **HEAPLIM** — heap overflow sentinel (`~SP`) | variable (`P/GD`) |
+| 25  | 31  | **FREELST** — heap free-list head | variable (`P/NW`/`P/DS`) |
+| 26  | 32  | **HEAPBSE** — heap base | variable (saved by `P/GD`) |
+| 29  | 35  | packed-output cursor cache | variable (scratch, `FLUSHBUF`) |
+| 30  | 36  | packed-output working pointer | variable (scratch, `FLUSHBUF`) |
+| 31  | 37  | disk track free-list head | variable (built by `P/TRPAGE`; used by `GETTRACK`/`ZONEIO`) |
+
+Offsets 27–28 (oct 33–34) are not referenced by the runtime.

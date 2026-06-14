@@ -30,6 +30,7 @@ test_results/
 *.p2c
 *.pas
 *.dub
+*.dtran
 
 # But not the main ones
 !work.p2c
