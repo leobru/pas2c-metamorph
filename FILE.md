@@ -3,16 +3,16 @@
 Layout of the per-file control block reached via index register **M12** by the
 runtime helpers (`P/CO`, `P/IT`, `P/GF`, `P/PF`, `P/TF`, `P/RF`, `P/WL`,
 `P/WOLN`). All offsets below are in **decimal**; the parallel octal column shows
-the literal that appears in `p_sys.dtran` (`12, ATX ,nnB`).
+the literal that appears in `p_sys.asm` (`12, ATX ,nnB`).
 
 | Off | Oct | Use                                       | Set by / Used by |
 |----:|----:|-------------------------------------------|------------------|
 |  0  |  0  | `f^` pointer / packed bit position        | P/CO init = SP; P/GF/P/PF read, OR with [17], store back, compare to [1] |
 |  1  |  1  | End-of-window sentinel (limit for [0])    | P/CO init = SP+6; compared via `12, AEX ,1` to detect buffer exhaustion |
 |  2  |  2  | "f^ valid / pending" flag (destination addr) | P/CO clears; P/PF errors if 0 (nothing to put); P/GF errors if non-0 (read already pending); P/GF success path sets it to caller's destination |
-|  3  |  3  | Mode/state byte (cleared in P/CO low path)| `1, ATX ,3` early in P/CO; conditionally zeroed at *0141B |
+|  3  |  3  | Mode/state byte; in the disk subsystem also the file's track-table descriptor / current track id | `1, ATX ,3` early in P/CO; set to a track id by GETTRACK / CLOSEWIN / OPENIN; conditionally zeroed at *0141B |
 |  4  |  4  | Open mode: input(0)/output(non-0)         | Checked by P/RE1, PASCTRP, P/GF, P/PF, P/RF, P/TF |
-|  5  |  5  | Running bit shift / packed step counter   | `12, XTA ,5` … `AEX ,17B` (compare with FILE[15]); reset to FILE[15] when wraps |
+|  5  |  5  | Buffered I/O: within-window bit-shift / step counter. Disk subsystem: current zone / track-entry cursor | Buffered: `12, XTA ,5` … `AEX ,17B` (compare with FILE[15]), reset to FILE[15] on wrap. Disk: holds the track id / zone, used as an address via `12, WTC ,5` in GETTRACK / ZONEIO / CLOSEWIN |
 |  6  |  6  | Working buffer descriptor / lane mask     | Set to `7 6000` (constant *0760B) by P/RF/P/TF; stacked by PASINBUF and P/PF |
 |  7  |  7  | Current element index used as `WTC` operand | `12, WTC ,7` for self-modifying access to packed slot; updated on each step |
 |  8  | 10  | Current data word being assembled / read  | Loaded from `[M1+8]` (caller value) or stored back to caller's variable |
@@ -33,10 +33,10 @@ the literal that appears in `p_sys.dtran` (`12, ATX ,nnB`).
 | 23  | 27  | I/O kind bits (bit 1 = stdin/out, bit 3 = `BREAK` arg) | P/GF *0330B*: `XTA 27B; UTC *0026B; AAX` masks bit 1; cleared by P/CO |
 | 24  | 30  | EOLN / line-state flag                    | Cleared by P/CO; XOR'd with newline char in P/GF stdin path *0330B*; → branches to PASEOF |
 | 25  | 31  | OR-pattern to apply after unpacking (sign/tag bits) | Cleared by P/CO; per `formFileInit` comment, "bit pattern to add after unpacking" |
-| 26  | 32  | External file name (8-char id)            | Written by P/CO from A (= FCST literal or 0); then overwritten by compiler with internal Pascal id |
+| 26  | 32  | External file name (FCST literal), then the Pascal source id | P/CO stores A (the 8-char external name, or 0); `P/BEXF` maps the standard names to their `LLLLNNZZZZ` designators; the compiler later overwrites [26] with the internal Pascal id for diagnostics |
 | 27  | 33  | Element/byte countdown (write capacity)   | P/CO init = caller's element count; decremented by `1, A-X ,10B` per put; underflow → error *0632B |
-| 28  | 34  | unused                                    | — no references in p_sys.dtran |
-| 29  | 35  | unused                                    | — no references in p_sys.dtran |
+| 28  | 34  | unused                                    | — no references in p_sys.asm |
+| 29  | 35  | unused                                    | — no references in p_sys.asm |
 
 ## Setup register convention for `P/CO`
 
@@ -80,9 +80,47 @@ In packed mode (FILE[14] ≠ 0, i.e. `f: file of T` where T is not a text char):
    **no self-modifying code** in `p_sys.asm`: every `WTC` only sets the
    working tag for the *next* instruction.
 
+## External file designator and disk I/O
+
+A file's external **designator** is an octal word of the form `LLLLNNZZZZ`
+(each letter one octal digit) that says where the file lives on disk:
+
+- `LLLL` = file length,
+- `NN`   = logical unit (device) number,
+- `ZZZZ` = starting zone number on that unit.
+
+The FCST literal the compiler passes to `P/CO` (and that lands in `FILE[26]`)
+is the file's 8-char external **name**, *not* the designator. `P/CO` stashes
+that name in `FILE[26]` and scratch `[M1+3]`; for the standard files
+(`*OUTPUT*`, `*INPUT*`, `PASINPUT`, `*RESULT*`, `*CHILD*`) `P/BEXF`
+(`p_bexf.asm`) maps the name to its `LLLLNNZZZZ` designator and the FCST decoder
+(`*0070B`/`*0071B`/`*0074B`) writes that back into `[M1+3]`. The decoder then
+peels the open-mode / stdin bits into `FILE[3]`, `FILE[4]` and the stdin flag in
+`FILE[23]`, while the designator's low 18 bits (`00NN ZZZZ`) are the unit/zone
+used directly by the disk syscall. After the open, `FILE[26]` is overwritten
+with the Pascal source id for diagnostics.
+
+Packed disk files are read/written one **zone** at a time through the `*70`
+supervisor call. Its one-word argument is, in octal, `00D0 PP00 00NN ZZZZ`:
+
+- `ZZZZ` = zone (bits 1..12), `NN` = unit (bits 13..18),
+- `PP`   = page (bits 31..36), `D` = 0 write / 1 read (bit 40, supplied by the
+  left-packed `,OCT,001` literal `*0752B`).
+
+Pages and zones are `02000` (1024) words and every transfer is page-aligned.
+The runtime keeps a free-track table at `[M1+37B]`; `FILE[3]`/`FILE[5]` hold a
+file's current track descriptor / zone cursor and `FILE[6]` the lane mask
+(`0o76000`). The internal helpers driving this are `GETTRACK` (claim tracks),
+`CHKTRACK` (validate the table), `ZONEIO` (issue the `*70`), `FLUSHBUF` /
+`PACKBUF` (buffer ↔ disk), `CLOSEWIN` / `OUTFIN` / `OUTRESET` (window / finish)
+and `OPENIN`. `READ*` is **not** a disk primitive: it reads a single stdin line
+(≤80 chars) into the file's buffer and is used only by the stdin refill path
+(`READLINE`).
+
 ## Open questions
 
-- Exact distinction between `[3]`, `[4]` and `[10]` (all three look mode-related).
+- `[10]` still looks mode/shadow-related; `[3]` is the mode/state byte (also
+  reused as a disk track id) and `[4]` is the read(0) / write(non-0) side.
 - Bit-by-bit layout of `[23]`; only bit 1 (the `& 2` mask via `*0026B`) is
   confirmed to mean "is standard input/output".
 - Original purpose of `[28]`/`[29]` — possibly reserved for an extension never

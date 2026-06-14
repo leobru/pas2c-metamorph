@@ -17,6 +17,7 @@ test_results/
 
 # Assembly output
 *.asm
+!paslib/*.asm
 
 # Backups
 *~
@@ -24,3 +25,13 @@ test_results/
 # Editor swap
 
 \#*#
+
+# Experimental files
+*.p2c
+*.pas
+*.dub
+
+# But not the main ones
+!work.p2c
+!base.pas
+!build_pascom.dub
