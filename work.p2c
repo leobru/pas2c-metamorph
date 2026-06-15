@@ -221,6 +221,13 @@ sigrec = struct {
     next: sigptr
 };
 //
+strhash = __packed struct {
+        k   : int:6;
+        hhh : int:18;
+        ppp : *types;
+        pad : int:6;
+};
+
 textchar = int:6;
 word = struct {
     union {
@@ -231,6 +238,7 @@ word = struct {
         struct {c: char};
         struct {cl: idclass};
         struct {tp: tptr};
+        struct {s: strhash};
     };
 };
 //
@@ -456,6 +464,7 @@ var
     insnList: *insnltyp;
     fileForOutput, fileForInput: *extfilerec;
     maxSmallString: int;
+    typeCacheCnt: int;
     smallStringType: tptr[2..6];
     symTabCnt: int;
     symtabarray: word[80];
@@ -1209,6 +1218,13 @@ escMap = 007101412151113;
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int isDerivedCacheName(id: int);
+var hash: word;
+{
+    return (id % 0100 == 0) && (strhash(id).k IN [1,2]);
+} /* isDerivedCacheName */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void lexer;
 {
     switch (SY) {
@@ -1241,7 +1257,9 @@ void lexer;
         case lookDef:
             hashTravPtr  =  symHash[bucket];
             while (hashTravPtr != NIL) {
-                if (hashTravPtr->offset == curFrameRegTemplate)
+                if (isDerivedCacheName(hashTravPtr->id)) {
+                    hashTravPtr  =  hashTravPtr->next;
+                } else if (hashTravPtr->offset == curFrameRegTemplate)
                 {
                     if (hashTravPtr->id != curIdent)
                         hashTravPtr  =  hashTravPtr->next;
@@ -4307,10 +4325,11 @@ var
     cases: caserec;
     numBits, l3int22z, span, rangeCnt, curDim: int;
     curEnum, curField: irptr;
-    arrayType, nestedType, tempType, curType: tptr;
+    arrayType, nestedType, tempType, curType, cachedType: tptr;
     ranges: rangeList;
     curRange: rangeRec;
     l3idr31z: irptr;
+    nameForInsert: word;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void definePtrType(toType: tptr);
@@ -4321,6 +4340,126 @@ void definePtrType(toType: tptr);
     CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
     typelist  =  curEnum;
 } /* definePtrType */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int makeCacheName(kindCode, hashValue, refValue: int);
+{
+    if (hashValue < 0)
+        hashValue  =  -hashValue;
+    hashValue  =  hashValue % 01000000;
+    refValue  =  refValue % 01000000;
+    return ((kindCode * 01000000 + hashValue) *
+            01000000 + refValue) * 0100;
+} /* makeCacheName */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+irptr findTypeCache(cacheName: word);
+var
+    cacheBucket: word;
+    cacheRec: irptr;
+{
+    cacheBucket.i = cacheName.i & hashMask;
+    cacheBucket.i  =  mapAI(cacheBucket.a);
+    cacheRec  =  symHash[cacheBucket.i];
+    while (cacheRec != NIL) {
+        if (cacheRec->id == cacheName.i)
+            return cacheRec;
+        cacheRec  =  cacheRec->next;
+    }
+    return NIL;
+} /* findTypeCache */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void addTypeCache(cacheName: word; typ: tptr);
+var
+    cacheBucket: word;
+    cacheRec: irptr;
+{
+    if (typeCacheCnt >= 32)
+        return;
+    ++typeCacheCnt;
+    cacheBucket.i = cacheName.i & hashMask;
+    cacheBucket.i  =  mapAI(cacheBucket.a);
+    cacheRec = malloc(offsetof(identrec, szIdent));
+    CTOR(*cacheRec, cacheName, -1, symHash[cacheBucket.i], typ, TYPEID);
+    symHash[cacheBucket.i]  =  cacheRec;
+} /* addTypeCache */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+tptr getPtrType(baseType: tptr);
+var
+    probe:int; cacheName: word;
+    cacheRec: irptr;
+{
+    probe  =  0;
+    while (probe < 64) {
+        cacheName.i  =  makeCacheName(1, probe, int(baseType));
+        cacheRec  =  findTypeCache(cacheName);
+        if (cacheRec == NIL) {
+            curType = malloc(offsetof(types, szPtr));
+            CTOR(*curType, 1, 15, kindPtr, baseType);
+            addTypeCache(cacheName, curType);
+            return curType;
+        }
+        if (cacheRec->typ->k == kindPtr &&
+            cacheRec->typ->base == baseType)
+            return cacheRec->typ;
+        ++probe;
+    }
+    curType = malloc(offsetof(types, szPtr));
+    CTOR(*curType, 1, 15, kindPtr, baseType);
+    return curType;
+} /* getPtrType */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int sameArrayCache(typ: tptr; rangeInfo: rangeRec;
+                   elementType: tptr; packedFlag: int;
+                   sizeArg, bitsArg, perwordArg,
+                   pcksizeArg: int);
+{
+    return typ->k == kindArray &&
+        typ->base == elementType &&
+        typ->rbase == rangeInfo.rbase &&
+        typ->aleft == rangeInfo.aleft &&
+        typ->aright == rangeInfo.aright &&
+        typ->pck == packedFlag &&
+        typ->size == sizeArg &&
+        typ->bits == bitsArg &&
+        typ->perword == perwordArg &&
+        typ->pcksize == pcksizeArg;
+} /* sameArrayCache */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+tptr findArrayType(rangeInfo: rangeRec; elementType: tptr;
+                   packedFlag: int;
+                   sizeArg, bitsArg, perwordArg,
+                   pcksizeArg: int);
+var
+    probe, hashValue: int; cacheName: word;
+    cacheRec: irptr;
+{
+    hashValue  =  int(rangeInfo.rbase) + rangeInfo.aleft * 37 +
+                  rangeInfo.aright * 101;
+    if (packedFlag)
+        hashValue += 17;
+    probe  =  0;
+    while (probe < 64) {
+        cacheName.i  =  makeCacheName(2, hashValue + probe,
+                                    int(elementType));
+        cacheRec  =  findTypeCache(cacheName);
+        if (cacheRec == NIL) {
+            nameForInsert  =  cacheName;
+            return NIL;
+        }
+        if (sameArrayCache(cacheRec->typ, rangeInfo, elementType,
+                           packedFlag, sizeArg, bitsArg,
+                           perwordArg, pcksizeArg))
+            return cacheRec->typ;
+        ++probe;
+    }
+    nameForInsert.i  =  0;
+    return NIL;
+} /* findArrayType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseRecordDecl(rectype: tptr; isOuterDecl: int);
@@ -4547,49 +4686,59 @@ void parseRange(aleft, aright: *int; rbase: *tptr);
 tptr makeArrayType(rangeInfo: rangeRec; elementType: tptr; packedFlag: int);
 var
     makePacked: int;
+    sizeVal, bitsVal, perwordVal, pcksizeVal: int;
 {
     makePacked  =  packedFlag;
+    if (isFileType(elementType))
+        error(errTypeMustNotBeFile);
+    span  =  rangeInfo.aright - rangeInfo.aleft + 1;
+    l3int22z  =  elementType->bits;
+    if (24 < l3int22z)
+        makePacked  =  false;
+    bitsVal  =  48;
+    perwordVal  =  0;
+    pcksizeVal  =  0;
+    if (makePacked) {
+        l3int22z  =  48 / l3int22z;
+        if (l3int22z == 9) {
+            l3int22z  =  8;
+        } else if (l3int22z == 5) {
+            l3int22z  =  4;
+        }
+        perwordVal  =  l3int22z;
+        pcksizeVal  =  48 / l3int22z;
+        l3int22z  =  span * pcksizeVal;
+        numBits  =  (l3int22z % 48 == 0) ? 0 : 1;
+        sizeVal  =  l3int22z / 48 + numBits;
+        if (sizeVal == 1)
+            bitsVal  =  l3int22z;
+    } else {
+        sizeVal  =  span * elementType->size;
+        curVal.i  =  elementType->size;
+        curVal.i  =  curVal.i & [7:47] | E48;
+        if (rangeInfo.rbase != intType)
+            curVal.i |= [1, 3];
+        perwordVal  =  KMUL+ I8 + getFCSToffset();
+    }
+    cachedType  =  findArrayType(rangeInfo, elementType, makePacked,
+                                 sizeVal, bitsVal, perwordVal, pcksizeVal);
+    if (cachedType != NIL)
+        return cachedType;
     arrayType = malloc(offsetof(types, szArray));
     with *arrayType do {
-        bits  =  48;
+        size  =  sizeVal;
+        bits  =  bitsVal;
         k  =  kindArray;
         aleft  =  rangeInfo.aleft;
         aright  =  rangeInfo.aright;
         rbase  =  rangeInfo.rbase;
         base  =  elementType;
-    }
-    if (isFileType(elementType))
-        error(errTypeMustNotBeFile);
-    with *arrayType do {
-        span  =  aright - aleft + 1;
-        l3int22z  =  base->bits;
-        if (24 < l3int22z)
-            makePacked  =  false;
-        bits  =  48;
-        if (makePacked) {
-            l3int22z  =  48 / l3int22z;
-            if (l3int22z == 9) {
-                l3int22z  =  8;
-            } else if (l3int22z == 5) {
-                l3int22z  =  4;
-            }
-            perword  =  l3int22z;
-            pcksize  =  48 / l3int22z;
-            l3int22z  =  span * pcksize;
-            numBits  =  (l3int22z % 48 == 0) ? 0 : 1;
-            size  =  l3int22z / 48 + numBits;
-            if (size == 1)
-                bits  =  l3int22z;
-        } else {
-            size  =  span * base->size;
-            curVal.i  =  base->size;
-            curVal.i  =  curVal.i & [7:47] | E48;
-            if (rbase != intType)
-                curVal.i |= [1, 3];
-            arrayType->perword  =  KMUL+ I8 + getFCSToffset();
-        }
         pck  =  makePacked;
+        perword  =  perwordVal;
+        pcksize  =  pcksizeVal;
     }
+    if (nameForInsert.i != 0)
+        addTypeCache(nameForInsert, arrayType);
     return arrayType;
 } /* makeArrayType */
 //
@@ -4657,13 +4806,7 @@ var
                 if (hashTravPtr->cl != TYPEID) {
                     goto 12366
                 }
-                curType = malloc(offsetof(types, szPtr));
-                with *curType do {
-                    size  =  1;
-                    bits  =  15;
-                    k  =  kindPtr;
-                    base  =  hashTravPtr->typ;
-                }
+                curType = getPtrType(hashTravPtr->typ);
             }
             inSymbol();
         }
@@ -7246,6 +7389,7 @@ void defExtern;
     tempType = voidPtr;
     regSysEnum('     NIL', 074000U);
     maxSmallString  =  0;
+    typeCacheCnt  =  0;
     for (strLen = 2; strLen <= 5; ++strLen)
         smallStringType[strlen] = makeStringType();
     maxSmallString  =  6;

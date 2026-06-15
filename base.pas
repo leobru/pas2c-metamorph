@@ -135,6 +135,7 @@ const
 %
    BACKSLASH = '\035';
 %
+   cacheLimit = 0;
 type
     assoc = (leftAs, rightAs);
 %
@@ -213,6 +214,14 @@ sigrec = record
     next: sigptr
 end;
 %
+% Width of k can be decreased and width of h increased accordingly if desired
+strhash = packed record
+   k    : 0..63;
+   hhh : 0..7777777B;
+   ppp : @types;
+   pad : 0..63
+end;
+%
 word = record case integer of
     0: (i: integer);
     1: (r: real);
@@ -220,6 +229,7 @@ word = record case integer of
     3: (a: alfa);
     4: (t: packed array[0..7] of '_000' .. '_077');
     5: (typ: tptr);
+    6: (s: strhash);
     7: (c: char);
     8: (cl: idclass);
     13: (m: bitset)
@@ -452,6 +462,7 @@ var
    insnList: @insnltyp;
    fileForOutput, fileForInput: @extfilerec;
    maxSmallString: integer;
+   typeCacheCnt: integer;
    smallStringType: array [2..6] of tptr;
    symTabCnt: integer;
    symtabarray: array [1..80] of word;
@@ -1292,6 +1303,15 @@ shift := res;
 };
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function isDerivedCacheName(id: word): boolean;
+var
+    kindCode: integer;
+{
+    isDerivedCacheName := (id.i mod 100B = 0) and
+                          (id.s.k IN [1,2]);
+}; (* isDerivedCacheName *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure lexer;
 label
     1, 2, 2175, 2233, 2320;
@@ -1332,7 +1352,9 @@ done := false;
                 lookDef: {
                     hashTravPtr := symHash[bucket];
                     while hashTravPtr <> NIL do {
-                        if hashTravPtr@.offset = curFrameRegTemplate then
+                        if isDerivedCacheName(hashTravPtr@.id) then {
+                            hashTravPtr := hashTravPtr@.next;
+                        } else if hashTravPtr@.offset = curFrameReg then
                         {
                             if hashTravPtr@.id <> curIdent then
                                 hashTravPtr := hashTravPtr@.next
@@ -4551,9 +4573,10 @@ var
     cases: caserec;
     numBits, l3int22z, span, rangeCnt, curDim: integer;
     curEnum, curField: irptr;
-    arrayType, nestedType, tempType, curType: tptr;
+    arrayType, nestedType, tempType, curType, cachedType: tptr;
     ranges: rangeList;
     l3idr31z: irptr;
+    cacheNameForInsert: word;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure definePtrType(toType: tptr);
@@ -4564,6 +4587,147 @@ procedure definePtrType(toType: tptr);
     curEnum@ := [curIdent, lineCnt, typelist, curType, TYPEID];
     typelist := curEnum;
 }; (* definePtrType *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function makeCacheName(kindCode, hashValue, refValue: integer): word;
+var
+    name: word;
+{
+    if (hashValue < 0) then
+        hashValue := -hashValue;
+    hashValue := hashValue mod 1000000B;
+    refValue := refValue mod 1000000B;
+    name.i := ((kindCode * 1000000B + hashValue) *
+               1000000B + refValue) * 100B;
+    makeCacheName := name;
+}; (* makeCacheName *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function findTypeCache(cacheName: word): irptr;
+var
+    cacheHash: word;
+    cacheBucket: integer;
+    cacheRec: irptr;
+{
+    cacheHash := cacheName;
+    cacheHash.m := cacheHash.m * hashMask.m;
+    mapAI(cacheHash.a, cacheBucket);
+    cacheRec := symHash[cacheBucket];
+    while (cacheRec <> NIL) do {
+        if (cacheRec@.id = cacheName) then {
+            findTypeCache := cacheRec;
+            exit;
+        };
+        cacheRec := cacheRec@.next;
+    };
+    findTypeCache := NIL;
+}; (* findTypeCache *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure addTypeCache(cacheName: word; typ: tptr);
+var
+    cacheHash: word;
+    cacheBucket: integer;
+    cacheRec: irptr;
+{
+    if (typeCacheCnt >= cacheLimit) then
+        exit;
+    typeCacheCnt := typeCacheCnt + 1;
+    cacheHash := cacheName;
+    cacheHash.m := cacheHash.m * hashMask.m;
+    mapAI(cacheHash.a, cacheBucket);
+    new(cacheRec = 5);
+    cacheRec@ := [cacheName, -1, symHash[cacheBucket], typ, TYPEID];
+    symHash[cacheBucket] := cacheRec;
+}; (* addTypeCache *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function getPtrType(baseType: tptr): tptr;
+var
+    probe: integer;
+    cacheName: word;
+    cacheRec: irptr;
+{
+    probe := 0;
+    write(' looking for ptr to ', baseType:5 oct);
+    while probe < 64 do {
+        cacheName := makeCacheName(1, probe, ord(baseType));
+        cacheRec := findTypeCache(cacheName);
+        if (cacheRec = NIL) then {
+            writeln('- new');
+            new(curType = 4);
+            curType@ := [1, 15, kindPtr, baseType];
+            addTypeCache(cacheName, curType);
+            getPtrType := curType;
+            exit;
+        };
+        if (cacheRec@.typ@.k = kindPtr) and
+           (cacheRec@.typ@.base = baseType) then {
+           writeln(' reused');
+            getPtrType := cacheRec@.typ;
+            exit;
+        };
+        probe := probe + 1;
+    };
+    writeln(' - new');
+    new(curType = 4);
+    curType@ := [1, 15, kindPtr, baseType];
+    getPtrType := curType;
+}; (* getPtrType *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function sameArrayCache(typ, rangeType, elementType: tptr;
+                        packedFlag: boolean;
+                        sizeArg, bitsArg, perwordArg,
+                        pcksizeArg: integer): boolean;
+{
+    sameArrayCache := (typ@.k = kindArray) and
+        (typ@.base = elementType) and
+        (typ@.rbase = rangeType@.base) and
+        (typ@.aleft = rangeType@.left) and
+        (typ@.aright = rangeType@.right) and
+        (typ@.pck = packedFlag) and
+        (typ@.size = sizeArg) and
+        (typ@.bits = bitsArg) and
+        (typ@.perword = perwordArg) and
+        (typ@.pcksize = pcksizeArg);
+}; (* sameArrayCache *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function findArrayType(rangeType, elementType: tptr;
+                       packedFlag: boolean;
+                       sizeArg, bitsArg, perwordArg,
+                       pcksizeArg: integer): tptr;
+var
+    probe, hashValue: integer;
+    cacheName: word;
+    cacheRec: irptr;
+{
+    hashValue := ord(rangeType@.base) + rangeType@.left * 37 +
+                 rangeType@.right * 101;
+    if packedFlag then
+        hashValue := hashValue + 17;
+    probe := 0;
+    while probe < 64 do {
+        cacheName := makeCacheName(2, hashValue + probe,
+                                   ord(elementType));
+        cacheRec := findTypeCache(cacheName);
+        if (cacheRec = NIL) then {
+            cacheNameForInsert := cacheName;
+            findArrayType := NIL;
+            exit;
+        };
+        if sameArrayCache(cacheRec@.typ, rangeType, elementType,
+                          packedFlag, sizeArg, bitsArg,
+                          perwordArg, pcksizeArg) then {
+            findArrayType := cacheRec@.typ;
+            exit;
+        };
+        probe := probe + 1;
+    };
+    cacheNameForInsert.i := 0;
+    findArrayType := NIL;
+}; (* findArrayType *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure parseRecordDecl(rectype: tptr; isOuterDecl: boolean);
@@ -4799,52 +4963,64 @@ var
 function makeArrayType(rangeType, elementType: tptr; packedFlag: boolean): tptr;
 var
     makePacked: boolean;
+    sizeVal, bitsVal, perwordVal, pcksizeVal: integer;
 {
     makePacked := packedFlag;
+    if isFileType(elementType) then
+        error(errTypeMustNotBeFile);
+    span := rangeType@.right - rangeType@.left + 1;
+    l3int22z := elementType@.bits;
+    if (24 < l3int22z) then
+        makePacked := false;
+    bitsVal := 48;
+    perwordVal := 0;
+    pcksizeVal := 0;
+    if (makePacked) then {
+        l3int22z := 48 DIV l3int22z;
+        if (l3int22z = 9) then {
+            l3int22z := 8;
+        } else if (l3int22z = 5) then {
+            l3int22z := 4
+        };
+        perwordVal := l3int22z;
+        pcksizeVal := 48 DIV l3int22z;
+        l3int22z := span * pcksizeVal;
+        if l3int22z mod 48 = 0 then
+            numBits := 0
+        else
+            numBits := 1;
+        sizeVal := l3int22z div 48 + numBits;
+        if (sizeVal = 1) then
+            bitsVal := l3int22z;
+    } else {
+        sizeVal := span * elementType@.size;
+        curVal.i := elementType@.size;
+        curVal.m := curVal.m * [7:47] + [0];
+        if (rangeType@.base <> integerType) then
+            curVal.m := curVal.m + [1, 3];
+        perwordVal := KMUL+ I8 + getFCSToffset;
+    };
+    cachedType := findArrayType(rangeType, elementType, makePacked,
+                                sizeVal, bitsVal, perwordVal, pcksizeVal);
+    if (cachedType <> NIL) then {
+        makeArrayType := cachedType;
+        exit;
+    };
     new(arrayType, kindArray);
     with arrayType@ do {
-        bits := 48;
+        size := sizeVal;
+        bits := bitsVal;
         k := kindArray;
         aleft := rangeType@.left;
         aright := rangeType@.right;
         rbase := rangeType@.base;
         base := elementType;
-    };
-    if isFileType(elementType) then
-        error(errTypeMustNotBeFile);
-    with arrayType@ do {
-        span := aright - aleft + 1;
-        l3int22z := base@.bits;
-        if (24 < l3int22z) then
-            makePacked := false;
-        bits := 48;
-        if (makePacked) then {
-            l3int22z := 48 DIV l3int22z;
-            if (l3int22z = 9) then {
-                l3int22z := 8;
-            } else if (l3int22z = 5) then {
-                l3int22z := 4
-            };
-            perword := l3int22z;
-            pcksize := 48 DIV l3int22z;
-            l3int22z := span * pcksize;
-            if l3int22z mod 48 = 0 then
-                numBits := 0
-            else
-                numBits := 1;
-            size := l3int22z div 48 + numBits;
-            if (size = 1) then
-                bits := l3int22z;
-        } else {
-            size := span * base@.size;
-            curVal.i := base@.size;
-            curVal.m := curVal.m * [7:47] + [0];
-            if (rbase <> integerType) then
-                curVal.m := curVal.m + [1, 3];
-            arrayType@.perword := KMUL+ I8 + getFCSToffset;
-        };
         pck := makePacked;
+        perword := perwordVal;
+        pcksize := pcksizeVal;
     };
+    if (cacheNameForInsert.i <> 0) then
+        addTypeCache(cacheNameForInsert, arrayType);
     makeArrayType := arrayType;
 }; (* makeArrayType *)
 %
@@ -4913,13 +5089,7 @@ var
                 if (hashTravPtr@.cl <> TYPEID) then {
                     goto 12366
                 };
-                new(curType = 4);
-                with curType@ do {
-                    size := 1;
-                    bits := 15;
-                    k := kindPtr;
-                    base := hashTravPtr@.typ;
-                }
+                curType := getPtrType(hashTravPtr@.typ);
             };
             inSymbol;
         }
@@ -7580,6 +7750,7 @@ var l : integer;
     tempType := voidPtr;
     regSysEnum(565154C(*"     NIL"*), 74000C);
     maxSmallString := 0;
+    typeCacheCnt := 0;
     for strLen := 2 to 5 do
         makeStringType(smallStringType[strLen]);
     maxSmallString := 6;
