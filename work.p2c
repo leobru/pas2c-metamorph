@@ -2862,7 +2862,7 @@ var
     l5var22z, l5var23z: int;
     l5var24z: int;
     l5var25z: int;
-    l5var26z, l5var27z: tptr;
+    l5var26z: tptr;
     l5ilm28z: ilmode;
     l5var29z: eptr;
     getEltInsns: *insnltyp[1..10];
@@ -2892,7 +2892,6 @@ var
         if (! l5var25z)
             insnCopy.disp  =  insnCopy.disp - l5var8z * l5var7z;
         insnList  =  getEltInsns[curDim];
-        l5var27z  =  insnList->typ;
         l5ilm28z  =  insnList->ilm;
         if (l5ilm28z == ilCONST) {
             curVal.i  =  insnList->payload;
@@ -2921,15 +2920,10 @@ var
         } else {
             if (l5var8z != 1) {
                 prepLoad();
-                if (l5var27z == intType) {
-                    l5var4z  =  KYTA+64;
-                } else {
-                    l5var4z  =  KYTA+64-40;
-                }
                 addToInsnList(insnCopy.typ->perword);
                 insnList->tail->mode  =  1;
                 if (l5var7z >= 0)
-                    addToInsnList(l5var4z);
+                    addToInsnList(KYTA+64);
                 else
                     addToInsnList(macro + mcMULTI);
            }

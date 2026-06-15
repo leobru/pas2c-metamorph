@@ -3043,7 +3043,7 @@ var
     l5var22z, l5var23z: word;
     l5var24z: boolean;
     l5var25z: boolean;
-    l5var26z, l5var27z: tptr;
+    l5var26z: tptr;
     l5ilm28z: ilmode;
     l5var29z: eptr;
     getEltInsns: array [1..10] of @insnltyp;
@@ -3073,7 +3073,6 @@ var
         if not l5var25z then
             insnCopy.disp := insnCopy.disp - l5var8z * l5var7z;
         insnList := getEltInsns[curDim];
-        l5var27z := insnList@.typ;
         l5ilm28z := insnList@.ilm;
         if (l5ilm28z = ilCONST) then {
             curVal := insnList@.payload;
@@ -3103,15 +3102,10 @@ var
         } else {
             if (l5var8z <> 1) then {
                 prepLoad;
-                if (l5var27z = integerType) then {
-                    l5var4z := KYTA+64;
-                } else {
-                    l5var4z := KYTA+64-40;
-                };
                 addToInsnList(insnCopy.typ@.perword);
                 insnList@.tail@.mode := 1;
                 if (l5var7z >= 0) then
-                    addToInsnList(l5var4z)
+                    addToInsnList(KYTA+64)
                 else
                     addToInsnList(macro + mcMULTI);
            };
