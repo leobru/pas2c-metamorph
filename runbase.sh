@@ -25,7 +25,7 @@ cat << EOF >> tmp$$
 *call setftn:one,long
 *assem
 *read:1
-*libra:43
+*perso:43,cont
 *no lo
 *execute
 *end file

@@ -19,7 +19,7 @@ P 2 0 1000440000B .
 *call *pascom
 *copy:0,000000,000000
 *no load list
-*libra:43
+*perso:43,cont
 *execute
 *end file
 EOF

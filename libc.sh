@@ -9,6 +9,7 @@ EOF
 if [ "$1" = "-d" ]; then ln -f tmp$$ libc.dub ; shift; fi
 cat libc/*.madlen >> tmp$$
 cat << EOF >> tmp$$
+*call tcatalog
 *to perso:670000
 *end file
 EOF

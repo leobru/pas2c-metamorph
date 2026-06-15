@@ -1,0 +1,184 @@
+ print8  :      , name,         . 19.04.73  - print one ISO/ASCII line as GOST 10859
+c =========================================================
+c print8 - format and print one text line on the line printer.
+c   Input is an ISO/ASCII byte string; output is the 7-bit GOST
+c   10859 code the ,print, syscall expects (printable codes < 0200,
+c   control codes >= 0200, e.g. 0214 = line feed).
+c
+c   Calling convention:
+c     stack: start address and end address of the byte string,
+c     ACC  : starting print column (masked to 7 bits -> pos).
+c   (Fortran carriage-control handling has been removed; every
+c   byte of the string is translated and printed.)
+c
+c   Register names (the *7 ,block, directive names M7 upwards):
+c     b =M7  base register for local data (set by  b ,base,*)
+c     c =M8  outer word / saved-register loop counter
+c     ir=M9  inner per-word byte counter
+c     ic=M10 (free since carriage-control handling was removed)
+c     jc=M11 (free since carriage-control handling was removed)
+c     iw=M12 output bit/word packing counter (wrt)
+c     jw=M13 saved SP across the body
+c     rw=M14 local link for the wrt / position subroutines
+c   aliases:  bl = cont,  sc = sym.
+c =========================================================
+ *7      :      ,block, b, c, ir, ic, jc, iw, jw, rw
+ bl      :      , equ , cont   . bl := cont
+ sc      :      , equ , sym    . sc := sym
+c ---- prologue: set base, save state, build the print block ----
+                , its , b      . push ACC (start column); ACC := M7
+            b   , base, *      . M7 = base register for the locals below
+                , ntr , 3      . R := 3 (raw integer / bit work)
+                , stx , sb     . sb := pushed value, pop
+                , aax , =177   . ACC &= 0177
+                , atx , pos    . pos := start column (7 bits)
+                , asn , 64-36  . left-shift 36
+                , aox , =4000 0000   . OR in the buffer flag bits
+                , stx , inf+1  . inf+1 := buffer descriptor, pop
+                , atx , r      . r := ACC
+            15  , x-a ,        . ACC := top-of-stack - ACC
+                , atx , sc     . sym := that (string length / span)
+                , ita , c      . ACC := M8
+            c   , vtm , ir-rw  . M8 := ir-rw (count of regs M9..M14)
+ sv      :  c   , its , rw     . save loop: push ACC; ACC := M[c-th reg]
+            c   , vlm , sv     . repeat over M9..M14
+                , xts , sc     . push; ACC := sym
+                , ati , c      . M8 := ACC
+            iw  , vtm ,        . M12 := 0 (output packer init)
+            15  , mtj , jw     . jw(M13) := SP (save the stack pointer)
+c ---- cc/cr: main scan over the input words and bytes ----
+ cc      :      , bss ,        . per-word setup
+                , wtc , r      . C := r (current source word pointer)
+            c   , xta ,        . ACC := mem[M8 + C] (next input word)
+                , atx , w      . w := that word
+            ir  , vtm , -5     . M9 := -5 (its bytes, counts up to 0)
+ cr      :      , xta , w      . per-byte: ACC := w
+                , asn , 64-8   . left-shift 8 (move next byte out)
+                , atx , w      . w := shifted word
+                , yta ,        . ACC := the byte that shifted out
+                , atx , sym    . sym := current input byte
+                , uza , er     . byte == 0 -> end of record (er)
+                , aex , =177   . compare with 0177
+                , uza , er     . byte == 0177 -> end of record (er)
+                , xta , sym
+                , aax , =200   . test the control-code bit (>= 0200)
+                , u1a , blank  . control byte -> blank/control path
+ rcon    :      , bss ,        . ---- translate an ordinary char to GOST ----
+                , xta , sym
+                , asn , 64+2   . right-shift 2 (index = code/4)
+            15  , atx ,        . push the index
+                , yta ,        . ACC := low 2 bits (code mod 4)
+                , asn , 64+43  . right-shift 43 -> sub-byte select
+            15  , wtc ,        . C := the index (from stack)
+                , xts , tabl   . push; ACC := tabl base
+            15  , wtc ,        . C := index again
+                , asn , 64+16  . position the table entry
+                , aax , =377   . isolate one GOST byte
+                , atx , sym    . sym := translated GOST code
+                , aex , =231   . is it 0231 ?
+                , uza , print  . 0231 -> flush/print
+                , xta , sym
+                , asn , 64+7   . inspect the high part
+                , aex , =1
+            rw  , vtm , er     . arm rw -> er
+                , u1a , position   . positioning case
+                , xta , sym
+                , uj  , wrt    . else write the GOST byte
+c ---- er: end of a source word / record ----
+ er      :      , bss ,
+            ir  , vlm , cr     . more bytes in this word -> cr
+            c   , vlm , cc     . more words -> cc
+c ---- print: terminate the line and issue the syscall ----
+ print   :      , bss ,
+                , xta , =231   . 0231 = line terminator
+            rw  , vjm , wrt    . append it
+                ,print, inf    . PRINT SYSCALL: emit the GOST buffer (inf)
+            jw  , mtj , 15     . SP := jw (restore the stack pointer)
+                , ntr , 18     . R := 022
+            c   , vtm , rw-c   . M8 := rw-c (saved-register count)
+            15  , xta ,        . ACC := top of stack
+ up      :  c   , utm , -1     . restore loop
+            c   , sti , ir     . pop a saved register into M9..M14
+            c   , v1m , up     . repeat
+                , ati , c      . restore M8
+                , xta , sb
+                , sti , b      . restore M7 from sb
+            13  , uj  ,        . return via M13
+c ---- blank: a control byte (>= 0200) in the body / spaces ----
+ blank   :      , bss ,
+                , xta , sym
+                , aex , =200   . is it exactly 0200 (blank/space) ?
+                , uza , er     . yes -> skip (no output)
+                , atx , bl     . bl(cont) := sym - 0200
+                , xta , =200
+                , atx , sym    . sym := 0200 (a space code)
+                , xta , bl
+            rw  , vjm , position   . advance position by (sym-0200)
+                , xta , pos
+            rw  , vtm , er     . arm rw -> er
+                , uj  , wrt    . write the space(s)
+c ---- position: advance/track the print column, wrap at 0200 ----
+ position:      , bss ,
+                , a+x , pos    . pos += ACC (advance the column)
+                , atx , pos
+                , x-a , =200   . compare with 0200 (= 128 columns)
+                , u1a , print  . past the line width -> force print
+                , xta , sym
+c ---- wrt: pack one GOST byte (in sym/ACC) into the output buffer ----
+ wrt     :      , bss ,
+            iw  , v1m , ew     . room in the current word -> ew
+            iw  , vtm , -48    . else start a fresh 48-bit word
+                , atx , sym
+                , xta ,
+                , xts , sym
+ ew      :      , bss ,
+            iw  , utm , 8      . advance the bit cursor by 8
+            iw  , asn , 64     . shift by the bit cursor
+            15  , aox ,        . OR the byte into the buffer word
+            15  , atx ,        . store the buffer word back
+            rw  , uj  ,        . return via rw
+c ---- inf: the ,print, control block (buffer descriptor) ----
+ inf     :  jw  , z00 ,        . word 0: frame / buffer reference
+            15  , z00 , -1     . word 1: SP-relative, -1
+                , bss , 1      . word 2: buffer
+c ---- tabl: ISO -> GOST 10859 character translation table ----
+ tabl    :      , gost, 4h'231''212''133''133'
+                , gost, 4h'133''024''135''133'
+                , gost, 4h'133''231''133''310'
+                , gost, 4h'117''116''231''214'
+                , gost, 4h'205''204''201''032'
+                , gost, 4h'020''021''131''206'
+                , gost, 4h'033''124''136''034'
+                , gost, 4h'123''120''125''122'
+                , gost, 4h'034''134''133'
+                , gost, 4h'137''121''126''127'
+                , gost, 4h+*)(
+                , gost, 4h/.-,
+                , gost, 4h3210
+                , gost, 4h7654
+                , gost, 4h'026':98
+                , gost, 4h'21''036'='035'
+                , gost, 4hCBA'136'
+                , gost, 4hGFED
+                , gost, 4hKJIH
+                , gost, 4hONML
+                , gost, 4hSRQP
+                , gost, 4hWVUT
+                , gost, 4h'027'ZYX
+                , gost, 4h'132''130''030''115'
+                , gost, 4hЦБAЮ
+                , gost, 4hГФEД
+                , gost, 4hKЙИX
+                , gost, 4hOHMЛ
+                , gost, 4hCPЯП
+                , gost, 4hBЖYT
+                , gost, 4hШЗЫЬ
+                , gost, 4h'133'ЧЩЭ
+c ---- M7-relative scratch cells ----
+ sym     :      , bss , 1      . current input byte / GOST code
+ pos     :      , bss , 1      . current print column
+ w       :      , bss , 1      . current source word being unpacked
+ cont    :      , bss , 1      . control/space work word (blank path)
+ r       :      , bss , 1      . source word pointer
+ sb      :      , bss , 1      . saved M7 (base)
+                , end ,

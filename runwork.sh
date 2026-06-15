@@ -9,7 +9,7 @@ cat << EOF > tmp$$
 *libra:42
 *     taking the work compiler module
 *libra:41
-*libra:43
+*perso:43,cont
 *libra:22
 *call *pascom
 EOF
@@ -22,7 +22,7 @@ cat << EOF >> tmp$$
 *call setftn:one,long
 *assem
 *read:1
-*libra:43
+*perso:43,cont
 *no lo
 *execute
 *end file

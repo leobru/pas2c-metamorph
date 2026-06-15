@@ -11,7 +11,7 @@ cat << EOF > tmp$$
 *file:tmpsrc,44
 *     *pascom and pasmitxt
 *libra:42
-*libra:43
+*perso:43,cont
 *     taking the work compiler module
 *libra:41
 *libra:22
