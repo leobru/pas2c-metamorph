@@ -273,8 +273,7 @@ types = struct {
     k:      kind;
     union {
         struct {szReal: int};
-        struct {abase,
-                rbase:     tptr;
+        struct {abase:     tptr;
                 pck:       int;
                 perword,
                 pcksize, aleft, aright: int; szArray: int};
@@ -612,7 +611,6 @@ var res: tptr;
         pcksize  =  8;
         aleft  =  1;
         aright  =  strLen;
-        rbase  =  intType;
     }
     return res;
 } /* makeStringType */
@@ -2888,13 +2886,13 @@ var
         l5var22z &= ~getEltInsns[curDim]->regsused;
     for (curDim = dimCnt; curDim >= 1; --curDim) {
         l5var26z  =  insnCopy.typ->base;
-        l5var27z  =  insnCopy.typ->rbase;
         l5var25z  =  insnCopy.typ->pck;
         l5var7z  =  insnCopy.typ->aleft;
         l5var8z  =  l5var26z->size;
         if (! l5var25z)
             insnCopy.disp  =  insnCopy.disp - l5var8z * l5var7z;
         insnList  =  getEltInsns[curDim];
+        l5var27z  =  insnList->typ;
         l5ilm28z  =  insnList->ilm;
         if (l5ilm28z == ilCONST) {
             curVal.i  =  insnList->payload;
@@ -4319,7 +4317,6 @@ type
     };
     rangeRec = struct {
             aleft, aright: int;
-            rbase: tptr;
     };
     rangeList = rangeRec[1..20];
 var
@@ -4431,7 +4428,6 @@ int sameArrayCache(typ: tptr; rangeInfo: rangeRec;
 {
     return typ->k == kindArray &&
         typ->base == elementType &&
-        typ->rbase == rangeInfo.rbase &&
         typ->aleft == rangeInfo.aleft &&
         typ->aright == rangeInfo.aright &&
         typ->pck == packedFlag &&
@@ -4450,8 +4446,7 @@ var
     probe, hashValue: int; cacheName: word;
     cacheRec: irptr;
 {
-    hashValue  =  int(rangeInfo.rbase) + rangeInfo.aleft * 37 +
-                  rangeInfo.aright * 101;
+    hashValue  =  rangeInfo.aleft * 37 + rangeInfo.aright * 101;
     if (packedFlag)
         hashValue += 17;
     probe  =  0;
@@ -4673,11 +4668,10 @@ var
 } /* parseRecordDecl*/
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseRange(aleft, aright: *int; rbase: *tptr);
+void parseRange(aleft, aright: *int);
 {
     curType = parseLiteral(aleft, true);
     if (curType != NIL && curType->k == kindScalar) {
-        *rbase = curType;
         inSymbol();
         if (SY != COLON) {
 // Handle a single value N as a range 0..N-1
@@ -4688,11 +4682,10 @@ void parseRange(aleft, aright: *int; rbase: *tptr);
         inSymbol();
         curType = parseLiteral(aright, true);
         inSymbol();
-        if (curType == *rbase)
+        if (curType != NIL && curType->k == kindScalar)
             return;
     }
     error(64); /* errIncorrectRangeDefinition */
-    *rbase = boolType;
 } /* parseRange */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4729,8 +4722,6 @@ var
         sizeVal  =  span * elementType->size;
         curVal.i  =  elementType->size;
         curVal.i  =  curVal.i & [7:47] | E48;
-        if (rangeInfo.rbase != intType)
-            curVal.i |= [1, 3];
         perwordVal  =  KMUL+ I8 + getFCSToffset();
     }
 // ifdef TYPEHASH
@@ -4746,7 +4737,6 @@ var
         k  =  kindArray;
         aleft  =  rangeInfo.aleft;
         aright  =  rangeInfo.aright;
-        rbase  =  rangeInfo.rbase;
         base  =  elementType;
         pck  =  makePacked;
         perword  =  perwordVal;
@@ -4910,7 +4900,7 @@ var
     rangeCnt  =  0;
     while (SY == LBRACK) {
         inSymbol();
-        parseRange(&curRange.aleft, &curRange.aright, &curRange.rbase);
+        parseRange(&curRange.aleft, &curRange.aright);
         if (rangeCnt == 20) {
             error(errVarTooComplex);
         } else {
@@ -5174,8 +5164,6 @@ var
         if (l4typ3z->k != kindArray) {
             error(errWrongVarTypeBefore);
         } else {
-            if (! typeCheck(l4typ3z->rbase, curExpr->typ))
-                error(66 /*errOtherIndexTypeNeeded */);
             l4exp2z = malloc(sizeof(expr));
             with *l4exp2z do {
                 typ  =  l4typ3z->base;
@@ -6745,8 +6733,6 @@ void checkArrayArg;
     readNext  =  false;
     expression();
     l4exp8z  =  curExpr;
-    if (l4typ1z->rbase != l4exp8z->typ)
-        error(errNeedOtherTypesOfOperands);
 } /* checkArrayArg */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7394,7 +7380,6 @@ void defExtern;
         pcksize  =  8;
         aleft  =  1;
         aright  =  6;
-        rbase  =  intType;
     }
     smallStringType[6]  =  alfaType;
      /*=A3 constructing TEXT constants */

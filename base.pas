@@ -215,7 +215,7 @@ sigrec = record
     ptyp: tptr;
     next: sigptr
 end;
-%
+% ifdef TYPEHASH
 % Width of k can be decreased and width of h increased accordingly if desired
 strhash = packed record
    k    : 0..63;
@@ -223,7 +223,15 @@ strhash = packed record
    ppp : @types;
    pad : 0..63
 end;
-%
+% endif
+(*=s6 right to left packing *)
+mytptr = record
+      base : tptr;
+      ind : 0..255;
+      k   : kind;
+      case kind of
+        kindArray, kindRoutine : (details : tptr);
+end;
 word = record case integer of
     0: (i: integer);
     1: (r: real);
@@ -231,7 +239,9 @@ word = record case integer of
     3: (a: alfa);
     4: (t: packed array[0..7] of '_000' .. '_077');
     5: (typ: tptr);
+% ifdef TYPEHASH
     6: (s: strhash);
+% endif
     7: (c: char);
     8: (cl: idclass);
     13: (m: bitset)
@@ -265,11 +275,9 @@ types = record
     k:      kind;
     case kind of
     kindReal:   ();
-    kindRange:  (base:      tptr;
-                 left,
+    kindRange:  (left,
                  right:     integer);
-    kindArray:  (abase,
-                 rbase:     tptr;
+    kindArray:  (base:      tptr;
                  pck:       boolean;
                  perword,
                  pcksize, aleft, aright:   integer);
@@ -638,7 +646,6 @@ var span: tptr;
             pcksize := 8;
             aleft := 1;
             aright := strLen;
-            rbase := integerType;
         }
     }
 }; (* makeStringType *)
@@ -970,7 +977,6 @@ var
 {
     new(temp, kindRange);
     with temp@ do {
-        base := res;
         curVal.i := l;
         curVal.m := curVal.m + intZero;
         left := curVal.i;
@@ -1305,7 +1311,7 @@ res := res + [cur+amt]
 until s = [];
 shift := res;
 };
-%
+% ifdef TYPEHASH
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function isDerivedCacheName(id: word): boolean;
 var
@@ -1314,7 +1320,7 @@ var
     isDerivedCacheName := (id.i mod 100B = 0) and
                           (id.s.k IN [1,2]);
 }; (* isDerivedCacheName *)
-%
+% endif
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure lexer;
 label
@@ -1356,9 +1362,12 @@ done := false;
                 lookDef: {
                     hashTravPtr := symHash[bucket];
                     while hashTravPtr <> NIL do {
+% ifdef TYPEHASH
                         if isDerivedCacheName(hashTravPtr@.id) then {
                             hashTravPtr := hashTravPtr@.next;
-                        } else if hashTravPtr@.offset = curFrameReg then
+                        } else
+% endif
+                        if hashTravPtr@.offset = curFrameReg then
                         {
                             if hashTravPtr@.id <> curIdent then
                                 hashTravPtr := hashTravPtr@.next
@@ -3058,13 +3067,13 @@ var
        l5var22z.m := l5var22z.m - getEltInsns[curDim]@.regsused;
     for curDim := dimCnt downto 1 do {
         l5var26z := insnCopy.typ@.base;
-        l5var27z := insnCopy.typ@.rbase;
         l5var25z := insnCopy.typ@.pck;
         l5var7z := insnCopy.typ@.aleft;
         l5var8z := l5var26z@.size;
         if not l5var25z then
             insnCopy.disp := insnCopy.disp - l5var8z * l5var7z;
         insnList := getEltInsns[curDim];
+        l5var27z := insnList@.typ;
         l5ilm28z := insnList@.ilm;
         if (l5ilm28z = ilCONST) then {
             curVal := insnList@.payload;
@@ -4697,7 +4706,6 @@ function sameArrayCache(typ, rangeType, elementType: tptr;
 {
     sameArrayCache := (typ@.k = kindArray) and
         (typ@.base = elementType) and
-        (typ@.rbase = rangeType@.base) and
         (typ@.aleft = rangeType@.left) and
         (typ@.aright = rangeType@.right) and
         (typ@.pck = packedFlag) and
@@ -4717,8 +4725,7 @@ var
     cacheName: word;
     cacheRec: irptr;
 {
-    hashValue := ord(rangeType@.base) + rangeType@.left * 37 +
-                 rangeType@.right * 101;
+    hashValue := rangeType@.left * 37 + rangeType@.right * 101;
     if packedFlag then
         hashValue := hashValue + 17;
     probe := 0;
@@ -4952,7 +4959,7 @@ var
     tempType: tptr;
 {
     parseLiteral(tempType, leftBound, true);
-    if (tempType <> NIL) then {
+    if (tempType <> NIL) and (tempType@.k = kindScalar) then {
         inSymbol;
         if (SY <> COLON) then {
 % Handle a single value N as a range 0..N-1
@@ -4964,7 +4971,7 @@ var
             parseLiteral(curType, rightBound, true);
             inSymbol;
         };
-        if (curType = tempType) and (curType@.k = kindScalar) then {
+        if (curType <> NIL) and (curType@.k = kindScalar) then {
             defineRange(curType, leftBound.i, rightBound.i);
             parseRange := curType;
             exit;
@@ -5011,8 +5018,6 @@ var
         sizeVal := span * elementType@.size;
         curVal.i := elementType@.size;
         curVal.m := curVal.m * [7:47] + [0];
-        if (rangeType@.base <> integerType) then
-            curVal.m := curVal.m + [1, 3];
         perwordVal := KMUL+ I8 + getFCSToffset;
     };
 % ifdef TYPEHASH
@@ -5030,7 +5035,6 @@ var
         k := kindArray;
         aleft := rangeType@.left;
         aright := rangeType@.right;
-        rbase := rangeType@.base;
         base := elementType;
         pck := makePacked;
         perword := perwordVal;
@@ -5474,8 +5478,6 @@ var
         if (l4typ3z@.k <> kindArray) then {
             error(errWrongVarTypeBefore);
         } else {
-            if (not typeCheck(l4typ3z@.rbase, curExpr@.vt.typ)) then
-                error(66 (*errOtherIndexTypeNeeded *));
             new(l4exp2z);
             with l4exp2z@ do {
                 vt.typ := l4typ3z@.base;
@@ -7089,8 +7091,6 @@ procedure checkArrayArg;
     readNext := false;
     expression;
     l4exp8z := curExpr;
-    if (l4typ1z@.rbase <> l4exp8z@.vt.typ) then
-        error(errNeedOtherTypesOfOperands);
 }; (* checkArrayArg *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7758,7 +7758,6 @@ var l : integer;
         pcksize := 8;
         aleft := 1;
         aright := 6;
-        rbase := integerType;
     };
     smallStringType[6] := alfaType;
     regSysType(515664C  (*"     INT"*), integerType);
