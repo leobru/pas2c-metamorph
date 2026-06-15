@@ -1,0 +1,11 @@
+ ADD 13
+ SUB 12
+ MUL 24
+ DIV 6
+ MOD 2
+ OR  10
+ AND 8
+ XOR 13
+ SHL 52
+ SHR 26
+ ARR 107

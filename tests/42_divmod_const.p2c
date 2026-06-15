@@ -1,0 +1,194 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+/*
+ * Comprehensive test of integer division and modulo when one operand
+ * is a compile-time constant.  The compiler picks among five distinct
+ * code paths (see opfDIV / opfMOD in base.pas around line 3800):
+ *
+ *   1. const op const           -> folded at compile time.
+ *   2a. expr  /  (1<<k)          -> single arithmetic shift right (ASN)
+ *                                  via the card(arg2)==1 fast path in
+ *                                  genConstDiv.
+ *   2b. expr  /  const (other)   -> reciprocal multiplication via
+ *                                  PASDIV(1.0/const).  Because BESM-6
+ *                                  reals carry only ~40 mantissa bits
+ *                                  the magic constant has up to ~8
+ *                                  bits of error: e.g. 1234566/1234567
+ *                                  yields 1 instead of 0.  See
+ *                                  baddiv.p2c.
+ *   3. expr   %  (1<<k)         -> single bitwise AND with the
+ *                                  low-k-bit mask via KAAX.
+ *   4. expr   %  const (other)  -> reciprocal mul gives quotient,
+ *                                  then KMUL+KYTA+KRSUB recovers
+ *                                  expr - q*const.  Inherits the
+ *                                  precision loss of path 2b.
+ *   5. expr   /  expr           -> runtime helper (handles negatives
+ *                                  with floor-division semantics).
+ *
+ * Labels avoid a leading sign or digit so BESM-6 carriage control
+ * does not overstrike successive lines.
+ */
+var a, b, q, r, n: int;
+{
+    /* ---------- A. constant folding (path 1) ---------- */
+    q = 100 / 7;          writeln(' A01 ', q:0);
+    r = 100 % 7;          writeln(' A02 ', r:0);
+    q = 1024 / 32;        writeln(' A03 ', q:0);
+    r = 1024 % 32;        writeln(' A04 ', r:0);
+    q = 1 / 1;            writeln(' A05 ', q:0);
+    r = 1 % 1;            writeln(' A06 ', r:0);
+    q = 0 / 7;            writeln(' A07 ', q:0);
+    r = 0 % 7;            writeln(' A08 ', r:0);
+    q = 999999 / 1000;    writeln(' A09 ', q:0);
+    r = 999999 % 1000;    writeln(' A10 ', r:0);
+    /* constant folding for negative dividend uses floor-division */
+    q = -100 / 7;         writeln(' A11 ', q:0);
+    r = -100 % 7;         writeln(' A12 ', r:0);
+    q = -100 / 4;         writeln(' A13 ', q:0);
+    r = -100 % 4;         writeln(' A14 ', r:0);
+
+    /* ---------- B. variable / power-of-two constant (path 2a) ------- */
+    a = 1024;
+    q = a / 1;            writeln(' B01 ', q:0);
+    q = a / 2;            writeln(' B02 ', q:0);
+    q = a / 4;            writeln(' B03 ', q:0);
+    q = a / 8;            writeln(' B04 ', q:0);
+    q = a / 16;           writeln(' B05 ', q:0);
+    q = a / 32;           writeln(' B06 ', q:0);
+    q = a / 64;           writeln(' B07 ', q:0);
+    q = a / 128;          writeln(' B08 ', q:0);
+    q = a / 256;          writeln(' B09 ', q:0);
+    q = a / 1024;         writeln(' B10 ', q:0);
+    a = 1023;
+    q = a / 4;            writeln(' B11 ', q:0);
+    q = a / 1024;         writeln(' B12 ', q:0);
+
+    /* ---------- C. variable / non-power-of-two constant (path 2) ---- */
+    a = 100;
+    q = a / 3;            writeln(' C01 ', q:0);
+    q = a / 5;            writeln(' C02 ', q:0);
+    q = a / 6;            writeln(' C03 ', q:0);
+    q = a / 7;            writeln(' C04 ', q:0);
+    q = a / 9;            writeln(' C05 ', q:0);
+    q = a / 10;           writeln(' C06 ', q:0);
+    q = a / 11;           writeln(' C07 ', q:0);
+    q = a / 13;           writeln(' C08 ', q:0);
+    q = a / 25;           writeln(' C09 ', q:0);
+    q = a / 33;           writeln(' C10 ', q:0);
+    q = a / 99;           writeln(' C11 ', q:0);
+    q = a / 100;          writeln(' C12 ', q:0);
+    q = a / 101;          writeln(' C13 ', q:0);
+    a = 1000000;
+    q = a / 7;            writeln(' C14 ', q:0);
+    q = a / 13;           writeln(' C15 ', q:0);
+    q = a / 999;          writeln(' C16 ', q:0);
+
+    /* ---------- D. variable % power-of-two constant (path 3) -------- */
+    a = 1023;
+    r = a % 1;            writeln(' D01 ', r:0);   /* mask = empty   */
+    r = a % 2;            writeln(' D02 ', r:0);
+    r = a % 4;            writeln(' D03 ', r:0);
+    r = a % 8;            writeln(' D04 ', r:0);
+    r = a % 16;           writeln(' D05 ', r:0);
+    r = a % 32;           writeln(' D06 ', r:0);
+    r = a % 64;           writeln(' D07 ', r:0);
+    r = a % 128;          writeln(' D08 ', r:0);
+    r = a % 256;          writeln(' D09 ', r:0);
+    r = a % 512;          writeln(' D10 ', r:0);
+    r = a % 1024;         writeln(' D11 ', r:0);
+    a = 1024;
+    r = a % 1024;         writeln(' D12 ', r:0);
+    a = 65;
+    r = a % 64;           writeln(' D13 ', r:0);
+
+    /* ---------- E. variable % non-power-of-two constant (path 4) ---- */
+    a = 100;
+    r = a % 3;            writeln(' E01 ', r:0);
+    r = a % 5;            writeln(' E02 ', r:0);
+    r = a % 6;            writeln(' E03 ', r:0);
+    r = a % 7;            writeln(' E04 ', r:0);
+    r = a % 9;            writeln(' E05 ', r:0);
+    r = a % 10;           writeln(' E06 ', r:0);
+    r = a % 11;           writeln(' E07 ', r:0);
+    r = a % 13;           writeln(' E08 ', r:0);
+    r = a % 25;           writeln(' E09 ', r:0);
+    r = a % 33;           writeln(' E10 ', r:0);
+    r = a % 99;           writeln(' E11 ', r:0);
+    r = a % 100;          writeln(' E12 ', r:0);
+    r = a % 101;          writeln(' E13 ', r:0);
+    a = 1000000;
+    r = a % 7;            writeln(' E14 ', r:0);
+    r = a % 13;           writeln(' E15 ', r:0);
+    r = a % 999;          writeln(' E16 ', r:0);
+
+    /* ---------- F. positive edge cases ---------- */
+    a = 0;
+    q = a / 7;            writeln(' F01 ', q:0);
+    r = a % 7;            writeln(' F02 ', r:0);
+    q = a / 8;            writeln(' F03 ', q:0);
+    r = a % 8;            writeln(' F04 ', r:0);
+    /* dividend smaller than divisor */
+    a = 5;
+    q = a / 7;            writeln(' F05 ', q:0);
+    r = a % 7;            writeln(' F06 ', r:0);
+    q = a / 8;            writeln(' F07 ', q:0);
+    r = a % 8;            writeln(' F08 ', r:0);
+    /* exact multiple */
+    a = 56;
+    q = a / 7;            writeln(' F09 ', q:0);
+    r = a % 7;            writeln(' F10 ', r:0);
+    q = a / 8;            writeln(' F11 ', q:0);
+    r = a % 8;            writeln(' F12 ', r:0);
+    /* combined / and %: q*n+r should rebuild the dividend */
+    a = 12345;
+    q = a / 100;
+    r = a % 100;
+    n = q * 100 + r;      writeln(' F13 ', n:0);
+    a = 12345;
+    q = a / 128;
+    r = a % 128;
+    n = q * 128 + r;      writeln(' F14 ', n:0);
+    /* chained division collapses across the magic-number path */
+    a = 100000;
+    q = a / 2 / 5;        writeln(' F15 ', q:0);
+    q = a / 5 / 2;        writeln(' F16 ', q:0);
+    q = (a / 7) % 11;     writeln(' F17 ', q:0);
+
+    /* ---------- G. op-assign forms ---------- */
+    a = 1000;
+    a /= 4;               writeln(' G01 ', a:0);
+    a /= 5;               writeln(' G02 ', a:0);
+    a = 1000;
+    a /= 7;               writeln(' G03 ', a:0);
+    a = 1000;
+    a %= 6;               writeln(' G04 ', a:0);
+    a = 1000;
+    a %= 8;               writeln(' G05 ', a:0);
+    a = 1001;
+    a %= 8;               writeln(' G06 ', a:0);
+
+    /* ---------- H. variable / variable (path 5: runtime helper) -----
+     * The runtime helper handles negative dividends with Pascal-style
+     * floor division: q = floor(a/b), r = a - q*b, so r has the sign
+     * of b and 0 <= r < |b|.  Note that path 2 (constant divisor) is
+     * unsuitable for negative dividends.
+     */
+    a = 100;  b = 7;
+    q = a / b;            writeln(' H01 ', q:0);
+    r = a % b;            writeln(' H02 ', r:0);
+    a = 1024; b = 8;
+    q = a / b;            writeln(' H03 ', q:0);
+    r = a % b;            writeln(' H04 ', r:0);
+    a = 1024; b = 1;
+    q = a / b;            writeln(' H05 ', q:0);   /* exact via helper */
+    a = -100; b = 7;
+    q = a / b;            writeln(' H06 ', q:0);
+    r = a % b;            writeln(' H07 ', r:0);
+    a = -100; b = 4;
+    q = a / b;            writeln(' H08 ', q:0);
+    r = a % b;            writeln(' H09 ', r:0);
+    a = -7;   b = 4;
+    q = a / b;            writeln(' H10 ', q:0);
+    r = a % b;            writeln(' H11 ', r:0);
+}
+.

@@ -1,0 +1,23 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+var a, b: int;
+var arr: int [4];
+var k: int;
+{
+a = 10;
+b = 3;
+a += b;     writeln(' add ', a:0);
+a -= 1;     writeln(' sub ', a:0);
+a *= 2;     writeln(' mul ', a:0);
+a /= 4;     writeln(' div ', a:0);
+a %= 4;     writeln(' mod ', a:0);
+a |= 8;     writeln(' or  ', a:0);
+a &= 12;    writeln(' and ', a:0);
+a ^= 5;     writeln(' xor ', a:0);
+a <<= 2;    writeln(' shl ', a:0);
+a >>= 1;    writeln(' shr ', a:0);
+k = 1;
+arr[k] = 100;
+arr[k] += 7;
+writeln(' arr ', arr[1]:0);
+}.
