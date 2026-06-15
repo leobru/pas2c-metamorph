@@ -464,7 +464,9 @@ var
     insnList: *insnltyp;
     fileForOutput, fileForInput: *extfilerec;
     maxSmallString: int;
+// ifdef TYPEHASH
     typeCacheCnt: int;
+// endif
     smallStringType: tptr[2..6];
     symTabCnt: int;
     symtabarray: word[80];
@@ -2643,6 +2645,7 @@ var
     insnList->disp  =  0;
     insnList->payload  =  0;
     insnList->addrmd  =  16;
+    insnList->st = stWORD;
 } /* genDeref */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4329,7 +4332,9 @@ var
     ranges: rangeList;
     curRange: rangeRec;
     l3idr31z: irptr;
+// ifdef TYPEHASH
     nameForInsert: word;
+// endif
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void definePtrType(toType: tptr);
@@ -4341,6 +4346,7 @@ void definePtrType(toType: tptr);
     typelist  =  curEnum;
 } /* definePtrType */
 //
+// ifdef TYPEHASH
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int makeCacheName(kindCode, hashValue, refValue: int);
 {
@@ -4385,12 +4391,16 @@ var
     symHash[cacheBucket.i]  =  cacheRec;
 } /* addTypeCache */
 //
+// endif
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 tptr getPtrType(baseType: tptr);
+// ifdef TYPEHASH
 var
     probe:int; cacheName: word;
     cacheRec: irptr;
+// endif
 {
+// ifdef TYPEHASH
     probe  =  0;
     while (probe < 64) {
         cacheName.i  =  makeCacheName(1, probe, int(baseType));
@@ -4406,11 +4416,13 @@ var
             return cacheRec->typ;
         ++probe;
     }
+// endif
     curType = malloc(offsetof(types, szPtr));
     CTOR(*curType, 1, 15, kindPtr, baseType);
     return curType;
 } /* getPtrType */
 //
+// ifdef TYPEHASH
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int sameArrayCache(typ: tptr; rangeInfo: rangeRec;
                    elementType: tptr; packedFlag: int;
@@ -4460,6 +4472,7 @@ var
     nameForInsert.i  =  0;
     return NIL;
 } /* findArrayType */
+// endif
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseRecordDecl(rectype: tptr; isOuterDecl: int);
@@ -4720,10 +4733,12 @@ var
             curVal.i |= [1, 3];
         perwordVal  =  KMUL+ I8 + getFCSToffset();
     }
+// ifdef TYPEHASH
     cachedType  =  findArrayType(rangeInfo, elementType, makePacked,
                                  sizeVal, bitsVal, perwordVal, pcksizeVal);
     if (cachedType != NIL)
         return cachedType;
+// endif
     arrayType = malloc(offsetof(types, szArray));
     with *arrayType do {
         size  =  sizeVal;
@@ -4737,8 +4752,10 @@ var
         perword  =  perwordVal;
         pcksize  =  pcksizeVal;
     }
+// ifdef TYPEHASH
     if (nameForInsert.i != 0)
         addTypeCache(nameForInsert, arrayType);
+// endif
     return arrayType;
 } /* makeArrayType */
 //
@@ -7389,7 +7406,9 @@ void defExtern;
     tempType = voidPtr;
     regSysEnum('     NIL', 074000U);
     maxSmallString  =  0;
+// ifdef TYPEHASH
     typeCacheCnt  =  0;
+// endif
     for (strLen = 2; strLen <= 5; ++strLen)
         smallStringType[strlen] = makeStringType();
     maxSmallString  =  6;

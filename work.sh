@@ -1,6 +1,6 @@
 #!/bin/sh
 rm -f wrksrc.bin
-sed 's/{/<:/g;s/}/:>/g' < work.p2c > wrksrc.utxt
+sed 's/{/<:/g;s/}/:>/g' < work.p2c | ./preprocess.py > wrksrc.utxt
 echo '                                                                                ' >> wrksrc.utxt
 cat << EOF > tmp$$
 *NAME work

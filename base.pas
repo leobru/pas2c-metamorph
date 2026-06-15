@@ -135,7 +135,9 @@ const
 %
    BACKSLASH = '\035';
 %
+% ifdef TYPEHASH
    cacheLimit = 0;
+% endif
 type
     assoc = (leftAs, rightAs);
 %
@@ -462,7 +464,9 @@ var
    insnList: @insnltyp;
    fileForOutput, fileForInput: @extfilerec;
    maxSmallString: integer;
+% ifdef TYPEHASH
    typeCacheCnt: integer;
+% endif
    smallStringType: array [2..6] of tptr;
    symTabCnt: integer;
    symtabarray: array [1..80] of word;
@@ -2805,6 +2809,7 @@ var
     insnList@.disp := 0;
     insnList@.payload.i := 0;
     insnList@.addrmd := 16;
+    insnList@.st := stWORD;
 }; (* genDeref *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4576,7 +4581,9 @@ var
     arrayType, nestedType, tempType, curType, cachedType: tptr;
     ranges: rangeList;
     l3idr31z: irptr;
+% ifdef TYPEHASH
     cacheNameForInsert: word;
+% endif
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure definePtrType(toType: tptr);
@@ -4588,6 +4595,7 @@ procedure definePtrType(toType: tptr);
     typelist := curEnum;
 }; (* definePtrType *)
 %
+% ifdef TYPEHASH
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function makeCacheName(kindCode, hashValue, refValue: integer): word;
 var
@@ -4641,13 +4649,17 @@ var
     symHash[cacheBucket] := cacheRec;
 }; (* addTypeCache *)
 %
+% endif
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function getPtrType(baseType: tptr): tptr;
+% ifdef TYPEHASH
 var
     probe: integer;
     cacheName: word;
     cacheRec: irptr;
+% endif
 {
+% ifdef TYPEHASH
     probe := 0;
     write(' looking for ptr to ', baseType:5 oct);
     while probe < 64 do {
@@ -4670,11 +4682,13 @@ var
         probe := probe + 1;
     };
     writeln(' - new');
+% endif
     new(curType = 4);
     curType@ := [1, 15, kindPtr, baseType];
     getPtrType := curType;
 }; (* getPtrType *)
 %
+% ifdef TYPEHASH
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function sameArrayCache(typ, rangeType, elementType: tptr;
                         packedFlag: boolean;
@@ -4728,6 +4742,7 @@ var
     cacheNameForInsert.i := 0;
     findArrayType := NIL;
 }; (* findArrayType *)
+% endif
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure parseRecordDecl(rectype: tptr; isOuterDecl: boolean);
@@ -5000,12 +5015,14 @@ var
             curVal.m := curVal.m + [1, 3];
         perwordVal := KMUL+ I8 + getFCSToffset;
     };
+% ifdef TYPEHASH
     cachedType := findArrayType(rangeType, elementType, makePacked,
                                 sizeVal, bitsVal, perwordVal, pcksizeVal);
     if (cachedType <> NIL) then {
         makeArrayType := cachedType;
         exit;
     };
+% endif
     new(arrayType, kindArray);
     with arrayType@ do {
         size := sizeVal;
@@ -5019,8 +5036,10 @@ var
         perword := perwordVal;
         pcksize := pcksizeVal;
     };
+% ifdef TYPEHASH
     if (cacheNameForInsert.i <> 0) then
         addTypeCache(cacheNameForInsert, arrayType);
+% endif
     makeArrayType := arrayType;
 }; (* makeArrayType *)
 %
@@ -7750,7 +7769,9 @@ var l : integer;
     tempType := voidPtr;
     regSysEnum(565154C(*"     NIL"*), 74000C);
     maxSmallString := 0;
+% ifdef TYPEHASH
     typeCacheCnt := 0;
+% endif
     for strLen := 2 to 5 do
         makeStringType(smallStringType[strLen]);
     maxSmallString := 6;

@@ -8,7 +8,7 @@ cat << EOF > tmp$$
 EOF
 # Compiling the compiler expressed in "standard" BESM-6 Pascal
 # using the existing system compiler
-sed 's/{/_(/g;s/}/_)/g' < base.pas >> tmp$$
+sed 's/{/_(/g;s/}/_)/g' < base.pas | ./preprocess.py >> tmp$$
 cat << EOF >> tmp$$
 *     Overwriting the old state of the object area
 *copy:20,270000,670000
