@@ -1784,7 +1784,8 @@ var
     l2var10z: eptr;
     hasFiles: int;
     l2var12z: int;
-    l2typ13z, l2typ14z, typedRetType: tptr;
+    l2typ13z, l2typ14z, typedRetType, ceTyp: tptr;
+    ceVal, ceRegs: int;
     labFence: int;
     strLabList: *strLabel;
 //
@@ -6505,6 +6506,19 @@ var
 } /* parseData */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void parseConstExpression();
+{
+    readNext  =  false;
+    ceTyp  =  voidType;
+    ceVal  =  1;
+    expression();
+    formOperator(LITINSN);
+    ceTyp  =  insnList->typ;
+    ceVal  =  curVal.i;
+    myrollup(int(boundary));
+} /* parseConstExpression */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void standProc();
 var
     l4typ1z, l4typ2z, l4typ3z: tptr;
@@ -6930,7 +6944,7 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* statement */
-    if (SY == SEMICOLON) {
+    if (freeRegs != ceRegs && SY == SEMICOLON) {
         inSymbol();
         return;
     }
@@ -6939,6 +6953,10 @@ var
     startLine  =  lineCnt;
     if (freeRegs == halfWord) {
         parseData();
+        return;
+    }
+    if (freeRegs == ceRegs) {
+        parseConstExpression();
         return;
     }
     if (SY == INTCONST) {
@@ -7109,6 +7127,24 @@ var
         goto 8888;
     }
 } /* statement */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void parseConstDeclValue(typ: *tptr; value: *int);
+var
+    savedFreeRegs: int;
+{
+    if (SY == STRINGSY) {
+        *typ  =  parseLiteral(value, true);
+        inSymbol();
+        return;
+    }
+    savedFreeRegs  =  freeRegs;
+    freeRegs  =  ceRegs;
+    statement();
+    freeRegs  =  savedFreeRegs;
+    *typ  =  ceTyp;
+    *value  =  ceVal;
+} /* parseConstDeclValue */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void outputObjFile();
@@ -7665,6 +7701,7 @@ void exitScope(a: int);
 //
 { /* programme */
     localSize  =  *retSizePtr;
+    ceRegs  =  halfWord | (E48 >> 23);
     if (localSize == 0) {
         inSymbol();
         mainProgram();
@@ -7692,13 +7729,12 @@ void exitScope(a: int);
             else
                 inSymbol();
             with *workidr do
-                typ = parseLiteral(&high, true);
+                parseConstDeclValue(&typ, &high);
             if (workidr->typ == voidType) {
                 error(errNoConstant);
                 workidr->typ  =  intType;
                 workidr->value  =  1;
-            } else
-                inSymbol();
+            }
             if (SY == SEMICOLON) {
                 lookupMode  =  lookDef;
                 inSymbol();

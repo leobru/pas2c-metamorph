@@ -1,0 +1,19 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+const A = 1 + 2 * 3;
+      B = A + 5;
+      C = -(B - 20);
+      D = (1 << 4) | 3;
+      S = 'HELLO ';
+var x: int;
+{
+    x = B;
+    writeln(' A=', A:0);
+    writeln(' B=', B:0);
+    writeln(' C=', C:0);
+    writeln(' D=', D:0);
+    writeln(' X=', x:0);
+    writeln(' S=', S);
+}
+.

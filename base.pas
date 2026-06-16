@@ -554,7 +554,9 @@ var
     l2var10z: eptr;
     hasFiles: integer;
     l2var12z: word;
-    l2typ13z, l2typ14z, typedRetType: tptr;
+    l2typ13z, l2typ14z, typedRetType, ceTyp: tptr;
+    ceVal: word;
+    ceRegs: bitset;
     labFence: integer;
     strLabList: @strLabel;
 %
@@ -6875,6 +6877,19 @@ function allocDataRef(value: integer): integer;
 }; (* parseData *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure parseConstExpression;
+{
+    readNext := false;
+    ceTyp := voidType;
+    ceVal.i := 1;
+    expression;
+    formOperator(LITINSN);
+    ceTyp := insnList@.typ;
+    ceVal := curVal;
+    myrollup(ord(boundary));
+}; (* parseConstExpression *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure standProc;
 label
     44;
@@ -7307,7 +7322,7 @@ var
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* statement *)
-    if SY = SEMICOLON then {
+    if (freeRegs <> ceRegs) and (SY = SEMICOLON) then {
         inSymbol;
         exit; (* empty statement *)
     };
@@ -7316,6 +7331,10 @@ var
     startLine := lineCnt;
     if freeRegs = halfWord then
         parseData
+    else if freeRegs = ceRegs then {
+        parseConstExpression;
+        exit;
+    }
     else {
         if SY = INTCONST then {
             liveRegs := [];
@@ -7489,6 +7508,24 @@ var
         }
     }
 }; (* statement *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure parseConstDeclValue(var typ: tptr; var value: word);
+var
+    savedFreeRegs: bitset;
+{
+    if (SY = STRINGSY) then {
+        parseLiteral(typ, value, true);
+        inSymbol;
+        exit;
+    };
+    savedFreeRegs := freeRegs;
+    freeRegs := ceRegs;
+    statement;
+    freeRegs := savedFreeRegs;
+    typ := ceTyp;
+    value := ceVal;
+}; (* parseConstDeclValue *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure outputObjFile;
@@ -8065,6 +8102,7 @@ procedure exitScope(var arg: hashArray);
 %
 { (* programme *)
     localSize := l2arg1z;
+    ceRegs := halfWord + [23];
     if (localSize = 0) then {
         inSymbol;
         initScalars;
@@ -8093,13 +8131,12 @@ procedure exitScope(var arg: hashArray);
             else
                 inSymbol;
             with workidr@ do
-                parseLiteral(typ, high, true);
+                parseConstDeclValue(typ, high);
             with workidr@ do if (typ = voidType) then {
                 error(errNoConstant);
                 typ := integerType;
                 value := 1;
-            } else
-                inSymbol;
+            };
             if (SY = SEMICOLON) then {
                 lookupMode := lookDef;
                 inSymbol;
