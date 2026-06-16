@@ -206,13 +206,14 @@ opflg = enum {
 };
 //
 kind = enum {
-    kindReal, kindScalar, kindPtr,
+    kindVoid, kindReal, kindScalar, kindPtr,
     kindArray, kindStruct, kindFile,
     kindCases, kindRoutine
 };
 //
 eptr = *expr;
-tptr = *types;
+typptr = *types;
+tptr = struct { rep: typptr };
 irptr = *identrec;
 sigptr = *sigrec;
 sigrec = struct {
@@ -436,7 +437,7 @@ var
     uProcPtr: irptr;
     externFileList: *extfilerec;
     baseType, typ121z,
-    voidPtr,
+    voidType, voidPtr,
     boolType: tptr;
     textType: tptr;
     intType: tptr;
@@ -600,8 +601,8 @@ var res: tptr;
 {
     if (maxSmallString >= strLen)
         return smallStringType[strLen];
-    res = malloc(offsetof(types, szArray));
-    with *res do {
+    res.rep = malloc(offsetof(types, szArray));
+    with *(res.rep) do {
         size  =  (strLen + 5) / 6;
         bits  =  size == 1 ? strLen << 3 : 0;
         k  =  kindArray;
@@ -832,7 +833,7 @@ void formAndAlign(arg: int);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int isCharArray(arg: tptr);
 {
-    with *arg do return k == kindArray && base == charType;
+    with *(arg.rep) do return k == kindArray && base == charType;
 } /* isCharArray */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -951,8 +952,8 @@ var
         error(errNumberTooLarge);
         return intType;
     }
-    res = malloc(offsetof(types, szScalar));
-    with *res do {
+    res.rep = malloc(offsetof(types, szScalar));
+    with *(res.rep) do {
         size = 1;
         k = kindScalar;
         start = -1;
@@ -1277,7 +1278,7 @@ void lexer();
             chain  =  fieldHash[bucket];
             if (chain != NIL) {
                 while (withIter != NIL) {
-                    val  =  withIter->typ2->size;
+                    val  =  withIter->typ2.rep->size;
                     hashTravPtr  =  chain;
                     while (hashTravPtr != NIL) {
                         if ((hashTravPtr->id == curIdent)
@@ -1631,7 +1632,7 @@ var
             }
         } else
 99:     {
-            ret  =  NIL;
+            ret.rep = NIL;
             error(errNoConstant);
         }
     } else
@@ -1697,8 +1698,8 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int isFileType(typtr: tptr);
 {
-    return typtr->k == kindFile ||
-        typtr->k == kindStruct && typtr->flag;
+    return typtr.rep->k == kindFile ||
+        typtr.rep->k == kindStruct && typtr.rep->flag;
 } /* isFileType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1733,8 +1734,8 @@ var
     srcParam: irptr;
     newParam, lastParam: sigptr;
 {
-    resultTyp = malloc(offsetof(types, szRtype));
-    with *resultTyp do {
+    resultTyp.rep = malloc(offsetof(types, szRtype));
+    with *(resultTyp.rep) do {
         size  =  1;
         bits  =  15;
         k  =  kindRoutine;
@@ -1754,10 +1755,10 @@ var
                 next  =  NIL;
             }
             if (lastParam == NIL)
-                resultTyp->rparams  =  newParam;
+                resultTyp.rep->rparams  =  newParam;
             else
                 lastParam->next  =  newParam;
-            ++resultTyp->rargc;
+            ++resultTyp.rep->rargc;
             lastParam  =  newParam;
             srcParam  =  srcParam->list;
         }
@@ -1829,23 +1830,23 @@ int sameRoutineType(type1, type2: tptr);
 var
     p1, p2: sigptr;
 {
-    if (type1->rargc != type2->rargc ||
-        ((type1->rflags & [20,21,24,26]) !=
-         (type2->rflags & [20,21,24,26]))) {
+    if (type1.rep->rargc != type2.rep->rargc ||
+        ((type1.rep->rflags & [20,21,24,26]) !=
+         (type2.rep->rflags & [20,21,24,26]))) {
         return false;
     }
-    if (type1->rresult != type2->rresult &&
-        (type1->rresult == NIL || type2->rresult == NIL ||
-         ! typeCheck(type1->rresult, type2->rresult))) {
+    if (type1.rep->rresult != type2.rep->rresult &&
+        (type1.rep->rresult.rep == NIL || type2.rep->rresult.rep == NIL ||
+         ! typeCheck(type1.rep->rresult, type2.rep->rresult))) {
         return false;
     }
-    p1  =  type1->rparams;
-    p2  =  type2->rparams;
+    p1  =  type1.rep->rparams;
+    p2  =  type2.rep->rparams;
     while (p1 != NIL && p2 != NIL) {
         if (p1->pclass != p2->pclass)
             return false;
         if (p1->ptyp != p2->ptyp &&
-            (p1->ptyp == NIL || p2->ptyp == NIL ||
+            (p1->ptyp.rep == NIL || p2->ptyp.rep == NIL ||
              ! typeCheck(p1->ptyp, p2->ptyp))) {
             return false;
         }
@@ -1860,9 +1861,9 @@ var
     rangeMismatch  =  false;
     if (!checkTypes || type1 == type2)
 1:      return true;
-        with *type1 do {
+        with *(type1.rep) do {
             kind1  =  k;
-            kind2  =  type2->k;
+            kind2  =  type2.rep->k;
             if (kind1 == kind2) {
                 switch (kind1) {
                 case kindReal:
@@ -1871,31 +1872,31 @@ var
                 /* Two enums must be identical,
                  * all other combinations are okay.
                  */
-                    if (type1->enums == NIL || type2->enums == NIL) {
+                    if (type1.rep->enums == NIL || type2.rep->enums == NIL) {
                         goto 1;
                     }
                     break;
                 case kindPtr:
                     if (type1 == voidPtr || type2 == voidPtr ||
-                        typeCheck(type1->base, type2->base))
+                        typeCheck(type1.rep->base, type2.rep->base))
                         goto 1;
                     break;
                 case kindArray:
-                    span1  =  type1->aright - type1->aleft;
-                    span2  =  type2->aright - type2->aleft;
-                    if (typeCheck(type1->base, type2->base) &&
+                    span1  =  type1.rep->aright - type1.rep->aleft;
+                    span2  =  type2.rep->aright - type2.rep->aleft;
+                    if (typeCheck(type1.rep->base, type2.rep->base) &&
                        (span1 == span2) &&
-                       (type1->pck == type2->pck) &&
+                       (type1.rep->pck == type2.rep->pck) &&
                        !rangeMismatch) {
-                        if (type1->pck) {
-                            if (type1->pcksize == type2->pcksize)
+                        if (type1.rep->pck) {
+                            if (type1.rep->pcksize == type2.rep->pcksize)
                                 goto 1;
                         } else
                             goto 1;
                     }
                     break;
                 case kindFile:
-                    if (typeCheck(type1->base, type2->base))
+                    if (typeCheck(type1.rep->base, type2.rep->base))
                         goto 1;
                     break;
                 case kindRoutine:
@@ -2311,7 +2312,7 @@ var
         switch (ilm) {
         case ilCONST:
             curVal.i  =  payload;
-            if (valueType->size == 1)
+            if (valueType.rep->size == 1)
                 curVal.i  =  getFCSToffset();
             addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
             break;
@@ -2339,7 +2340,7 @@ var
             if (l4st6z == stWORD) {
                 addInsnAndOffset(l4int2z + curInsnTemplate, l4int3z);
             } else {
-                l4var5z  =  valueType->k;
+                l4var5z  =  valueType.rep->k;
                 if (l4var5z < kindArray ||
                    (l4var5z == kindStruct && s6 in optSflags)) {
                     isSimple  =  true;
@@ -2431,7 +2432,7 @@ void getOffset();
         regsused |= E48 >> reg;
         if (ilm == ilCONST) {
             curVal.i  =  payload;
-            if (typ->size == 1)
+            if (typ.rep->size == 1)
                 curVal.i  =  addCurValToFCST();
             l4var6z  =  curVal.i;
             l4var5z  =  074001;
@@ -2511,8 +2512,8 @@ var
             addInsnAndOffset(insnList->payload, insnList->disp);
         }
     } else {
-        l4var7z  =  insnList->typ->k;
-        l4int1z  =  insnList->typ->bits;
+        l4var7z  =  insnList->typ.rep->k;
+        l4int1z  =  insnList->typ.rep->bits;
         l4bool5z  =  l4var7z < kindArray ||
                      (l4var7z == kindStruct && (E48 >> S6) & optSflags);
         if (l4st6z == stSLICE) {
@@ -2885,10 +2886,10 @@ var
     for (curDim = 1; curDim <= dimCnt; ++curDim)
         l5var22z &= ~getEltInsns[curDim]->regsused;
     for (curDim = dimCnt; curDim >= 1; --curDim) {
-        l5var26z  =  insnCopy.typ->base;
-        l5var25z  =  insnCopy.typ->pck;
-        l5var7z  =  insnCopy.typ->aleft;
-        l5var8z  =  l5var26z->size;
+        l5var26z  =  insnCopy.typ.rep->base;
+        l5var25z  =  insnCopy.typ.rep->pck;
+        l5var7z  =  insnCopy.typ.rep->aleft;
+        l5var8z  =  l5var26z.rep->size;
         if (! l5var25z)
             insnCopy.disp  =  insnCopy.disp - l5var8z * l5var7z;
         insnList  =  getEltInsns[curDim];
@@ -2896,31 +2897,31 @@ var
         if (l5ilm28z == ilCONST) {
             curVal.i  =  insnList->payload;
             if ((curVal.i < l5var7z) ||
-               (insnCopy.typ->aright < curVal.i))
+               (insnCopy.typ.rep->aright < curVal.i))
                 error(29); /* errIndexOutOfBounds */
             if (l5var25z) {
                 l5var4z  =  curVal.i - l5var7z;
-                l5var5z  =  insnCopy.typ->perword;
+                l5var5z  =  insnCopy.typ.rep->perword;
                 insnCopy.regsused |= E48;
                 insnCopy.disp  =  l5var4z / l5var5z + insnCopy.disp;
                 l5var6z  =  (l5var5z-1-l5var4z % l5var5z) *
-                           insnCopy.typ->pcksize;
+                           insnCopy.typ.rep->pcksize;
                 switch (insnCopy.st) {
                 case stWORD: insnCopy.shift  =  l5var6z; break;
                 case stSLICE: insnCopy.shift  =  insnCopy.shift + l5var6z +
-                                           insnCopy.typ->bits - 48; break;
+                                           insnCopy.typ.rep->bits - 48; break;
                 case stPACKED: error(errUsingVarAfterIndexingPackedArray);
                 } /* switch */
-                insnCopy.width  =  insnCopy.typ->pcksize;
+                insnCopy.width  =  insnCopy.typ.rep->pcksize;
                 insnCopy.st  =  stSLICE;
             }  else {
-                insnCopy.disp  =  curVal.i  * l5var26z->size +
+                insnCopy.disp  =  curVal.i  * l5var26z.rep->size +
                                   insnCopy.disp;
             }
         } else {
             if (l5var8z != 1) {
                 prepLoad();
-                addToInsnList(insnCopy.typ->perword);
+                addToInsnList(insnCopy.typ.rep->perword);
                 insnList->tail->mode  =  1;
                 if (l5var7z >= 0)
                     addToInsnList(KYTA+64);
@@ -3005,7 +3006,7 @@ var
                     insnCopy.st  =  stPACKED;
                     insnCopy.disp  =  0;
                     insnCopy.payload  =  0;
-                    insnCopy.width  =  insnCopy.typ->pcksize;
+                    insnCopy.width  =  insnCopy.typ.rep->pcksize;
                     curVal.i  =  insnCopy.width;
                     if (curVal.i == 24)
                         curVal.i  =  7;
@@ -3069,7 +3070,7 @@ void formThunk();
                         padToLeft();
                         l5idr4z->value  =  moduleOffset;
                         l5idr3z  =  l5idr4z->argList;
-                        l5var15z  =  l5idr4z->typ != NIL;
+                        l5var15z  =  l5idr4z->typ != voidType;
                         l5var17z  =  argCount(l5idr4z);
                         form3Insn(KVTM+I10+ 4+moduleOffset,
                                   KVTM+I9 + l5var15z,
@@ -3087,7 +3088,7 @@ void formThunk();
                             do {
                                 paramClass  =  l5idr3z->cl;
                                 if ((paramClass == ROUTINEID) &&
-                                   (l5idr3z->typ != NIL))
+                                   (l5idr3z->typ != voidType))
                                     paramClass  =  ENUMID;
                                 form2Insn(0, int(paramClass));
                                 l5idr3z  =  l5idr3z->list;
@@ -3107,7 +3108,7 @@ void formThunk();
 { /* genEntry */
     l5exp1z  =  exprToGen->expr1;
     l5idr5z  =  exprToGen->id2;
-    isProc  =  l5idr5z->typ == NIL;
+    isProc  =  l5idr5z->typ == voidType;
     isDirect  =  l5idr5z->list == NIL;
     frameSiz  =  isProc ? 3 : 4;
     calleeFl  =  l5idr5z->flags;
@@ -3176,7 +3177,7 @@ void formThunk();
             setAddrTo(14);
             addToInsnList(KITA+14);
         } else if (paramClass == VARID) {
-            if (insnList->typ->size != 1) {
+            if (insnList->typ.rep->size != 1) {
                 paramClass  =  FORMALID;
                 goto 1
             } else {
@@ -3286,7 +3287,7 @@ var
     size: int;
     lhsIns, rhsIns: *insnltyp;
 {
-    size  =  insnList->typ->size;
+    size  =  insnList->typ.rep->size;
     if (size == 1) {
         lhsIns  =  insnList;
         insnList  =  otherIns;
@@ -3372,8 +3373,8 @@ var
         if (negate)
             --l3int3z;
         l2typ13z  =  insnList->typ;
-        curVarKind  =  l2typ13z->k;
-        size  =  l2typ13z->size;
+        curVarKind  =  l2typ13z.rep->k;
+        size  =  l2typ13z.rep->size;
         if (l2typ13z == realType) {
             work  =  1;
         } else if (curVarKind == kindScalar)
@@ -3830,7 +3831,7 @@ var
                         shift += curIdRec->shift;
                         if (! (S6 IN optSflags))
                             shift  =  shift +
-                                       curIdRec->uptype->bits - 48;
+                                       curIdRec->uptype.rep->bits - 48;
                         break;
                     }
                     case stPACKED:
@@ -4066,8 +4067,8 @@ var l4exf1z: *extfilerec;
         l4exf1z  =  pextf(curExpr->typ);
         l4var3z  =  curExpr->id2;
         l4int4z  =  l4var3z->value;
-        l4var2z  =  l4var3z->typ->base;
-        elSize  =  l4var3z->typ->elsize;
+        l4var2z  =  l4var3z->typ.rep->base;
+        elSize  =  l4var3z->typ.rep->elsize;
         if (l4int4z < 074000) {
             form1Insn(getValueOrAllocSymtab(l4int4z) +
                       KUTC + I7);
@@ -4075,7 +4076,7 @@ var l4exf1z: *extfilerec;
         }
         form3Insn(KVTM+I12 + l4int4z, KVTM+I10 + fileBufSize,
                   KVTM+I9 + elSize);
-        form1Insn(KVTM+I11 + l4var2z->size);
+        form1Insn(KVTM+I11 + l4var2z.rep->size);
         if (l4exf1z == NIL) {
             form1Insn(KXTA);
         } else {
@@ -4275,11 +4276,11 @@ var l4exf1z: *extfilerec;
         setAddrTo(12);
         genOneOp();
         arg1Type  =  helpExpr->expr2->typ;
-        l3int3z  =  arg1Type->aright - arg1Type->aleft + 1;
+        l3int3z  =  arg1Type.rep->aright - arg1Type.rep->aleft + 1;
         form2Insn((KVTM+I14) + l3int3z,
-                  (KVTM+I10+64) - arg1Type->pcksize);
-        l3int3z  =  int(helpExpr->typ);
-        l3int1z  =  arg1Type->perword;
+                  (KVTM+I10+64) - arg1Type.rep->pcksize);
+        l3int3z  =  int(helpExpr->typ.rep);
+        l3int1z  =  arg1Type.rep->perword;
         if (l3int3z == 72)           /* P/KC */
             l3int1z  =  1 - l3int1z;
         form1Insn(getValueOrAllocSymtab(l3int1z) + (KVTM+I9));
@@ -4291,7 +4292,7 @@ var l4exf1z: *extfilerec;
         with *insnList do {
             if (ilm != ilCONST)
                 error(errNoConstant);
-            if (insnList->typ->size != 1)
+            if (insnList->typ.rep->size != 1)
                 error(errConstOfOtherTypeNeeded);
             curVal.i  =  insnList->payload;
         }
@@ -4330,8 +4331,8 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void definePtrType(toType: tptr);
 {
-    curType = malloc(offsetof(types, szPtr));
-    CTOR(*curType, 1, 15, kindPtr, toType);
+    curType.rep = malloc(offsetof(types, szPtr));
+    CTOR(*(curType.rep), 1, 15, kindPtr, toType);
     curEnum = malloc(offsetof(identrec, szIdent));
     CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
     typelist  =  curEnum;
@@ -4394,22 +4395,22 @@ var
 // ifdef TYPEHASH
     probe  =  0;
     while (probe < 64) {
-        cacheName.i  =  makeCacheName(1, probe, int(baseType));
+        cacheName.i  =  makeCacheName(1, probe, int(baseType.rep));
         cacheRec  =  findTypeCache(cacheName);
         if (cacheRec == NIL) {
-            curType = malloc(offsetof(types, szPtr));
-            CTOR(*curType, 1, 15, kindPtr, baseType);
+            curType.rep = malloc(offsetof(types, szPtr));
+            CTOR(*(curType.rep), 1, 15, kindPtr, baseType);
             addTypeCache(cacheName, curType);
             return curType;
         }
-        if (cacheRec->typ->k == kindPtr &&
-            cacheRec->typ->base == baseType)
+        if (cacheRec->typ.rep->k == kindPtr &&
+            cacheRec->typ.rep->base == baseType)
             return cacheRec->typ;
         ++probe;
     }
 // endif
-    curType = malloc(offsetof(types, szPtr));
-    CTOR(*curType, 1, 15, kindPtr, baseType);
+    curType.rep = malloc(offsetof(types, szPtr));
+    CTOR(*(curType.rep), 1, 15, kindPtr, baseType);
     return curType;
 } /* getPtrType */
 //
@@ -4420,15 +4421,15 @@ int sameArrayCache(typ: tptr; rangeInfo: rangeRec;
                    sizeArg, bitsArg, perwordArg,
                    pcksizeArg: int);
 {
-    return typ->k == kindArray &&
-        typ->base == elementType &&
-        typ->aleft == rangeInfo.aleft &&
-        typ->aright == rangeInfo.aright &&
-        typ->pck == packedFlag &&
-        typ->size == sizeArg &&
-        typ->bits == bitsArg &&
-        typ->perword == perwordArg &&
-        typ->pcksize == pcksizeArg;
+    return typ.rep->k == kindArray &&
+        typ.rep->base == elementType &&
+        typ.rep->aleft == rangeInfo.aleft &&
+        typ.rep->aright == rangeInfo.aright &&
+        typ.rep->pck == packedFlag &&
+        typ.rep->size == sizeArg &&
+        typ.rep->bits == bitsArg &&
+        typ.rep->perword == perwordArg &&
+        typ.rep->pcksize == pcksizeArg;
 } /* sameArrayCache */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4446,7 +4447,7 @@ var
     probe  =  0;
     while (probe < 64) {
         cacheName.i  =  makeCacheName(2, hashValue + probe,
-                                    int(elementType));
+                                    int(elementType.rep));
         cacheRec  =  findTypeCache(cacheName);
         if (cacheRec == NIL) {
             nameForInsert  =  cacheName;
@@ -4488,20 +4489,20 @@ var
     l5var6z: *pair;
 {
     selType = parseTypeRef(skipTarget | [UNIONSY]);
-    if (curType->ptr2 == NIL) {
-        curType->ptr2  =  curField;
+    if (curType.rep->ptr2 == NIL) {
+        curType.rep->ptr2  =  curField;
     } else {
         l3idr31z->list  =  curField;
     }
     cond  =  isFileType(selType);
     if ((! isOuterDecl) && cond)
         error(errTypeMustNotBeFile);
-    curType->flag  =  cond || curType->flag;
+    curType.rep->flag  =  cond || curType.rep->flag;
     l3idr31z  =  curEnum;
     do {
         curField->typ  =  selType;
         if (isPacked) {
-            l5var1z  =  selType->bits;
+            l5var1z  =  selType.rep->bits;
             curField->width  =  l5var1z;
             if (l5var1z != 48) {
                 for (pairIdx = 1; pairIdx <= cases.count; ++pairIdx)
@@ -4542,7 +4543,7 @@ var
         }
         curField->pckfield  =  false;
         curField->offset  =  cases.size;
-        cases.size += selType->size;
+        cases.size += selType.rep->size;
 11622:
         if (PASINFOR.listMode == 3) {
             write(' ':16);
@@ -4555,7 +4556,7 @@ var
                 write('.<<=SHIFT=', curField->shift:2,
                       '. WIDTH=', curField->width:2, ' BITS');
             } else {
-                write('.WORDS=', selType->size:0);
+                write('.WORDS=', selType.rep->size:0);
             }
             writeLN;
         }
@@ -4611,22 +4612,22 @@ var
         inSymbol();
         cases1  =  cases;
         cases2  =  cases;
-        l4typ1z  =  NIL;
+        l4typ1z.rep = NIL;
         l4int7z  =  0;
         while (SY == STRUCTSY) {
             lookupMode  =  3;
             inSymbol();
-            l4var5z = malloc(offsetof(types, szCases));
-            CTOR(*l4var5z, cases.size, 48, kindCases,
+            l4var5z.rep = malloc(offsetof(types, szCases));
+            CTOR(*(l4var5z.rep), cases.size, 48, kindCases,
                           l4int7z, NIL, NIL, NIL);
-            if (l4typ1z == NIL) {
-                if (curType->base == NIL) {
-                    curType->base  =  l4var5z;
+            if (l4typ1z.rep == NIL) {
+                if (curType.rep->base.rep == NIL) {
+                    curType.rep->base  =  l4var5z;
                 } else {
-                    rectype->first  =  l4var5z;
+                    rectype.rep->first  =  l4var5z;
                 }
             } else {
-                l4typ1z->next  =  l4var5z;
+                l4typ1z.rep->next  =  l4var5z;
             }
             l4typ1z  =  l4var5z;
             tempType  =  l4var5z;
@@ -4654,9 +4655,9 @@ var
             inSymbol();
         }
     }
-    rectype->size  =  cases.size;
+    rectype.rep->size  =  cases.size;
     if (isPacked && (cases.size == 1) && (cases.count == 1)) {
-        rectype->bits  =  48 - cases.pairs[1].first;
+        rectype.rep->bits  =  48 - cases.pairs[1].first;
     }
     checkSymAndRead(ENDSY);
 } /* parseRecordDecl*/
@@ -4665,7 +4666,7 @@ var
 void parseRange(aleft, aright: *int);
 {
     curType = parseLiteral(aleft, true);
-    if (curType != NIL && curType->k == kindScalar) {
+    if (curType.rep != NIL && curType.rep->k == kindScalar) {
         inSymbol();
         if (SY != COLON) {
 // Handle a single value N as a range 0..N-1
@@ -4676,7 +4677,7 @@ void parseRange(aleft, aright: *int);
         inSymbol();
         curType = parseLiteral(aright, true);
         inSymbol();
-        if (curType != NIL && curType->k == kindScalar)
+        if (curType.rep != NIL && curType.rep->k == kindScalar)
             return;
     }
     error(64); /* errIncorrectRangeDefinition */
@@ -4692,7 +4693,7 @@ var
     if (isFileType(elementType))
         error(errTypeMustNotBeFile);
     span  =  rangeInfo.aright - rangeInfo.aleft + 1;
-    l3int22z  =  elementType->bits;
+    l3int22z  =  elementType.rep->bits;
     if (24 < l3int22z)
         makePacked  =  false;
     bitsVal  =  48;
@@ -4713,19 +4714,19 @@ var
         if (sizeVal == 1)
             bitsVal  =  l3int22z;
     } else {
-        sizeVal  =  span * elementType->size;
-        curVal.i  =  elementType->size;
+        sizeVal  =  span * elementType.rep->size;
+        curVal.i  =  elementType.rep->size;
         curVal.i  =  curVal.i & [7:47] | E48;
         perwordVal  =  KMUL+ I8 + getFCSToffset();
     }
 // ifdef TYPEHASH
     cachedType  =  findArrayType(rangeInfo, elementType, makePacked,
                                  sizeVal, bitsVal, perwordVal, pcksizeVal);
-    if (cachedType != NIL)
+    if (cachedType.rep != NIL)
         return cachedType;
 // endif
-    arrayType = malloc(offsetof(types, szArray));
-    with *arrayType do {
+    arrayType.rep = malloc(offsetof(types, szArray));
+    with *(arrayType.rep) do {
         size  =  sizeVal;
         bits  =  bitsVal;
         k  =  kindArray;
@@ -4753,7 +4754,7 @@ var
         span  =  0;
         lookupMode  =  lookDef;
         curField  =  NIL;
-        curType = malloc(offsetof(types, szScalar));
+        curType.rep = malloc(offsetof(types, szScalar));
         while (SY == IDENT) {
             if (isDefined)
                 error(errIdentAlreadyDefined);
@@ -4764,7 +4765,7 @@ var
             symHash[bucket]  =  curEnum;
             ++span;
             if (curField == NIL) {
-                curType->enums  =  curEnum;
+                curType.rep->enums  =  curEnum;
             } else {
                 curField->list  =  curEnum;
             }
@@ -4783,7 +4784,7 @@ var
             curType  =  boolType;
             error(errNoIdent);
         } else {
-            CTOR(*curType, 1, nrOfBits(span - 1), kindScalar, ,
+            CTOR(*(curType.rep), 1, nrOfBits(span - 1), kindScalar, ,
                            span, 0);
         }
     } else if (charClass == MUL) {
@@ -4823,7 +4824,7 @@ var
             if (inTypeDef) {
                 if (knownInType(&curEnum)) {
                     curType  =  curEnum->typ;
-                    curType->base  =  boolType;
+                    curType.rep->base  =  boolType;
                 } else {
                     definePtrType(boolType);
                 }
@@ -4850,14 +4851,14 @@ var
             goto 12247;
         }
         if (SY == STRUCTSY) {
-            curType = malloc(offsetof(types, szStruct));
+            curType.rep = malloc(offsetof(types, szStruct));
             typ121z  =  curType;
-            with *curType do {
+            with *(curType.rep) do {
                 size  =  0;
                 bits  =  48;
                 k  =  kindStruct;
                 ptr1  =  NIL;
-                first  =  NIL;
+                first.rep  =  NIL;
                 flag  =  false;
                 pckrec  =  isPacked;
             }
@@ -4872,14 +4873,14 @@ var
             if (isFileType(nestedType))
                 error(errTypeMustNotBeFile);
             if (isPacked) {
-                l3int22z  =  nestedType->bits;
+                l3int22z  =  nestedType.rep->bits;
                 if (24 < l3int22z)
                     isPacked  =  false;
             }
-            curType = malloc(offsetof(types, szFile));
+            curType.rep = malloc(offsetof(types, szFile));
             if (! isPacked)
                 l3int22z  =  0;
-            with *curType do {
+            with *(curType.rep) do {
                 size  =  30;
                 bits  =  48;
                 k  =  kindFile;
@@ -4921,9 +4922,9 @@ void dumpEnumNames(l3arg1z: tptr);
 var
     l3var1z: irptr;
 {
-    if (l3arg1z->start == 0) {
-        l3arg1z->start  =  FcstCnt;
-        l3var1z  =  l3arg1z->enums;
+    if (l3arg1z.rep->start == 0) {
+        l3arg1z.rep->start  =  FcstCnt;
+        l3var1z  =  l3arg1z.rep->enums;
         while (l3var1z != NIL) {
             curVal.i  =  l3var1z->id;
             l3var1z  =  l3var1z->list;
@@ -4969,7 +4970,7 @@ var
             } else
                 error(87); /* errTooManyEntryProcs */
         }
-        if (procName->typ == NIL) {
+        if (procName->typ == voidType) {
             frame  =  3;
         } else {
             frame  =  4;
@@ -5099,24 +5100,24 @@ var
 {
 13462:
     l4typ3z  =  curExpr->typ;
-    l4var4z  =  l4typ3z->k;
+    l4var4z  =  l4typ3z.rep->k;
     if (SY == ARROW) {
         /* '->' is deref + struct field selection; build DEREF here,
            then jump to label 55 to consume the field IDENT. */
         l4exp1z = malloc(sizeof(expr));
         l4exp1z->expr1  =  curExpr;
         if ((l4var4z == kindPtr) &&
-            (l4typ3z->base->k == kindStruct)) {
-            l4exp1z->typ  =  l4typ3z->base;
+            (l4typ3z.rep->base.rep->k == kindStruct)) {
+            l4exp1z->typ  =  l4typ3z.rep->base;
             l4exp1z->op   =  DEREF;
             curExpr  =  l4exp1z;
-            l4typ3z  =  l4typ3z->base;
+            l4typ3z  =  l4typ3z.rep->base;
             goto 55;
         /* leaving it here for the future when accessing fields of the FILE
            structure is possible, that is, when kindFile is a special case
            of kindStruct
         } else if (l4var4z == kindFile) {
-            typ  =  l4typ3z->base;
+            typ  =  l4typ3z.rep->base;
             op  =  FILEPTR;
         */
         } else {
@@ -5155,12 +5156,12 @@ var
         l4exp1z  =  curExpr;
         expression();
         l4typ3z  =  l4exp1z->typ;
-        if (l4typ3z->k != kindArray) {
+        if (l4typ3z.rep->k != kindArray) {
             error(errWrongVarTypeBefore);
         } else {
             l4exp2z = malloc(sizeof(expr));
             with *l4exp2z do {
-                typ  =  l4typ3z->base;
+                typ  =  l4typ3z.rep->base;
                 expr1  =  l4exp1z;
                 expr2  =  curExpr;
                 op  =  GETELT;
@@ -5242,7 +5243,7 @@ var
     formClass: idclass;
 {
     with *subroutine do {
-        if (typ != NIL)
+        if (typ != voidType)
             set146z &= ~flags;
         noArgs  =  (list == NIL) && ! (24 in flags);
     }
@@ -5281,14 +5282,14 @@ var
                 formClass  =  curFormal->cl;
                 if (actualOp == PCALL) {
                     if ((formClass != ROUTINEID) ||
-                       (curFormal->typ != NIL)) {
+                       (curFormal->typ != voidType)) {
 13736:                  error(39); /*errIncompatibleArgumentKinds*/
                         break;
                     }
                 } else {
                     if (actualOp == FCALL) {
                         if (formClass == ROUTINEID) {
-                            if (curFormal->typ == NIL)
+                            if (curFormal->typ == voidType)
                                 goto 13736
                         } else if ((curExpr->id2->argList == NIL) &&
                            (formClass == VARID)) {
@@ -5306,14 +5307,14 @@ var
                     }
                 }
                 arg1Type  =  curExpr->typ;
-                if (arg1Type != NIL) {
+                if (arg1Type.rep != NIL) {
                     if (!typeCheck(arg1Type, curFormal->typ))
                         error(40); /*errIncompatibleArgumentTypes*/
                 }
             } while (false);
             curActual = malloc(sizeof(expr));
             with *curActual do {
-                typ  =  NIL;
+                typ.rep  =  NIL;
                 expr1  =  NIL;
                 expr2  =  curExpr;
             }
@@ -5348,7 +5349,7 @@ int getPrec(sym: symbol; cls: operator);
 void bldBitOp(oper: operator; leftArg: eptr);
 var finalExpr: eptr;
 {
-    if (arg1Type->k != kindScalar || arg2Type->k != kindScalar) {
+    if (arg1Type.rep->k != kindScalar || arg2Type.rep->k != kindScalar) {
         error(errNeedOtherTypesOfOperands);
         curExpr = uVarPtr;
         return;
@@ -5369,8 +5370,8 @@ var
     finalExpr: eptr;
     k1, k2: kind;
 {
-    k1 = arg1Type->k;
-    k2 = arg2Type->k;
+    k1 = arg1Type.rep->k;
+    k2 = arg2Type.rep->k;
     if (k1 > kindScalar || k2 > kindScalar) {
         error(errNeedOtherTypesOfOperands);
 1:      curExpr = uVarPtr;
@@ -5404,8 +5405,8 @@ void bldRelOp(oper: operator; ex2: eptr);
 var ex1: eptr;
 {
     if (typeCheck(arg1Type, arg2Type)) {
-        if ((arg1Type->k == kindFile) ||
-            (arg1Type->size != 1) &&
+        if ((arg1Type.rep->k == kindFile) ||
+            (arg1Type.rep->size != 1) &&
             (oper >= LTOP) &&
             !isCharArray(arg1Type)) {
 1:          error(errNeedOtherTypesOfOperands);
@@ -5415,7 +5416,7 @@ var ex1: eptr;
     } else  {
         if (!areTypesCompatible(&ex2) &&
             ((arg1Type != intType) ||
-             (arg2Type->k != kindScalar) ||
+             (arg2Type.rep->k != kindScalar) ||
             (oper != INOP))) {
             goto 1;
         }
@@ -5460,7 +5461,7 @@ void bldCondOp(condExpr, thenExpr: eptr);
 var altExpr, condOpExpr: eptr;
     resType: tptr;
 {
-    if (condExpr->typ->k > kindPtr) {
+    if (condExpr->typ.rep->k > kindPtr) {
         error(errBooleanNeeded);
         return;
     }
@@ -5471,7 +5472,7 @@ var altExpr, condOpExpr: eptr;
         return;
     }
     resType = arg1Type;
-    if (resType->size != 1) {
+    if (resType.rep->size != 1) {
         error(errNeedOtherTypesOfOperands);
         return;
     }
@@ -5543,7 +5544,7 @@ var
             }
         }
         if (stProcNo == fnOFFSETOF) {
-            if (l5var2z->k != kindStruct)
+            if (l5var2z.rep->k != kindStruct)
                 error(errWrongVarTypeBefore);
             if (SY != COMMA)
                 requiredSymErr(COMMA);
@@ -5565,7 +5566,7 @@ var
                 inSymbol();
             }
         } else {
-            resultValue = l5var2z->size;
+            resultValue = l5var2z.rep->size;
         }
         newExpr = malloc(sizeof(expr));
         with *newExpr do {
@@ -5584,7 +5585,7 @@ var
         return;
     }
     arg1Type  =  curExpr->typ;
-    argKind  =  arg1Type->k;
+    argKind  =  arg1Type.rep->k;
     if (arg1Type == realType)
         checkMode  =  [fnSQRT:fnTRUNC, fnROUND];
     else if (arg1Type == intType)
@@ -5607,7 +5608,7 @@ var
     newExpr = malloc(sizeof(expr));
     if (stProcNo == fnSIZEOF) {
         newExpr->op  =  GETENUM;
-        newExpr->num1  =  arg1Type->size;
+        newExpr->num1  =  arg1Type.rep->size;
         newExpr->typ  =  intType;
     } else {
         newExpr->op  =  STANDPROC;
@@ -5636,7 +5637,7 @@ var
                 if (SY != LPAREN)
                     error(95);
                 expression();
-                if (curExpr->typ->size != l4typ11z->size)
+                if (curExpr->typ.rep->size != l4typ11z.rep->size)
                     error(errNeedOtherTypesOfOperands);
                 checkSymAndRead(RPAREN);
                 curExpr->typ = l4typ11z;
@@ -5655,13 +5656,13 @@ var
                 routine  =  hashTravPtr;
                 inSymbol();
                 if (routine->offset == 0) {
-                    if ((routine->typ != NIL) &&
+                    if ((routine->typ != voidType) &&
                        (SY == LPAREN)) {
                         stdCall();
                         break;
                     }
                     error(44); /* errIncorrectUsageOfStandProcOrFunc */
-                } else if (routine->typ == NIL) {
+                } else if (routine->typ == voidType) {
                     if (wasInCall) {
                         l4op10z  =  PCALL;
                     } else {
@@ -5719,7 +5720,7 @@ var
                 expression();
                 if (l4var12z) {
                     l4typ11z  =  curExpr->typ;
-                    if (l4typ11z->k != kindScalar)
+                    if (l4typ11z.rep->k != kindScalar)
                         error(23); /* errTypeIdInsteadOfVar */
                 } else {
                     if (! typeCheck(l4typ11z, curExpr->typ))
@@ -5838,11 +5839,11 @@ var
                 break;
             case MUL:
                 with *leftExpr do {
-                    if (arg1Type->k == kindPtr) {
-                        typ = arg1Type->base;
+                    if (arg1Type.rep->k == kindPtr) {
+                        typ = arg1Type.rep->base;
                         op = DEREF;
-                    } else if (arg1Type->k == kindFile) {
-                        typ = arg1Type->base;
+                    } else if (arg1Type.rep->k == kindFile) {
+                        typ = arg1Type.rep->base;
                         op = FILEPTR;
                     } else {
                         stmtName = 'unary*';
@@ -5976,7 +5977,7 @@ var
                     castToReal(&curExpr);
                 else
                     error(33); /* errIllegalTypesForAssignment */
-            } else if (arg2Type->k == kindFile) {
+            } else if (arg2Type.rep->k == kindFile) {
                 error(75); /* errCannotAssignFiles */
             }
             thenExpr = malloc(sizeof(expr));
@@ -6138,7 +6139,7 @@ var
     usedRegs  =  0U;
     do {
             expression();
-            if (curExpr->typ->k == kindStruct) {
+            if (curExpr->typ.rep->k == kindStruct) {
                 formOperator(SETREG);
                 usedRegs  =  (usedRegs | (E48 >> curVal.i)) & set148z;
             } else {
@@ -6202,7 +6203,7 @@ var
     parentExpression();
     exprtype  =  curExpr->typ;
     otherSeen  =  false;
-    if (exprtype->k == kindScalar)
+    if (exprtype.rep->k == kindScalar)
         formOperator(LOAD);
     else
         error(25); /* errExprNotOfADiscreteType */
@@ -6212,7 +6213,7 @@ var
     allClauses  =  NIL;
     formJump(&decoder);
     checkSymAndRead(BEGINSY);
-    firstType  =  NIL;
+    firstType.rep = NIL;
     goodMode  =  true;
     do {
         if (! (SY IN [SEMICOLON, ENDSY])) {
@@ -6231,8 +6232,8 @@ var
                 formOperator(LITINSN);
                 itemvalue = curVal.i;
                 itemType = insnList->typ;
-                if (itemtype != NIL) {
-                    if (firstType == NIL) {
+                if (itemtype.rep != NIL) {
+                    if (firstType.rep == NIL) {
                         firstType  =  itemtype;
                     } else {
                         if (! typeCheck(itemtype, firstType))
@@ -6295,8 +6296,8 @@ var
             } else {
                 itemSpan  =  34000;
                 fixup(0, decoder);
-                if (firstType->k == kindScalar)
-                    itemSpan  =  firstType->numen;
+                if (firstType.rep->k == kindScalar)
+                    itemSpan  =  firstType.rep->numen;
                 itemsEnded  =  itemSpan < 32000;
                 if (itemsEnded) {
                     form1Insn(KATI+14);
@@ -6524,7 +6525,7 @@ void verifyType(t: tptr);
     readNext = false;
     expression();
     if (!(curExpr->op IN lvalOpSet) ||
-        t != NIL && ! typeCheck(t, curExpr->typ)) {
+        t != voidType && ! typeCheck(t, curExpr->typ)) {
         error(errNeedOtherTypesOfOperands);
         curExpr  =  uVarPtr;
     }
@@ -6537,7 +6538,7 @@ void startWrite();
     l4typ3z  =  curExpr->typ;
     l4exp7z  =  curExpr;
     if (workExpr == NIL) {
-        if (l4typ3z->k == kindFile) {
+        if (l4typ3z.rep->k == kindFile) {
             workExpr  =  curExpr;
         } else {
             workExpr = malloc(sizeof(expr));
@@ -6546,11 +6547,11 @@ void startWrite();
             workExpr->id1  =  outputFile;
         }
         arg2Type  =  workExpr->typ;
-        /* typeCheck(arg2Type->base, charType); */
-        isCharFile  =  arg2Type->base == charType;
+        /* typeCheck(arg2Type.rep->base, charType); */
+        isCharFile  =  arg2Type.rep->base == charType;
         needR12  =  true;
         l4exp8z = malloc(sizeof(expr));
-        l4exp8z->typ  =  arg2Type->base;
+        l4exp8z->typ  =  arg2Type.rep->base;
         l4exp8z->op  =  FILEPTR;
         l4exp8z->expr1  =  workExpr;
         l4exp6z = malloc(sizeof(expr));
@@ -6587,7 +6588,7 @@ void callHelperWithArg();
 void checkElement();
 {
     set145z &= ~[12];
-    curVarKind  =  l4typ3z->k;
+    curVarKind  =  l4typ3z.rep->k;
     helperNo  =  36;              /* C/WI */
     if (l4typ3z == intType || l4typ3z == boolType)
         defWidth  =  10;
@@ -6597,21 +6598,21 @@ void checkElement();
     } else if (l4typ3z == charType) {
         helperNo  =  38;               /* P/WC */
         defWidth  =  1;
-    } else if (curVarKind == kindScalar && l4typ3z->start != -1) {
+    } else if (curVarKind == kindScalar && l4typ3z.rep->start != -1) {
         helperNo  =  41;               /* P/WX */
         dumpEnumNames(l4typ3z);
         defWidth  =  8;
     } else if (isCharArray(l4typ3z)) {
-        defWidth  =  l4typ3z->aright - l4typ3z->aleft + 1;
-        if (! l4typ3z->pck)
+        defWidth  =  l4typ3z.rep->aright - l4typ3z.rep->aleft + 1;
+        if (! l4typ3z.rep->pck)
             helperNo  =  81;            /* P/WA */
         else if (6 >= defWidth)
             helperNo  =  39;            /* P/A6 */
         else
             helperNo  =  40;           /* P/A7 */
-    } else if (l4typ3z->size == 1) {
+    } else if (l4typ3z.rep->size == 1) {
         helperNo  =  42;               /* P/WO */
-        defWidth  =  (l4typ3z->bits + 5) / 3;
+        defWidth  =  (l4typ3z.rep->bits + 5) / 3;
     } else {
         error(34); /* errTypeIsNotAFileElementType */
     }
@@ -6650,7 +6651,7 @@ void writeProc();
                     if (curToken.i == litOct) {
                         helperNo  =  42; /* P/WO */
                         defWidth  =  17;
-                        if (l4typ3z->size != 1)
+                        if (l4typ3z.rep->size != 1)
                             error(34); /* errTypeIsNotAFileElementType */
                         inSymbol();
                     }
@@ -6699,7 +6700,7 @@ void writeProc();
                     form1Insn(KVTM+I10 + defWidth);
                 else {
                     if (helperNo == 41)  /* P/WX */
-                        form1Insn(KVTM+I11 + l4typ3z->start);
+                        form1Insn(KVTM+I11 + l4typ3z.rep->start);
                 }
                 callHelperWithArg();
             }
@@ -6717,11 +6718,11 @@ void writeProc();
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void checkArrayArg();
 {
-    verifyType(NIL);
+    verifyType(voidType);
     workExpr  =  curExpr;
     l4typ1z  =  curExpr->typ;
-    if ((l4typ1z->pck) ||
-       (l4typ1z->k != kindArray))
+    if ((l4typ1z.rep->pck) ||
+       (l4typ1z.rep->k != kindArray))
         error(errNeedOtherTypesOfOperands);
     checkSymAndRead(COMMA);
     readNext  =  false;
@@ -6735,18 +6736,18 @@ var
     t: tptr;
 {
     l4exp7z = malloc(sizeof(expr));
-    l4exp7z->typ  =  l4typ1z->base;
+    l4exp7z->typ  =  l4typ1z.rep->base;
     l4exp7z->op  =  GETELT;
     l4exp7z->expr1  =  workExpr;
     l4exp7z->expr2  =  l4exp8z;
     t  =  l4exp6z->typ;
-    if ((t->k != kindArray) ||
-       ! t->pck ||
-       (t->base->k != kindScalar) ||
-       (l4typ1z->base->k != kindScalar))
+    if ((t.rep->k != kindArray) ||
+       ! t.rep->pck ||
+       (t.rep->base.rep->k != kindScalar) ||
+       (l4typ1z.rep->base.rep->k != kindScalar))
         error(errNeedOtherTypesOfOperands);
     curExpr = malloc(sizeof(expr));
-    curExpr->typ  =  tptr(procNo + 50);
+    curExpr->typ.rep  =  typptr(procNo + 50);
     curExpr->expr1  =  l4exp7z;
     curExpr->expr2  =  l4exp6z;
     formOperator(PCKUNPCK);
@@ -6766,7 +6767,7 @@ var
         if (! (curExpr->op IN lvalOpSet))
             error(27); /* errExpressionWhereVariableExpected */
         arg1Type  =  curExpr->typ;
-        curVarKind  =  arg1Type->k;
+        curVarKind  =  arg1Type.rep->k;
     }
     if (procNo < 7)
         jumpTarget  =  getHelperProc(29 + procNo); /* P/PF */
@@ -6791,8 +6792,8 @@ var
         ++heapCallsCnt;
         workExpr  =  curExpr;
         formOperator(SETREG9);
-        l2typ13z  =  arg1Type->base;
-        ii  =  l2typ13z->size;
+        l2typ13z  =  arg1Type.rep->base;
+        ii  =  l2typ13z.rep->size;
         if (SY == COLON) {
             expression();
             if (! typeCheck(intType, curExpr->typ))
@@ -6865,7 +6866,7 @@ var
     case 14: /* return */
         if (! (SY IN statEndSys)) {
             /* return expr: load expr to ACC, then jump */
-            if (procName->typ == NIL)
+            if (procName->typ == voidType)
                 error(errNeedOtherTypesOfOperands);
             else {
                 if (hasFiles) {
@@ -6883,7 +6884,7 @@ var
                     error(33); /* errIllegalTypesForAssignment */
                 formOperator(LOAD);
             }
-        } else if (procName->typ != NIL)
+        } else if (procName->typ != voidType)
             error(errNeedOtherTypesOfOperands);
         form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
         return;
@@ -6909,13 +6910,13 @@ var
         inSymbol();
         checkArrayArg();
         checkSymAndRead(COMMA);
-        verifyType(NIL);
+        verifyType(voidType);
         l4exp6z  =  curExpr;
         doPackUnpack();
         break;
     case 22: /* unpack */
         inSymbol();
-        verifyType(NIL);
+        verifyType(voidType);
         l4exp6z  =  curExpr;
         checkSymAndRead(COMMA);
         checkArrayArg();
@@ -6971,7 +6972,7 @@ var
                 checkSymAndRead(SEMICOLON);
                 break;
             }
-            if (l3idr12z->typ == NIL) {
+            if (l3idr12z->typ == voidType) {
                 /* User procedure call (void return): not a valid expression
                    in factor(), so dispatch directly to parseCallArgs. */
                 inSymbol();
@@ -7151,11 +7152,11 @@ var
     if ((E48 >> 23) & procName->flags) {
         l3idr5z  =  procName->argList;
         l3int4z  =  3;
-        if (procName->typ != NIL)
+        if (procName->typ != voidType)
         l3int4z  =  4;
         while (l3idr5z != procName) {
             if (l3idr5z->cl == VARID) {
-                l3var2z  =  l3idr5z->typ->size;
+                l3var2z  =  l3idr5z->typ.rep->size;
                 if (l3var2z != 1) {
                     form3Insn(KVTM+I14 + l3int4z,
                               KVTM+I12 + l3var2z,
@@ -7315,8 +7316,8 @@ void defExtern();
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { /* mainProgram */
-    boolType = malloc(offsetof(types, szScalar));
-    with *boolType do {
+    boolType.rep = malloc(offsetof(types, szScalar));
+    with *(boolType.rep) do {
         size  =  1;
         bits  =  1;
         k  =  kindScalar;
@@ -7324,8 +7325,8 @@ void defExtern();
         start  =  -1;
         enums  =  NIL;
     }
-    intType = malloc(offsetof(types, szScalar));
-    with *intType do {
+    intType.rep = malloc(offsetof(types, szScalar));
+    with *(intType.rep) do {
         size  =  1;
         bits  =  48;
         k  =  kindScalar;
@@ -7333,8 +7334,8 @@ void defExtern();
         start  =  -1;
         enums  =  NIL;
     }
-    charType= malloc(offsetof(types, szScalar));
-    with *charType do {
+    charType.rep = malloc(offsetof(types, szScalar));
+    with *(charType.rep) do {
         size  =  1;
         bits  =  8;
         k  =  kindScalar;
@@ -7342,29 +7343,35 @@ void defExtern();
         start  =  -1;
         enums  =  NIL;
     }
-    realType = malloc(offsetof(types, szReal));
-    with *realType do {
+    realType.rep = malloc(offsetof(types, szReal));
+    with *(realType.rep) do {
         size  =  1;
         bits  =  48;
         k  =  kindReal;
     }
-    voidPtr = malloc(offsetof(types, szPtr));
-    with *voidPtr do {
+    voidType.rep = malloc(offsetof(types, szReal));
+    with *(voidType.rep) do {
+        size  =  0;
+        bits  =  0;
+        k  =  kindVoid;
+    }
+    voidPtr.rep = malloc(offsetof(types, szPtr));
+    with *(voidPtr.rep) do {
         size  =  1;
         bits  =  48;
         k  =  kindPtr;
-        base  =  voidPtr;
+        base  =  voidType;
     }
-    textType = malloc(offsetof(types, szFile));
-    with *textType do {
+    textType.rep = malloc(offsetof(types, szFile));
+    with *(textType.rep) do {
         size  =  30;
         bits  =  48;
         k  =  kindFile;
         base  =  charType;
         elsize  =  8;
     }
-    alfaType = malloc(offsetof(types, szArray));
-    with *alfaType do {
+    alfaType.rep = malloc(offsetof(types, szArray));
+    with *(alfaType.rep) do {
         size  =  1;
         bits  =  48;
         k  =  kindArray;
@@ -7407,14 +7414,14 @@ void defExtern();
     }
     uProcPtr = malloc(offsetof(identrec, szRoutine));
     with *uProcPtr do {
-        typ  =  NIL;
+        typ  =  voidType;
         list  =  NIL;
         argList  =  NIL;
         preDefLink  =  NIL;
         pos  =  0;
-        sigtyp  =  NIL;
+        sigtyp  =  voidType;
     }
-    temptype  =  NIL;
+    temptype.rep = NIL;
     sysProcNum  =  0;
     for (l3var5z = 0; l3var5z <= 22; ++l3var5z)
         regSysProc(systemProcNames[l3var5z]);
@@ -7469,7 +7476,7 @@ void defExtern();
     moduleOffset  =  040001;
     programObj->argList  =  NIL;
     programObj->flags  =  0U;
-    programObj->sigtyp  =  NIL;
+    programObj->sigtyp  =  voidType;
     objBufIdx  =  1;
     lookupMode  =  lookDef;
     outputObjFile();
@@ -7523,7 +7530,7 @@ void makeExtFile();
 {
     l2var10z = malloc(sizeof(expr));
     with *l2var10z do {
-        typ  =  tptr(curExternFile);
+        typ.rep  =  typptr(curExternFile);
         id2  =  workidr;
         expr1  =  curExpr;
     }
@@ -7562,7 +7569,7 @@ var
             parClass  =  ROUTINEID;
         }
         l3var3z  =  NIL;
-        expType  =  (SY == VOIDSY) ? NIL : intType;
+        expType  =  (SY == VOIDSY) ? voidType : intType;
         l3var6z  =  0;
         if (SY != IDENT) {
             lookupMode  =  lookDef;
@@ -7579,7 +7586,7 @@ var
                 offset  =  curFrameRegTemplate;
                 cl  =  parClass;
                 next  =  symHash[bucket];
-                typ  =  NIL;
+                typ  =  voidType;
                 list  =  curIdRec;
                 value  =  l2int18z;
             }
@@ -7606,8 +7613,8 @@ var
             expType = parseTypeRef(skipToSet | [IDENT,RPAREN]);
                 if (isFileType(expType))
                 error(5); /*errSimpleTypeReq */
-                else if (expType->size != 1)
-                     l3var5z  =  l3var6z * expType->size + l3var5z;
+                else if (expType.rep->size != 1)
+                     l3var5z  =  l3var6z * expType.rep->size + l3var5z;
             if (l3var3z != NIL)
                 while (l3var3z != curIdRec) with *l3var3z do {
                     typ  =  expType;
@@ -7628,7 +7635,7 @@ var
         l3var2z  =  curIdRec->argList;
         while (l3var2z != curIdRec) {
             if (l3var2z->cl == VARID) {
-                l3var5z  =  l3var2z->typ->size;
+                l3var5z  =  l3var2z->typ.rep->size;
                 if (l3var5z != 1) {
                     l3var2z->value  =  l3var6z;
                     l3var6z += l3var5z;
@@ -7686,7 +7693,7 @@ void exitScope(a: int);
                 inSymbol();
             with *workidr do
                 typ = parseLiteral(&high, true);
-            if (workidr->typ == NIL) {
+            if (workidr->typ == voidType) {
                 error(errNoConstant);
                 workidr->typ  =  intType;
                 workidr->value  =  1;
@@ -7722,14 +7729,14 @@ void exitScope(a: int);
             curIdent  =  l2var12z;
             if (knownInType(&curIdRec)) {
                 l2typ14z  =  curIdRec->typ;
-                if (l2typ14z->base == boolType) {
-                    if (l2typ13z->k != kindPtr) {
+                if (l2typ14z.rep->base == boolType) {
+                    if (l2typ13z.rep->k != kindPtr) {
                         parseDecls(1);
                         error(78); /* errPredefinedAsPointer */
                     }
-                    l2typ14z->base  =  l2typ13z->base;
+                    l2typ14z.rep->base  =  l2typ13z.rep->base;
                 } else {
-                    l2typ14z->base  =  l2typ13z;
+                    l2typ14z.rep->base  =  l2typ13z;
                     curIdRec->typ  =  l2typ13z;
                 }
                 typelist = hash(typelist, curIdRec);
@@ -7792,7 +7799,7 @@ void exitScope(a: int);
             } while (! l2bool8z);
             checkSymAndRead(COLON);
             l2typ13z = parseTypeRef(skipToSet | [IDENT,SEMICOLON]);
-            jj  =  l2typ13z->size;
+            jj  =  l2typ13z.rep->size;
             while (workidr != NIL) with *workidr do {
                 curIdRec  =  list;
                 typ  =  l2typ13z;
@@ -7890,7 +7897,7 @@ void exitScope(a: int);
         if (SY == IDENT)
             typedRetType  =  hashTravPtr->typ;
         else
-            typedRetType  =  NIL;
+            typedRetType  =  voidType;
         if (curFrameRegTemplate == 7) {
             error(81); /* errProcNestingTooDeep */
         }
@@ -7905,7 +7912,7 @@ void exitScope(a: int);
                 if (cl == ROUTINEID &&
                     list == NIL &&
                     preDefLink != NIL &&
-                    (typ == NIL) == l2bool8z) {
+                    (typ == voidType) == l2bool8z) {
                     isPredefined  =  true;
                 } else {
                     isPredefined  =  false;
@@ -7921,14 +7928,14 @@ void exitScope(a: int);
                 id  =  curIdent;
                 offset  =  curFrameRegTemplate;
                 next  =  symHash[bucket];
-                typ  =  NIL;
+                typ  =  voidType;
                 symHash[bucket]  =  curIdRec;
                 cl  =  ROUTINEID;
                 list  =  NIL;
                 value  =  0;
                 argList  =  NIL;
                 preDefLink  =  NIL;
-                sigtyp  =  NIL;
+                sigtyp  =  voidType;
                 flags  =  declEntry ? [0:15,22] : [0:15];
                 pos  =  0;
                 curFrameRegTemplate += frameRegTemplate;
@@ -7944,18 +7951,18 @@ void exitScope(a: int);
             if (hadParens)
                 parseParameters();
             if (! l2bool8z) {
-                if (typedRetType != NIL) {
+                if (typedRetType != voidType) {
                     /* New C-style: return type was stashed at the loop
                        head; no ':TYPE' suffix expected. */
                     curIdRec->typ = typedRetType;
-                    if (curIdRec->typ->size != 1)
+                    if (curIdRec->typ.rep->size != 1)
                         error(errTypeMustNotBeFile);
                 } else if (SY != COLON)
                     errAndSkip(106 /*:*/, skipToSet | [SEMICOLON]);
                 else {
                     inSymbol();
                     curIdRec->typ = parseTypeRef(skipToSet | [SEMICOLON]);
-                    if (curIdRec->typ->size != 1)
+                    if (curIdRec->typ.rep->size != 1)
                         error(errTypeMustNotBeFile);
                 }
             }

@@ -219,7 +219,7 @@ strhash = packed record
 end;
 % endif
 (*=s6 right to left packing *)
-% All reprentations must start with "pointer, kind, 15 bit, 6 bit"
+% All representations must start with "pointer, kind, 15 bit, 6 bit"
 ptrrep = packed record
    base  : @types;
    rk    : kind;
@@ -235,7 +235,7 @@ aryrep = packed record
    elts : 0..255
 end;
 tptr = record case integer of
-         0 : (rep : @types); (* for deref only, due to a Psacal compiler bug *)
+         0 : (rep : @types); (* for deref only, due to a Pascal compiler bug *)
          1 : (p: ptrrep);
          2 : (a: aryrep);
        end;
