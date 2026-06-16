@@ -219,7 +219,26 @@ strhash = packed record
 end;
 % endif
 (*=s6 right to left packing *)
-tptr = record rep : @types end;
+% All reprentations must start with "pointer, kind, 15 bit, 6 bit"
+ptrrep = packed record
+   base  : @types;
+   rk    : kind;
+   size  : 0..77777B;
+   bits  : 0..48;
+   indir : 0..255
+end;
+aryrep = packed record
+   rep  : @types;
+   rk   : kind;
+   size : 0..77777B;
+   bits : 0..48;
+   elts : 0..255
+end;
+tptr = record case integer of
+         0 : (rep : @types); (* for deref only, due to a Psacal compiler bug *)
+         1 : (p: ptrrep);
+         2 : (a: aryrep);
+       end;
 sigrec = record
     pclass                  : idclass;
     ptyp                    : tptr;
