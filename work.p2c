@@ -454,10 +454,10 @@ var
     hashMask: int;
     curIdent: int;
     toAlloc: int;
-    set145z: int;
-    set146z:int;
+    usedRegs: int;
+    liveRegs:int;
     freeRegs:int;
-    set148z: int;
+    auxRegs: int;
     optSflags: int;
     uVarPtr: eptr;
     curExpr: eptr;
@@ -2061,7 +2061,7 @@ void processInsn();
 { /* genOneOp */
     if (insnList == NIL)
          return;
-    set145z |= insnList->regsused;
+    usedRegs |= insnList->regsused;
     l4oi212z  =  insnList->head;
     l4var9z  =  KNTR+7;
     insnBufIdx  =  1;
@@ -2250,7 +2250,7 @@ void processInsn();
             } else
                 l4inl6z  =  next;
     }
-    set146z &= ~set145z;
+    liveRegs &= ~usedRegs;
 } /* genOneOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3154,7 +3154,7 @@ void formThunk();
             insnList->head  =  NIL;
             insnList->tail  =  NIL;
             insnList->regsused  =  0U;
-            set145z |= l5idr4z->flags;
+            usedRegs |= l5idr4z->flags;
             if (l5idr4z->list != NIL) {
                 addToInsnList(l5idr4z->offset + KXTA +
                               l5idr4z->value);
@@ -3247,7 +3247,7 @@ void formThunk();
         (! isDirect || [20, 21] & calleeFl)) {
         addToInsnList(KVTM+040074001);
     }
-    set145z  =  (set145z | calleeFl) & [1:15];
+    usedRegs  =  (usedRegs | calleeFl) & [1:15];
     if (isFortrn) {
         addToInsnList(checkFortran ? getHelperProc(93) /* "P/FM" */
                                    : KNTR+7);
@@ -3257,7 +3257,7 @@ void formThunk();
         insnList->typ  =  l5idr5z->typ;
         insnList->regsused  =  insnList->regsused | E48;
         insnList->ilm  =  ilRVAL;
-        set146z &= ~calleeFl;
+        liveRegs &= ~calleeFl;
     }
 } /* genEntry */
 //
@@ -3315,7 +3315,7 @@ var
         form2Insn(KUTC+I14 + size, KXTA+I13);
         form3Insn(KUTC+I12 + size, KATX+I13,
                   KVLM+I13 + work);
-        set145z |= [12:14];
+        usedRegs |= [12:14];
     }
 } /* genCopy */
 //
@@ -4026,7 +4026,7 @@ var
         }
     } else if (curOP == NOOP) {
         curVal.tp  =  exprToGen->typ;
-        if (curVal.i IN set146z) {
+        if (curVal.i IN liveRegs) {
             insnList = malloc(sizeof(insnltyp));
             with *insnList do {
                 typ  =  exprToGen->expr2->typ;
@@ -4119,7 +4119,7 @@ var l4exf1z: *extfilerec;
                 if (l3int3z == 0) {
                     l3int2z  =  14;
                 } else {
-                    l3var10z  =  set148z & freeRegs;
+                    l3var10z  =  auxRegs & freeRegs;
                     if (l3var10z != 0U) {
                         l3int2z  =  minel(l3var10z);
                     } else {
@@ -4134,9 +4134,9 @@ var l4exf1z: *extfilerec;
                         genOneOp();
                     }
                     l3var11z  =  (E48 >> l3int2z) & (~[14]);
-                    set145z &= ~l3var11z;
+                    usedRegs &= ~l3var11z;
                     freeRegs &= ~l3var11z;
-                    set146z |= l3var11z;
+                    liveRegs |= l3var11z;
                 }
                 curVal.i  =  l3int2z;
                 helpExpr->typ  =  curVal.tp;
@@ -4195,7 +4195,7 @@ var l4exf1z: *extfilerec;
         if (l3arg1z == gen12)
             prependToInsnList(macro + mcPUSH);
         genOneOp();
-        set145z |= [12];
+        usedRegs |= [12];
         break;
     case FILEACCESS:
         setAddrTo(12);
@@ -5244,7 +5244,7 @@ var
 {
     with *subroutine do {
         if (typ != voidType)
-            set146z &= ~flags;
+            liveRegs &= ~flags;
         noArgs  =  (list == NIL) && ! (24 in flags);
     }
     callExpr = malloc(sizeof(expr));
@@ -6141,7 +6141,7 @@ var
             expression();
             if (curExpr->typ.rep->k == kindStruct) {
                 formOperator(SETREG);
-                usedRegs  =  (usedRegs | (E48 >> curVal.i)) & set148z;
+                usedRegs  =  (usedRegs | (E48 >> curVal.i)) & auxRegs;
             } else {
                 error(71); /* errWithOperatorNotOfARecord */
             }
@@ -6151,7 +6151,7 @@ var
     withList  =  oldWith;
     localSize  =  oldSize;
     freeRegs  =  oldRegs;
-    set145z |= usedRegs;
+    usedRegs |= usedRegs;
 } /* withStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6575,7 +6575,7 @@ eptr parseWidthSpecifier();
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void callHelperWithArg();
 {
-    if ([12] & set145z || needR12) {
+    if ([12] & usedRegs || needR12) {
         curExpr  =  workExpr;
         formOperator(SETREG12);
     }
@@ -6587,7 +6587,7 @@ void callHelperWithArg();
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void checkElement();
 {
-    set145z &= ~[12];
+    usedRegs &= ~[12];
     curVarKind  =  l4typ3z.rep->k;
     helperNo  =  36;              /* C/WI */
     if (l4typ3z == intType || l4typ3z == boolType)
@@ -6628,7 +6628,7 @@ void writeProc();
         if (l4exp7z != workExpr) {
             if (! isCharFile) {
                 helperNo  =  29;         /* P/PF */
-                set145z &= ~[12];
+                usedRegs &= ~[12];
                 if (! typeCheck(l4exp8z->typ, l4exp7z->typ))
                     error(34); /* errTypeIsNotAFileElementType */
                 else {
@@ -6710,7 +6710,7 @@ void writeProc();
         helperNo  =  46;                 /* P/WL */
         callHelperWithArg();
     }
-    set145z |= [12];
+    usedRegs |= [12];
     if (l4var14z == moduleOffset)
         error(36); /*errTooFewArguments */
 } /* writeProc */
@@ -6942,7 +6942,7 @@ var
         return;
     }
     if (SY == INTCONST) {
-        set146z  =  0U;
+        liveRegs  =  0U;
         disableNorm();
         padToLeft();
         labCheckAndDefine(true);
@@ -7027,7 +7027,7 @@ var
             fixup(0, ifWhlTarget);
         break;
     case WHILESY:
-        set146z  =  0U;
+        liveRegs  =  0U;
         setBrCont();
         // We know immediately where the continue statement within
         // a while loop should go.
@@ -7047,7 +7047,7 @@ var
         checkSymAndRead(SEMICOLON);
         break;
     case DOSY:
-        set146z  =  0U;
+        liveRegs  =  0U;
         setBrCont();
         curOffset  =  moduleOffset;
         inSymbol();
@@ -7077,7 +7077,7 @@ var
         brContTarget();
         break;
     case FORSY:
-        set146z  =  0U;
+        liveRegs  =  0U;
         forStatement();
         break;
     case SWITCHSY:
@@ -7138,12 +7138,12 @@ var
     lookup2  =  2;
     withList  =  NIL;
     arithMode  =  1;
-    set146z  =  0U;
+    liveRegs  =  0U;
     // [curProcNesting+1..6];
     freeRegs  = (all1 >> 1 >> curProcNesting) & (all1 << 41);
-    set148z  =  freeRegs & (~(E48 >> minel(freeRegs)));
+    auxRegs  =  freeRegs & (~(E48 >> minel(freeRegs)));
     l3var7z  =  freeRegs;
-    set145z  =  [1:15] & (~freeRegs);
+    usedRegs  =  [1:15] & (~freeRegs);
     if (curProcNesting != 1)
         parseDecls(2);
     sizeCount  =  localSize;
@@ -7186,10 +7186,10 @@ var
                errAndSkip(errBadSymbol, skipToSet);
         }
     } while (! l2bool8z);
-    procName->flags  =  set145z & [0:15] | procName->flags & ~l3var7z;
+    procName->flags  =  usedRegs & [0:15] | procName->flags & ~l3var7z;
     lineNesting  =  l3var2z - 1;
     if (!bool48z && ! doPMD && (sizeCount == 3) &&
-       (curProcNesting != 1) && (set145z & [1:15]) != [1:15]) {
+       (curProcNesting != 1) && (usedRegs & [1:15]) != [1:15]) {
         objBuffer[1]  =  (KNTR+7)<< 24 | KUTC;
         with *procName do
             flags |= [25];
@@ -7198,8 +7198,8 @@ var
             putLeft  =  true;
         } else {
             procName->pos  =  l3var1z;
-            if ((E48 >> 13) & set145z) {
-                curVal.i  =  minel([1:15] & (~set145z));
+            if ((E48 >> 13) & usedRegs) {
+                curVal.i  =  minel([1:15] & (~usedRegs));
                 objBuffer[2]  =  objBuffer[2] | (KMTJ+I13+curVal.i) << 24;
             } else {
                 curVal.i  =  13;

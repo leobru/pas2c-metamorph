@@ -473,7 +473,7 @@ var
    leftInsn: bitset;
    hashMask: word;
    curIdent: word;
-   toAlloc, set145z, set146z, set147z, set148z: bitset;
+   toAlloc, usedRegs, liveRegs, freeRegs, auxRegs: bitset;
    optSflags: word;
    litOct: word;
    litForward: word;
@@ -2169,7 +2169,7 @@ procedure addJumpInsn(opcode: integer);
 { (* genOneOp *)
     if insnList = NIL
         then exit;
-    set145z := set145z + insnList@.regsused;
+    usedRegs := usedRegs + insnList@.regsused;
     l4oi212z := insnList@.head;
     l4var9z := 370007B;
     insnBufIdx := 1;
@@ -2427,7 +2427,7 @@ procedure addJumpInsn(opcode: integer);
             } else
                 l4inl6z := next;
     };
-    set146z := set146z - set145z;
+    liveRegs := liveRegs - usedRegs;
 }; (* genOneOp *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3076,7 +3076,7 @@ var
     l5ins21z := insnList;
     insnCopy := insnList@;
     copyPtr := ref(insnCopy);
-    l5var22z.m := set147z;
+    l5var22z.m := freeRegs;
     for curDim to dimCnt do
        l5var22z.m := l5var22z.m - getEltInsns[curDim]@.regsused;
     for curDim := dimCnt downto 1 do {
@@ -3144,7 +3144,7 @@ var
                     if (insnCopy.addrmd >= 15) then {
                         l5var1z :=  minel(l5var22z.m);
                         if (0 >= l5var1z) then {
-                            l5var1z := minel(set147z - insnCopy.regsused);
+                            l5var1z := minel(freeRegs - insnCopy.regsused);
                             if (0 >= l5var1z) then
                                 l5var1z := 9;
                         };
@@ -3303,7 +3303,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
             insnList@.head := NIL;
             insnList@.tail := NIL;
             insnList@.regsused := [];
-            set145z := set145z + l5idr4z@.flags;
+            usedRegs := usedRegs + l5idr4z@.flags;
             if (l5idr4z@.list <> NIL) then {
                 addToInsnList(l5idr4z@.offset + insnTemp[XTA] +
                               l5idr4z@.value);
@@ -3450,7 +3450,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
        (not isDirect or ([20, 21] * calleeFl.m <> [])) then {
         addToInsnList(KVTM+40074001B);
     };
-    set145z := (set145z + calleeFl.m) * [1:15];
+    usedRegs := (usedRegs + calleeFl.m) * [1:15];
     if isFortrn then {
         if (not checkFortran) then
             addToInsnList(KNTR+7)
@@ -3462,7 +3462,7 @@ function allocGlobalObject(l6arg1z: irptr): integer;
         insnList@.typ := l5idr5z@.typ;
         insnList@.regsused := insnList@.regsused + [0];
         insnList@.ilm := ilRVAL;
-        set146z := set146z - calleeFl.m;
+        liveRegs := liveRegs - calleeFl.m;
     }
 
 }; (* genEntry *)
@@ -3521,7 +3521,7 @@ var
         form2Insn(KUTC+I14 + size, KXTA+I13);
         form3Insn(KUTC+I12 + size, KATX+I13,
                   KVLM+I13 + work);
-        set145z := set145z + [12:14];
+        usedRegs := usedRegs + [12:14];
     }
 }; (* genCopy *)
 %
@@ -4285,7 +4285,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
         } else {
             if (curOP = NOOP) then {
                 curVal := exprToGen@.vt;
-                if (curVal.i IN set146z) then {
+                if (curVal.i IN liveRegs) then {
                     new(insnList);
                     with insnList@ do {
                         typ := exprToGen@.expr2@.vt.typ;
@@ -4394,7 +4394,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                 if (l3int3z = 0) then {
                     l3int2z := 14;
                 } else {
-                    l3var10z.m := set148z * set147z;
+                    l3var10z.m := auxRegs * freeRegs;
                     if (l3var10z.m <> []) then {
                         l3int2z := minel(l3var10z.m);
                     } else {
@@ -4409,9 +4409,9 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
                         genOneOp;
                     };
                     l3var11z.m := [l3int2z] - [14];
-                    set145z := set145z - l3var11z.m;
-                    set147z := set147z - l3var11z.m;
-                    set146z := set146z + l3var11z.m;
+                    usedRegs := usedRegs - l3var11z.m;
+                    freeRegs := freeRegs - l3var11z.m;
+                    liveRegs := liveRegs + l3var11z.m;
                 };
                 curVal.i := l3int2z;
                 helpExpr@.vt := curVal;
@@ -4468,7 +4468,7 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
         if (l3arg1z = gen12) then
             prependToInsnList(macro + mcPUSH);
         genOneOp;
-        set145z := set145z + [12];
+        usedRegs := usedRegs + [12];
     };
     FILEACCESS: {
         setAddrTo(12);
@@ -5575,7 +5575,7 @@ var
 {
     with subroutine@ do {
         if typ <> voidType then
-            set146z := set146z - flags;
+            liveRegs := liveRegs - flags;
         noArgs := (list = NIL) and not (24 in flags);
     };
     new(callExpr);
@@ -6482,13 +6482,13 @@ var
 {
     oldWith := withList;
     l4var4z := localSize;
-    l4var2z := set147z;
+    l4var2z := freeRegs;
     l4var3z := [];
     repeat
             expression;
             if (curExpr@.vt.typ.rep@.k = kindStruct) then {
                 formOperator(SETREG);
-                l4var3z := (l4var3z + [curVal.i]) * set148z;
+                l4var3z := (l4var3z + [curVal.i]) * auxRegs;
             } else {
                 error(71); (* errWithOperatorNotOfARecord *)
             };
@@ -6497,8 +6497,8 @@ var
     statement;
     withList := oldWith;
     localSize := l4var4z;
-    set147z := l4var2z;
-    set145z := set145z + l4var3z;
+    freeRegs := l4var2z;
+    usedRegs := usedRegs + l4var3z;
 }; (* withStatement *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6949,7 +6949,7 @@ function parseWidthSpecifier: eptr;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure callHelperWithArg;
 {
-    if ([12] <= set145z) or needR12 then {
+    if ([12] <= usedRegs) or needR12 then {
         curExpr := workExpr;
         formOperator(SETREG12);
     };
@@ -6961,7 +6961,7 @@ procedure callHelperWithArg;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure checkElementForReadWrite;
 {
-    set145z := set145z - [12];
+    usedRegs := usedRegs - [12];
     curVarKind := l4typ3z.rep@.k;
     helperNo := 36;               (* C/WI *)
     if ((l4typ3z = integerType) or (l4typ3z = booleanType)) then
@@ -7003,7 +7003,7 @@ procedure writeProc;
         if (l4exp7z <> workExpr) then {
             if not isCharFile then {
                 helperNo := 29;         (* P/PF *)
-                set145z := set145z - [12];
+                usedRegs := usedRegs - [12];
                 if not typeCheck(l4exp8z@.vt.typ, l4exp7z@.vt.typ) then
                     error(34) (* errTypeIsNotAFileElementType *)
                 else {
@@ -7083,7 +7083,7 @@ procedure writeProc;
         helperNo := 46;                 (* P/WL *)
         callHelperWithArg;
     };
-    set145z := set145z + [12];
+    usedRegs := usedRegs + [12];
     if (oldOffset = moduleOffset) then
         error(36); (*errTooFewArguments *)
 }; (* writeProc *)
@@ -7314,11 +7314,11 @@ var
     setup(boundary);
     bool110z := false;
     startLine := lineCnt;
-    if set147z = halfWord then
+    if freeRegs = halfWord then
         parseData
     else {
         if SY = INTCONST then {
-            set146z := [];
+            liveRegs := [];
             disableNorm;
             flag := true;
             padToLeft;
@@ -7423,7 +7423,7 @@ var
                 fixup(0, ifWhlTarget);
             }
         } else  if (SY = WHILESY) then {
-            set146z := [];
+            liveRegs := [];
             setBrCont;
             strLabList@.target := moduleOffset;
             curOffset.i := moduleOffset;
@@ -7439,7 +7439,7 @@ var
             inSymbol;
             checkSymAndRead(SEMICOLON);
         } else  if (SY = DOSY) then {
-            set146z := [];
+            liveRegs := [];
             setBrCont;
             curOffset.i := moduleOffset;
             inSymbol;
@@ -7470,7 +7470,7 @@ var
             brContTarget; (* removing break *)
         } else
         if (SY = FORSY) then {
-            set146z := [];
+            liveRegs := [];
             forStatement;
         } else  if (SY = SWITCHSY) then {
             curIdent.i := 4262454153C;
@@ -7520,11 +7520,11 @@ var
     lookup2 := lookWith;
     withList := NIL;
     arithMode := 1;
-    set146z := [];
-    set147z := [curProcNesting+1..6];
-    set148z := set147z - [minel(set147z)];
-    l3var7z.m := set147z;
-    set145z := [1:15] - set147z;
+    liveRegs := [];
+    freeRegs := [curProcNesting+1..6];
+    auxRegs := freeRegs - [minel(freeRegs)];
+    l3var7z.m := freeRegs;
+    usedRegs := [1:15] - freeRegs;
     if (curProcNesting <> 1) then
         parseDecls(2);
     l2int21z := localSize;
@@ -7567,10 +7567,10 @@ var
                errAndSkip(errBadSymbol, skipToSet);
            }
     until done;
-    procName@.flags := (set145z * [0:15]) + (procName@.flags - l3var7z.m);
+    procName@.flags := (usedRegs * [0:15]) + (procName@.flags - l3var7z.m);
     lineNesting := l3var2z.i - 1;
     if not bool48z and not doPMD and (l2int21z = 3) and
-       (curProcNesting <> 1) and (set145z * [1:15] <> [1:15]) then {
+       (curProcNesting <> 1) and (usedRegs * [1:15] <> [1:15]) then {
         objBuffer[1] := [7:11,21:23,28,31]; (* ,NTR,7; ,UTC, *)
         with procName@ do
             flags := flags + [25];
@@ -7579,8 +7579,8 @@ var
             putLeft := true;
         } else {
             procName@.pos := l3var1z.i;
-            if 13 IN set145z then {
-                curVal.i := minel([1:15] - set145z);
+            if 13 IN usedRegs then {
+                curVal.i := minel([1:15] - usedRegs);
                 besm(ASN64-24);
                 l3var7z := ;
                 objBuffer[2] := objBuffer[2] + [0,1,3,6,9] + l3var7z.m;
@@ -7911,7 +7911,7 @@ var l : integer;
         lookup2 := 0;
         lookupMode := ;
     } else {
-        set147z := halfWord;
+        freeRegs := halfWord;
         dataCheck := false;
         statement;
     };
