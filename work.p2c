@@ -13,7 +13,6 @@ const
     S3 = 0;
     S5 = 2;
     S6 = 3;
-    NoPtrCheck = 4;
     NoStackCheck = 5;
 //
     ASN64 = 0360100;
@@ -1117,7 +1116,7 @@ void readOptFlag(res: *int);
         case 'F': readOptFlag(&checkFortran); break;
         case 'L': PASINFOR.listMode = readOptVal(3); break;
         case 'P': readOptFlag(&doPMD); break; // ignored
-        case 'T': readOptFlag(&checkBounds); break;
+        case 'T': readOptFlag(&checkBounds); break; // ignored
         case 'A': charEncoding = readOptVal(3); break;
         case 'C': readOptFlag(&checkTypes); break;
         case 'M': readOptFlag(&fixMult); break;
@@ -2600,16 +2599,14 @@ void startLVal();
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genDeref();
 var
-    l5var1z, l5var2z, doPtrCheck: int;
+    l5var1z, l5var2z: int;
 {
-    doPtrCheck  =  checkBounds && ! (NoPtrCheck in optSflags)
-               && (curOP == DEREF);
     /* The optimised path manipulates addrmd/disp/payload, which only
        carry meaning for ilLVAL (addressable) operands.  For ilRVAL --
        e.g. a function-call result whose pointer value is already in ACC
        -- those fields are uninitialised and would yield garbage; in
        that case fall through to the general mcACC2ADDR path below. */
-    if (! doPtrCheck && (insnList->ilm == ilLVAL) && (
+    if (insnList->ilm == ilLVAL && (
         (insnList->st == stWORD) ||
         (insnList->st == stSLICE) &&
         (insnList->shift == 0)))
@@ -2635,11 +2632,6 @@ var
         }
     } else {
         startLVal();
-        if (doPtrCheck) {
-            addToInsnList(KVTM+I14 + lineCnt);
-            addToInsnList(getHelperProc(7)); /* "P/CA"*/
-            insnList->tail->mode  =  1;
-        }
         addToInsnList(macro + mcACC2ADDR);
     }
     insnList->disp  =  0;
@@ -6789,9 +6781,6 @@ var
     case 6: /* halt */
         formAndAlign(jumpTarget);
         return;
-    case 7: /* stop */
-        form1Insn(KE74);
-        return;
     case 8: case 9: /* setup, rollup */
         if (curVarKind != kindPtr)
             error(13); /* errVarIsNotPointer */
@@ -6840,10 +6829,10 @@ var
         }
         break;
     case 14: /* return */
-        if (! (SY IN statEndSys)) {
+        if (SY != SEMICOLON) {
             /* return expr: load expr to ACC, then jump */
             if (procName->typ == voidType)
-                error(errNeedOtherTypesOfOperands);
+                errAndSkip(errNeedOtherTypesOfOperands, statEndSys);
             else {
                 if (hasFiles) {
                     writeln(' functions must not use files');
@@ -6897,7 +6886,8 @@ var
         checkSymAndRead(COMMA);
         checkArrayArg();
         doPackUnpack();
-    case 4: case 13: case 15: case 17: // unused, listed for completeness
+    case 4: case 7: case 13: case 15: case 17: case 18:
+        // unused, listed for completeness
     }
     if (procNo in [0,1,2,3,5,10,11,13,21,22])
         arithMode  =  1;
@@ -7166,7 +7156,7 @@ var
             l3idr5z  =  l3idr5z->list;
         }
     }
-    if (checkBounds || ! (NoStackCheck IN optSflags))
+    if (! (NoStackCheck IN optSflags))
         fixup(-1, 95); /* P/SC */
     l3var2z  =  lineNesting;
     do {

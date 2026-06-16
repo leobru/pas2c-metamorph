@@ -7,6 +7,7 @@ C   matching what longjmp.madlen expects: low 15 bits = address
 C   to jump back to, high part = caller's frame pointer (M7).
 C   Out: ACC := 0   (the "first" return value of setjmp).
 C===========================================================
+                , ntr , 7      . ABI requirement
                 , ati , 14     . M14 := &env (consume the arg pointer)
                 , ita , 13     . ACC := M13 (return address)
             14  , atx ,        . *env := return address (low 15 bits)

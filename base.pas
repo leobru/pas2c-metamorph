@@ -16,7 +16,6 @@ const
     S4 = 1;
     S5 = 2;
     S6 = 3;
-    NoPtrCheck = 4;
     NoStackCheck = 5;
 %
     ASN64 = 360100B;
@@ -1288,7 +1287,7 @@ procedure readOptFlag(var res: boolean);
         'F': readOptFlag(checkFortran);
         'L': readOptVal(PASINFOR.listMode, 3);
         'P': readOptFlag(doPMD); (* ignored *)
-        'T': readOptFlag(checkBounds);
+        'T': readOptFlag(checkBounds); (* ignored *)
         'A': readOptVal(charEncoding, 3);
         'C': readOptFlag(checkTypes);
         'M': readOptFlag(fixMult);
@@ -2788,16 +2787,13 @@ label
     5220;
 var
     l5var1z, l5var2z: word;
-    doPtrCheck: boolean;
 {
-    doPtrCheck := checkBounds and not (NoPtrCheck in optSflags.m)
-               and (curOP = DEREF);
     (* The optimised path manipulates addrmd/disp/payload, which only
        carry meaning for ilLVAL (addressable) operands.  For ilRVAL --
        e.g. a function-call result whose pointer value is already in ACC
        -- those fields are uninitialised and would yield garbage; in
        that case fall through to the general mcACC2ADDR path below. *)
-    if not doPtrCheck and (insnList@.ilm = ilLVAL) and (
+    if (insnList@.ilm = ilLVAL) and (
         (insnList@.st = stWORD) or
         (insnList@.st = stSLICE) and
         (insnList@.shift = 0))
@@ -2823,11 +2819,6 @@ var
         }
     } else {
         startLVal;
-        if (doPtrCheck) then {
-            addToInsnList(KVTM+I14 + lineCnt);
-            addToInsnList(getHelperProc(7)); (* "P/CA"*)
-            insnList@.tail@.mode := 1;
-        };
         addToInsnList(macro + mcACC2ADDR);
     };
     insnList@.disp := 0;
@@ -7162,10 +7153,6 @@ var
         formAndAlign(jumpTarget);
         exit
     };
-    7: { (* stop *)
-        form1Insn(KE74);
-        exit
-    };
     8, 9: { (* setup, rollup *)
         if (curVarKind <> kindPtr) then
             error(13); (* errVarIsNotPointer *)
@@ -7544,7 +7531,7 @@ var
             l3idr5z := l3idr5z@.list;
         }
     };
-    if checkBounds or not (NoStackCheck IN optSflags.m) then
+    if not (NoStackCheck IN optSflags.m) then
         fixup(-1, 95); (* P/SC *)
     l3var2z.i := lineNesting;
     repeat
@@ -8989,7 +8976,7 @@ procedure initOptions;
         0C                     (*" was NEW"*),
         44516360576345C        (*"    FREE"*),
         50415464C              (*"    HALT"*),
-        63645760C              (*"    STOP"*),
+        0C                     (*"was STOP"*),
         6345646560C            (*"   SETUP"*),
         625754546560C          (*"  ROLLUP"*),
 (*10*)  6762516445C            (*"   WRITE"*),
