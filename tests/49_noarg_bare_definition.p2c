@@ -1,0 +1,18 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+void badproc;
+{
+    writeln('BADPROC');
+}
+//
+int badfunc;
+{
+    return 1;
+}
+//
+{
+    badproc();
+    writeln('BADFUNC=', badfunc():0);
+}
+.

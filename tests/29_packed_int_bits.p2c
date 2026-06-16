@@ -26,37 +26,37 @@ int chkWords(tag: int; got: int; exp: int);
     }
 }
 
-int tsz08;
+int tsz08();
 var a: __packed int:8[1..12];
 {
     return chkWords(8, sizeof(a), wrdsExp(8));
 }
 
-int tsz16;
+int tsz16();
 var b: __packed int:16[1..12];
 {
     return chkWords(16, sizeof(b), wrdsExp(16));
 }
 
-int tsz24;
+int tsz24();
 var c: __packed int:24[1..12];
 {
     return chkWords(24, sizeof(c), wrdsExp(24));
 }
 
-int tsz32;
+int tsz32();
 var d: __packed int:32[1..12];
 {
     return chkWords(32, sizeof(d), wrdsExp(32));
 }
 
-int tsz40;
+int tsz40();
 var e: __packed int:40[1..12];
 {
     return chkWords(40, sizeof(e), wrdsExp(40));
 }
 
-int trw08;
+int trw08();
 var buf: __packed int:8[0..13];
 var i: int;
     lo: int;
@@ -111,7 +111,7 @@ var i: int;
     return 0;
 }
 
-int trw16;
+int trw16();
 var buf: __packed int:16[0..13];
 var i: int;
     lo: int;
@@ -157,7 +157,7 @@ var i: int;
     return 0;
 }
 
-int trw24;
+int trw24();
 var buf: __packed int:24[0..13];
 var i: int;
     lo: int;
@@ -195,7 +195,7 @@ var i: int;
     return 0;
 }
 
-int tdense;
+int tdense();
 var a: __packed int:1[1..48];
 var i: int;
     fail: int;

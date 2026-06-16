@@ -595,7 +595,7 @@ void printTextWord(val: int);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              makeStringType                %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr makeStringType;
+tptr makeStringType();
 var res: tptr;
 {
     if (maxSmallString >= strLen)
@@ -627,14 +627,14 @@ void addToHashTab(arg: irptr);
 } /* addToHashTab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void toFCST;
+void toFCST();
 {
     write(FCST, curVal.i);
     ++FcstCnt;
 } /* toFCST */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int addCurValToFCST;
+int addCurValToFCST();
 var
     low, high, mid: int;
 {
@@ -674,7 +674,7 @@ var
 void error(errno: int);  forward;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void endOfLine;
+void endOfLine();
 var
     err, errPos, prevPos, listMode,
     startPos, lastErr: int;
@@ -789,7 +789,7 @@ void form3Insn(i1, i2, i3: int);
 } /* form3Insn */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void disableNorm;
+void disableNorm();
 {
     if (arithMode != 1) {
         form1Insn(disNormTemplate);
@@ -814,7 +814,7 @@ var
 } /* formJump */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void padToLeft;
+void padToLeft();
 {
     if (!putLeft)
         form1Insn(KUTC);
@@ -922,7 +922,7 @@ var
 } /* allocSymtab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int getFCSToffset;
+int getFCSToffset();
 var
     offset: int;
 {
@@ -1038,7 +1038,7 @@ void requiredSymErr(sym: symbol);
 } /* requiredSymErr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void readToPos80;
+void readToPos80();
 {
     while (linePos < 80) {
         ++linePos;
@@ -1049,7 +1049,7 @@ void readToPos80;
 } /* readToPos80 */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void nextCH;
+void nextCH();
 {
     do {
         atEOL  =  eoln(PASINPUT);
@@ -1061,7 +1061,7 @@ void nextCH;
 } /* nextCH */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseComment;
+void parseComment();
 var
     badOpt, flag: int;
     c: char;
@@ -1142,7 +1142,7 @@ void readOptFlag(res: *int);
 } /* parseComment */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void inSymbol;
+void inSymbol();
 var
     localBuf: char[131];
     tokenLen, tokenIdx: int;
@@ -1225,7 +1225,7 @@ var hash: word;
 } /* isDerivedCacheName */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void lexer;
+void lexer();
 {
     switch (SY) {
     case IDENT: {
@@ -1554,7 +1554,7 @@ void lexer;
 } /* inSymbol */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void skipToEnd;
+void skipToEnd();
 var
     sym: symbol;
 {
@@ -1779,7 +1779,7 @@ int leftAlign(val:int);
 void programme(retSizePtr: *int; procName: irptr);
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
-    isPredefined, l2bool8z, inTypeDef: int;
+    isPredefined, l2bool8z, inTypeDef, hadParens: int;
     l2var10z: eptr;
     hasFiles: int;
     l2var12z: int;
@@ -1921,7 +1921,7 @@ var
     rhsMode: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genOneOp;
+void genOneOp();
 var
     insnBufIdx: int;
     i, l4var3z, l4var4z: int;
@@ -1949,7 +1949,7 @@ void add2InsnsToBuf(insn1, insn2: int);
 } /* add2InsnsToBuf */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int findLabel;
+int findLabel();
 {
     l4inl7z  =  l4inl6z;
     while (l4inl7z != NIL) {
@@ -1980,7 +1980,7 @@ void addJumpInsn(opcode: int);
 } /* addJumpInsn */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void processInsn;
+void processInsn();
 {
         curInsn  =  insnBuf[l4var4z];
         tempInsn  =  curInsn & [23:32];
@@ -2298,7 +2298,7 @@ var
 } /* prependToInsnList */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void prepLoad;
+void prepLoad();
 var
     helper, l4int2z, l4int3z: int;
     valueType: tptr;
@@ -2403,7 +2403,7 @@ var
 } /* prepLoad */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void push;
+void push();
 {
     prepLoad();
     addToInsnList(macro + mcPUSH);
@@ -2416,7 +2416,7 @@ var
     l4var6z, regField: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void getOffset;
+void getOffset();
 {
       l4var6z = insnList->disp % 32768;
 } /* getOffset */
@@ -2481,7 +2481,7 @@ void getOffset;
 } /* setAddrTo */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void prepStore;
+void prepStore();
 var
     l4int1z: int;
     l4int2z, l4int3z: int;
@@ -2560,7 +2560,7 @@ void spillAcc(op: operator);
 } /* spillAcc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int insnCount;
+int insnCount();
 var
     cnt: int;
     cur: oiptr;
@@ -2585,7 +2585,7 @@ var
     sjLabel: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void startLVal;
+void startLVal();
 {
     prepLoad();
     insnList->ilm  =  ilLVAL;
@@ -2596,7 +2596,7 @@ void startLVal;
 } /* startLVal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genDeref;
+void genDeref();
 var
     l5var1z, l5var2z, doPtrCheck: int;
 {
@@ -2647,7 +2647,7 @@ var
 } /* genDeref */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genHelper;
+void genHelper();
 {
     push();
     saved  =  insnList;
@@ -2660,7 +2660,7 @@ void genHelper;
 } /* genHelper */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void prepMultiWord;
+void prepMultiWord();
 var
     l5var1z: int;
     l5var2z: *insnltyp;
@@ -2685,7 +2685,7 @@ var
 } /* prepMultiWord */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void negateCond;
+void negateCond();
 {
     if (insnList->ilm == ilCONST) {
         insnList->payload  =  ! insnList->payload;
@@ -2744,7 +2744,7 @@ var
 } /* tryFlip */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genBoolAnd;
+void genBoolAnd();
 var
     l5var1z, l5var2z: int;
     l5var3z, l5var4z, l5var5z, l5var6z, l5var7z: int;
@@ -2853,7 +2853,7 @@ var
 } /* genBoolAnd */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genGetElt;
+void genGetElt();
 var
     l5var1z, dimCnt, curDim, l5var4z, l5var5z, l5var6z,
         l5var7z, l5var8z: int;
@@ -3044,7 +3044,7 @@ int allocGlobalObject(arg: irptr);
 } /* allocGlobalObject */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genEntry;
+void genEntry();
 var
     l5exp1z, l5exp2z: eptr;
     l5idr3z, l5idr4z, l5idr5z, curForml: irptr;
@@ -3055,7 +3055,7 @@ var
     l5inl20z: *insnltyp;
     l5op21z: operator; paramClass: idclass;
 //
-void formThunk;
+void formThunk();
 {
                 if (l5idr4z->value == 0) {
                     if (isFortrn && (21 in l5idr4z->flags)) {
@@ -3281,7 +3281,7 @@ void startInsnList(l5arg1z: ilmode);
 } /* startInsnList */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genCopy;
+void genCopy();
 var
     size: int;
     lhsIns, rhsIns: *insnltyp;
@@ -3319,7 +3319,7 @@ var
 } /* genCopy */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genConstDiv;
+void genConstDiv();
 var r: real;
 {
     if (card(arg2val.i) > 1) {
@@ -3335,7 +3335,7 @@ var r: real;
 } /* genConstDiv */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genComparison;
+void genComparison();
 var
     negate: int;
     l5set2z: int;
@@ -3422,7 +3422,7 @@ var
 } /* genComparison */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genCondOp;
+void genCondOp();
 /*
  * Code generation for the ternary conditional operator
  *      exprToGen = CONDOP{cond, ALTERN{then, else}}
@@ -3561,7 +3561,7 @@ var
 } /* genCondOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genRMWAssign;
+void genRMWAssign();
 /* Code-gen for RMWASSIGN(lhs, inner-op(rhs, NIL)): a read-modify-write
    assignment (compound op-assign such as `lhs += rhs`, or pre-++/--).
    The naked AST lowering ASSIGNOP(lhs, op(lhs, rhs)) evaluates `lhs`
@@ -4051,7 +4051,7 @@ var
 } /* genFullExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formFileInit;
+void formFileInit();
 var l4exf1z: *extfilerec;
     l4var2z: tptr;
     l4var3z: irptr;
@@ -4474,7 +4474,7 @@ var
     cases1, cases2: caserec;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void addFieldToHash;
+void addFieldToHash();
 {
     CTOR(*curEnum, curIdent, , fieldHash[bucket], ,
                    FIELDID, NIL, curType, isPacked);
@@ -4482,7 +4482,7 @@ void addFieldToHash;
 } /* addFieldToHash */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void packFields;
+void packFields();
 var
     l5var1z, pairIdx, l5var3z, l5var4z, l5var5z: int;
     l5var6z: *pair;
@@ -5068,7 +5068,7 @@ var
 } /* labCheckAndDefine */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void statement;
+void statement();
 var
     boundary: eptr;
     strLabPtr: *strLabel;
@@ -5091,7 +5091,7 @@ void expression; forward;
    first token that is neither a postfix operator nor the trailing `]`
    of an index list.  Safe to call when the next token isn't a postfix
    at all (loop simply exits). */
-void parsePostfix;
+void parsePostfix();
 var
     l4exp1z, l4exp2z: eptr;
     l4typ3z: tptr;
@@ -5176,7 +5176,7 @@ var
 } /* parsePostfix */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseLval;
+void parseLval();
 var
     l4exp1z: eptr;
 {
@@ -5493,7 +5493,7 @@ var altExpr, condOpExpr: eptr;
 } /* bldCondOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void factor;
+void factor();
 var
     l4var1z, wasInCall, l4var3z, l4var4z: int;
     l4exp5z, newExpr, l4var7z, l4var8z: eptr;
@@ -5503,7 +5503,7 @@ var
     l4var12z: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void stdCall;
+void stdCall();
 var
     l5op1z: operator;
     l5var2z: tptr;
@@ -5780,7 +5780,7 @@ var
 } /* factor */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseUnaryExpression;
+void parseUnaryExpression();
 var
     oper: operator;
     leftExpr, addExpr, oneExpr: eptr;
@@ -6024,7 +6024,7 @@ var
 } /* parsePrc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parentExpression;
+void parentExpression();
 {
     if (readNext)
         inSymbol();
@@ -6035,7 +6035,7 @@ void parentExpression;
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void expression;
+void expression();
 {
     if (readNext)
         inSymbol();
@@ -6060,7 +6060,7 @@ void setStrLab(id:int);
 } /* setStrLab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void setBrCont;
+void setBrCont();
 {
     /*=A3*/
     setStrLab('   BREAK');
@@ -6069,7 +6069,7 @@ void setBrCont;
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void brContTarget;
+void brContTarget();
 {
     /* assigning target for break/continue if used */
     with *strLabList do if (target != 0) {
@@ -6079,7 +6079,7 @@ void brContTarget;
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void forStatement;
+void forStatement();
 var
    toLoop, leave : int;
    loopExpr      : eptr;
@@ -6126,7 +6126,7 @@ var
 } /* forStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void withStatement;
+void withStatement();
 var
     oldWith: eptr;
     oldRegs, usedRegs: int;
@@ -6154,13 +6154,13 @@ var
 } /* withStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void reportStmtType;
+void reportStmtType();
 {
     writeln(' STATEMENT ', stmtname:0, ' IN ', startLine:0, ' LINE');
 } /* reportStmtType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void structBranch;
+void structBranch();
 var
     curLab: *strLabel;
 {
@@ -6177,7 +6177,7 @@ var
 } /* structBranch */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void caseStatement;
+void caseStatement();
 type
     casechain = struct {
         next:   *casechain;
@@ -6358,7 +6358,7 @@ var
 } /* caseStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void ifWhileStatement;
+void ifWhileStatement();
 {
     disableNorm();
     parentExpression();
@@ -6384,7 +6384,7 @@ int allocDataRef(l6arg1z: int);
 } /* allocDataRef */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseData;
+void parseData();
 var
     dsize, setcount, dataLoc, length, repCount: int;
     boundary: eptr;
@@ -6504,7 +6504,7 @@ var
 } /* parseData */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void standProc;
+void standProc();
 var
     l4typ1z, l4typ2z, l4typ3z: tptr;
     firstWidth, secondWidth: eptr;
@@ -6531,7 +6531,7 @@ void verifyType(t: tptr);
 } /* verifyType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void startWrite;
+void startWrite();
 {
     expression();
     l4typ3z  =  curExpr->typ;
@@ -6561,7 +6561,7 @@ void startWrite;
 } /* startWrite */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr parseWidthSpecifier;
+eptr parseWidthSpecifier();
 {
     expression();
     if (! typeCheck(intType, curExpr->typ)) {
@@ -6572,7 +6572,7 @@ eptr parseWidthSpecifier;
 } /* parseWidthSpecifier */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void callHelperWithArg;
+void callHelperWithArg();
 {
     if ([12] & set145z || needR12) {
         curExpr  =  workExpr;
@@ -6584,7 +6584,7 @@ void callHelperWithArg;
 } /* callHelperWithArg */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void checkElement;
+void checkElement();
 {
     set145z &= ~[12];
     curVarKind  =  l4typ3z->k;
@@ -6618,7 +6618,7 @@ void checkElement;
 } /* checkElement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void writeProc;
+void writeProc();
 {
     workExpr  =  NIL;
     isCharFile  =  true;
@@ -6715,7 +6715,7 @@ void writeProc;
 } /* writeProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void checkArrayArg;
+void checkArrayArg();
 {
     verifyType(NIL);
     workExpr  =  curExpr;
@@ -6730,7 +6730,7 @@ void checkArrayArg;
 } /* checkArrayArg */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void doPackUnpack;
+void doPackUnpack();
 var
     t: tptr;
 {
@@ -7110,7 +7110,7 @@ var
 } /* statement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void outputObjFile;
+void outputObjFile();
 var
     idx: int;
 {
@@ -7122,7 +7122,7 @@ var
 } /* outputObjFile */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void defineRoutine;
+void defineRoutine();
 var
     l3var1z, l3var2z, l3int4z: int;
     l3idr5z: irptr;
@@ -7230,7 +7230,7 @@ var
 } /* defineRoutine */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void mainProgram;
+void mainProgram();
 var
     l3var1z, l3var5z, l3var6z: int;
     l3var7z: irptr;
@@ -7264,7 +7264,7 @@ void regSysProc(l4arg1z: int);
 } /* registerSysProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void defExtern;
+void defExtern();
 {
     l3var8z  =  0;
     l3var11z  =  30U | [24,27,28,29];
@@ -7519,7 +7519,7 @@ void defExtern;
 } /* mainProgram */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void makeExtFile;
+void makeExtFile();
 {
     l2var10z = malloc(sizeof(expr));
     with *l2var10z do {
@@ -7531,7 +7531,7 @@ void makeExtFile;
 } /* makeExtFile */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseParameters;
+void parseParameters();
 var
     l3var1z, l3var2z, l3var3z: irptr;
     parClass: idclass;
@@ -7545,6 +7545,12 @@ var
     lookupMode  =  lookDef;
     inSymbol();
     l3var2z  =  NIL;
+    if (SY == RPAREN) {
+        inSymbol();
+        lookup2  =  1;
+        lookupMode  =  lookUse;
+        return;
+    }
     if (! (SY IN [IDENT,VOIDSY]))
         errAndSkip(errBadSymbol, (skipToSet | [IDENT,RPAREN]));
     lookup2  =  1;
@@ -7934,7 +7940,8 @@ void exitScope(a: int);
                 error(81); /* errProcNestingTooDeep */
             if (! (SY IN [LPAREN,SEMICOLON,COLON]))
                 errAndSkip(errBadSymbol, skipToSet | [LPAREN,SEMICOLON,COLON]);
-            if (SY == LPAREN)
+            hadParens  =  SY == LPAREN;
+            if (hadParens)
                 parseParameters();
             if (! l2bool8z) {
                 if (typedRetType != NIL) {
@@ -7979,6 +7986,12 @@ void exitScope(a: int);
             curIdRec  =  hashTravPtr;
             setup(scopeBound);
             inSymbol();
+            hadParens  =  false;
+            if ((SY == LPAREN) && (curIdRec->argList == NIL)) {
+                hadParens  =  true;
+                inSymbol();
+                checkSymAndRead(RPAREN);
+            }
         }
         checkSymAndRead(SEMICOLON);
         with *curIdRec do if (curIdent == litForward) {
@@ -8004,6 +8017,8 @@ void exitScope(a: int);
             curIdRec->flags  =  curIdRec->flags | curVal.i;
             curIdRec->sigtyp  =  makeRoutineType(curIdRec);
         } else {
+            if ((curIdRec->argList == NIL) && ! hadParens)
+                error(42); /* errNoParamList */
             do {
                 setup(scopeBound);
                 programme(&l2int18z, curIdRec);
@@ -8065,12 +8080,12 @@ void exitScope(a: int);
 } /* programme */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void initTables;
+void initTables();
 var
     idx, jdx: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void initInsnTemplates;
+void initInsnTemplates();
 var
     op: operator;
 {
@@ -8118,7 +8133,7 @@ var
 } /* initInsnTemplates */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regKeywords;
+void regKeywords();
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regResWord(keyword: int);
@@ -8176,7 +8191,7 @@ var
 } /* initTables */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void finalize;
+void finalize();
 var
     idx, cnt: int;
     sizes: int[10];
@@ -8222,7 +8237,7 @@ var
 } /* finalize */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void initOptions;
+void initOptions();
 {
     pasinfor.startOffset  =  (pasinfor.startOffset & ~[0..6]) - 16384;
     commentModeCH  =  ' ';

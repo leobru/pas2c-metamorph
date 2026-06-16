@@ -1,0 +1,27 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+void later;
+FORWARD;
+//
+void ping();
+{
+    writeln('PING');
+}
+//
+int answer();
+{
+    return 42;
+}
+//
+void later();
+{
+    writeln('LATER');
+}
+//
+{
+    ping();
+    writeln('ANSWER=', answer():0);
+    later();
+}
+.

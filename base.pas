@@ -550,7 +550,7 @@ procedure programme(var l2arg1z: integer; procName: irptr);
 label 23301;
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
-    isPredefined, done, retSeen, inTypeDef: boolean;
+    isPredefined, done, retSeen, inTypeDef, hadParens: boolean;
     l2var10z: eptr;
     hasFiles: integer;
     l2var12z: word;
@@ -7948,6 +7948,12 @@ var
     lookupMode := lookDef;
     inSymbol;
     l3var2z := NIL;
+    if (SY = RPAREN) then {
+        inSymbol;
+        lookup2 := lookUse;
+        lookupMode := lookUse;
+        exit;
+    };
     if not (SY IN [IDENT,VOIDSY]) then
         errAndSkip(errBadSymbol, (skipToSet + [IDENT,RPAREN]));
     lookup2 := lookUse;
@@ -8350,7 +8356,8 @@ procedure exitScope(var arg: hashArray);
                 error(81); (* errProcNestingTooDeep *)
             if not (SY IN [LPAREN,SEMICOLON,COLON]) then
                 errAndSkip(errBadSymbol, skipToSet + [LPAREN,SEMICOLON,COLON]);
-            if (SY = LPAREN) then
+            hadParens := SY = LPAREN;
+            if hadParens then
                 parseParameters;
             if not done then {
                 if (typedRetType <> voidType) then {
@@ -8395,6 +8402,12 @@ procedure exitScope(var arg: hashArray);
             curIdRec := hashTravPtr;
             setup(scopeBound);
             inSymbol;
+            hadParens := false;
+            if (SY = LPAREN) and (curIdRec@.argList = NIL) then {
+                hadParens := true;
+                inSymbol;
+                checkSymAndRead(RPAREN);
+            };
         };
         checkSymAndRead(SEMICOLON);
         with curIdRec@ do if (curIdent = litForward) then {
@@ -8424,6 +8437,8 @@ procedure exitScope(var arg: hashArray);
             curIdRec@.sigtyp := makeRoutineType(curIdRec);
 % endif
         } else  {
+            if (curIdRec@.argList = NIL) and not hadParens then
+                error(42); (* errNoParamList *)
             (loop) repeat
                 setup(scopeBound);
                 programme(l2int18z, curIdRec);

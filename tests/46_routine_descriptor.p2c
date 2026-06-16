@@ -4,7 +4,7 @@ extern _output_;
 type intptr = *int;
 var g: int;
 //
-void ping;
+void ping();
 {
     writeln('PING');
 }
