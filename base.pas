@@ -101,7 +101,7 @@ const
     KITA =      0420000B;
     KITS =      0430000B;
     KMTJ =      0440000B;
-    KJADDM =    0450000B;
+    KMADDJ =    0450000B;
     KE74 =      0740000B;
     KUTC =      2200000B;
     CUTC =      2200000C;
@@ -165,7 +165,7 @@ insn = (
 (*010*) XTA,   AAX,   AEX,   ARX,   AVX,   AOX,   ADIVX, AMULX,
 (*020*) APX,   AUX,   ACX,   ANX,   EADD,  ESUB,  ASX,   XTR,
 (*030*) RTE,   YTA,   OP32,  OP33,  EADDI, ESUBI, ASN,   NTR,
-(*040*) ATI,   STI,   ITA,   ITS,   MTJ,   JADDM, ELFUN,
+(*040*) ATI,   STI,   ITA,   ITS,   MTJ,   MADDJ, ELFUN,
 (*047*) UTC,   WTC,   VTM,   UTM,   UZA,   U1A,   UJ,    VJM
 );
 %
@@ -2254,7 +2254,7 @@ procedure addJumpInsn(opcode: integer);
             };
             mcADDSTK2REG:  add2InsnsToBuf(KWTC+SP, KUTM+
                                indexreg[curInsn.i]);
-            mcADDACC2REG:  add2InsnsToBuf(KATI+14, KJADDM+I14 + curInsn.i);
+            mcADDACC2REG:  add2InsnsToBuf(KATI+14, KMADDJ+I14 + curInsn.i);
             mcROUND: {
                 addInsnToBuf(KADD+REAL05);                (* round *)
                 add2InsnsToBuf(KNTR+7, KADD+ZERO)
@@ -2770,7 +2770,6 @@ var
     arg1Val, arg2Val: word;
     curOP: operator;
     work: integer;
-    sjLabel: integer;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure startLVal;
@@ -4176,46 +4175,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
             work := exprToGen@.num2;
             if (work = fnMALLOC) then
                 heapCallsCnt := heapCallsCnt + 1;
-            if (work = fnSETJMP) then {
-                (* setjmp(jmpbuf): inline non-local-goto setup.
-                 * Layout emitted:
-                 *      <addr jmpbuf -> M14>
-                 *      KVTM+I12 + sjLabel  ; M12 := &sjLabel (RELOCATED)
-                 *      KITA + 12           ; ACC := sjLabel (low 15 bits)
-                 *      KITS + nesting      ; ACC <= frame value
-                 *      ASN64-15            ; ACC <<= 15
-                 *      KAOX+SP             ; ACC |= stack  (= sjLabel)
-                 *      KATX+I14            ; jb := frame<<15 | sjLabel
-                 *      KXTA + 0            ; ACC := 0
-                 *  sjLabel:                ; result of setjmp
-                 *)
-                setAddrTo(14);
-                genOneOp;
-                sjLabel := 0;
-                jumpType := KVTM +I12; formJump(sjLabel); jumpType := KUJ;
-                form1Insn(KITA + 12);             (* ACC := sjLabel *)
-                form2Insn(KITS + curProcNesting,
-                                                  (* ACC := frame *)
-                          ASN64 - 15);            (* ACC <<= 15 *)
-                form2Insn(KAOX + SP,              (* ACC |= jb *)
-                          KATX + I14);            (* jb := packed *)
-                form1Insn(KXTA + 0);              (* ACC := 0 *)
-                fixup(0, sjLabel);
-                new(insnList);
-                with insnList@ do {
-                    tail := NIL;
-                    head := NIL;
-                    typ := integerType;
-                    regsused := [0];
-                    ilm := ilRVAL;
-                    st := stWORD;
-                    payload.i := 0;
-                    disp := 0;
-                    addrmd := 0;
-                    width := 48;
-                    shift := 0;
-                };
-            } else if (100 < work) then {
+            if (100 < work) then {
                 prepLoad;
                 addToInsnList(getHelperProc(work - 100));
             } else {
@@ -5921,8 +5881,7 @@ var
         exit;
     };
     expression;
-    if ((stProcNo >= fnEOF) and (fnEOLN >= stProcNo)
-        or (stProcNo = fnSETJMP)) and
+    if (stProcNo >= fnEOF) and (fnEOLN >= stProcNo) and
        not (curExpr@.op IN [GETELT..FILEPTR]) then {
         error(27); (* errExpressionWhereVariableExpected *)
         exit;
@@ -5948,8 +5907,7 @@ var
     if (stProcNo <> fnSIZEOF) and not ((checkMode = chkREAL) and
             (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnROUND])
            or ((checkMode = chkINT) and
-            (asBitset <= [fnSQRT:fnABS,fnMALLOC,fnREF,fnCARD,fnMINEL,fnPTR,
-                          fnSETJMP]))
+            (asBitset <= [fnSQRT:fnABS,fnMALLOC,fnREF,fnCARD,fnMINEL,fnPTR]))
            or ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) and
             (asBitset <= [fnREF]))
            or ((checkMode = chkFILE) and
@@ -7879,7 +7837,7 @@ var l : integer;
     temptype := booleanType;
     regSysProc(45575456C(*"    EOLN"*));
     temptype := integerType;
-    regSysProc(634564525560C(*"  SETJMP"*));
+    regSysProc(0C(*" was SETJMP"*));
     regSysProc(6257655644C(*"   ROUND"*));
     regSysProc(43416244C(*"    CARD"*));
     regSysProc(5551564554C(*"   MINEL"*));
@@ -8554,7 +8512,7 @@ var
     l3var1z: insn;
     l3var2z: operator;
 {
-    for l3var1z := ATX to JADDM do
+    for l3var1z := ATX to MADDJ do
         insnTemp[l3var1z] := ord(l3var1z) * 10000B;
     insnTemp[ELFUN] := 500000B;
     jdx := KUTC;

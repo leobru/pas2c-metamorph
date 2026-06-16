@@ -1,6 +1,7 @@
 /*=p-,t-,s8,y+,k9,l0*/
 extern _output_;
 void longjmp(jmpbuf, val: int); assembler;
+int setjmp(jmpbuf: *int); assembler;
 //
 var jb: int;
 var n: int;
@@ -20,7 +21,7 @@ void middle();
 }
 //
 {
-    n = setjmp(jb);
+    n = setjmp(&jb);
     writeln(' setjmp returned ', n:0);
     if (n == 0) {
         middle();

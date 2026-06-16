@@ -105,7 +105,7 @@ const
     KITA =      0420000;
     KITS =      0430000;
     KMTJ =      0440000;
-    KJADDM =    0450000;
+    KMADDJ =    0450000;
     KE74 =      0740000;
     KUTC =      02200000;
     KWTC =      02300000;
@@ -528,6 +528,7 @@ var
 //
 int mapai(a:alfa); assembler;
 void longjmp(jmpbuf, val: int); assembler;
+int setjmp(jmpbuf: *int); assembler;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
@@ -1537,7 +1538,7 @@ void lexer();
             readToPos80();
             longjmp(jb9999, 1);
         }
-1473:   if(setjmp(jb1473));
+1473:   if(setjmp(&jb1473));
         while ((CH == ' ' || CH == '\t') && !atEOL)
             nextCH();
         if (atEOL) {
@@ -2156,7 +2157,7 @@ void processInsn();
                                indexreg[curInsn]);
                 break;
             case mcADDACC2REG:
-                add2InsnsToBuf(KATI+14, KJADDM+I14 + curInsn);
+                add2InsnsToBuf(KATI+14, KMADDJ+I14 + curInsn);
                 break;
             case mcROUND:
                 addInsnToBuf(KADD+REAL05);                /* round */
@@ -2584,7 +2585,6 @@ var
     arg1Val, arg2Val: word;
     curOP: operator;
     work: int;
-    sjLabel: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void startLVal();
@@ -3923,45 +3923,7 @@ var
         work  =  exprToGen->num2;
         if (work == fnMALLOC)
             ++heapCallsCnt;
-        if (work == fnSETJMP) {
-            /* setjmp(jmpbuf): inline non-local-goto setup.
-             * Layout emitted:
-             *      <addr jmpbuf -> M14>
-             *      KVTM+I12 + sjLabel  ; M12 := &sjLabel (RELOCATED)
-             *      KITA + 12           ; ACC := sjLabel (low 15 bits)
-             *      KITS + nesting      ; ACC <= frame value
-             *      ASN64-15            ; ACC <<= 15
-             *      KAOX+SP             ; ACC |= stack  (= sjLabel)
-             *      KATX+I14            ; jb := frame<<15 | sjLabel
-             *      KXTA + 0            ; ACC := 0
-             *  sjLabel:                ; result of setjmp
-             */
-            setAddrTo(14);
-            genOneOp();
-            sjLabel = 0;
-            jumpType = KVTM + I12; formJump(&sjLabel); jumpType = KUJ;
-            form3Insn(KITA + 12,              /* ACC := sjLabel */
-                      KITS + curProcNesting,  /* ACC <= frame */
-                      ASN64 - 15);            /* ACC <<= 15 */
-            form3Insn(KAOX + SP,              /* ACC |= stack */
-                      KATX + I14,             /* jb := packed */
-                      KXTA + 0);              /* ACC := 0 */
-            fixup(0, sjLabel);
-            insnList = malloc(sizeof(insnltyp));
-            with *insnList do {
-                tail  =  NIL;
-                head  =  NIL;
-                typ  =  intType;
-                regsused  =  E48;
-                ilm  =  ilRVAL;
-                st  =  stWORD;
-                payload  =  0;
-                disp  =  0;
-                addrmd  =  0;
-                width  =  48;
-                shift  =  0;
-            }
-        } else if (100 < work) {
+        if (100 < work) {
             prepLoad();
             addToInsnList(getHelperProc(work - 100));
         } else {
@@ -5580,7 +5542,7 @@ var
         return;
     }
     expression();
-    if ((stProcNo IN [fnEOF..fnEOLN,fnSETJMP]) &&
+    if ((stProcNo IN [fnEOF..fnEOLN]) &&
         ! (curExpr->op IN lvalOpSet)) {
         error(27); /* errExpressionWhereVariableExpected */
         return;
@@ -5590,7 +5552,7 @@ var
     if (arg1Type == realType)
         checkMode  =  [fnSQRT:fnTRUNC, fnROUND];
     else if (arg1Type == intType)
-        checkMode  =  [fnSQRT:fnABS,fnMALLOC,fnCARD,fnMINEL,fnSETJMP];
+        checkMode  =  [fnSQRT:fnABS,fnMALLOC,fnCARD,fnMINEL];
     else if ((arg1Type == charType) || (argKind == kindScalar) || (argKind == kindPtr))
         checkMode  =  0U;
     else if (argKind == kindFile)
@@ -6970,7 +6932,7 @@ var
     nest  =  SY IN [BEGINSY,SWITCHSY];
     if (nest)
         ++lineNesting;
-    if (setjmp(jb8888))
+    if (setjmp(&jb8888))
         goto 8888;
     switch (SY) {
     case IDENT:
@@ -7484,7 +7446,7 @@ void defExtern();
     regSysProc('resrv   '); /* was REF, fnREF still used */
     regSysProc('    EOLN');
     temptype  =  intType;
-    regSysProc('  SETJMP'); /* fn17 */
+    regSysProc('rsrv    '); /* was SETJMP, fn17 */
     regSysProc('   ROUND');
     regSysProc('    CARD');
     regSysProc('   MINEL');
@@ -8318,7 +8280,7 @@ void initOptions();
 { /* main */
     if (PASINFOR.listMode != 0)
         writeln(boilerplate);
-    if (setjmp(jb9999)) goto 9999;
+    if (setjmp(&jb9999)) goto 9999;
     initOptions();
     curInsnTemplate  =  0;
     initTables();

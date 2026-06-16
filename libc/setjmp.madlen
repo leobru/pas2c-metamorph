@@ -1,0 +1,19 @@
+ setjmp:        , name,
+C===========================================================
+C setjmp(&env) - record the current frame & return address.
+C   In:  ACC  = &env (pointer to a one-word jmp_buf cell).
+C   env will be packed (caller frame << 15) | setjmp-return-addr,
+C   matching what longjmp.madlen expects: low 15 bits = address
+C   to jump back to, high part = caller's frame pointer (M7).
+C   Out: ACC := 0   (the "first" return value of setjmp).
+C===========================================================
+                , ati , 14     . M14 := &env (consume the arg pointer)
+                , ita , 13     . ACC := M13 (return address)
+            14  , atx ,        . *env := return address (low 15 bits)
+                , ita , 7      . ACC := M7 (caller's frame pointer)
+                , asn , 64-15  . left-shift 15 (frame -> high part)
+            14  , aox ,        . ACC := (frame << 15) | *env
+            14  , atx ,        . *env := packed value
+                , xta ,        . ACC := 0 (setjmp's first-time return)
+            13  , uj  ,        . return via M13
+                , end ,
