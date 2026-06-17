@@ -1,7 +1,7 @@
 /*=p-,t-,s8,y+,k9,l0*/
 extern _output_;
 //
-type
+typedef
     intptr1 = *int;
     intptr2 = *int;
     arr1 = int[1..4];

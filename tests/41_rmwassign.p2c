@@ -8,7 +8,7 @@ extern _output_;
  * once in a spill slot and reuses it for load and store.
  * Labels avoid leading +/-/0 to keep BESM-6 carriage control quiet.
  */
-type
+typedef
     intptr = *int;
     rec    = struct { x, y: int; };
     recptr = *rec;

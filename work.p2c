@@ -155,13 +155,13 @@ const
     lookField = 3;
 //
     BACKSLASH = '\35'; // deliberately not \\
-type
+typedef
     symbol = enum {
 /*0B*/  IDENT,      INTCONST,   REALCONST,  CHARCONST,
         STRINGSY,   LPAREN,     LBRACK,     EXPROP,
 /*10B*/ RPAREN,     RBRACK,     COMMA,      SEMICOLON,
         PERIOD,     ARROW,      COLON,      BECOMES,
-/*20B*/ BEGINSY,    ENDSY,      CONSTSY,    TYPESY,
+/*20B*/ BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
         VARSY,      FUNCSY,     VOIDSY,     ENUMSY,
 /*30B*/ PACKEDSY,   ARRAYSY,    STRUCTSY,   FILESY,
         IFSY,       SWITCHSY,   WHILESY,    FORSY,
@@ -535,7 +535,7 @@ void rollup(addr: int); assembler;
 //              PrintErrMsg               %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void printErrMsg(errno: int);
-type
+typedef
     errtxt = __packed textchar[101];
     perrtxt = *errtxt;
 var
@@ -4254,7 +4254,7 @@ var l4exf1z: *extfilerec;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 tptr parseTypeRef(skipTarget: setofsys);
-type
+typedef
     pair = struct {
             first, second: int
     };
@@ -6132,7 +6132,7 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void caseStatement();
-type
+typedef
     casechain = struct {
         next:   *casechain;
         value:  word;
@@ -7686,7 +7686,7 @@ void exitScope(a: int);
         }
     }
     objBufIdx  =  1;
-    if (SY == TYPESY) {
+    if (SY == TYPEDEFSY) {
         inTypeDef  =  true;
         typelist  =  NIL;
         parseDecls(0);
@@ -8275,7 +8275,7 @@ void initOptions();
     frameRegTemplate  =  04000000;
     constRegTemplate  =  I8;
     disNormTemplate  =   KNTR+7;
-    blockBegSys  =  [CONSTSY, TYPESY, VARSY, VOIDSY, BEGINSY];
+    blockBegSys  =  [CONSTSY, TYPEDEFSY, VARSY, VOIDSY, BEGINSY];
     statBegSys  =   [BEGINSY, IFSY, SWITCHSY, DOSY, WHILESY, FORSY, WITHSY,
                     GOTOSY];
     hashMask  =  0203407U;
@@ -8287,7 +8287,7 @@ void initOptions();
     /*=A3*/
     resWordName  =
         '   CONST',
-        '    TYPE',
+        ' TYPEDEF',
         '     VAR',
         '        ',             	// was FUNCTION
         '    VOID',

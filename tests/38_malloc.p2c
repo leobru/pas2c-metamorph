@@ -1,7 +1,7 @@
 /*=p-,t-,s8,y+,l0*/
 extern _output_;
 //
-type intptr = *int;
+typedef intptr = *int;
 var p, q: intptr;
     n: int;
 {

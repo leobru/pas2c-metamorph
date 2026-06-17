@@ -1,0 +1,19 @@
+/*=p-,t-,s8,y+,l0*/
+extern _output_;
+int setup(); assembler;
+void rollup(mark: int); assembler;
+//
+typedef intptr = *int;
+var
+    mark: int;
+    p, q: intptr;
+{
+    mark = setup();
+    p = malloc(1);
+    *p = 111;
+    rollup(mark);
+    q = malloc(1);
+    *q = 222;
+    writeln(' after rollup p=', *p:0);
+}
+.

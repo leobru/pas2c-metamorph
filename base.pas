@@ -145,7 +145,7 @@ type
         STRINGSY,   LPAREN,     LBRACK,     EXPROP,
 (*10B*) RPAREN,     RBRACK,     COMMA,      SEMICOLON,
         PERIOD,     ARROW,      COLON,      BECOMES,
-(*20B*) BEGINSY,    ENDSY,      CONSTSY,    TYPESY,
+(*20B*) BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
         VARSY,      FUNCSY,     VOIDSY,     ENUMSY,
 (*30B*) PACKEDSY,   ARRAYSY,    STRUCTSY,   FILESY,
         IFSY,       SWITCHSY,   WHILESY,    FORSY,
@@ -8083,7 +8083,7 @@ procedure exitScope(var arg: hashArray);
         }
     };
     objBufIdx := 1;
-    if (SY = TYPESY) then {
+    if (SY = TYPEDEFSY) then {
         inTypeDef := true;
         typelist := NIL;
         parseDecls(0);
@@ -8133,7 +8133,7 @@ procedure exitScope(var arg: hashArray);
             error(79); (* errNotFullyDefined *)
             typelist := typelist@.next;
         }
-    }; (* TYPESY -> 22612 *)
+    }; (* TYPEDEFSY -> 22612 *)
     inTypeDef := false;
     curExpr := NIL;
     if (SY = VARSY) then {
@@ -8708,7 +8708,7 @@ procedure initOptions;
     frameRegTemplate := 04000000B;
     constRegTemplate := I8;
     disNormTemplate :=  KNTR+7;
-    blockBegSys := [CONSTSY, TYPESY, VARSY, VOIDSY, BEGINSY];
+    blockBegSys := [CONSTSY, TYPEDEFSY, VARSY, VOIDSY, BEGINSY];
     statBegSys :=  [BEGINSY, IFSY, SWITCHSY, DOSY, WHILESY, FORSY, WITHSY,
                     GOTOSY];
     O77777 := [33:47];
@@ -8724,7 +8724,7 @@ procedure initOptions;
     kwordHash := NIL:128;
     resWordName :=
         4357566364C             (*"   CONST"*),
-        64716045C               (*"    TYPE"*),
+        64716045444546C         (*" TYPEDEF"*),
         664162C                 (*"     VAR"*),
         0C                      (*"was FUNCTION"*),
         66575144C               (*"    VOID"*),

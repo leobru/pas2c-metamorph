@@ -1,7 +1,7 @@
 /*=p-,t-,s8,y+,l0*/
 extern _output_;
 //
-type
+typedef
     point = struct { x, y: int; };
     ptpr  = *point;
 //

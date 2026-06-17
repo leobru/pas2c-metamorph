@@ -2,7 +2,7 @@
 extern _output_;
 //
 // Test P/LDARIN via pointer dereference
-type intptr = *int;
+typedef intptr = *int;
 var 
     p: intptr;
     x, value: int;

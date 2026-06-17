@@ -1,0 +1,32 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+typedef
+    point = struct {
+        x, y: int
+    };
+    ppoint = *point;
+    holder = struct {
+        pstruct: ppoint
+    };
+var
+    p: ppoint;
+    obj: point;
+    h: holder;
+{
+    p = &obj;
+    with *p do {
+        x = 11;
+        y = x + 31;
+    }
+    writeln(' X=', obj.x:0);
+    writeln(' Y=', obj.y:0);
+    h.pstruct = &obj;
+    with *h.pstruct do {
+        x = 17;
+        y = x + 6;
+    }
+    writeln(' HX=', obj.x:0);
+    writeln(' HY=', obj.y:0);
+}
+.

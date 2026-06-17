@@ -1,6 +1,6 @@
 /*=p-,t-,s8,y+,k9*/
 extern _OUTPUT_;
-type tenbit = int:10;
+typedef tenbit = int:10;
 var c1, c2: tenbit;
 {
 c2 = 1;
