@@ -162,7 +162,7 @@ typedef
 /*10B*/ RPAREN,     RBRACK,     COMMA,      SEMICOLON,
         PERIOD,     ARROW,      COLON,      BECOMES,
 /*20B*/ BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
-        VARSY,      FUNCSY,     VOIDSY,     ENUMSY,
+        VARSY,      TYPESY,     VOIDSY,     ENUMSY,
 /*30B*/ PACKEDSY,   ARRAYSY,    STRUCTSY,   FILESY,
         IFSY,       SWITCHSY,   WHILESY,    FORSY,
 /*40B*/ WITHSY,     GOTOSY,     ELSESY,     OFSY,
@@ -1298,8 +1298,11 @@ void lexer();
             while (hashTravPtr != NIL) {
                 if (hashTravPtr->id != curIdent)
                     hashTravPtr  =  hashTravPtr->next;
-                else
+                else {
+                    if (hashTravPtr->cl == TYPEID)
+                        SY  =  TYPESY;
                     return;
+                }
             }
             break;
         case lookField:
@@ -4742,11 +4745,13 @@ var
         }
     } else if (charClass == MUL) {
         inSymbol();
-        if (SY != IDENT) {
+        if (! (SY IN [IDENT,TYPESY])) {
             error(errNoIdent);
             curType  =  voidPtr;
         } else {
-            if (hashTravPtr == NIL) {
+            if (SY == TYPESY) {
+                curType = getPtrType(hashTravPtr->typ);
+            } else if (hashTravPtr == NIL) {
                 if (inTypeDef) {
                     if (knownInType(&curEnum)) {
                         curType  =  curEnum->typ;
@@ -4758,21 +4763,16 @@ var
                     curType  =  voidPtr;
                 }
             } else {
-                if (hashTravPtr->cl != TYPEID) {
-                    goto 12366
-                }
-                curType = getPtrType(hashTravPtr->typ);
+                goto 12366;
             }
             inSymbol();
         }
-    } else if (SY == IDENT) {
-        if (hashTravPtr != NIL) {
-            if (hashTravPtr->cl == TYPEID) {
-                curType  =  hashTravPtr->typ;
-            } else {
-                error(errNotAType);
-                curType  =  intType;
-            }
+    } else if (SY IN [IDENT,TYPESY]) {
+        if (SY == TYPESY) {
+            curType  =  hashTravPtr->typ;
+        } else if (hashTravPtr != NIL) {
+            error(errNotAType);
+            curType  =  intType;
         } else {
             if (inTypeDef) {
                 if (knownInType(&curEnum)) {
@@ -5473,22 +5473,14 @@ var
     if (stProcNo IN [fnSIZEOF, fnOFFSETOF]) {
         lookupMode = lookUse;
         inSymbol();
-        if ((SY == IDENT) && (hashTravPtr != NIL) &&
-           (hashTravPtr->cl == TYPEID)) {
+        if (SY == TYPESY) {
             l5var2z = hashTravPtr->typ;
             inSymbol();
         } else {
             if (stProcNo == fnSIZEOF) {
-                if ((SY == IDENT) && (hashTravPtr != NIL) &&
-                   (hashTravPtr->cl IN [VARID, FORMALID, FIELDID]) &&
-                   (charSym[CH] == RPAREN)) {
-                    l5var2z = hashTravPtr->typ;
-                    inSymbol();
-                } else {
-                    readNext = false;
-                    expression();
-                    l5var2z = curExpr->typ;
-                }
+                readNext = false;
+                expression();
+                l5var2z = curExpr->typ;
             } else {
                 error(errNotAType);
                 l5var2z = intType;
@@ -5578,23 +5570,23 @@ var
     wasInCall  =  inCallArgs;
     inCallArgs  =  false;
     switch (SY) {
+    case TYPESY:
+        l4typ11z = hashTravPtr->typ;
+        inSymbol();
+        if (SY != LPAREN)
+            error(95);
+        expression();
+        if (curExpr->typ.rep->size != l4typ11z.rep->size)
+            error(errNeedOtherTypesOfOperands);
+        checkSymAndRead(RPAREN);
+        curExpr->typ = l4typ11z;
+        break;
     case IDENT:
         if (hashTravPtr == NIL) {
             error(errNotDefined);
             curExpr  =  uVarPtr;
         } else
             switch (hashTravPtr->cl) {
-            case TYPEID:
-                l4typ11z = hashTravPtr->typ;
-                inSymbol();
-                if (SY != LPAREN)
-                    error(95);
-                expression();
-                if (curExpr->typ.rep->size != l4typ11z.rep->size)
-                    error(errNeedOtherTypesOfOperands);
-                checkSymAndRead(RPAREN);
-                curExpr->typ = l4typ11z;
-                break;
             case ENUMID:
                 curExpr = malloc(sizeof(expr));
                 with *curExpr do {
@@ -7151,9 +7143,7 @@ var
         if (curProcNesting == 1)
             l2bool8z = (SY == PERIOD) || (CH == '\0');
         else
-            l2bool8z = (SY IN blockBegSys) || (CH == '\0') ||
-                       ((SY == IDENT) && (hashTravPtr != NIL) &&
-                        (hashTravPtr->cl == TYPEID));
+            l2bool8z = (SY IN blockBegSys) || (SY == TYPESY) || (CH == '\0');
         if (! l2bool8z) {
            if (curProcNesting == 1)
                requiredSymErr(PERIOD);
@@ -7637,6 +7627,20 @@ void exitScope(a: int);
 } /* exitScope */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void markTypeSym();
+{
+    if (SY IN [IDENT,TYPESY]) {
+        curVal.i  =  curIdent & hashMask;
+        bucket = mapAI(curVal.a);
+        hashTravPtr  =  symHash[bucket];
+        while ((hashTravPtr != NIL) && (hashTravPtr->id != curIdent))
+            hashTravPtr  =  hashTravPtr->next;
+        if ((hashTravPtr != NIL) && (hashTravPtr->cl == TYPEID))
+            SY  =  TYPESY;
+    }
+} /* markTypeSym */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //
 { /* programme */
     localSize  =  *retSizePtr;
@@ -7830,9 +7834,10 @@ void exitScope(a: int);
                 while ((hashTravPtr != NIL) &&
                        (hashTravPtr->id != curIdent))
                     hashTravPtr  =  hashTravPtr->next;
+                if ((hashTravPtr != NIL) && (hashTravPtr->cl == TYPEID))
+                    SY  =  TYPESY;
             }
-        } while ((SY == IDENT) &&
-                 ((hashTravPtr == NIL) || (hashTravPtr->cl != TYPEID)));
+        } while (SY == IDENT);
     }
     if (curProcNesting == 1) {
         workidr  =  outputFile;
@@ -7861,15 +7866,33 @@ void exitScope(a: int);
         }
     }
     outputObjFile();
-    while (SY == VOIDSY ||
-           ((SY == IDENT) && (hashTravPtr != NIL) &&
-            (hashTravPtr->cl == TYPEID))) {
+    if (SY IN [IDENT,TYPESY]) {
+        curVal.i  =  curIdent & hashMask;
+        bucket = mapAI(curVal.a);
+        hashTravPtr  =  symHash[bucket];
+        while ((hashTravPtr != NIL) && (hashTravPtr->id != curIdent))
+            hashTravPtr  =  hashTravPtr->next;
+        if ((hashTravPtr != NIL) && (hashTravPtr->cl == TYPEID))
+            SY  =  TYPESY;
+    }
+    while ((SY == VOIDSY) || (SY == TYPESY) || (SY == IDENT)) {
+        if (SY IN [IDENT,TYPESY]) {
+            curVal.i  =  curIdent & hashMask;
+            bucket = mapAI(curVal.a);
+            hashTravPtr  =  symHash[bucket];
+            while ((hashTravPtr != NIL) && (hashTravPtr->id != curIdent))
+                hashTravPtr  =  hashTravPtr->next;
+            if ((hashTravPtr != NIL) && (hashTravPtr->cl == TYPEID))
+                SY  =  TYPESY;
+        }
         l2bool8z  =  SY == VOIDSY;
         /* For the new C-style syntax 'RETTYPE NAME(args);' the current
            IDENT names the return type; stash it before inSymbol clobbers
            hashTravPtr.  NIL marks "not new-style" so the code that sets
            curIdRec->typ knows which path to take. */
-        if (SY == IDENT)
+        if (! l2bool8z)
+            markTypeSym();
+        if (SY == TYPESY)
             typedRetType  =  hashTravPtr->typ;
         else
             typedRetType  =  voidType;
@@ -8006,14 +8029,11 @@ void exitScope(a: int);
                 programme(&l2int18z, curIdRec);
                 if (CH == '\0')
                     break;
+                markTypeSym();
                 /* A type-ident also opens a new C-style routine decl. */
-                if (! (SY IN [VOIDSY,BEGINSY]) &&
-                    ! ((SY == IDENT) && (hashTravPtr != NIL) &&
-                       (hashTravPtr->cl == TYPEID)))
+                if (! (SY IN [VOIDSY,BEGINSY,TYPESY,IDENT]))
                     errAndSkip(errBadSymbol, skipToSet);
-            } while (! (SY IN [VOIDSY,BEGINSY]) &&
-                     ! ((SY == IDENT) && (hashTravPtr != NIL) &&
-                        (hashTravPtr->cl == TYPEID)));
+            } while (! (SY IN [VOIDSY,BEGINSY,TYPESY,IDENT]));
             curIdRec->sigtyp  =  makeRoutineType(curIdRec);
             myrollup(int(scopeBound));
             exitScope(0);
@@ -8031,13 +8051,15 @@ void exitScope(a: int);
         }
         curFrameRegTemplate -= indexreg[1];
         --curProcNesting;
+        markTypeSym();
     }
+    markTypeSym();
     if (CH == '\0')
         return;
-    if ((SY != BEGINSY) &&
+    if ((SY != BEGINSY) && ! (SY IN [VOIDSY,TYPESY,IDENT]) &&
        (! allowCompat || ! (SY IN blockBegSys)))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
-    } while (! (SY in statBegSys));
+    } while (! ((SY in statBegSys) || (SY IN [VOIDSY,TYPESY,IDENT])));
     if (preDefHead != irptr(0)) {
         error(85); /* errNotFullyDefinedVoids */
         while (preDefHead != irptr(0)) {
@@ -8144,7 +8166,7 @@ var
     for (idx = 0; idx < 27; ++idx) {
         /* 'function' keyword is retired: C-style "RetType name();"
            is the only accepted routine-declaration form. */
-        if (SY != FUNCSY)
+        if (SY != TYPESY)
             regResWord(resWordName[idx]);
         ++SY;
     }
@@ -8289,11 +8311,11 @@ void initOptions();
         '   CONST',
         ' TYPEDEF',
         '     VAR',
-        '        ',             	// was FUNCTION
+        '        ',                      // was FUNCTION
         '    VOID',
         '    ENUM',
         '**PACKED',
-        '        ',             	// was ARRAY
+        '        ',                      // was ARRAY
         '  STRUCT',
         '    FILE',
         '      IF',

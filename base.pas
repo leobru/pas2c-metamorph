@@ -146,7 +146,7 @@ type
 (*10B*) RPAREN,     RBRACK,     COMMA,      SEMICOLON,
         PERIOD,     ARROW,      COLON,      BECOMES,
 (*20B*) BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
-        VARSY,      FUNCSY,     VOIDSY,     ENUMSY,
+        VARSY,      TYPESY,     VOIDSY,     ENUMSY,
 (*30B*) PACKEDSY,   ARRAYSY,    STRUCTSY,   FILESY,
         IFSY,       SWITCHSY,   WHILESY,    FORSY,
 (*40B*) WITHSY,     GOTOSY,     ELSESY,     OFSY,
@@ -1397,8 +1397,11 @@ done := false;
                     while hashTravPtr <> NIL do {
                         if hashTravPtr@.id <> curIdent then
                             hashTravPtr := hashTravPtr@.next
-                        else
-                            exit;
+                        else {
+                            if hashTravPtr@.cl = TYPEID then
+                                SY := TYPESY;
+                            exit
+                        };
                     };
                 };
                 lookWith: {
@@ -5054,11 +5057,13 @@ var
     } else
     if (charClass = MUL) then {
         inSymbol;
-        if (SY <> IDENT) then {
+        if not (SY IN [IDENT,TYPESY]) then {
             error(errNoIdent);
             curType := voidPtr;
         } else {
-            if (hashTravPtr = NIL) then {
+            if (SY = TYPESY) then {
+                curType := getPtrType(hashTravPtr@.typ);
+            } else if (hashTravPtr = NIL) then {
                 if (inTypeDef) then {
                     if (knownInType(curEnum)) then {
                         curType := curEnum@.typ;
@@ -5077,14 +5082,12 @@ var
             };
             inSymbol;
         }
-    } else if (SY = IDENT) then {
-        if (hashTravPtr <> NIL) then {
-            if (hashTravPtr@.cl = TYPEID) then {
-                curType := hashTravPtr@.typ;
-            } else {
-                   error(errNotAType);
-                   curType := integerType;
-            }
+    } else if (SY IN [IDENT,TYPESY]) then {
+        if (SY = TYPESY) then {
+            curType := hashTravPtr@.typ;
+        } else if (hashTravPtr <> NIL) then {
+            error(errNotAType);
+            curType := integerType;
         } else {
             if (inTypeDef) then {
                 if (knownInType(curEnum)) then {
@@ -5813,22 +5816,14 @@ var
     if (stProcNo IN [fnSIZEOF, fnOFFSETOF]) then {
         lookupMode := lookUse;
         inSymbol;
-        if (SY = IDENT) and (hashTravPtr <> NIL) and
-           (hashTravPtr@.cl = TYPEID) then {
+        if (SY = TYPESY) then {
             l5var2z := hashTravPtr@.typ;
             inSymbol;
         } else {
             if (stProcNo = fnSIZEOF) then {
-                if (SY = IDENT) and (hashTravPtr <> NIL) and
-                   (hashTravPtr@.cl IN [VARID, FORMALID, FIELDID]) and
-                   (charSym[CH] = RPAREN) then {
-                    l5var2z := hashTravPtr@.typ;
-                    inSymbol;
-                } else {
-                    readNext := false;
-                    expression;
-                    l5var2z := curExpr@.vt.typ;
-                }
+                readNext := false;
+                expression;
+                l5var2z := curExpr@.vt.typ;
             } else {
                 error(errNotAType);
                 l5var2z := integerType;
@@ -5932,7 +5927,17 @@ var
 { (* factor *)
     wasInCall := inCallArgs;
     inCallArgs := false;
-    if SY IN [IDENT,INTCONST,REALCONST,CHARCONST,STRINGSY,LPAREN,LBRACK] then {
+    if (SY = TYPESY) then {
+        l4typ11z := hashTravPtr@.typ;
+        inSymbol;
+        if SY <> LPAREN then error(95);
+        expression;
+        if curExpr@.vt.typ.rep@.size <> l4typ11z.rep@.size then
+            error(errNeedOtherTypesOfOperands);
+        checkSymAndRead(RPAREN);
+        curExpr@.vt.typ := l4typ11z;
+    } else if (SY IN
+        [IDENT,INTCONST,REALCONST,CHARCONST,STRINGSY,LPAREN,LBRACK]) then {
         case SY of
         IDENT: {
             if (hashTravPtr = NIL) then {
@@ -5940,16 +5945,6 @@ var
                 curExpr := uVarPtr;
             } else
                 case hashTravPtr@.cl of
-                TYPEID: {
-                    l4typ11z := hashTravPtr@.typ;
-                    inSymbol;
-                    if SY <> LPAREN then error(95);
-                    expression;
-                    if curExpr@.vt.typ.rep@.size <> l4typ11z.rep@.size then
-                        error(errNeedOtherTypesOfOperands);
-                    checkSymAndRead(RPAREN);
-                        curExpr@.vt.typ := l4typ11z;
-                };
                 ENUMID: {
                     new(curExpr);
                     with curExpr@ do {
@@ -7528,9 +7523,7 @@ var
         if (curProcNesting = 1) then
             done := (SY = PERIOD) or (CH = '_000')
         else
-            done := (SY IN blockBegSys) or (CH = '_000') or
-                    ((SY = IDENT) and (hashTravPtr <> NIL) and
-                     (hashTravPtr@.cl = TYPEID));
+            done := (SY IN blockBegSys) or (SY = TYPESY) or (CH = '_000');
         if not done then
            if (curProcNesting = 1) then
                requiredSymErr(PERIOD)
@@ -8033,6 +8026,20 @@ procedure exitScope(var arg: hashArray);
 }; (* exitScope *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure markTypeSym;
+{
+    if (SY IN [IDENT,TYPESY]) then {
+        curVal.m := curIdent.m * hashMask.m;
+        mapAI(curVal.a, bucket);
+        hashTravPtr := symHash[bucket];
+        while (hashTravPtr <> NIL) and (hashTravPtr@.id <> curIdent) do
+            hashTravPtr := hashTravPtr@.next;
+        if (hashTravPtr <> NIL) and (hashTravPtr@.cl = TYPEID) then
+            SY := TYPESY;
+    };
+}; (* markTypeSym *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 { (* programme *)
     localSize := l2arg1z;
@@ -8229,9 +8236,10 @@ procedure exitScope(var arg: hashArray);
                 while (hashTravPtr <> NIL) and
                       (hashTravPtr@.id <> curIdent) do
                     hashTravPtr := hashTravPtr@.next;
-            };
-        (* 23001 -> 22617 *) until (SY <> IDENT) or
-            ((hashTravPtr <> NIL) and (hashTravPtr@.cl = TYPEID));
+                if (hashTravPtr <> NIL) and (hashTravPtr@.cl = TYPEID) then
+                    SY := TYPESY;
+                };
+        until (SY <> IDENT);
     }; (* VARSY -> 23003 *)
     if (curProcNesting = 1) then {
         workidr := outputFile;
@@ -8258,17 +8266,35 @@ procedure exitScope(var arg: hashArray);
             };
             curExternFile := curExternFile@.next;
         }
-    };
+        };
     outputObjFile;
-    while (SY = VOIDSY) or
-          ((SY = IDENT) and (hashTravPtr <> NIL) and
-           (hashTravPtr@.cl = TYPEID)) do {
+    if (SY IN [IDENT,TYPESY]) then {
+        curVal.m := curIdent.m * hashMask.m;
+        mapAI(curVal.a, bucket);
+        hashTravPtr := symHash[bucket];
+        while (hashTravPtr <> NIL) and (hashTravPtr@.id <> curIdent) do
+            hashTravPtr := hashTravPtr@.next;
+        if (hashTravPtr <> NIL) and (hashTravPtr@.cl = TYPEID) then
+            SY := TYPESY;
+    };
+    while (SY = VOIDSY) or (SY = TYPESY) or (SY = IDENT) do {
+        if (SY IN [IDENT,TYPESY]) then {
+            curVal.m := curIdent.m * hashMask.m;
+            mapAI(curVal.a, bucket);
+            hashTravPtr := symHash[bucket];
+            while (hashTravPtr <> NIL) and (hashTravPtr@.id <> curIdent) do
+                hashTravPtr := hashTravPtr@.next;
+            if (hashTravPtr <> NIL) and (hashTravPtr@.cl = TYPEID) then
+                SY := TYPESY;
+        };
         done := SY = VOIDSY;
         (* For the new C-style syntax 'RETTYPE NAME(args);' the current
            IDENT names the return type; stash it before inSymbol clobbers
            hashTravPtr.  NIL marks "not new-style" so the code that sets
            curIdRec@.typ knows which path to take. *)
-        if (SY = IDENT) then
+        if not done then
+            markTypeSym;
+        if (SY = TYPESY) then
             typedRetType := hashTravPtr@.typ
         else
             typedRetType := voidType;
@@ -8411,17 +8437,14 @@ procedure exitScope(var arg: hashArray);
             if (curIdRec@.argList = NIL) and not hadParens then
                 error(42); (* errNoParamList *)
             (loop) repeat
-                setup(scopeBound);
-                programme(l2int18z, curIdRec);
-                if CH = '_000' then exit loop;
-                (* A type-ident also opens a new C-style routine decl. *)
-                if not (SY IN [VOIDSY,BEGINSY]) and
-                   not ((SY = IDENT) and (hashTravPtr <> NIL) and
-                        (hashTravPtr@.cl = TYPEID)) then
-                    errAndSkip(errBadSymbol, skipToSet);
-            until (SY IN [VOIDSY,BEGINSY]) or
-                  ((SY = IDENT) and (hashTravPtr <> NIL) and
-                   (hashTravPtr@.cl = TYPEID));
+                    setup(scopeBound);
+                    programme(l2int18z, curIdRec);
+                    if CH = '_000' then exit loop;
+                    markTypeSym;
+                    (* A type-ident also opens a new C-style routine decl. *)
+                    if not (SY IN [VOIDSY,BEGINSY,TYPESY,IDENT]) then
+                        errAndSkip(errBadSymbol, skipToSet);
+                until (SY IN [VOIDSY,BEGINSY,TYPESY,IDENT]);
 % ifdef kindrout
             curIdRec@.sigtyp := makeRoutineType(curIdRec);
 % endif
@@ -8438,15 +8461,17 @@ procedure exitScope(var arg: hashArray);
                 scopeBound := NIL;
                 hash(scopeBound, workidr);
                 workidr := workidr@.list;
-            }
+            };
         };
         curFrameRegTemplate := curFrameRegTemplate - indexreg[1];
         curProcNesting := curProcNesting - 1;
+        markTypeSym;
     };
+    markTypeSym;
     if CH = '_000' then exit;
-    if not (SY IN blockBegSys) then
+    if not (SY IN blockBegSys) and not (SY IN [VOIDSY,TYPESY,IDENT]) then
         errAndSkip(84 (* errErrorInDeclarations *), skipToSet);
-    until SY in statBegSys;
+    until (SY in statBegSys) or (SY IN [VOIDSY,TYPESY,IDENT]);
     if (preDefHead <> ptr(0)) then {
         error(85); (* errNotFullyDefinedProcedures *)
         while (preDefHead <> ptr(0)) do {
