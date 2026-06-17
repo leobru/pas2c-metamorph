@@ -1,0 +1,7 @@
+ rollup:        , name,
+C rollup(mark) - restore the Pascal heap pointer saved by setup().
+C In: ACC := mark.
+                , ntr , 7
+             1  , atx , 27b
+            13  , uj  ,
+                , end ,

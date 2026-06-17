@@ -7097,9 +7097,9 @@ var
     l4bool10z := (SY = LPAREN);
     oldOffset := moduleOffset;
     if not l4bool10z and
-       (procNo IN [0:5,8:10,12,15:28]) then
+       (procNo IN [0:5,10,12,15:28]) then
         error(45); (* errNoOpenParenForStandProc *)
-    if (procNo IN [0:5,8,9,12,15]) then {
+    if (procNo IN [0:5,12,15]) then {
         expression;
         if not (curExpr@.op IN lvalOpSet) then {
             error(27); (* errExpressionWhereVariableExpected *)
@@ -7152,17 +7152,6 @@ var
     6: { (* halt *)
         formAndAlign(jumpTarget);
         exit
-    };
-    8, 9: { (* setup, rollup *)
-        if (curVarKind <> kindPtr) then
-            error(13); (* errVarIsNotPointer *)
-        if (procNo = 8) then {
-            form1Insn(KXTA+HEAPPTR);
-            formOperator(STORE);
-        } else {
-            formOperator(LOAD);
-            form1Insn(KATX+HEAPPTR);
-        }
     };
     10: { (* write *)
         writeProc;
@@ -8977,8 +8966,8 @@ procedure initOptions;
         44516360576345C        (*"    FREE"*),
         50415464C              (*"    HALT"*),
         0C                     (*"was STOP"*),
-        6345646560C            (*"   SETUP"*),
-        625754546560C          (*"  ROLLUP"*),
+        0C                     (*" was SETUP"*),
+        0C                     (*" was ROLLUP"*),
 (*10*)  6762516445C            (*"   WRITE"*),
         67625164455456C        (*" WRITELN"*),
         43645762C              (*"    CTOR"*),

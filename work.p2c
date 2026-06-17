@@ -528,6 +528,8 @@ var
 int mapai(a:alfa); assembler;
 void longjmp(jmpbuf, val: int); assembler;
 int setjmp(jmpbuf: *int); assembler;
+int setup(); assembler;
+void rollup(addr: int); assembler;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
@@ -1793,16 +1795,12 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void myrollup(addr : int);
-type pint = *int;
-var cur : pint;
-    top : int;
+var top : int;
 {
-    setup(cur);
-    top = int(cur);
+    top = setup();
     if (top > maxHeap)
         maxHeap = top;
-    cur = pint(addr);
-    rollup(cur);
+    rollup(addr);
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6386,7 +6384,7 @@ var
     setcount  =  0;
     do {
         inSymbol();
-        setup(boundary);
+        boundary = eptr(setup());
         if (SY != IDENT) {
             if (SY == ENDSY)
                 break;
@@ -6728,9 +6726,9 @@ var
     l4bool10z  =  (SY == LPAREN);
     l4var14z  =  moduleOffset;
     if (! l4bool10z &&
-       (procNo IN [0:5,8:10,12,15:28]))
+       (procNo IN [0:5,10,12,15:28]))
         error(45); /* errNoOpenParenForStandProc */
-    if (procNo IN [0,1,2,3,4,5,8,9,12,15]) {
+    if (procNo IN [0,1,2,3,4,5,12,15]) {
         expression();
         if (! (curExpr->op IN lvalOpSet))
             error(27); /* errExpressionWhereVariableExpected */
@@ -6781,17 +6779,6 @@ var
     case 6: /* halt */
         formAndAlign(jumpTarget);
         return;
-    case 8: case 9: /* setup, rollup */
-        if (curVarKind != kindPtr)
-            error(13); /* errVarIsNotPointer */
-        if (procNo == 8) {
-            form1Insn(KXTA+HEAPPTR);
-            formOperator(STORE);
-        } else {
-            formOperator(LOAD);
-            form1Insn(KATX+HEAPPTR);
-        }
-        break;
     case 10: /* write */
         writeProc();
         break;
@@ -6886,7 +6873,7 @@ var
         checkSymAndRead(COMMA);
         checkArrayArg();
         doPackUnpack();
-    case 4: case 7: case 13: case 15: case 17: case 18:
+    case 4: case 7: case 8: case 9: case 13: case 15: case 17: case 18:
         // unused, listed for completeness
     }
     if (procNo in [0,1,2,3,5,10,11,13,21,22])
@@ -6900,7 +6887,7 @@ var
         inSymbol();
         return;
     }
-    setup(boundary);
+    boundary = eptr(setup());
     abort  =  false;
     startLine  =  lineCnt;
     if (freeRegs == halfWord) {
@@ -7979,7 +7966,7 @@ void exitScope(a: int);
                 }
             }
             curIdRec  =  hashTravPtr;
-            setup(scopeBound);
+            scopeBound = irptr(setup());
             inSymbol();
             hadParens  =  false;
             if ((SY == LPAREN) && (curIdRec->argList == NIL)) {
@@ -8015,7 +8002,7 @@ void exitScope(a: int);
             if ((curIdRec->argList == NIL) && ! hadParens)
                 error(42); /* errNoParamList */
             do {
-                setup(scopeBound);
+                scopeBound = irptr(setup());
                 programme(&l2int18z, curIdRec);
                 if (CH == '\0')
                     break;
@@ -8543,8 +8530,8 @@ void initOptions();
         '    FREE',
         '    HALT',
         '    STOP',
-        '   SETUP',
-        '  ROLLUP',
+        '        ',
+        '        ',
 /*10*/  '   WRITE',
         ' WRITELN',
         '    CTOR',

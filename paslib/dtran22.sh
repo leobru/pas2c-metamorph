@@ -1,5 +1,5 @@
-#!/bin/sh
-fn=`echo $1 | tr / _`
+#!/bin/sh -x
+fn=`echo "$1" | tr '*/' '#_'`
 cat << EOF > tmp$$
 *name dtran
 *disc:1/local
@@ -11,8 +11,8 @@ cat << EOF > tmp$$
 *call setftn:one,long
 *call dtran($1)
 EOF
-if [ -f $fn.dtr ]; then
-	cat $fn.dtr >> tmp$$
+if [ -f "$fn.dtr" ]; then
+	cat "$fn.dtr" >> tmp$$
 fi
 cat << EOF >> tmp$$
 *edit
@@ -22,7 +22,7 @@ cat << EOF >> tmp$$
 *end file
 EOF
 dubna tmp$$ | sed '/,NAME,/,/,END,/!d' > $fn.dtran
-if [ -s $fn.dtran ]; then
+if [ -s "$fn.dtran" ]; then
 	rm tmp$$
 else
 	mv tmp$$ $fn.err

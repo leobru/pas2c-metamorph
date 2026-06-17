@@ -1,0 +1,7 @@
+ setup:         , name,
+C setup() - return the current Pascal heap pointer.
+C Out: ACC := [M1+27B], the runtime HEAPPTR cell.
+                , ntr , 7
+             1  , xta , 27b
+            13  , uj  ,
+                , end ,
