@@ -7629,7 +7629,7 @@ void exitScope(a: int);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void markTypeSym();
 {
-    if (SY IN [IDENT,TYPESY]) {
+    if (SY == IDENT) {
         curVal.i  =  curIdent & hashMask;
         bucket = mapAI(curVal.a);
         hashTravPtr  =  symHash[bucket];
@@ -7829,14 +7829,7 @@ void markTypeSym();
                is absent from the current scope, so re-resolve it
                via a scope-agnostic walk over the hash bucket. */
             hashTravPtr  =  NIL;
-            if (SY == IDENT) {
-                hashTravPtr  =  symHash[bucket];
-                while ((hashTravPtr != NIL) &&
-                       (hashTravPtr->id != curIdent))
-                    hashTravPtr  =  hashTravPtr->next;
-                if ((hashTravPtr != NIL) && (hashTravPtr->cl == TYPEID))
-                    SY  =  TYPESY;
-            }
+            markTypeSym();
         } while (SY == IDENT);
     }
     if (curProcNesting == 1) {
@@ -7866,28 +7859,11 @@ void markTypeSym();
         }
     }
     outputObjFile();
-    if (SY IN [IDENT,TYPESY]) {
-        curVal.i  =  curIdent & hashMask;
-        bucket = mapAI(curVal.a);
-        hashTravPtr  =  symHash[bucket];
-        while ((hashTravPtr != NIL) && (hashTravPtr->id != curIdent))
-            hashTravPtr  =  hashTravPtr->next;
-        if ((hashTravPtr != NIL) && (hashTravPtr->cl == TYPEID))
-            SY  =  TYPESY;
-    }
-    while ((SY == VOIDSY) || (SY == TYPESY) || (SY == IDENT)) {
-        if (SY IN [IDENT,TYPESY]) {
-            curVal.i  =  curIdent & hashMask;
-            bucket = mapAI(curVal.a);
-            hashTravPtr  =  symHash[bucket];
-            while ((hashTravPtr != NIL) && (hashTravPtr->id != curIdent))
-                hashTravPtr  =  hashTravPtr->next;
-            if ((hashTravPtr != NIL) && (hashTravPtr->cl == TYPEID))
-                SY  =  TYPESY;
-        }
+    markTypeSym();
+    while ((SY == VOIDSY) || (SY == TYPESY)) {
         l2bool8z  =  SY == VOIDSY;
         /* For the new C-style syntax 'RETTYPE NAME(args);' the current
-           IDENT names the return type; stash it before inSymbol clobbers
+           TYPESY names the return type; stash it before inSymbol clobbers
            hashTravPtr.  NIL marks "not new-style" so the code that sets
            curIdRec->typ knows which path to take. */
         if (! l2bool8z)
@@ -8031,9 +8007,9 @@ void markTypeSym();
                     break;
                 markTypeSym();
                 /* A type-ident also opens a new C-style routine decl. */
-                if (! (SY IN [VOIDSY,BEGINSY,TYPESY,IDENT]))
+                if (! (SY IN [VOIDSY,BEGINSY,TYPESY]))
                     errAndSkip(errBadSymbol, skipToSet);
-            } while (! (SY IN [VOIDSY,BEGINSY,TYPESY,IDENT]));
+            } while (! (SY IN [VOIDSY,BEGINSY,TYPESY]));
             curIdRec->sigtyp  =  makeRoutineType(curIdRec);
             myrollup(int(scopeBound));
             exitScope(0);
@@ -8056,10 +8032,10 @@ void markTypeSym();
     markTypeSym();
     if (CH == '\0')
         return;
-    if ((SY != BEGINSY) && ! (SY IN [VOIDSY,TYPESY,IDENT]) &&
+    if ((SY != BEGINSY) && ! (SY IN [VOIDSY,TYPESY]) &&
        (! allowCompat || ! (SY IN blockBegSys)))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
-    } while (! ((SY in statBegSys) || (SY IN [VOIDSY,TYPESY,IDENT])));
+    } while (! ((SY in statBegSys) || (SY IN [VOIDSY,TYPESY])));
     if (preDefHead != irptr(0)) {
         error(85); /* errNotFullyDefinedVoids */
         while (preDefHead != irptr(0)) {

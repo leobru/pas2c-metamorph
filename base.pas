@@ -5074,12 +5074,8 @@ var
 12366:              error(errNotAType);
                     curType := voidPtr;
                 };
-            } else {
-                if (hashTravPtr@.cl <> TYPEID) then {
-                    goto 12366
-                };
-                curType := getPtrType(hashTravPtr@.typ);
-            };
+            } else
+                goto 12366;
             inSymbol;
         }
     } else if (SY IN [IDENT,TYPESY]) then {
@@ -8028,7 +8024,7 @@ procedure exitScope(var arg: hashArray);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure markTypeSym;
 {
-    if (SY IN [IDENT,TYPESY]) then {
+    if (SY = IDENT) then {
         curVal.m := curIdent.m * hashMask.m;
         mapAI(curVal.a, bucket);
         hashTravPtr := symHash[bucket];
@@ -8231,14 +8227,7 @@ procedure markTypeSym;
                is absent from the current scope, so re-resolve it
                via a scope-agnostic walk over the hash bucket. *)
             hashTravPtr := NIL;
-            if (SY = IDENT) then {
-                hashTravPtr := symHash[bucket];
-                while (hashTravPtr <> NIL) and
-                      (hashTravPtr@.id <> curIdent) do
-                    hashTravPtr := hashTravPtr@.next;
-                if (hashTravPtr <> NIL) and (hashTravPtr@.cl = TYPEID) then
-                    SY := TYPESY;
-                };
+            markTypeSym;
         until (SY <> IDENT);
     }; (* VARSY -> 23003 *)
     if (curProcNesting = 1) then {
@@ -8268,28 +8257,11 @@ procedure markTypeSym;
         }
         };
     outputObjFile;
-    if (SY IN [IDENT,TYPESY]) then {
-        curVal.m := curIdent.m * hashMask.m;
-        mapAI(curVal.a, bucket);
-        hashTravPtr := symHash[bucket];
-        while (hashTravPtr <> NIL) and (hashTravPtr@.id <> curIdent) do
-            hashTravPtr := hashTravPtr@.next;
-        if (hashTravPtr <> NIL) and (hashTravPtr@.cl = TYPEID) then
-            SY := TYPESY;
-    };
-    while (SY = VOIDSY) or (SY = TYPESY) or (SY = IDENT) do {
-        if (SY IN [IDENT,TYPESY]) then {
-            curVal.m := curIdent.m * hashMask.m;
-            mapAI(curVal.a, bucket);
-            hashTravPtr := symHash[bucket];
-            while (hashTravPtr <> NIL) and (hashTravPtr@.id <> curIdent) do
-                hashTravPtr := hashTravPtr@.next;
-            if (hashTravPtr <> NIL) and (hashTravPtr@.cl = TYPEID) then
-                SY := TYPESY;
-        };
+    markTypeSym;
+    while (SY = VOIDSY) or (SY = TYPESY) do {
         done := SY = VOIDSY;
         (* For the new C-style syntax 'RETTYPE NAME(args);' the current
-           IDENT names the return type; stash it before inSymbol clobbers
+           TYPESY names the return type; stash it before inSymbol clobbers
            hashTravPtr.  NIL marks "not new-style" so the code that sets
            curIdRec@.typ knows which path to take. *)
         if not done then
@@ -8442,9 +8414,9 @@ procedure markTypeSym;
                     if CH = '_000' then exit loop;
                     markTypeSym;
                     (* A type-ident also opens a new C-style routine decl. *)
-                    if not (SY IN [VOIDSY,BEGINSY,TYPESY,IDENT]) then
+                    if not (SY IN [VOIDSY,BEGINSY,TYPESY]) then
                         errAndSkip(errBadSymbol, skipToSet);
-                until (SY IN [VOIDSY,BEGINSY,TYPESY,IDENT]);
+                until (SY IN [VOIDSY,BEGINSY,TYPESY]);
 % ifdef kindrout
             curIdRec@.sigtyp := makeRoutineType(curIdRec);
 % endif
@@ -8469,9 +8441,9 @@ procedure markTypeSym;
     };
     markTypeSym;
     if CH = '_000' then exit;
-    if not (SY IN blockBegSys) and not (SY IN [VOIDSY,TYPESY,IDENT]) then
+    if not (SY IN blockBegSys) and not (SY IN [VOIDSY,TYPESY]) then
         errAndSkip(84 (* errErrorInDeclarations *), skipToSet);
-    until (SY in statBegSys) or (SY IN [VOIDSY,TYPESY,IDENT]);
+    until (SY in statBegSys) or (SY IN [VOIDSY,TYPESY]);
     if (preDefHead <> ptr(0)) then {
         error(85); (* errNotFullyDefinedProcedures *)
         while (preDefHead <> ptr(0)) do {
