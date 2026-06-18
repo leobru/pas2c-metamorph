@@ -280,9 +280,9 @@ insnltyp  = record
 end;
 %
 types = record
+    k:      kind;
     size,
     bits:   integer;
-    k:      kind;
     case kind of
     kindReal:   ();
     kindRange:  (left,
@@ -1403,11 +1403,11 @@ done := false;
                     chain := fieldHash[bucket];
                     if chain <> NIL then {
                         while withIter <> NIL do {
-                            l3int162z := withIter@.typ2.rep@.size;
                             hashTravPtr := chain;
                             while hashTravPtr <> NIL do {
                                 if (hashTravPtr@.id = curIdent)
-                                and (hashTravPtr@.value = l3int162z) then
+                                and (hashTravPtr@.uptype =
+                                     withIter@.expr2@.vt.typ) then
                                     exit;
                                 hashTravPtr := hashTravPtr@.next;
                             };
@@ -4557,7 +4557,12 @@ var
 procedure definePtrType(toType: tptr);
 {
     new(curType.rep = 4);
-    curType.rep@ := [1, 15, kindPtr, toType];
+    with curType.rep@ do {
+        size := 1;
+        bits := 15;
+        k := kindPtr;
+        base := toType;
+    };
     new(curEnum = 5);
     curEnum@ := [curIdent, lineCnt, typelist, curType, TYPEID];
     typelist := curEnum;
@@ -4635,8 +4640,13 @@ var
         cacheRec := findTypeCache(cacheName);
         if (cacheRec = NIL) then {
             writeln('- new');
-            new(curType = 4);
-            curType@ := [1, 15, kindPtr, baseType];
+            new(curType.rep = 4);
+            with curType.rep@ do {
+                size := 1;
+                bits := 15;
+                k := kindPtr;
+                base := baseType;
+            };
             addTypeCache(cacheName, curType);
             getPtrType := curType;
             exit;
@@ -4652,7 +4662,12 @@ var
     writeln(' - new');
 % endif
     new(curType.rep = 4);
-    curType.rep@ := [1, 15, kindPtr, baseType];
+    with curType.rep@ do {
+        size := 1;
+        bits := 15;
+        k := kindPtr;
+        base := baseType;
+    };
     getPtrType := curType;
 }; (* getPtrType *)
 %
@@ -4867,8 +4882,14 @@ var
             lookupMode := lookField;
             inSymbol;
             new(l4var5z.rep = 7);
-            l4var5z.rep@ := [cases.size, 48, kindCases,
-                                l4var7z, NIL, NIL, NIL];
+            with l4var5z.rep@ do {
+                size := cases.size;
+                bits := 48;
+                k := kindCases;
+                first := l4var7z.typ;
+                next.rep := NIL;
+                alt.rep := NIL;
+            };
             if (l4typ1z.rep = NIL) then {
                 if (curType.rep@.base.rep = NIL) then {
                     curType.rep@.base := l4var5z;
@@ -5046,8 +5067,13 @@ var
             curType := booleanType;
             error(errNoIdent);
         } else {
-            curType.rep@ := [1, nrOfBits(span - 1), kindScalar, ,
-                          span, 0];
+            with curType.rep@ do {
+                size := 1;
+                bits := nrOfBits(span - 1);
+                k := kindScalar;
+                numen := span;
+                start := 0;
+            };
         };
     } else
     if (charClass = MUL) then {
@@ -5118,7 +5144,7 @@ var
                 bits := 48;
                 k := kindStruct;
                 ptr1 := NIL;
-                first.rep := NIL;
+                ptr2 := NIL;
                 flag := false;
                 pckrec := isPacked;
             };

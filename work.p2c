@@ -267,9 +267,9 @@ insnltyp  = struct {
 };
 //
 types = struct {
+    k:      kind;
     size,
     bits:   int;
-    k:      kind;
     union {
         struct {szReal: int};
         struct {abase:     tptr;
@@ -1279,11 +1279,11 @@ void lexer();
             chain  =  fieldHash[bucket];
             if (chain != NIL) {
                 while (withIter != NIL) {
-                    val  =  withIter->typ2.rep->size;
                     hashTravPtr  =  chain;
                     while (hashTravPtr != NIL) {
                         if ((hashTravPtr->id == curIdent)
-                        && (hashTravPtr->value == val))
+                        && (hashTravPtr->uptype ==
+                            withIter->expr2->typ))
                             return;
                         hashTravPtr  =  hashTravPtr->next;
                     }
@@ -4290,7 +4290,12 @@ var
 void definePtrType(toType: tptr);
 {
     curType.rep = malloc(offsetof(types, szPtr));
-    CTOR(*(curType.rep), 1, 15, kindPtr, toType);
+    with *(curType.rep) do {
+        size  =  1;
+        bits  =  15;
+        k  =  kindPtr;
+        base  =  toType;
+    }
     curEnum = malloc(offsetof(identrec, szIdent));
     CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
     typelist  =  curEnum;
@@ -4357,7 +4362,12 @@ var
         cacheRec  =  findTypeCache(cacheName);
         if (cacheRec == NIL) {
             curType.rep = malloc(offsetof(types, szPtr));
-            CTOR(*(curType.rep), 1, 15, kindPtr, baseType);
+            with *(curType.rep) do {
+                size  =  1;
+                bits  =  15;
+                k  =  kindPtr;
+                base  =  baseType;
+            }
             addTypeCache(cacheName, curType);
             return curType;
         }
@@ -4368,7 +4378,12 @@ var
     }
 // endif
     curType.rep = malloc(offsetof(types, szPtr));
-    CTOR(*(curType.rep), 1, 15, kindPtr, baseType);
+    with *(curType.rep) do {
+        size  =  1;
+        bits  =  15;
+        k  =  kindPtr;
+        base  =  baseType;
+    }
     return curType;
 } /* getPtrType */
 //
@@ -4576,8 +4591,14 @@ var
             lookupMode  =  3;
             inSymbol();
             l4var5z.rep = malloc(offsetof(types, szCases));
-            CTOR(*(l4var5z.rep), cases.size, 48, kindCases,
-                          l4int7z, NIL, NIL, NIL);
+            with *(l4var5z.rep) do {
+                size  =  cases.size;
+                bits  =  48;
+                k  =  kindCases;
+                first.rep  =  typptr(l4int7z);
+                next.rep  =  NIL;
+                alt.rep  =  NIL;
+            }
             if (l4typ1z.rep == NIL) {
                 if (curType.rep->base.rep == NIL) {
                     curType.rep->base  =  l4var5z;
@@ -4742,8 +4763,13 @@ var
             curType  =  boolType;
             error(errNoIdent);
         } else {
-            CTOR(*(curType.rep), 1, nrOfBits(span - 1), kindScalar, ,
-                           span, 0);
+            with *(curType.rep) do {
+                size  =  1;
+                bits  =  nrOfBits(span - 1);
+                k  =  kindScalar;
+                numen  =  span;
+                start  =  0;
+            }
         }
     } else if (charClass == MUL) {
         inSymbol();
@@ -4813,7 +4839,7 @@ var
                 bits  =  48;
                 k  =  kindStruct;
                 ptr1  =  NIL;
-                first.rep  =  NIL;
+                ptr2  =  NIL;
                 flag  =  false;
                 pckrec  =  isPacked;
             }
