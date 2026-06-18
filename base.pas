@@ -58,7 +58,6 @@ const
     mcMINEL = 15;
     mcPOP2ADDR = 19;
     mcCOND2INT = 20;
-    mcCARD = 23;
 %
     ASCII0 =    4000007B;
     E1 =        4000010B;
@@ -2200,9 +2199,6 @@ procedure addJumpInsn(opcode: integer);
         l4oi212z := l4oi212z@.next;
         if l4var4z >= 0 then {
             case l4var4z of
-            mcCARD: {
-                addInsnToBuf(KACX);
-            };
             21: goto 3556;
             0:  addJumpInsn(insnTemp[UZA]);
             1:  addJumpInsn(insnTemp[U1A]);
@@ -7661,9 +7657,7 @@ var l : integer;
     externFileList := curExternFile;
     l3var6z := l3var5z;
     l3var5z := l3var5z + 1;
-    inSymbol;
-    l3var6z := 512;
-    curExternFile@.location := l3var6z;
+    curExternFile@.location := 512;
 };
 
 %
@@ -7854,15 +7848,17 @@ var l : integer;
         inSymbol;
         while SY = IDENT do {
             defExtern;
+            inSymbol;
             if (SY = COMMA) then
                 inSymbol;
         };
         checkSymAndRead(SEMICOLON);
     }; (* while SY = EXTERNSY *)
     if (outputFile = NIL) then {
-        outputFile := l3var7z;
-        fileForOutput := ;
+        curIdent := outName;
+        defExtern;
     };
+    lookupMode := lookUse;
     l3var6z := 40;
     repeat
         programme(l3var6z, programObj);
@@ -8758,7 +8754,7 @@ procedure initOptions;
     funcInsn[fnABS] := KAMX;
     funcInsn[fnTRUNC] := KADD+ZERO;
     funcInsn[fnROUND] := macro + mcROUND;
-    funcInsn[fnCARD] := macro + mcCARD;
+    funcInsn[fnCARD] := KACX;
     funcInsn[fnMINEL] := macro + mcMINEL;
     funcInsn[fnMALLOC] := macro + mcMALLOC;
     funcInsn[fnPTR] := KAAX+MANTISSA;

@@ -56,7 +56,6 @@ const
     mcPOP2ADDR = 19;
     mcCOND2INT = 20;
     mcPCKSTORE = 22;
-    mcCARD = 23;
 //
 // Some locations are only used by runtime, here for reference
     ASCII0 =    04000007;
@@ -2094,9 +2093,6 @@ void processInsn();
         l4oi212z  =  l4oi212z->next;
         if (l4var4z >= 0) {
             switch (l4var4z) {
-            case mcCARD:
-                addInsnToBuf(KACX);
-                break;
             case 0: addJumpInsn(KUZA); break;
             case 1: addJumpInsn(KU1A); break;
             case 2:
@@ -7420,11 +7416,6 @@ void defExtern();
     l3var11z  =  30;
     l3var11z  =  l3var11z & halfWord | [24,27,28,29];
     programObj = malloc(offsetof(identrec, szRoutine));
-    if (SY != EXTERNSY) {
-        requiredSymErr(EXTERNSY);
-        skip(skipToSet | [IDENT,LPAREN]);
-    } else
-        inSymbol();
     symTabPos  =  074004;
     with *programObj do {
         id  =  'PASCOMPL';
@@ -7461,17 +7452,21 @@ void defExtern();
     l3var7z->value  =  allocExtSymbol(l3var11z);
     addToHashTab(l3var7z);
     l3var5z  =  1;
-    while (SY == IDENT) {
-        defExtern();
+    while (SY == EXTERNSY) {
         inSymbol();
-        if (SY == COMMA)
+        while (SY == IDENT) {
+            defExtern();
             inSymbol();
+            if (SY == COMMA)
+                inSymbol();
+        }
+        checkSymAndRead(SEMICOLON);
     }
-    checkSymAndRead(SEMICOLON);
     if (outputFile == NIL) {
-        error(77); /* errNoOutput */
-        outputFile  =  l3var7z;
+        curIdent  =  litOutput;
+        defExtern();
     }
+    lookupMode  =  lookUse;
     l3var6z  =  40;
     do {
         programme(&l3var6z, programObj);
@@ -8322,7 +8317,7 @@ void initOptions();
     funcInsn[fnABS]  =  KAMX;
     funcInsn[fnTRUNC]  =  KADD+ZERO;
     funcInsn[fnROUND]  =  macro + mcROUND;
-    funcInsn[fnCARD]  =  macro + mcCARD;
+    funcInsn[fnCARD]  =  KACX;
     funcInsn[fnMINEL]  =  macro + mcMINEL;
     funcInsn[fnMALLOC] = macro + mcMALLOC;
     funcInsn[fnABSI]  =  KAMX;
