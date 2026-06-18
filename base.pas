@@ -301,7 +301,7 @@ types = record
                  ptr2:      irptr;
                  flag,
                  pckrec:    boolean);
-    kindCases:  (unusedButNeeded:       word;
+    kindCases:  (
                  first,
                  next:      tptr;
                  alt:       tptr);
@@ -597,7 +597,7 @@ var
     else {
         if (errno > 88) then
             printErrMsg(86)
-        else if errno in [16..18, 20] then {
+        else if errno in [16..17, 20] then {
             if errno = 20 then
                 errno := ord(sy = ident)*2 + 1
             else
@@ -1000,18 +1000,10 @@ var
 }; (* defineRange *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function pow2(bits: integer): integer;
-var
-    w: word;
-{
-    w.m := [47-bits] + intZero;
-    pow2 := w.i;
-}; (* pow2 *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function mkIntScl(bitWid: integer): tptr;
 var
     res: tptr;
+    w: word;
 {
     if (bitWid < 1) or (40 < bitWid) then {
         error(errNumberTooLarge);
@@ -1024,7 +1016,8 @@ var
         k := kindScalar;
         start := -1;
         enums := NIL;
-        numen := pow2(bitWid);
+        w.m := [47-bitWid] + intZero;
+        numen := w.i;
         bits := bitWid;
     };
     mkIntScl := res;
@@ -1893,6 +1886,12 @@ isFileType := (typtr.rep@.k = kindFile) or
 }; (* isFileType *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function typeBits(typtr: tptr): integer;
+{
+    typeBits := typtr.rep@.bits;
+}; (* typeBits *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function knownInType(var rec: irptr): boolean;
 {
     if (typelist <> NIL) then {
@@ -2698,7 +2697,7 @@ var
         }
     } else {
         typeKind := insnList@.typ.rep@.k;
-        l4int1z := insnList@.typ.rep@.bits;
+        l4int1z := typeBits(insnList@.typ);
         l4bool5z := (typeKind < kindArray) or
                      (typeKind = kindStruct) and (S6 in optSflags.m);
         if (addrState = stSLICE) then {
@@ -3095,7 +3094,7 @@ var
                 case insnCopy.st of
                 stWORD: insnCopy.shift := l5var6z;
                 stSLICE: insnCopy.shift := insnCopy.shift + l5var6z +
-                                           insnCopy.typ.rep@.bits - 48;
+                                           typeBits(insnCopy.typ) - 48;
                 stPACKED: error(errUsingVarAfterIndexingPackedArray);
                 end; (* case *)
                 insnCopy.width := insnCopy.typ.rep@.pcksize;
@@ -4064,7 +4063,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                             shift := shift + curIdRec@.shift;
                             if not (S6 IN optSflags.m) then
                                 shift := shift +
-                                           curIdRec@.uptype.rep@.bits - 48;
+                                           typeBits(curIdRec@.uptype) - 48;
                         };
                         stPACKED:
                             if (not rhsMode) then
@@ -4670,7 +4669,7 @@ function sameArrayCache(typ, rangeType, elementType: tptr;
         (typ@.aright = rangeType@.right) and
         (typ@.pck = packedFlag) and
         (typ@.size = sizeArg) and
-        (typ@.bits = bitsArg) and
+        (typeBits(typ) = bitsArg) and
         (typ@.perword = perwordArg) and
         (typ@.pcksize = pcksizeArg);
 }; (* sameArrayCache *)
@@ -4750,7 +4749,7 @@ var
     repeat
         curField@.typ := selType;
         if (isPacked) then {
-            l5var1z := selType.rep@.bits;
+            l5var1z := typeBits(selType);
             curField@.width := l5var1z;
             if (l5var1z <> 48) then {
                 for pairIdx to cases.count do
@@ -4951,7 +4950,7 @@ var
     if isFileType(elementType) then
         error(errTypeMustNotBeFile);
     span := rangeType.rep@.right - rangeType.rep@.left + 1;
-    l3int22z := elementType.rep@.bits;
+    l3int22z := typeBits(elementType);
     if (24 < l3int22z) then
         makePacked := false;
     bitsVal := 48;
@@ -5134,7 +5133,7 @@ var
             if (isFileType(nestedType)) then
                 error(errTypeMustNotBeFile);
             if (isPacked) then {
-                l3int22z := nestedType.rep@.bits;
+                l3int22z := typeBits(nestedType);
                 if (24 < l3int22z) then
                     isPacked := false;
             };
@@ -5922,7 +5921,7 @@ var
     if (SY = TYPESY) then {
         l4typ11z := hashTravPtr@.typ;
         inSymbol;
-        if SY <> LPAREN then error(95);
+        if SY <> LPAREN then error(88 + ord(LPAREN));
         expression;
         if curExpr@.vt.typ.rep@.size <> l4typ11z.rep@.size then
             error(errNeedOtherTypesOfOperands);
@@ -8463,7 +8462,7 @@ procedure markTypeSym;
     };
     if not done then {
         printTextWord(procName@.id);
-        error(90); (* errLblDefinitionInBlock *)
+        error(18); (* errLabelNotDefined *)
     };
     l2arg1z := l2int21z;
 

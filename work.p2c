@@ -286,7 +286,7 @@ types = struct {
                 ptr2:      irptr;
                 flag,
                 pckrec:    int; szStruct: int};
-        struct {unusedButNeeded:       int;
+        struct {
                 first,
                 next:      tptr;
                 alt:       tptr; szCases: int};
@@ -556,7 +556,7 @@ var
     else {
         if (errno > 88)
             printErrMsg(86);
-        else if (errno in [16..18, 20]) {
+        else if (errno in [16..17, 20]) {
             if (errno == 20)
                 errno  =  (sy == ident)*2 + 1;
             else
@@ -1707,6 +1707,12 @@ int isFileType(typtr: tptr);
 } /* isFileType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int typeBits(typtr: tptr);
+{
+    return typtr.rep->bits;
+} /* typeBits */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void checkSymAndRead(sym: symbol);
 {
     if (SY != sym)
@@ -2511,7 +2517,7 @@ var
         }
     } else {
         l4var7z  =  insnList->typ.rep->k;
-        l4int1z  =  insnList->typ.rep->bits;
+        l4int1z  =  typeBits(insnList->typ);
         l4bool5z  =  l4var7z < kindArray ||
                      (l4var7z == kindStruct && (E48 >> S6) & optSflags);
         if (l4st6z == stSLICE) {
@@ -2899,7 +2905,7 @@ var
                 switch (insnCopy.st) {
                 case stWORD: insnCopy.shift  =  l5var6z; break;
                 case stSLICE: insnCopy.shift  =  insnCopy.shift + l5var6z +
-                                           insnCopy.typ.rep->bits - 48; break;
+                                           typeBits(insnCopy.typ) - 48; break;
                 case stPACKED: error(errUsingVarAfterIndexingPackedArray);
                 } /* switch */
                 insnCopy.width  =  insnCopy.typ.rep->pcksize;
@@ -3821,7 +3827,7 @@ var
                         shift += curIdRec->shift;
                         if (! (S6 IN optSflags))
                             shift  =  shift +
-                                       curIdRec->uptype.rep->bits - 48;
+                                       typeBits(curIdRec->uptype) - 48;
                         break;
                     }
                     case stPACKED:
@@ -4379,7 +4385,7 @@ int sameArrayCache(typ: tptr; rangeInfo: rangeRec;
         typ.rep->aright == rangeInfo.aright &&
         typ.rep->pck == packedFlag &&
         typ.rep->size == sizeArg &&
-        typ.rep->bits == bitsArg &&
+        typeBits(typ) == bitsArg &&
         typ.rep->perword == perwordArg &&
         typ.rep->pcksize == pcksizeArg;
 } /* sameArrayCache */
@@ -4454,7 +4460,7 @@ var
     do {
         curField->typ  =  selType;
         if (isPacked) {
-            l5var1z  =  selType.rep->bits;
+            l5var1z  =  typeBits(selType);
             curField->width  =  l5var1z;
             if (l5var1z != 48) {
                 for (pairIdx = 1; pairIdx <= cases.count; ++pairIdx)
@@ -4645,7 +4651,7 @@ var
     if (isFileType(elementType))
         error(errTypeMustNotBeFile);
     span  =  rangeInfo.aright - rangeInfo.aleft + 1;
-    l3int22z  =  elementType.rep->bits;
+    l3int22z  =  typeBits(elementType);
     if (24 < l3int22z)
         makePacked  =  false;
     bitsVal  =  48;
@@ -4822,7 +4828,7 @@ var
             if (isFileType(nestedType))
                 error(errTypeMustNotBeFile);
             if (isPacked) {
-                l3int22z  =  nestedType.rep->bits;
+                l3int22z  =  typeBits(nestedType);
                 if (24 < l3int22z)
                     isPacked  =  false;
             }
@@ -5570,7 +5576,7 @@ var
         l4typ11z = hashTravPtr->typ;
         inSymbol();
         if (SY != LPAREN)
-            error(95);
+            error(88 + LPAREN);
         expression();
         if (curExpr->typ.rep->size != l4typ11z.rep->size)
             error(errNeedOtherTypesOfOperands);
@@ -6566,7 +6572,7 @@ void checkElement();
             helperNo  =  40;           /* P/A7 */
     } else if (l4typ3z.rep->size == 1) {
         helperNo  =  42;               /* P/WO */
-        defWidth  =  (l4typ3z.rep->bits + 5) / 3;
+        defWidth  =  (typeBits(l4typ3z) + 5) / 3;
     } else {
         error(34); /* errTypeIsNotAFileElementType */
     }
@@ -8049,7 +8055,7 @@ void markTypeSym();
     }
     if (! l2bool8z) {
         printTextWord(procName->id);
-        error(90); /* errLblDefinitionInBlock */
+        error(18); /* errLabelNotDefined */
     }
     *retSizePtr  =  sizeCount;
 } /* programme */
