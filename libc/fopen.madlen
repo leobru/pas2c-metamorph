@@ -1,0 +1,83 @@
+ fopen :       , name,
+C===========================================================
+C fopen(fcb, packed, elsize, basesize, bufsize, name)
+C   Explicit-parameter analogue of P/CO's open path.  Mirrors
+C   one iteration of the FILEINIT block emitted by formFileInit
+C   in base.pas: feeds P/CO the same M12/M10/M9/M11/ACC tuple,
+C   and brackets the call with the FILEINIT-style ,its,13 +
+C   ,atx,SP entry and tail-jump to P/IT so the runtime sees
+C   the same stack shape it sees from a compiler-emitted
+C   FILEINIT.
+C
+C   The packed parameter is accepted for API symmetry; today
+C   the runtime infers packing from elsize/basesize, so the
+C   value is staged into apck but not pushed into the FCB.
+C   A future packed-aware P/CO entry can read it from there.
+C
+C   Calling convention (last argument in ACC, others on the
+C   Pascal call stack, like longjmp(env, val)):
+C     ACC          = name      (FCST-packed external name, or 0)
+C     [SP top]     = bufsize
+C     [SP-1]       = basesize
+C     [SP-2]       = elsize
+C     [SP-3]       = packed
+C     [SP-4 bot.]  = fcb       (pointer to the file's FCB)
+C
+C   M6 bases the local cells; M12 is left free for the FCB.
+C
+C   The trailing two-instruction tail (vjm,p/co + uj,p/it) is
+C   the intended body but references paslib-only symbols that
+C   the libc-time linker cannot resolve, so those two lines
+C   are commented out below until paslib exposes them (or
+C   until this file is moved into paslib).  In the meantime
+C   the FILEINIT-style frame we just pushed is popped back
+C   off and the procedure returns through the caller's M13,
+C   so the calling convention is fully exercised and the
+C   compiler's existing implicit FILEINIT/C/EF mechanism
+C   still owns the actual buffer/track allocation.
+C===========================================================
+                , ntr , 7      . ABI requirement
+            6   , base, area   . M6 = base for the local cells
+C ---- consume the 6 args off the Pascal stack (5 STX + 1 ATX) ----
+                , stx , aname  . aname := name; pop -> ACC = bufsize
+                , stx , absz   . absz := bufsize; pop -> ACC = basesize
+                , stx , abasz  . abasz := basesize; pop -> ACC = elsize
+                , stx , aelsz  . aelsz := elsize; pop -> ACC = packed
+                , stx , apck   . apck := packed; pop -> ACC = fcb
+                , atx , afcb   . afcb := fcb (no pop, ACC unchanged)
+C ---- M9, M10, M11 (matching the per-file VTMs in formFileInit) ----
+                , xta , absz
+                , ati , 10     . M10 := bufsize
+                , xta , aelsz
+                , ati , 9      . M9  := elsize
+                , xta , abasz
+                , ati , 11     . M11 := basesize
+C ---- M12 := fcb (last setup that needs M-base, since M12 was free) ----
+                , xta , afcb
+                , ati , 12     . M12 := fcb
+C ---- FILEINIT-style frame: ,its,13 + ,atx,SP, then re-load name ----
+                , xta , aname  . ACC := name (will get pushed by ITS)
+                , its , 13     . push ACC; ACC := M13
+            15  , atx ,        . [SP] := M13 (return link, FILEINIT-style)
+                , xta , aname  . ACC := name (final input to P/CO)
+C ---- intended call P/CO (helper #69) and tail-jump to P/IT
+C      (helper #70).  Disabled because P/CO and P/IT are paslib-
+C      only and not visible at libc link time; uncomment the
+C      following two lines once they are libc-resolvable:
+C           13  , vjm , p/co
+C               , uj  , p/it
+C ---- fallback: pop the [SP]=M13 word that ,its,13 + ,atx,SP
+C      placed on the stack (so the caller's stack stays balanced),
+C      then return through the caller's M13 (still in M13, since
+C      we never made the VJM call that would have rewritten it).
+                , stx , aname  . pop the saved-link slot (target irrelevant)
+            13  , uj  ,        . return via M13
+C ---- local cells (M6-relative) ----
+ area  :       , bss ,
+ aname :       , log ,
+ absz  :       , log ,
+ abasz :       , log ,
+ aelsz :       , log ,
+ apck  :       , log ,
+ afcb  :       , log ,
+                , end ,

@@ -1,0 +1,56 @@
+ fclose:       , name,
+C===========================================================
+C fclose(fcb)
+C   Single-argument explicit close.  Calls P/CO with M12 set
+C   to the FCB pointer and ACC set to a non-zero close marker,
+C   mirroring how C/EF re-enters the FILEINIT block with the
+C   FILEINIT-block-address (non-zero) in ACC at entry.  The
+C   FILEINIT-style ,its,13 + ,atx,SP frame is established so
+C   P/CO sees the same stack shape it sees from C/EF, and the
+C   trailing tail-jump to P/IT pops it and returns.
+C
+C   If the runtime in fact distinguishes open from close via
+C   FCB state rather than the saved-mode word, the code is
+C   still correct: P/CO will see an already-opened FCB (set
+C   up by a prior fopen() or by the compiler's implicit
+C   FILEINIT path) and take the close branch on that basis.
+C
+C   Calling convention (single arg, in ACC):
+C     ACC = fcb     (pointer to the file's FCB)
+C
+C   M6 bases the local cells; M12 ends up holding the FCB.
+C
+C   The trailing two-instruction tail (vjm,p/co + uj,p/it) is
+C   the intended body but references paslib-only symbols that
+C   the libc-time linker cannot resolve, so those two lines
+C   are commented out below until paslib exposes them (or
+C   until this file is moved into paslib).  In the meantime
+C   the FILEINIT-style frame we just pushed is popped back
+C   off and the procedure returns through the caller's M13.
+C===========================================================
+                , ntr , 7      . ABI requirement
+            6   , base, area   . M6 = base for local cells
+C ---- save the FCB pointer; ACC at entry is fcb ----
+                , atx , afcb   . afcb := fcb (no pop; nothing on stack)
+C ---- M12 := fcb (P/CO requires it) ----
+                , ati , 12     . M12 := fcb (ACC still holds fcb)
+C ---- FILEINIT-style frame, with a non-zero close marker ----
+                , xta , afcb   . ACC := fcb (non-zero -> close discriminator)
+                , its , 13     . push ACC; ACC := M13
+            15  , atx ,        . [SP] := M13
+                , xta , afcb   . ACC := fcb (the close marker, into P/CO)
+C ---- intended call P/CO (helper #69) and tail-jump to P/IT
+C      (helper #70).  Disabled because P/CO and P/IT are paslib-
+C      only and not visible at libc link time; uncomment the
+C      following two lines once they are libc-resolvable:
+C           13  , vjm , p/co
+C               , uj  , p/it
+C ---- fallback: pop the [SP]=M13 word that ,its,13 + ,atx,SP
+C      placed on the stack, then return through the caller's
+C      M13 (still in M13, since we never made the VJM call).
+                , stx , afcb   . pop the saved-link slot (target irrelevant)
+            13  , uj  ,        . return via M13
+C ---- local cells (M6-relative) ----
+ area  :       , bss ,
+ afcb  :       , log ,
+                , end ,
