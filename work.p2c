@@ -471,9 +471,6 @@ var
     insnList: *insnltyp;
     fileForOutput, fileForInput: *extfilerec;
     maxSmallString: int;
-// ifdef TYPEHASH
-    typeCacheCnt: int;
-// endif
     smallStringType: tptr[2..6];
     symTabCnt: int;
     symtabarray: word[80];
@@ -4287,160 +4284,26 @@ var
     ranges: rangeList;
     curRange: rangeRec;
     l3idr31z: irptr;
-// ifdef TYPEHASH
-    nameForInsert: word;
-// endif
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void definePtrType(toType: tptr);
+tptr getPtrType(toType: tptr);
 {
     curType.rep = malloc(offsetof(types, szPtr));
-    with *(curType.rep) do {
-        base  =  toType;
-    }
-    curType.p.psize  =  1;
-    curType.p.bits  =  15;
-    curType.p.pk  =  kindPtr;
-    curEnum = malloc(offsetof(identrec, szIdent));
-    CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
-    typelist  =  curEnum;
-} /* definePtrType */
-//
-// ifdef TYPEHASH
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int makeCacheName(kindCode, hashValue, refValue: int);
-{
-    if (hashValue < 0)
-        hashValue  =  -hashValue;
-    hashValue  =  hashValue % 01000000;
-    refValue  =  refValue % 01000000;
-    return ((kindCode * 01000000 + hashValue) *
-            01000000 + refValue) * 0100;
-} /* makeCacheName */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-irptr findTypeCache(cacheName: word);
-var
-    cacheBucket: word;
-    cacheRec: irptr;
-{
-    cacheBucket.i = cacheName.i & hashMask;
-    cacheBucket.i  =  mapAI(cacheBucket.a);
-    cacheRec  =  symHash[cacheBucket.i];
-    while (cacheRec != NIL) {
-        if (cacheRec->id == cacheName.i)
-            return cacheRec;
-        cacheRec  =  cacheRec->next;
-    }
-    return NIL;
-} /* findTypeCache */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void addTypeCache(cacheName: word; typ: tptr);
-var
-    cacheBucket: word;
-    cacheRec: irptr;
-{
-    if (typeCacheCnt >= 32)
-        return;
-    ++typeCacheCnt;
-    cacheBucket.i = cacheName.i & hashMask;
-    cacheBucket.i  =  mapAI(cacheBucket.a);
-    cacheRec = malloc(offsetof(identrec, szIdent));
-    CTOR(*cacheRec, cacheName, -1, symHash[cacheBucket.i], typ, TYPEID);
-    symHash[cacheBucket.i]  =  cacheRec;
-} /* addTypeCache */
-//
-// endif
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr getPtrType(baseType: tptr);
-// ifdef TYPEHASH
-var
-    probe:int; cacheName: word;
-    cacheRec: irptr;
-// endif
-{
-// ifdef TYPEHASH
-    probe  =  0;
-    while (probe < 64) {
-        cacheName.i  =  makeCacheName(1, probe, int(baseType.rep));
-        cacheRec  =  findTypeCache(cacheName);
-        if (cacheRec == NIL) {
-            curType.rep = malloc(offsetof(types, szPtr));
-            with *(curType.rep) do {
-                base  =  baseType;
-            }
-            curType.p.psize  =  1;
-            curType.p.bits  =  15;
-            curType.p.pk  =  kindPtr;
-            addTypeCache(cacheName, curType);
-            return curType;
-        }
-        if (cacheRec->typ.p.pk == kindPtr &&
-            cacheRec->typ.rep->base == baseType)
-            return cacheRec->typ;
-        ++probe;
-    }
-// endif
-    curType.rep = malloc(offsetof(types, szPtr));
-    with *(curType.rep) do {
-        base  =  baseType;
-    }
+    curType.rep->base  =  toType;
     curType.p.psize  =  1;
     curType.p.bits  =  15;
     curType.p.pk  =  kindPtr;
     return curType;
-} /* getPtrType */
-//
-// ifdef TYPEHASH
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int sameArrayCache(typ: tptr; rangeInfo: rangeRec;
-                   elementType: tptr; packedFlag: int;
-                   sizeArg, bitsArg, perwordArg,
-                   pcksizeArg: int);
-{
-    return typ.p.pk == kindArray &&
-        typ.rep->base == elementType &&
-        typ.rep->aleft == rangeInfo.aleft &&
-        typ.rep->aright == rangeInfo.aright &&
-        typ.rep->pck == packedFlag &&
-        typ.p.psize == sizeArg &&
-        typeBits(typ) == bitsArg &&
-        typ.rep->perword == perwordArg &&
-        typ.rep->pcksize == pcksizeArg;
-} /* sameArrayCache */
+}
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr findArrayType(rangeInfo: rangeRec; elementType: tptr;
-                   packedFlag: int;
-                   sizeArg, bitsArg, perwordArg,
-                   pcksizeArg: int);
-var
-    probe, hashValue: int; cacheName: word;
-    cacheRec: irptr;
+void definePtrType(toType: tptr);
 {
-    hashValue  =  rangeInfo.aleft * 37 + rangeInfo.aright * 101;
-    if (packedFlag)
-        hashValue += 17;
-    probe  =  0;
-    while (probe < 64) {
-        cacheName.i  =  makeCacheName(2, hashValue + probe,
-                                    int(elementType.rep));
-        cacheRec  =  findTypeCache(cacheName);
-        if (cacheRec == NIL) {
-            nameForInsert  =  cacheName;
-            return NIL;
-        }
-        if (sameArrayCache(cacheRec->typ, rangeInfo, elementType,
-                           packedFlag, sizeArg, bitsArg,
-                           perwordArg, pcksizeArg))
-            return cacheRec->typ;
-        ++probe;
-    }
-    nameForInsert.i  =  0;
-    return NIL;
-} /* findArrayType */
-// endif
+    curType = getPtrType(toType);
+    curEnum = malloc(offsetof(identrec, szIdent));
+    CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
+    typelist  =  curEnum;
+} /* definePtrType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseRecordDecl(rectype: *tptr; isOuterDecl: int);
@@ -4712,12 +4575,6 @@ var
         curVal.i  =  curVal.i & [7:47] | E48;
         perwordVal  =  KMUL+ I8 + getFCSToffset();
     }
-// ifdef TYPEHASH
-    cachedType  =  findArrayType(rangeInfo, elementType, makePacked,
-                                 sizeVal, bitsVal, perwordVal, pcksizeVal);
-    if (cachedType.rep != NIL)
-        return cachedType;
-// endif
     arrayType.rep = malloc(offsetof(types, szArray));
     with *(arrayType.rep) do {
         aleft  =  rangeInfo.aleft;
@@ -4730,10 +4587,6 @@ var
     arrayType.p.psize  =  sizeVal;
     arrayType.p.bits  =  bitsVal;
     arrayType.p.pk  =  kindArray;
-// ifdef TYPEHASH
-    if (nameForInsert.i != 0)
-        addTypeCache(nameForInsert, arrayType);
-// endif
     return arrayType;
 } /* makeArrayType */
 //
@@ -4817,22 +4670,8 @@ var
     } else if (SY IN [IDENT,TYPESY]) {
         if (SY == TYPESY) {
             curType  =  hashTravPtr->typ;
-        } else if (hashTravPtr != NIL) {
-            error(errNotAType);
-            curType  =  intType;
-        } else {
-            if (inTypeDef) {
-                if (knownInType(&curEnum)) {
-                    curType  =  curEnum->typ;
-                    curType.rep->base  =  boolType;
-                } else {
-                    definePtrType(boolType);
-                }
-            } else {
-                error(errNotAType);
-                curType  =  intType;
-            }
-        }
+        } else
+            goto 12366;
         inSymbol();
         if ((curType == intType) && (SY == COLON)) {
             inSymbol();
@@ -7400,9 +7239,6 @@ void defExtern();
     tempType = voidPtr;
     regSysEnum('     NIL', 074000U);
     maxSmallString  =  0;
-// ifdef TYPEHASH
-    typeCacheCnt  =  0;
-// endif
     for (strLen = 2; strLen <= 5; ++strLen)
         smallStringType[strlen] = makeStringType();
     maxSmallString  =  6;
