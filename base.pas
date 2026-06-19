@@ -296,8 +296,7 @@ types = record
                  fields:    irptr;
                  flag,
                  pckrec:    boolean);
-    kindCases:  (
-                 first,
+    kindCases:  (first,
                  next:      tptr;
                  alt:       tptr);
     kindRoutine:(rresult:   tptr;
@@ -2499,7 +2498,7 @@ var
             if (15 < helper) then {
                 (* empty *)
             } else {
-                if (helper = 15) then { (* P/CP *)
+                if (helper = 15) then {
                     addToInsnList(macro + mcACC2ADDR);
                 } else {
                     helper := indexreg[insnList@.addrmd];
@@ -2524,25 +2523,24 @@ var
                     isSimple := false;
                 if addrState = stSLICE then {
                     if (offsetShift <> baseWidth) or
-                       (helper <> 18) or (* C/RC *)
+                       (helper <> 18) or
                        (baseWidth <> 0) then
                         addInsnAndOffset(baseWidth + insnTemp[XTA],
                                          offsetShift);
                     offsetShift := insnList@.shift;
                     baseWidth := insnList@.width;
-                    needsMask := true;
                     helper := offsetShift + baseWidth;
                     if isSimple then {
-                        if (30 < offsetShift) then {
-                            addToInsnList(ASN64-48 + offsetShift);
-                            addToInsnList(insnTemp[YTA]);
-                            if (helper = 48) then
-                                needsMask := false;
-                        } else {
+% The commented out optimization is specific to the original BESM-6
+% without a barrel shifter. Now there is no need for it.
+%                       if (30 < offsetShift) then {
+%                           addToInsnList(ASN64-48 + offsetShift);
+%                           addToInsnList(insnTemp[YTA]);
+%                       } else {
                             if (offsetShift <> 0) then
                                 addToInsnList(ASN64 + offsetShift);
-                        };
-                        if needsMask then {
+%                       };
+                        if helper <> 48 then {
                             curVal.m := [(48 - baseWidth)..47];
                             addToInsnList(KAAX+I8 + getFCSToffset);
                         }

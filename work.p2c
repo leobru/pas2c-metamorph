@@ -295,8 +295,7 @@ types = struct {
                 fields:    irptr;
                 flag,
                 pckrec:    int; szStruct: int};
-        struct {
-                first,
+        struct {first,
                 next:      tptr;
                 alt:       tptr; szCases: int};
         struct {rresult:   tptr;
@@ -2318,7 +2317,7 @@ var
     valueType: tptr;
     l4var5z: kind;
     l4st6z: state;
-    isSimple, needsMask: int;
+    isSimple: int;
 {
     valueType  =  insnList->typ;
     with *insnList do {
@@ -2335,18 +2334,16 @@ var
             l4int3z  =  insnList->disp;
             if (15 < helper) {
                 /* empty */
+            } else if (helper == 15) {
+                addToInsnList(macro + mcACC2ADDR);
             } else {
-                if (helper == P_CP) {
-                    addToInsnList(macro + mcACC2ADDR);
+                helper  =  indexreg[insnList->addrmd];
+                if ((l4int2z == 0) && (insnList->st == stWORD)) {
+                    addInsnAndOffset(helper + curInsnTemplate,
+                                     l4int3z);
+                    goto 4602;
                 } else {
-                    helper  =  indexreg[insnList->addrmd];
-                    if ((l4int2z == 0) && (insnList->st == stWORD)) {
-                        addInsnAndOffset(helper + curInsnTemplate,
-                                         l4int3z);
-                        goto 4602;
-                    } else {
-                        addToInsnList(helper + KUTC);
-                    }
+                    addToInsnList(helper + KUTC);
                 }
             }
             l4st6z  =  insnList->st;
@@ -2362,25 +2359,24 @@ var
                 }
                 if (l4st6z == stSLICE) {
                     if (l4int3z != l4int2z ||
-                       helper != P_RC ||
+                       helper != 15 ||
                        l4int2z != 0)
                         addInsnAndOffset(l4int2z + KXTA,
                                          l4int3z);
                     l4int3z  =  insnList->shift;
                     l4int2z  =  insnList->width;
-                    needsMask  =  true;
                     helper  =  l4int3z + l4int2z;
                     if (isSimple) {
-                        if (30 < l4int3z) {
-                            addToInsnList(ASN64-48 + l4int3z);
-                            addToInsnList(KYTA);
-                            if (helper == 48)  /* P/RDR */
-                                needsMask  =  false;
-                        } else {
+// The commented out optimization is specific to the original BESM-6
+// without a barrel shifter. Now there is no need for it.
+//                      if (30 < l4int3z) {
+//                          addToInsnList(ASN64-48 + l4int3z);
+//                          addToInsnList(KYTA);
+//                      } else {
                             if (l4int3z != 0)
                                 addToInsnList(ASN64 + l4int3z);
-                        }
-                        if (needsMask) {
+//                      }
+                        if (helper != 48) {
                             curVal.i  =  all1 >> (48 - l4int2z);
                             addToInsnList(KAAX+I8 + getFCSToffset());
                         }
@@ -2391,8 +2387,7 @@ var
                         addToInsnList(KAAX+I8 + getFCSToffset());
                     }
                 } else {
-                    helper  =  isSimple ? P_LDAR : P_RR;
-                    addToInsnList(getHelperProc(helper));
+                    addToInsnList(getHelperProc(isSimple ? P_LDAR : P_RR));
                     insnList->tail->mode  =  1;
                 }
             }
