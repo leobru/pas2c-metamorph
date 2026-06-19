@@ -278,8 +278,7 @@ insnltyp  = struct {
 //
 types = struct {
     k:      kind;
-    size,
-    bits:   int;
+    size:   int;
     union {
         struct {szReal: int};
         struct {abase:     tptr;
@@ -615,7 +614,7 @@ var res: tptr;
     res.rep = malloc(offsetof(types, szArray));
     with *(res.rep) do {
         size  =  (strLen + 5) / 6;
-        bits  =  size == 1 ? strLen << 3 : 0;
+        res.p.bits  =  size == 1 ? strLen << 3 : 0;
         k  =  kindArray;
         base  =  charType;
         pck  =  true;
@@ -624,7 +623,6 @@ var res: tptr;
         aleft  =  1;
         aright  =  strLen;
     }
-    res.p.bits  =  res.rep->bits;
     return res;
 } /* makeStringType */
 //
@@ -971,9 +969,8 @@ var
         start = -1;
         enums = NIL;
         numen = 1 << bitWid;
-        bits = bitWid;
     }
-    res.p.bits  =  res.rep->bits;
+    res.p.bits  =  bitWid;
     return res;
 } /* mkIntScl */
 //
@@ -1759,14 +1756,13 @@ var
     resultTyp.rep = malloc(offsetof(types, szRtype));
     with *(resultTyp.rep) do {
         size  =  1;
-        bits  =  15;
         k  =  kindRoutine;
         rresult  =  routine->typ;
         rparams  =  NIL;
         rargc  =  0;
         rflags  =  routine->flags;
     }
-    resultTyp.p.bits  =  resultTyp.rep->bits;
+    resultTyp.p.bits  =  15;
     lastParam  =  NIL;
     srcParam  =  routine->argList;
     if (srcParam != NIL)
@@ -4305,11 +4301,10 @@ void definePtrType(toType: tptr);
     curType.rep = malloc(offsetof(types, szPtr));
     with *(curType.rep) do {
         size  =  1;
-        bits  =  15;
         k  =  kindPtr;
         base  =  toType;
     }
-    curType.p.bits  =  curType.rep->bits;
+    curType.p.bits  =  15;
     curEnum = malloc(offsetof(identrec, szIdent));
     CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
     typelist  =  curEnum;
@@ -4378,11 +4373,10 @@ var
             curType.rep = malloc(offsetof(types, szPtr));
             with *(curType.rep) do {
                 size  =  1;
-                bits  =  15;
                 k  =  kindPtr;
                 base  =  baseType;
             }
-            curType.p.bits  =  curType.rep->bits;
+            curType.p.bits  =  15;
             addTypeCache(cacheName, curType);
             return curType;
         }
@@ -4395,11 +4389,10 @@ var
     curType.rep = malloc(offsetof(types, szPtr));
     with *(curType.rep) do {
         size  =  1;
-        bits  =  15;
         k  =  kindPtr;
         base  =  baseType;
     }
-    curType.p.bits  =  curType.rep->bits;
+    curType.p.bits  =  15;
     return curType;
 } /* getPtrType */
 //
@@ -4609,13 +4602,12 @@ var
             l4var5z.rep = malloc(offsetof(types, szCases));
             with *(l4var5z.rep) do {
                 size  =  cases.size;
-                bits  =  48;
                 k  =  kindCases;
                 first.rep  =  typptr(l4int7z);
                 next.rep  =  NIL;
                 alt.rep  =  NIL;
             }
-            l4var5z.p.bits  =  l4var5z.rep->bits;
+            l4var5z.p.bits  =  48;
             if (l4typ1z.rep == NIL) {
                 if (curType.rep->variants.rep == NIL) {
                     curType.rep->variants  =  l4var5z;
@@ -4653,9 +4645,10 @@ var
     }
     rectype->rep->size  =  cases.size;
     if (isPacked && (cases.size == 1) && (cases.count == 1)) {
-        rectype->rep->bits  =  48 - cases.pairs[1].first;
+        rectype->p.bits  =  48 - cases.pairs[1].first;
+    } else {
+        rectype->p.bits  =  48;
     }
-    rectype->p.bits  =  rectype->rep->bits;
     if (rectype->rep->k == kindStruct) {
         l4var6z  =  rectype->rep->fields;
         while (l4var6z != NIL) {
@@ -4732,7 +4725,6 @@ var
     arrayType.rep = malloc(offsetof(types, szArray));
     with *(arrayType.rep) do {
         size  =  sizeVal;
-        bits  =  bitsVal;
         k  =  kindArray;
         aleft  =  rangeInfo.aleft;
         aright  =  rangeInfo.aright;
@@ -4741,7 +4733,7 @@ var
         perword  =  perwordVal;
         pcksize  =  pcksizeVal;
     }
-    arrayType.p.bits  =  arrayType.rep->bits;
+    arrayType.p.bits  =  bitsVal;
 // ifdef TYPEHASH
     if (nameForInsert.i != 0)
         addTypeCache(nameForInsert, arrayType);
@@ -4791,12 +4783,11 @@ var
         } else {
             with *(curType.rep) do {
                 size  =  1;
-                bits  =  nrOfBits(span - 1);
                 k  =  kindScalar;
                 numen  =  span;
                 start  =  0;
             }
-            curType.p.bits  =  curType.rep->bits;
+            curType.p.bits  =  nrOfBits(span - 1);
             curEnum  =  curType.rep->enums;
             while (curEnum != NIL) {
                 curEnum->typ  =  curType;
@@ -4868,14 +4859,13 @@ var
             typ121z  =  curType;
             with *(curType.rep) do {
                 size  =  0;
-                bits  =  48;
                 k  =  kindStruct;
                 variants.rep  =  NIL;
                 fields  =  NIL;
                 flag  =  false;
                 pckrec  =  isPacked;
             }
-            curType.p.bits  =  curType.rep->bits;
+            curType.p.bits  =  48;
             cases.size  =  0;
             cases.count  =  0;
             inSymbol();
@@ -4896,12 +4886,11 @@ var
                 l3int22z  =  0;
             with *(curType.rep) do {
                 size  =  30;
-                bits  =  48;
                 k  =  kindFile;
                 base  =  nestedType;
                 elsize  =  l3int22z;
             }
-            curType.p.bits  =  curType.rep->bits;
+            curType.p.bits  =  48;
         } else {
             error(errNotAType);
         }
@@ -7346,68 +7335,60 @@ void defExtern();
     boolType.rep = malloc(offsetof(types, szScalar));
     with *(boolType.rep) do {
         size  =  1;
-        bits  =  1;
         k  =  kindScalar;
         numen  =  2;
         start  =  -1;
         enums  =  NIL;
     }
-    boolType.p.bits  =  boolType.rep->bits;
+    boolType.p.bits  =  1;
     intType.rep = malloc(offsetof(types, szScalar));
     with *(intType.rep) do {
         size  =  1;
-        bits  =  48;
         k  =  kindScalar;
         numen  =  100000;
         start  =  -1;
         enums  =  NIL;
     }
-    intType.p.bits  =  intType.rep->bits;
+    intType.p.bits  =  48;
     charType.rep = malloc(offsetof(types, szScalar));
     with *(charType.rep) do {
         size  =  1;
-        bits  =  8;
         k  =  kindScalar;
         numen  =  256;
         start  =  -1;
         enums  =  NIL;
     }
-    charType.p.bits  =  charType.rep->bits;
+    charType.p.bits  =  8;
     realType.rep = malloc(offsetof(types, szReal));
     with *(realType.rep) do {
         size  =  1;
-        bits  =  48;
         k  =  kindReal;
     }
-    realType.p.bits  =  realType.rep->bits;
+    realType.p.bits  =  48;
     voidType.rep = malloc(offsetof(types, szReal));
     with *(voidType.rep) do {
         size  =  0;
-        bits  =  0;
         k  =  kindVoid;
     }
-    voidType.p.bits  =  voidType.rep->bits;
+    voidType.p.bits  =  0;
     voidPtr.rep = malloc(offsetof(types, szPtr));
     with *(voidPtr.rep) do {
         size  =  1;
-        bits  =  48;
         k  =  kindPtr;
         base  =  voidType;
     }
-    voidPtr.p.bits  =  voidPtr.rep->bits;
+    voidPtr.p.bits  =  48;
     textType.rep = malloc(offsetof(types, szFile));
     with *(textType.rep) do {
         size  =  30;
-        bits  =  48;
         k  =  kindFile;
         base  =  charType;
         elsize  =  8;
     }
-    textType.p.bits  =  textType.rep->bits;
+    textType.p.bits  =  48;
     alfaType.rep = malloc(offsetof(types, szArray));
     with *(alfaType.rep) do {
         size  =  1;
-        bits  =  48;
         k  =  kindArray;
         base  =  charType;
         pck  =  true;
@@ -7416,7 +7397,7 @@ void defExtern();
         aleft  =  1;
         aright  =  6;
     }
-    alfaType.p.bits  =  alfaType.rep->bits;
+    alfaType.p.bits  =  48;
     smallStringType[6]  =  alfaType;
      /*=A3 constructing TEXT constants */
     regSysType('     INT', intType);
