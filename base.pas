@@ -218,12 +218,9 @@ end;
 % endif
 (*=s6 right to left packing *)
 % All representations must start with "pointer, kind, 15 bit, 6 bit"
-ptrrep = packed record
-   base  : @types;
-   rk    : kind;
-   size  : 0..77777B;
-   bits  : 0..48;
-   indir : 0..255
+pckrep = packed record
+   rep  : @types; (* for assignment only, due to a Pascal compiler bug *)
+   bits  : 0..48
 end;
 aryrep = packed record
    rep  : @types;
@@ -234,8 +231,7 @@ aryrep = packed record
 end;
 tptr = record case integer of
          0 : (rep : @types); (* for deref only, due to a Pascal compiler bug *)
-         1 : (p: ptrrep);
-         2 : (a: aryrep);
+         1 : (p: pckrep);
        end;
 sigrec = record
     pclass                  : idclass;
@@ -297,8 +293,8 @@ types = record
     kindPtr:    (sbase:      tptr);
     kindFile:   (fbase:      tptr;
                  elsize:    integer);
-    kindStruct: (ptr1,
-                 ptr2:      irptr;
+    kindStruct: (variants: tptr;
+                 fields:    irptr;
                  flag,
                  pckrec:    boolean);
     kindCases:  (
@@ -658,7 +654,8 @@ var span: tptr;
             pcksize := 8;
             aleft := 1;
             aright := strLen;
-        }
+        };
+        res.p.bits := res.rep@.bits;
     }
 }; (* makeStringType *)
 %
@@ -989,12 +986,16 @@ var
 {
     new(temp.rep, kindRange);
     with temp.rep@ do {
+        size := 1;
+        bits := 48;
+        k := kindRange;
         curVal.i := l;
         curVal.m := curVal.m + intZero;
         left := curVal.i;
         curVal.i := r;
         curVal.m := curVal.m + intZero;
         right := curVal.i;
+        temp.p.bits := bits;
         res := temp
     }
 }; (* defineRange *)
@@ -1020,6 +1021,7 @@ var
         numen := w.i;
         bits := bitWid;
     };
+    res.p.bits := res.rep@.bits;
     mkIntScl := res;
 }; (* mkIntScl *)
 %
@@ -1888,7 +1890,7 @@ isFileType := (typtr.rep@.k = kindFile) or
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function typeBits(typtr: tptr): integer;
 {
-    typeBits := typtr.rep@.bits;
+    typeBits := typtr.p.bits;
 }; (* typeBits *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2051,6 +2053,7 @@ var
         rargc := 0;
         rflags := routine@.flags;
     };
+    resultTyp.p.bits := resultTyp.rep@.bits;
     lastParam := NIL;
     srcParam := routine@.argList;
     if (srcParam <> NIL) then
@@ -4563,6 +4566,7 @@ procedure definePtrType(toType: tptr);
         k := kindPtr;
         base := toType;
     };
+    curType.p.bits := curType.rep@.bits;
     new(curEnum = 5);
     curEnum@ := [curIdent, lineCnt, typelist, curType, TYPEID];
     typelist := curEnum;
@@ -4647,6 +4651,7 @@ var
                 k := kindPtr;
                 base := baseType;
             };
+            curType.p.bits := curType.rep@.bits;
             addTypeCache(cacheName, curType);
             getPtrType := curType;
             exit;
@@ -4668,6 +4673,7 @@ var
         k := kindPtr;
         base := baseType;
     };
+    curType.p.bits := curType.rep@.bits;
     getPtrType := curType;
 }; (* getPtrType *)
 %
@@ -4726,7 +4732,7 @@ var
 % endif
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure parseRecordDecl(rectype: tptr; isOuterDecl: boolean);
+procedure parseRecordDecl(var rectype: tptr; isOuterDecl: boolean);
 var
     l4typ1z, selType, l4var3z, l4var4z, l4var5z: tptr;
     l4var6z: irptr;
@@ -4751,8 +4757,8 @@ var
     l5var6z: @pair;
 {
     parseTypeRef(selType, skipTarget + [UNIONSY]);
-    if (curType.rep@.ptr2 = NIL) then {
-        curType.rep@.ptr2 := curField;
+    if (curType.rep@.fields = NIL) then {
+        curType.rep@.fields := curField;
     } else {
         l3idr31z@.list := curField;
     };
@@ -4890,9 +4896,10 @@ var
                 next.rep := NIL;
                 alt.rep := NIL;
             };
+            l4var5z.p.bits := l4var5z.rep@.bits;
             if (l4typ1z.rep = NIL) then {
-                if (curType.rep@.base.rep = NIL) then {
-                    curType.rep@.base := l4var5z;
+                if (curType.rep@.variants.rep = NIL) then {
+                    curType.rep@.variants := l4var5z;
                 } else {
                     rectype.rep@.first := l4var5z;
                 }
@@ -4928,6 +4935,14 @@ var
     rectype.rep@.size := cases.size;
     if isPacked and (cases.size = 1) and (cases.count = 1) then {
         rectype.rep@.bits := 48 - cases.pairs[1].first;
+    };
+    rectype.p.bits := rectype.rep@.bits;
+    if rectype.rep@.k = kindStruct then {
+        l4var6z := rectype.rep@.fields;
+        while l4var6z <> NIL do {
+            l4var6z@.uptype := rectype;
+            l4var6z := l4var6z@.list;
+        };
     };
     checkSymAndRead(ENDSY);
 }; (* parseRecordDecl*)
@@ -5020,6 +5035,7 @@ var
         perword := perwordVal;
         pcksize := pcksizeVal;
     };
+    arrayType.p.bits := arrayType.rep@.bits;
 % ifdef TYPEHASH
     if (cacheNameForInsert.i <> 0) then
         addTypeCache(cacheNameForInsert, arrayType);
@@ -5073,6 +5089,12 @@ var
                 k := kindScalar;
                 numen := span;
                 start := 0;
+            };
+            curType.p.bits := curType.rep@.bits;
+            curEnum := curType.rep@.enums;
+            while curEnum <> NIL do {
+                curEnum@.typ := curType;
+                curEnum := curEnum@.list;
             };
         };
     } else
@@ -5143,11 +5165,12 @@ var
                 size := 0;
                 bits := 48;
                 k := kindStruct;
-                ptr1 := NIL;
-                ptr2 := NIL;
+                variants.rep := NIL;
+                fields := NIL;
                 flag := false;
                 pckrec := isPacked;
             };
+            curType.p.bits := curType.rep@.bits;
             cases.size := 0;
             cases.count := 0;
             inSymbol;
@@ -5172,7 +5195,8 @@ var
                 k := kindFile;
                 base := nestedType;
                 elsize := l3int22z;
-            }
+            };
+            curType.p.bits := curType.rep@.bits
         } else {
             error(errNotAType);
         };
@@ -7697,6 +7721,7 @@ var l : integer;
         start := 0;
         enums := NIL;
     };
+    booleanType.p.bits := booleanType.rep@.bits;
     new(integerType.rep, kindScalar);
     with integerType.rep@ do {
         size := 1;
@@ -7706,6 +7731,7 @@ var l : integer;
         start := -1;
         enums := NIL;
     };
+    integerType.p.bits := integerType.rep@.bits;
     new(charType.rep, kindScalar);
     with charType.rep@ do {
         size := 1;
@@ -7715,18 +7741,21 @@ var l : integer;
         start := -1;
         enums := NIL;
     };
+    charType.p.bits := charType.rep@.bits;
     new(realType.rep, kindReal);
     with realType.rep@ do {
         size := 1;
         bits := 48;
         k := kindReal;
     };
+    realType.p.bits := realType.rep@.bits;
     new(voidType.rep, kindVoid);
     with voidType.rep@ do {
         size := 1;
         bits := 48;
         k := kindVoid;
     };
+    voidType.p.bits := voidType.rep@.bits;
     new(voidPtr.rep, kindPtr);
     with voidPtr.rep@ do {
         size := 1;
@@ -7734,6 +7763,7 @@ var l : integer;
         k := kindPtr;
         base := voidType;
     };
+    voidPtr.p.bits := voidPtr.rep@.bits;
     new(textType.rep, kindFile);
     with textType.rep@ do {
         size := 30;
@@ -7742,6 +7772,7 @@ var l : integer;
         base := charType;
         elsize := 8;
     };
+    textType.p.bits := textType.rep@.bits;
     new(alfaType.rep,kindArray);
     with alfaType.rep@ do {
         size := 1;
@@ -7754,6 +7785,7 @@ var l : integer;
         aleft := 1;
         aright := 6;
     };
+    alfaType.p.bits := alfaType.rep@.bits;
     smallStringType[6] := alfaType;
     regSysType(515664C  (*"     INT"*), integerType);
     regSysType(43504162C(*"    CHAR"*), charType);

@@ -211,7 +211,17 @@ kind = enum {
 //
 eptr = *expr;
 typptr = *types;
-tptr = struct { rep: typptr };
+/*=s6*/
+pckrep = __packed struct {
+    rep:  typptr;
+    bits: int:6;
+};
+tptr = struct {
+    union {
+        struct {rep: typptr};
+        struct {p: pckrep};
+    };
+};
 irptr = *identrec;
 sigptr = *sigrec;
 sigrec = struct {
@@ -282,8 +292,8 @@ types = struct {
         struct {base:      tptr; szPtr: int};
         struct {fbase:     tptr;
                 elsize:    int; szFile: int};
-        struct {ptr1,
-                ptr2:      irptr;
+        struct {variants: tptr;
+                fields:    irptr;
                 flag,
                 pckrec:    int; szStruct: int};
         struct {
@@ -614,6 +624,7 @@ var res: tptr;
         aleft  =  1;
         aright  =  strLen;
     }
+    res.p.bits  =  res.rep->bits;
     return res;
 } /* makeStringType */
 //
@@ -962,6 +973,7 @@ var
         numen = 1 << bitWid;
         bits = bitWid;
     }
+    res.p.bits  =  res.rep->bits;
     return res;
 } /* mkIntScl */
 //
@@ -1709,7 +1721,7 @@ int isFileType(typtr: tptr);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int typeBits(typtr: tptr);
 {
-    return typtr.rep->bits;
+    return typtr.p.bits;
 } /* typeBits */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1754,6 +1766,7 @@ var
         rargc  =  0;
         rflags  =  routine->flags;
     }
+    resultTyp.p.bits  =  resultTyp.rep->bits;
     lastParam  =  NIL;
     srcParam  =  routine->argList;
     if (srcParam != NIL)
@@ -4296,6 +4309,7 @@ void definePtrType(toType: tptr);
         k  =  kindPtr;
         base  =  toType;
     }
+    curType.p.bits  =  curType.rep->bits;
     curEnum = malloc(offsetof(identrec, szIdent));
     CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
     typelist  =  curEnum;
@@ -4368,6 +4382,7 @@ var
                 k  =  kindPtr;
                 base  =  baseType;
             }
+            curType.p.bits  =  curType.rep->bits;
             addTypeCache(cacheName, curType);
             return curType;
         }
@@ -4384,6 +4399,7 @@ var
         k  =  kindPtr;
         base  =  baseType;
     }
+    curType.p.bits  =  curType.rep->bits;
     return curType;
 } /* getPtrType */
 //
@@ -4438,7 +4454,7 @@ var
 // endif
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseRecordDecl(rectype: tptr; isOuterDecl: int);
+void parseRecordDecl(rectype: *tptr; isOuterDecl: int);
 var
     l4typ1z, selType, l4var3z, l4typ4z, l4var5z: tptr;
     l4var6z: irptr;
@@ -4462,8 +4478,8 @@ var
     l5var6z: *pair;
 {
     selType = parseTypeRef(skipTarget | [UNIONSY]);
-    if (curType.rep->ptr2 == NIL) {
-        curType.rep->ptr2  =  curField;
+    if (curType.rep->fields == NIL) {
+        curType.rep->fields  =  curField;
     } else {
         l3idr31z->list  =  curField;
     }
@@ -4599,18 +4615,19 @@ var
                 next.rep  =  NIL;
                 alt.rep  =  NIL;
             }
+            l4var5z.p.bits  =  l4var5z.rep->bits;
             if (l4typ1z.rep == NIL) {
-                if (curType.rep->base.rep == NIL) {
-                    curType.rep->base  =  l4var5z;
+                if (curType.rep->variants.rep == NIL) {
+                    curType.rep->variants  =  l4var5z;
                 } else {
-                    rectype.rep->first  =  l4var5z;
+                    rectype->rep->first  =  l4var5z;
                 }
             } else {
                 l4typ1z.rep->next  =  l4var5z;
             }
             l4typ1z  =  l4var5z;
             tempType  =  l4var5z;
-            parseRecordDecl(tempType, false);
+            parseRecordDecl(&tempType, false);
             if ((cases2.size < cases.size) ||
                isPacked && (cases.size == 1) && (cases2.size == 1) &&
                 (cases.count == 1) && (cases2.count == 1) &&
@@ -4634,9 +4651,17 @@ var
             inSymbol();
         }
     }
-    rectype.rep->size  =  cases.size;
+    rectype->rep->size  =  cases.size;
     if (isPacked && (cases.size == 1) && (cases.count == 1)) {
-        rectype.rep->bits  =  48 - cases.pairs[1].first;
+        rectype->rep->bits  =  48 - cases.pairs[1].first;
+    }
+    rectype->p.bits  =  rectype->rep->bits;
+    if (rectype->rep->k == kindStruct) {
+        l4var6z  =  rectype->rep->fields;
+        while (l4var6z != NIL) {
+            l4var6z->uptype  =  *rectype;
+            l4var6z  =  l4var6z->list;
+        }
     }
     checkSymAndRead(ENDSY);
 } /* parseRecordDecl*/
@@ -4716,6 +4741,7 @@ var
         perword  =  perwordVal;
         pcksize  =  pcksizeVal;
     }
+    arrayType.p.bits  =  arrayType.rep->bits;
 // ifdef TYPEHASH
     if (nameForInsert.i != 0)
         addTypeCache(nameForInsert, arrayType);
@@ -4769,6 +4795,12 @@ var
                 k  =  kindScalar;
                 numen  =  span;
                 start  =  0;
+            }
+            curType.p.bits  =  curType.rep->bits;
+            curEnum  =  curType.rep->enums;
+            while (curEnum != NIL) {
+                curEnum->typ  =  curType;
+                curEnum  =  curEnum->list;
             }
         }
     } else if (charClass == MUL) {
@@ -4838,15 +4870,16 @@ var
                 size  =  0;
                 bits  =  48;
                 k  =  kindStruct;
-                ptr1  =  NIL;
-                ptr2  =  NIL;
+                variants.rep  =  NIL;
+                fields  =  NIL;
                 flag  =  false;
                 pckrec  =  isPacked;
             }
+            curType.p.bits  =  curType.rep->bits;
             cases.size  =  0;
             cases.count  =  0;
             inSymbol();
-            parseRecordDecl(curType, true);
+            parseRecordDecl(&curType, true);
         } else if (SY == FILESY) {
             inSymbol();
             checkSymAndRead(OFSY);
@@ -4868,6 +4901,7 @@ var
                 base  =  nestedType;
                 elsize  =  l3int22z;
             }
+            curType.p.bits  =  curType.rep->bits;
         } else {
             error(errNotAType);
         }
@@ -7318,6 +7352,7 @@ void defExtern();
         start  =  -1;
         enums  =  NIL;
     }
+    boolType.p.bits  =  boolType.rep->bits;
     intType.rep = malloc(offsetof(types, szScalar));
     with *(intType.rep) do {
         size  =  1;
@@ -7327,6 +7362,7 @@ void defExtern();
         start  =  -1;
         enums  =  NIL;
     }
+    intType.p.bits  =  intType.rep->bits;
     charType.rep = malloc(offsetof(types, szScalar));
     with *(charType.rep) do {
         size  =  1;
@@ -7336,18 +7372,21 @@ void defExtern();
         start  =  -1;
         enums  =  NIL;
     }
+    charType.p.bits  =  charType.rep->bits;
     realType.rep = malloc(offsetof(types, szReal));
     with *(realType.rep) do {
         size  =  1;
         bits  =  48;
         k  =  kindReal;
     }
+    realType.p.bits  =  realType.rep->bits;
     voidType.rep = malloc(offsetof(types, szReal));
     with *(voidType.rep) do {
         size  =  0;
         bits  =  0;
         k  =  kindVoid;
     }
+    voidType.p.bits  =  voidType.rep->bits;
     voidPtr.rep = malloc(offsetof(types, szPtr));
     with *(voidPtr.rep) do {
         size  =  1;
@@ -7355,6 +7394,7 @@ void defExtern();
         k  =  kindPtr;
         base  =  voidType;
     }
+    voidPtr.p.bits  =  voidPtr.rep->bits;
     textType.rep = malloc(offsetof(types, szFile));
     with *(textType.rep) do {
         size  =  30;
@@ -7363,6 +7403,7 @@ void defExtern();
         base  =  charType;
         elsize  =  8;
     }
+    textType.p.bits  =  textType.rep->bits;
     alfaType.rep = malloc(offsetof(types, szArray));
     with *(alfaType.rep) do {
         size  =  1;
@@ -7375,6 +7416,7 @@ void defExtern();
         aleft  =  1;
         aright  =  6;
     }
+    alfaType.p.bits  =  alfaType.rep->bits;
     smallStringType[6]  =  alfaType;
      /*=A3 constructing TEXT constants */
     regSysType('     INT', intType);
