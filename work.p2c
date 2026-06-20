@@ -4336,8 +4336,6 @@ var
         l3idr31z->list  =  curField;
     }
     cond  =  isFileType(selType);
-    if ((! isOuterDecl) && cond)
-        error(errTypeMustNotBeFile);
     curType.rep->flag  =  cond || curType.rep->flag;
     l3idr31z  =  curEnum;
     do {
@@ -4546,8 +4544,6 @@ var
     sizeVal, bitsVal, perwordVal, pcksizeVal: int;
 {
     makePacked  =  packedFlag;
-    if (isFileType(elementType))
-        error(errTypeMustNotBeFile);
     span  =  rangeInfo.aright - rangeInfo.aleft + 1;
     l3int22z  =  typeBits(elementType);
     if (24 < l3int22z)
@@ -4709,8 +4705,6 @@ var
             inSymbol();
             checkSymAndRead(OFSY);
             nestedType = parseTypeRef(skipTarget);
-            if (isFileType(nestedType))
-                error(errTypeMustNotBeFile);
             if (isPacked) {
                 l3int22z  =  typeBits(nestedType);
                 if (24 < l3int22z)
@@ -5808,8 +5802,6 @@ var
                     castToReal(&curExpr);
                 else
                     error(33); /* errIllegalTypesForAssignment */
-            } else if (arg2Type.p.pk == kindFile) {
-                error(75); /* errCannotAssignFiles */
             }
             thenExpr = malloc(sizeof(expr));
             with *thenExpr do {
@@ -7692,7 +7684,7 @@ void markTypeSym();
                     localSize += jj;
                     curExternFile  =  NIL;
                 }
-                if (isFileType(l2typ13z))
+                if (l2typ13z.p.pk == kindFile)
                     makeExtFile();
                 workidr  =  curIdRec;
             }

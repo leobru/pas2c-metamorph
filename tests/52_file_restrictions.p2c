@@ -1,0 +1,19 @@
+/*=p-,t-,s8,y+,l0*/
+extern _output_;
+typedef fchar = file of char;
+typedef nested = file of fchar;
+typedef holder = struct {
+    f: fchar;
+    x: int;
+};
+var
+    a, b: fchar;
+    ff: nested;
+    h: holder;
+    arr: fchar[2];
+{
+    b = a;
+    h.x = 52;
+    writeln('file restrictions ', h.x:0);
+}
+.

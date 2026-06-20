@@ -4542,8 +4542,6 @@ var
         l3idr31z@.list := curField;
     };
     cond := isFileType(selType);
-    if (not isOuterDecl) and cond then
-        error(errTypeMustNotBeFile);
     curType.rep@.flag := cond or curType.rep@.flag;
     l3idr31z := curEnum;
     repeat
@@ -4764,8 +4762,6 @@ var
     sizeVal, bitsVal, perwordVal, pcksizeVal: integer;
 {
     makePacked := pckFlag;
-    if isFileType(elem) then
-        error(errTypeMustNotBeFile);
     span := rg.aright - rg.aleft + 1;
     l3int22z := elem.p.bits;
     if (24 < l3int22z) then
@@ -5005,8 +5001,6 @@ procedure readDclCore;
             inSymbol;
             checkSymAndRead(OFSY);
             parseTypeRef(nestedType, skipTarget);
-            if (isFileType(nestedType)) then
-                error(errTypeMustNotBeFile);
             if (isPacked) then {
                 l3int22z := nestedType.p.bits;
                 if (24 < l3int22z) then
@@ -6144,8 +6138,6 @@ var
                     castToReal(curExpr)
                 else
                     error(33); (*errIllegalTypesForAssignment*)
-            } else if (arg2Type.p.pk = kindFile) then {
-                error(75); (*errCannotAssignFiles*)
             };
             new(thenExpr);
             with thenExpr@ do {
@@ -8075,7 +8067,7 @@ procedure markTypeSym;
                     localSize := localSize + jj;
                     curExternFile := NIL;
                 };
-                if isFileType(l2typ13z) then
+                if l2typ13z.p.pk = kindFile then
                     makeExtFile;
                 workidr := curIdRec;
             };
