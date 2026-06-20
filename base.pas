@@ -298,10 +298,12 @@ expr = record
 end;
 %
 kword = record
+    next:   @kword;
     w:      word;
     sym:    symbol;
-    op:     operator;
-    next:   @kword;
+    case integer of
+      1 : ( op: operator);
+      2 : ( id: irptr);
 end;
 %
 strLabel = record
@@ -506,6 +508,26 @@ var
        (*18*) flags:        bitset;
         end;
     paseofcd:alfa;
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure regResWord(l4arg1z: integer);
+var
+    kw: @kword;
+    l4var2z: word;
+{
+    curVal.i := l4arg1z;
+    curVal.m := curVal.m * hashMask.m;
+    mapai(curVal.a, curVal.i);
+    l4var2z.i := l4arg1z;
+    new(kw);
+    with kw@ do {
+        w := l4var2z;
+        sym := SY;
+        op := charClass;
+        next := kwordHash[curVal.i];
+    };
+    kwordHash[curVal.i] := kw;
+}; (* regResWord *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %              PROGRAMME                 %
@@ -1125,8 +1147,9 @@ var
     linePos := 0;
     lineCnt := lineCnt + 1;
     if eof(pasinput) then {
-        error(errEOFEncountered);
-        goto 9999;
+        writeln('EOF reached');
+        halt;
+%       error(errEOFEncountered);
     }
 }; (* endOfLine *)
 %
@@ -1149,6 +1172,31 @@ procedure readToPos80;
 }; (* readToPos80 *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure nextCH;
+{
+    repeat
+        atEOL := eoln(PASINPUT);
+        CH := PASINPUT@;
+        get(PASINPUT);
+        linePos := linePos + 1;
+        lineBuf[linePos] := CH;
+    until (maxLineLen >= linePos) or atEOL;
+}; (* nextCH *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function skipSp:boolean;
+{
+    while (CH = ' ') or (CH = '_011') and not atEOL do
+        nextCH;
+    if atEOL then {
+        endOfLine;
+        nextCH;
+        skipSp := true;
+    } else
+        skipSp := false;
+};
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure inSymbol;
 label
     1473;
@@ -1165,18 +1213,6 @@ var
     l3int162z: integer;
     chord: integer;
     l3var164z: integer;
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure nextCH;
-{
-    repeat
-        atEOL := eoln(PASINPUT);
-        CH := PASINPUT@;
-        get(PASINPUT);
-        linePos := linePos + 1;
-        lineBuf[linePos] := CH;
-    until (maxLineLen >= linePos) or atEOL;
-}; (* nextCH *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure parseComment;
@@ -1650,27 +1686,16 @@ done := false;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* inSymbol *)
         if dataCheck then {
-            error(errEOFEncountered);
-            readToPos80;
-            goto 9999;
+            writeln('EOF reached');
+            halt;
+%           error(errEOFEncountered);
+%           readToPos80;
         };
-1473:
-        while ((CH = ' ') or (CH = '_011')) and not atEOL do
-            nextCH;
-        if atEOL then {
-            endOfLine;
-            nextCH;
-            goto 1473;
-        };
+1473:   while skipSp do ;
         hashTravPtr := NIL;
         SY := charSym[CH];
         charClass := chrClass[CH];
         lexer;
-%           if (CH = '=') and (SY IN [ADDOP,MULOP])  then {
-%                 SY := ASSNOP;
-%writeln(' ASSNOP');
-%                 nextCH;
-%           }
         prevSY := SY;
         commentModeCH := ' ';
         lookupMode := lookup2;
@@ -4479,7 +4504,7 @@ var
     cases: caserec;
     numBits, l3int22z, span, rangeCnt, curDim: integer;
     curEnum, curField: irptr;
-    arrayType, nestedType, tempType, curType, cachedType: tptr;
+    arrayType, nestedType, tempType, curType: tptr;
     ranges: rangeList;
     curRange: rangeRec;
     l3idr31z: irptr;
@@ -7050,7 +7075,11 @@ var
             (* return expr: load expr to ACC, then jump *)
             if (procName@.typ = voidType) then
                 error(errNeedOtherTypesOfOperands)
-            else {
+        else {
+            if (hasFiles <> 0) then {
+                writeln(' functions must not use files');
+                error(200);
+            };
                 retSeen := true;
                 readNext := false;
                 expression;
@@ -7536,7 +7565,6 @@ var l : integer;
     l3var5z := l3var5z + 1;
     curExternFile@.location := 512;
 };
-
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* initScalars *)
@@ -7873,6 +7901,8 @@ var
     };
 
     checkSymAndRead (RPAREN);
+    lookup2 := lookUse;
+    lookupMode := lookUse;
 }; (* parseParameters *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7915,9 +7945,7 @@ procedure markTypeSym;
     inTypeDef := false;
     retSeen := ;
     hasFiles := 0;
-    bodyStatSys := statBegSys + [IDENT,EXPROP,LPAREN,INTCONST,REALCONST,
-                                 CHARCONST,STRINGSY,LBRACK,BREAKSY,CONTSY,
-                                 SEMICOLON];
+    bodyStatSys := statBegSys;
     strLabList := NIL;
     lineNesting := lineNesting + 1;
     labFence := numLabTop;
@@ -8087,7 +8115,8 @@ procedure markTypeSym;
             };
             lookupMode := lookDef;
             checkSymAndRead(SEMICOLON);
-            if (SY <> IDENT) and not (SY IN skipToSet) then
+            if (SY <> IDENT) and not (SY IN skipToSet) and
+               not (bodyBlock and (SY IN statBegSys)) then
                 errAndSkip(errBadSymbol, skipToSet + [IDENT]);
             (* A leading type-IDENT after ';' starts a new C-style
                routine decl, not another variable; bail out so the
@@ -8291,24 +8320,7 @@ procedure markTypeSym;
             curIdRec@.sigtyp := makeRoutineType(curIdRec);
 % endif
         } else  {
-            if (curIdRec@.argList = NIL) and not hadParens then
-                error(42); (* errNoParamList *)
-            (loop) repeat
-                    setup(scopeBound);
-                    programme(l2int18z, curIdRec, false);
-                    if CH = '_000' then exit loop;
-                    markTypeSym;
-                    (* A type-ident also opens a new C-style routine decl. *)
-                    if not (SY IN [VOIDSY,BEGINSY,TYPESY]) then
-                        errAndSkip(errBadSymbol, skipToSet);
-                until (SY IN [VOIDSY,BEGINSY,TYPESY]);
-% ifdef kindrout
-            curIdRec@.sigtyp := makeRoutineType(curIdRec);
-% endif
-            myrollup(ord(scopeBound));
-            exitScope(symHash);
-            exitScope(fieldHash);
-            goto 23301;
+            error(errBadSymbol);
         };
         inSymbol;
         checkSymAndRead(SEMICOLON);
@@ -8345,6 +8357,8 @@ procedure markTypeSym;
         };
         writeLN;
     };
+    lookup2 := lookUse;
+    lookupMode := lookUse;
     defineRoutine(bodyBlock);
     if (curProcNesting > 1) and
         not retSeen and (procName@.typ <> voidType) then {
@@ -8432,26 +8446,6 @@ var
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure regKeywords;
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure regResWord(l4arg1z: integer);
-var
-    kw: @kword;
-    l4var2z: word;
-{
-    curVal.i := l4arg1z;
-    curVal.m := curVal.m * hashMask.m;
-    mapai(curVal.a, curVal.i);
-    l4var2z.i := l4arg1z;
-    new(kw);
-    with kw@ do {
-        w := l4var2z;
-        sym := SY;
-        op := charClass;
-        next := kwordHash[curVal.i];
-    };
-    kwordHash[curVal.i] := kw;
-}; (* regResWord *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* regKeywords *)
@@ -8600,8 +8594,10 @@ procedure initOptions;
     constRegTemplate := I8;
     disNormTemplate :=  KNTR+7;
     blockBegSys := [CONSTSY, TYPEDEFSY, VARSY, VOIDSY, BEGINSY];
-    statBegSys :=  [BEGINSY, IFSY, SWITCHSY, DOSY, WHILESY, FORSY, WITHSY,
-                    GOTOSY];
+    statBegSys :=  [IDENT, EXPROP, LPAREN, INTCONST, REALCONST,
+                    CHARCONST, STRINGSY, LBRACK, BEGINSY, IFSY,
+                    SWITCHSY, DOSY, WHILESY, FORSY, WITHSY, GOTOSY,
+                    BREAKSY, CONTSY, SEMICOLON];
     O77777 := [33:47];
     intZero := 0;
     maxHeap := 0;

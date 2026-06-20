@@ -539,7 +539,7 @@ void rollup(addr: int); assembler;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void printErrMsg(errno: int);
+void printErrMsg(errno: int) { /* PrintErrMsg */
 typedef
     errtxt = __packed textchar[101];
     perrtxt = *errtxt;
@@ -555,7 +555,6 @@ var
     char pasisoxt(txtchar: textchar);
         fortran;
 //
-{ /* PrintErrMsg */
     write(' ');
     if (errno >= 200)
         write('system=', errno:0);
@@ -590,12 +589,11 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              printTextWord             %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void printTextWord(val: int);
+void printTextWord(val: int) { /* printTextWord */
 //
     void PASTPR(val: int);
         extern;
 //
-{ /* printTextWord */
     write(' ');
     PASTPR(val);
 } /* printTextWord */
@@ -603,9 +601,8 @@ void printTextWord(val: int);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              makeStringType                %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr makeStringType();
+tptr makeStringType() {
 var res: tptr;
-{
     if (maxSmallString >= strLen)
         return smallStringType[strLen];
     res.rep = malloc(offsetof(types, szArray));
@@ -626,8 +623,7 @@ var res: tptr;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              addToHashTab              %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void addToHashTab(arg: irptr);
-{
+void addToHashTab(arg: irptr) {
     curVal.i  =  arg->id & hashMask;
     curVal.i = mapai(curVal.a);
     arg->next  =  symHash[curval.i];
@@ -635,17 +631,15 @@ void addToHashTab(arg: irptr);
 } /* addToHashTab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void toFCST();
-{
+void toFCST() {
     write(FCST, curVal.i);
     ++FcstCnt;
 } /* toFCST */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int addCurValToFCST();
+int addCurValToFCST() {
 var
     low, high, mid: int;
-{
     low  =  1;
     if (FcstCountTo500 == 0) {
         FcstCountTo500  =  1;
@@ -682,11 +676,10 @@ var
 void error(errno: int);  forward;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void endOfLine();
+void endOfLine() {
 var
     err, errPos, prevPos, listMode,
     startPos, lastErr: int;
-{
     listMode  =  pasinfor.listMode;
     if (listMode || errsInLine) {
         write(' ', (lineStartOffset + PASINFOR.startOffset):5 oct,
@@ -720,16 +713,16 @@ var
     linePos  =  -1;
     ++lineCnt;
     if (eof(pasinput)) {
-        error(errEOFEncountered);
-        longjmp(jb9999, 1);
+//        error(errEOFEncountered);
+        writeln('EOF reached');
+        halt;
     }
 } /* endOfLine */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              storeObjWord              %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void storeObjWord(insn: int);
-{
+void storeObjWord(insn: int) {
     objBuffer[objBufIdx]  =  insn;
     ++moduleOffset;
     if (objBufIdx == 1024) {
@@ -742,12 +735,11 @@ void storeObjWord(insn: int);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              form1Insn                 %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void form1Insn(arg: int);
+void form1Insn(arg: int) {
 var
     insn, opcode: int;
     half1, half2: int;
     pos: int;
-{
     insn  =  arg;
     opcode = insn & 077700000;
     if (opcode == KUJ) {
@@ -783,22 +775,19 @@ var
 } /* form1Insn */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void form2Insn(i1, i2: int);
-{
+void form2Insn(i1, i2: int) {
     form1Insn(i1);
     form1Insn(i2);
 } /* form2Insn */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void form3Insn(i1, i2, i3: int);
-{
+void form3Insn(i1, i2, i3: int) {
     form2Insn(i1, i2);
     form1Insn(i3);
 } /* form3Insn */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void disableNorm();
-{
+void disableNorm() {
     if (arithMode != 1) {
         form1Insn(disNormTemplate);
         arithMode  =  1;
@@ -806,11 +795,10 @@ void disableNorm();
 } /* disableNorm */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formJump(arg: *int);
+void formJump(arg: *int) {
 var
     pos: int;
     isLeft: int;
-{
     if (prevOpcode != KUJ) {
         pos  =  putLeft ? objBufIdx + 4096 : objBufIdx;
         isLeft  =  putLeft;
@@ -822,30 +810,26 @@ var
 } /* formJump */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void padToLeft();
-{
+void padToLeft() {
     if (!putLeft)
         form1Insn(KUTC);
     prevOpcode  =  0;
 } /* padToLeft */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formAndAlign(arg: int);
-{
+void formAndAlign(arg: int) {
     form1Insn(arg);
     padToLeft();
     prevOpcode  =  1;
 } /* formAndAlign */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int isCharArray(arg: tptr);
-{
+int isCharArray(arg: tptr) {
     with *(arg.rep) do return arg.p.pk == kindArray && base == charType;
 } /* isCharArray */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void putToSymTab(arg: int);
-{
+void putToSymTab(arg: int) {
     symTab[symTabPos]  =  arg;
     if (symTabPos == 075500) {
         error(50); /* errSymbolTableOverflow */
@@ -855,9 +839,8 @@ void putToSymTab(arg: int);
 } /* putToSymTab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int allocExtSymbol(sym: int);
+int allocExtSymbol(sym: int) {
 var i: int;
-{
     if (curVal.i & halfWord) {
         for (i = 1; i <= longSymCnt; ++i)
             if (curVal.i == longSyms[i]) {
@@ -878,8 +861,7 @@ var i: int;
 } /* allocExtSymbol */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int getHelperProc(l3arg1z: int);
-{
+int getHelperProc(l3arg1z: int) {
     if (helperMap[l3arg1z] == 0) {
         curVal.i  =  helperNames[l3arg1z];
         helperMap[l3arg1z]  =  allocExtSymbol(extSymMask);
@@ -888,11 +870,10 @@ int getHelperProc(l3arg1z: int);
 } /*getHelperProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int allocSymtab(arg: int);
+int allocSymtab(arg: int) {
 var
     low, high, mid, ret: int;
     value: word;
-{
     low  =  0;
     value.i  =  arg;
     if (symTabCnt == 0) {
@@ -930,10 +911,9 @@ var
 } /* allocSymtab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int getFCSToffset();
+int getFCSToffset() {
 var
     offset: int;
-{
     offset  =  addCurValToFCST();
     if (offset < 2048) {
         return offset;
@@ -945,16 +925,14 @@ var
 } /* getFCSToffset */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int nrOfBits(value: int);
-{
+int nrOfBits(value: int) {
     return 48 - minel(value & [7..47]);
 } /* nrOfBits */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr mkIntScl(bitWid: int);
+tptr mkIntScl(bitWid: int) {
 var
     res: tptr;
-{
     if (bitWid < 1 || 40 < bitWid) {
         error(errNumberTooLarge);
         return intType;
@@ -972,8 +950,7 @@ var
 } /* mkIntScl */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int getValueOrAllocSymtab(value: int);
-{
+int getValueOrAllocSymtab(value: int) {
     curVal.i  =  value & 077777;
     return (040000 >= curVal.i) ? curVal.i
         : allocSymtab((curVal.i | 040000000U) & halfWord);
@@ -981,12 +958,11 @@ int getValueOrAllocSymtab(value: int);
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // fixup -- address-fixup helper; see base.pas for full mode docs.
-void fixup(mode, arg: int);
+void fixup(mode, arg: int) {
 var
     addr, insn, leftHalf: int;
     isLarge: int;
     work, offset: int;
-{
     if (mode == 0) {
         padToLeft();
         curVal.i  =  moduleOffset;
@@ -1038,16 +1014,14 @@ var
 } /* fixup */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void requiredSymErr(sym: symbol);
-{
+void requiredSymErr(sym: symbol) {
     if (linePos != prevErrPos) {
         error(sym + 88);
     }
 } /* requiredSymErr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void readToPos80();
-{
+void readToPos80() {
     while (linePos < 80) {
         ++linePos;
         lineBuf[linePos]  =  *PASINPUT;
@@ -1057,8 +1031,7 @@ void readToPos80();
 } /* readToPos80 */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void nextCH();
-{
+void nextCH() {
     do {
         atEOL  =  eoln(PASINPUT);
         CH  =  *PASINPUT;
@@ -1069,15 +1042,14 @@ void nextCH();
 } /* nextCH */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseComment();
+void parseComment() { /* parseComment */
 var
     badOpt, flag: int;
     c: char;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int readOptVal(limit: int);
+int readOptVal(limit: int) {
 var t:int;
-{
     nextCH();
     t  =  0;
     while (('9' >= CH) && (CH >= '0')) {
@@ -1090,8 +1062,7 @@ var t:int;
 } /* readOptVal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void readOptFlag(res: *int);
-{
+void readOptFlag(res: *int) {
     nextCH();
     if (CH == '-' || CH == '+') {
         *res  =  CH == '+';
@@ -1101,7 +1072,6 @@ void readOptFlag(res: *int);
 } /* readOptFlag */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* parseComment */
     nextCH();
     if (CH == '=') {
         do {
@@ -1150,7 +1120,19 @@ void readOptFlag(res: *int);
 } /* parseComment */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void inSymbol();
+int skipSp() {
+     while ((CH == ' ' || CH == '\t') && !atEOL)
+         nextCH();
+     if (atEOL) {
+         endOfLine();
+         nextCH();
+         return true;
+     }
+     return false;
+}
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void inSymbol() { /* inSymbol */
 var
     localBuf: char[131];
     tokenLen, tokenIdx: int;
@@ -1164,7 +1146,7 @@ var
     jb1473: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void doCharConst(lim:char);
+void doCharConst(lim:char) {
 // Set of characters that are not themselves after \
 // 0123 4567 89:; <=>? @ABC DEFG HIJK LMNO PQRS TUVW XYZ
 // ++++ ++++            ++    +         +    +  + +
@@ -1172,7 +1154,6 @@ void doCharConst(lim:char);
 //             01 2345 6789 0123 4567 8901 2345 6789 0123 4567
 const escSet = 0xFF0062022A00;
 escMap = 007101412151113;
-{
    for (tokenIdx = 6; tokenIdx <= 130; ++tokenIdx) {
        nextCH();
        if (CH == lim) {
@@ -1226,15 +1207,7 @@ escMap = 007101412151113;
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int isDerivedCacheName(id: int);
-var hash: word;
-{
-    return (id % 0100 == 0) && (strhash(id).k IN [1,2]);
-} /* isDerivedCacheName */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void lexer();
-{
+void lexer() {
     switch (SY) {
     case IDENT: {
         curToken.i  = 0U;
@@ -1265,10 +1238,7 @@ void lexer();
         case lookDef:
             hashTravPtr  =  symHash[bucket];
             while (hashTravPtr != NIL) {
-                if (isDerivedCacheName(hashTravPtr->id)) {
-                    hashTravPtr  =  hashTravPtr->next;
-                } else if (hashTravPtr->offset == curFrameRegTemplate)
-                {
+                if (hashTravPtr->offset == curFrameRegTemplate) {
                     if (hashTravPtr->id != curIdent)
                         hashTravPtr  =  hashTravPtr->next;
                     else {
@@ -1541,20 +1511,14 @@ void lexer();
 } /* lexer */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* inSymbol */
         if (dataCheck) {
-            error(errEOFEncountered);
-            readToPos80();
-            longjmp(jb9999, 1);
+//            error(errEOFEncountered);
+//            readToPos80();
+            writeln('EOF reached');
+            halt;
         }
-1473:   if(setjmp(&jb1473));
-        while ((CH == ' ' || CH == '\t') && !atEOL)
-            nextCH();
-        if (atEOL) {
-            endOfLine();
-            nextCH();
-            goto 1473;
-        }
+        if(setjmp(&jb1473));
+1473:   while(skipsp());
         hashTravPtr  =  NIL;
         SY  =  charSym[CH];
         charClass  =  chrClass[CH];
@@ -1565,10 +1529,9 @@ void lexer();
 } /* inSymbol */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void skipToEnd();
+void skipToEnd() {
 var
     sym: symbol;
-{
     sym  =  SY;
     while ((CH != '\0') && ((sym != ENDSY) || (SY != PERIOD))) {
         sym  =  SY;
@@ -1581,10 +1544,9 @@ var
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void error;
+void error {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{
     errors  =  abort  =  true;
     if ((linePos != prevErrPos && 9 >= errsInLine)
         || errno == 52)
@@ -1606,14 +1568,13 @@ void error;
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void skip(toset: setofsys);
-{
+void skip(toset: setofsys) {
     while (!(SY IN toset))
         inSymbol();
 } /* skip */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void errAndSkip(errno: int; toset: setofsys);
+void errAndSkip(errno: int; toset: setofsys)
 {
     error(errno);
     skip(toset);
@@ -1622,10 +1583,9 @@ void errAndSkip(errno: int; toset: setofsys);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Returns the type of the literal; the value is assigned by reference
 // in the first argument.
-tptr parseLiteral(litValue: *int; allowSign: int);
+tptr parseLiteral(litValue: *int; allowSign: int) {
 var
     l3var1z: operator; ret: tptr;
-{
     *litValue  =  curToken.i;
     if (SY > STRINGSY) {
         if (allowSign && (charClass IN [PLUSOP, MINUSOP])) {
@@ -1669,12 +1629,12 @@ var
 } /* parseLiteral */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-irptr hash(l3arg1z: irptr; l3arg2z: irptr);
+irptr hash(l3arg1z: irptr; l3arg2z: irptr) {
 var
     l3var1z: int;
     l3var2z: int;
     l3var3z, l3var4z: irptr;
-{
+//
     if (l3arg1z == NIL) {
         curVal.i  =  l3arg2z->id & hashMask;
         l3var2z = mapAI(curVal.a);
@@ -1706,21 +1666,18 @@ var
 } /* hash */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int isFileType(typtr: tptr);
-{
+int isFileType(typtr: tptr) {
     return typtr.p.pk == kindFile ||
         typtr.p.pk == kindStruct && typtr.rep->flag;
 } /* isFileType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int typeBits(typtr: tptr);
-{
+int typeBits(typtr: tptr) {
     return typtr.p.bits;
 } /* typeBits */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void checkSymAndRead(sym: symbol);
-{
+void checkSymAndRead(sym: symbol) {
     if (SY != sym)
         requiredSymErr(sym);
     else
@@ -1728,11 +1685,10 @@ void checkSymAndRead(sym: symbol);
 } /* checkSymAndRead */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int argCount(p: irptr);
+int argCount(p: irptr) {
 var
     i: int;
     it: irptr;
-{
     it  =  p->argList;
     i  =  0;
     if (it != NIL)
@@ -1744,12 +1700,11 @@ var
 } /* argCount */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr makeRoutineType(routine: irptr);
+tptr makeRoutineType(routine: irptr) {
 var
     resultTyp: tptr;
     srcParam: irptr;
     newParam, lastParam: sigptr;
-{
     resultTyp.rep = malloc(offsetof(types, szRtype));
     with *(resultTyp.rep) do {
         rresult  =  routine->typ;
@@ -1782,18 +1737,33 @@ var
 } /* makeRoutineType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int leftAlign(val:int);
-{
+int leftAlign(val:int) {
     while ((val & [0..5]) == 0U) {
         val <<= 6;
     }
     return val;
 } /* leftAlign */
 //
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void regResWord(keyword: int) {
+var
+    kw: *kword;
+    curVal.i  =  keyword & hashMask;
+    curVal.i = mapai(curVal.a);
+    kw = malloc(sizeof(kword));
+    with *kw do {
+        w  =  keyword;
+        sym  =  SY;
+        op  =  charClass;
+        next  =  kwordHash[curVal.i];
+    }
+    kwordHash[curVal.i]  =  kw;
+} /* regResWord */
+//
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PROGRAMME                 %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void programme(retSizePtr: *int; procName: irptr; bodyBlock: int);
+void programme(retSizePtr: *int; procName: irptr; bodyBlock: int) { /* programme */
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
     isPredefined, l2bool8z, inTypeDef, hadParens: int;
@@ -1809,9 +1779,8 @@ var
     l2int18z, ii, localSize, sizeCount, jj: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void myrollup(addr : int);
+void myrollup(addr : int) {
 var top : int;
-{
     top = setup();
     if (top > maxHeap)
         maxHeap = top;
@@ -1819,9 +1788,8 @@ var top : int;
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int knownInType(rec: *irptr);
+int knownInType(rec: *irptr) {
 var it: irptr;
-{
     for (it = typelist; it != NIL; it = it->next) {
         if (it->id == curIdent) {
             *rec = it;
@@ -1832,7 +1800,7 @@ var it: irptr;
 } /* knownInType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int typeCheck(type1, type2: tptr);
+int typeCheck(type1, type2: tptr) { /* typeCheck */
 var
     baseMatch: int;
     kind1, kind2: kind;
@@ -1840,10 +1808,9 @@ var
     span1, span2: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int sameRoutineType(type1, type2: tptr);
+int sameRoutineType(type1, type2: tptr) {
 var
     p1, p2: sigptr;
-{
     if (type1.rep->rargc != type2.rep->rargc ||
         ((type1.rep->rflags & [20,21,24,26]) !=
          (type2.rep->rflags & [20,21,24,26]))) {
@@ -1871,7 +1838,6 @@ var
 } /* sameRoutineType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* typeCheck */
     rangeMismatch  =  false;
     if (!checkTypes || type1 == type2)
 1:      return true;
@@ -1924,7 +1890,7 @@ var
 } /* typeCheck */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formOperator(l3arg1z: opgen);
+void formOperator(l3arg1z: opgen) { /* formOperator */
 var
     l3int1z, l3int2z, l3int3z: int;
     nextInsn: int;
@@ -1936,7 +1902,7 @@ var
     rhsMode: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genOneOp();
+void genOneOp() { /* genOneOp */
 var
     insnBufIdx: int;
     i, l4var3z, l4var4z: int;
@@ -1949,23 +1915,20 @@ var
     l4var213z: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void  addInsnToBuf(insn: int);
-{
+void  addInsnToBuf(insn: int) {
     insnBuf[insnBufIdx]  =  insn;
     ++insnBufIdx;
 } /* addInsnToBuf */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void add2InsnsToBuf(insn1, insn2: int);
-{
+void add2InsnsToBuf(insn1, insn2: int) {
     insnBuf[insnBufIdx]  =  insn1;
     insnBuf[insnBufIdx+1]  =  insn2;
     insnBufIdx += 2;
 } /* add2InsnsToBuf */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int findLabel();
-{
+int findLabel() {
     l4inl7z  =  l4inl6z;
     while (l4inl7z != NIL) {
         if (l4inl7z->mode == curInsn) {
@@ -1981,8 +1944,7 @@ int findLabel();
 } /* findLabel */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void addJumpInsn(opcode: int);
-{
+void addJumpInsn(opcode: int) {
     if (!findLabel()) {
         l4inl7z = malloc(sizeof(oneinsn));
         l4inl7z->next  =  l4inl6z;
@@ -1995,8 +1957,7 @@ void addJumpInsn(opcode: int);
 } /* addJumpInsn */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void processInsn();
-{
+void processInsn() {
         curInsn  =  insnBuf[l4var4z];
         tempInsn  =  curInsn & [23:32];
         if (tempInsn == KATX+SP) {
@@ -2072,7 +2033,6 @@ void processInsn();
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* genOneOp */
     if (insnList == NIL)
          return;
     usedRegs |= insnList->regsused;
@@ -2265,9 +2225,8 @@ void processInsn();
 } /* genOneOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void addToInsnList(insn: int);
+void addToInsnList(insn: int) {
 var elt: oiptr;
-{
     elt = malloc(sizeof(oneinsn));
     with *elt do {
         next  =  NIL;
@@ -2285,17 +2244,15 @@ var elt: oiptr;
 } /* addToInsnList */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void addInsnAndOffset(insn, l4arg2z: int);
-{
+void addInsnAndOffset(insn, l4arg2z: int) {
     addToInsnList(insn);
     insnList->tail->offset  =  l4arg2z;
 } /* addInsnAndOffset */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void prependToInsnList(insn: int);
+void prependToInsnList(insn: int) {
 var
     elt: oiptr;
-{
     elt = malloc(sizeof(oneinsn));
     with *elt do {
         next  =  insnList->head;
@@ -2310,14 +2267,13 @@ var
 } /* prependToInsnList */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void prepLoad();
+void prepLoad() {
 var
     helper, l4int2z, l4int3z: int;
     valueType: tptr;
     l4var5z: kind;
     l4st6z: state;
     isSimple: int;
-{
     valueType  =  insnList->typ;
     with *insnList do {
         switch (ilm) {
@@ -2411,26 +2367,23 @@ var
 } /* prepLoad */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void push();
-{
+void push() {
     prepLoad();
     addToInsnList(macro + mcPUSH);
 } /* push */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void setAddrTo(reg: int);
+void setAddrTo(reg: int) { /* setAddrTo */
 var
     l4var1z, l4int2z, opCode, l4var4z, l4var5z,
     l4var6z, regField: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void getOffset();
-{
+void getOffset() {
       l4var6z = insnList->disp % 32768;
 } /* getOffset */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* setAddrTo */
     with *insnList do {
         l4int2z  =  addrmd;
         opCode  =  KVTM;
@@ -2489,14 +2442,13 @@ void getOffset();
 } /* setAddrTo */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void prepStore();
+void prepStore() {
 var
     l4int1z: int;
     l4int2z, l4int3z: int;
     l4bool4z, l4bool5z: int;
     l4st6z: state;
     l4var7z: kind;
-{
     with *insnList do
         l4int1z  =  addrmd;
     if (15 < l4int1z) {
@@ -2553,8 +2505,7 @@ var
 } /* prepStore */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void spillAcc(op: operator);
-{
+void spillAcc(op: operator) {
     addInsnAndOffset(curFrameRegTemplate, localSize);
     curExpr = malloc(sizeof(expr));
     with *curExpr do
@@ -2568,11 +2519,10 @@ void spillAcc(op: operator);
 } /* spillAcc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int insnCount();
+int insnCount() {
 var
     cnt: int;
     cur: oiptr;
-{
     cnt  =  0;
     cur  =  insnList->head;
     while (cur != NIL) {
@@ -2583,7 +2533,7 @@ var
 } /* insnCount */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genFullExpr(exprToGen: eptr);
+void genFullExpr(exprToGen: eptr) { /* genFullExpr */
 var
     arg1Const, arg2Const: int;
     otherIns: *insnltyp;
@@ -2592,8 +2542,7 @@ var
     work: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void startLVal();
-{
+void startLVal() {
     prepLoad();
     insnList->ilm  =  ilLVAL;
     insnList->st  =  stWORD;
@@ -2603,10 +2552,9 @@ void startLVal();
 } /* startLVal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genDeref();
+void genDeref() {
 var
     l5var1z, l5var2z: int;
-{
     /* The optimised path manipulates addrmd/disp/payload, which only
        carry meaning for ilLVAL (addressable) operands.  For ilRVAL --
        e.g. a function-call result whose pointer value is already in ACC
@@ -2647,8 +2595,7 @@ var
 } /* genDeref */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genHelper();
-{
+void genHelper() {
     push();
     saved  =  insnList;
     insnList  =  otherIns;
@@ -2660,11 +2607,10 @@ void genHelper();
 } /* genHelper */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void prepMultiWord();
+void prepMultiWord() {
 var
     l5var1z: int;
     l5var2z: *insnltyp;
-{
     l5var1z  =  12 in otherIns->regsused;
     setAddrTo(12);
     if (l5var1z) {
@@ -2685,8 +2631,7 @@ var
 } /* prepMultiWord */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void negateCond();
-{
+void negateCond() {
     if (insnList->ilm == ilCONST) {
         insnList->payload  =  ! insnList->payload;
     } else {
@@ -2695,11 +2640,10 @@ void negateCond();
 } /* negateCond */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void tryFlip(commutes: int);
+void tryFlip(commutes: int) {
 var
     l5var1z: int;
     l5var2z: *insnltyp;
-{
     if (! (0 in otherIns->regsused)) {
         l5var1z  =  0;
     } else if (! (0 in insnList->regsused)) {
@@ -2744,13 +2688,12 @@ var
 } /* tryFlip */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genBoolAnd();
+void genBoolAnd() {
 var
     l5var1z, l5var2z: int;
     l5var3z, l5var4z, l5var5z, l5var6z, l5var7z: int;
     l5ins8z: *insnltyp;
     l5var9z: int;
-{
     if (arg1Const) {
         if (arg1Val.i)
             insnList  =  otherIns;
@@ -2853,7 +2796,7 @@ var
 } /* genBoolAnd */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genGetElt();
+void genGetElt() { /* genGetElt */
 var
     l5var1z, dimCnt, curDim, l5var4z, l5var5z, l5var6z,
         l5var7z, l5var8z: int;
@@ -2868,7 +2811,6 @@ var
     getEltInsns: *insnltyp[1..10];
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* genGetElt */
     dimCnt  =  0;
     l5var29z  =  exprToGen;
     while (l5var29z->op == GETELT) {
@@ -3029,8 +2971,7 @@ var
 } /* genGetElt */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int allocGlobalObject(arg: irptr);
-{
+int allocGlobalObject(arg: irptr) {
     if (arg->pos == 0) {
         if (arg->flags & [20, 21]) {
             curVal.i  =  leftAlign(arg->id);
@@ -3044,7 +2985,7 @@ int allocGlobalObject(arg: irptr);
 } /* allocGlobalObject */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genEntry();
+void genEntry() { /* genEntry */
 var
     l5exp1z, l5exp2z: eptr;
     l5idr3z, l5idr4z, l5idr5z, curForml: irptr;
@@ -3055,8 +2996,7 @@ var
     l5inl20z: *insnltyp;
     l5op21z: operator; paramClass: idclass;
 //
-void formThunk();
-{
+void formThunk() {
                 if (l5idr4z->value == 0) {
                     if (isFortrn && (21 in l5idr4z->flags)) {
                         addToInsnList(allocGlobalObject(l5idr4z) +
@@ -3104,7 +3044,6 @@ void formThunk();
                     addToInsnList(getHelperProc(64)); /* "P/PB" */
 }
 //
-{ /* genEntry */
     l5exp1z  =  exprToGen->expr1;
     l5idr5z  =  exprToGen->id2;
     isProc  =  l5idr5z->typ == voidType;
@@ -3261,8 +3200,7 @@ void formThunk();
 } /* genEntry */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void startInsnList(l5arg1z: ilmode);
-{
+void startInsnList(l5arg1z: ilmode) {
     insnList = malloc(sizeof(insnltyp));
     insnList->tail  =  NIL;
     insnList->head  =  NIL;
@@ -3281,11 +3219,10 @@ void startInsnList(l5arg1z: ilmode);
 } /* startInsnList */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genCopy();
+void genCopy() {
 var
     size: int;
     lhsIns, rhsIns: *insnltyp;
-{
     size  =  insnList->typ.p.psize;
     if (size == 1) {
         lhsIns  =  insnList;
@@ -3319,9 +3256,8 @@ var
 } /* genCopy */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genConstDiv();
+void genConstDiv() {
 var r: real;
-{
     if (card(arg2val.i) > 1) {
         curVal.r = 1.0 / arg2Val.i;
         r = curVal.r * arg2Val.i;
@@ -3335,12 +3271,11 @@ var r: real;
 } /* genConstDiv */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genComparison();
+void genComparison() {
 var
     negate: int;
     l5set2z: int;
     mode, size: int;
-{
     l3int3z  =  curOP - NEOP;
     negate  =  l3int3z & 1U;
     if (l3int3z == 6) {     /* IN */
@@ -3422,7 +3357,7 @@ var
 } /* genComparison */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genCondOp();
+void genCondOp() {
 /*
  * Code generation for the ternary conditional operator
  *      exprToGen = CONDOP{cond, ALTERN{then, else}}
@@ -3465,7 +3400,6 @@ var
     altExpr: eptr;
     elseLab, endLab: int;
     condChain, thenChain: *insnltyp;
-{
     altExpr = exprToGen->expr2;
     /* Allocate two unique forward-label identifiers from the global
        counter used by genBoolAnd. */
@@ -3561,7 +3495,7 @@ var
 } /* genCondOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genRMWAssign();
+void genRMWAssign() {
 /* Code-gen for RMWASSIGN(lhs, inner-op(rhs, NIL)): a read-modify-write
    assignment (compound op-assign such as `lhs += rhs`, or pre-++/--).
    The naked AST lowering ASSIGNOP(lhs, op(lhs, rhs)) evaluates `lhs`
@@ -3585,7 +3519,6 @@ var
     synthOp, synthAsn: eptr;
     innerOp: operator;
     needsMater: int;
-{
     lhsExpr = exprToGen->expr1;
     innerNode = exprToGen->expr2;
     innerOp = innerNode->op;
@@ -3643,7 +3576,6 @@ var
 } /* genRMWAssign */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* genFullExpr */;
     if (exprToGen == NIL)
         return;
 7567:
@@ -4013,12 +3945,11 @@ var
 } /* genFullExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formFileInit();
+void formFileInit() {
 var l4exf1z: *extfilerec;
     l4var2z: tptr;
     l4var3z: irptr;
     l4int4z, elSize: int;
-{
     if ((E48 >> S5) & optSflags) {
         formAndAlign(KUJ+I13);
         return;
@@ -4058,7 +3989,6 @@ var l4exf1z: *extfilerec;
 } /* formFileInit */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* formOperator */
     rhsMode  =  true;
     if (errors && l3arg1z != SETREG || curExpr == NIL)
         return;
@@ -4261,7 +4191,7 @@ var l4exf1z: *extfilerec;
 } /* formOperator */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr parseTypeRef(skipTarget: setofsys);
+tptr parseTypeRef(skipTarget: setofsys) {
 typedef
     pair = struct {
             first, second: int
@@ -4281,14 +4211,13 @@ var
     cases: caserec;
     numBits, l3int22z, span, rangeCnt, curDim: int;
     curEnum, curField: irptr;
-    arrayType, nestedType, tempType, curType, cachedType: tptr;
+    arrayType, nestedType, tempType, curType: tptr;
     ranges: rangeList;
     curRange: rangeRec;
     l3idr31z: irptr;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr getPtrType(toType: tptr);
-{
+tptr getPtrType(toType: tptr) {
     curType.rep = malloc(offsetof(types, szPtr));
     curType.rep->base  =  toType;
     curType.p.psize  =  1;
@@ -4298,8 +4227,7 @@ tptr getPtrType(toType: tptr);
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void definePtrType(toType: tptr);
-{
+void definePtrType(toType: tptr) {
     curType = getPtrType(toType);
     curEnum = malloc(offsetof(identrec, szIdent));
     CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
@@ -4307,7 +4235,7 @@ void definePtrType(toType: tptr);
 } /* definePtrType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseRecordDecl(rectype: *tptr; isOuterDecl: int);
+void parseRecordDecl(rectype: *tptr; isOuterDecl: int) { /* parseRecordDecl */
 var
     l4typ1z, selType, l4var3z, l4typ4z, l4var5z: tptr;
     l4var6z: irptr;
@@ -4317,19 +4245,17 @@ var
     cases1, cases2: caserec;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void addFieldToHash();
-{
+void addFieldToHash() {
     CTOR(*curEnum, curIdent, , fieldHash[bucket], ,
                    FIELDID, NIL, curType, isPacked);
     fieldHash[bucket]  =  curEnum;
 } /* addFieldToHash */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void packFields();
+void packFields() {
 var
     l5var1z, pairIdx, l5var3z, l5var4z, l5var5z: int;
     l5var6z: *pair;
-{
     selType = parseTypeRef(skipTarget | [UNIONSY]);
     if (curType.rep->fields == NIL) {
         curType.rep->fields  =  curField;
@@ -4406,7 +4332,6 @@ var
 } /* packFields */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* parseRecordDecl */
     if (SY != BEGINSY)
         requiredSymErr(BEGINSY);
     lookupMode  =  3;
@@ -4518,8 +4443,7 @@ var
 } /* parseRecordDecl*/
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseRange(aleft, aright: *int);
-{
+void parseRange(aleft, aright: *int) {
     curType = parseLiteral(aleft, true);
     if (curType.rep != NIL && curType.p.pk == kindScalar) {
         inSymbol();
@@ -4539,11 +4463,10 @@ void parseRange(aleft, aright: *int);
 } /* parseRange */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr makeArrayType(rangeInfo: rangeRec; elementType: tptr; packedFlag: int);
+tptr makeArrayType(rangeInfo: rangeRec; elementType: tptr; packedFlag: int) {
 var
     makePacked: int;
     sizeVal, bitsVal, perwordVal, pcksizeVal: int;
-{
     makePacked  =  packedFlag;
     span  =  rangeInfo.aright - rangeInfo.aleft + 1;
     l3int22z  =  typeBits(elementType);
@@ -4588,7 +4511,6 @@ var
 } /* makeArrayType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* parseTypeRef */
     isPacked  =  false;
 12247:
     if (SY == ENUMSY) {
@@ -4752,10 +4674,9 @@ var
 } /* parseTypeRef */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void dumpEnumNames(l3arg1z: tptr);
+void dumpEnumNames(l3arg1z: tptr) {
 var
     l3var1z: irptr;
-{
     if (l3arg1z.rep->start == 0) {
         l3arg1z.rep->start  =  FcstCnt;
         l3var1z  =  l3arg1z.rep->enums;
@@ -4768,10 +4689,9 @@ var
 } /* dumpEnumNames */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseDecls(l3arg1z: int);
+void parseDecls(l3arg1z: int) {
 var
     l3int1z, frame, l3var3z: int;
-{
     switch (l3arg1z) {
     case 0:
         lookupMode  =  lookDef;
@@ -4855,10 +4775,9 @@ var
 } /* parseDecls */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void labCheckAndDefine(isDef: int);
+void labCheckAndDefine(isDef: int) {
 var
     labIdx: int;
-{
     labIdx  =  numLabTop;
     while ((labIdx > labFence) && (numLabs[labIdx].id != curToken.i))
         --labIdx;
@@ -4903,7 +4822,7 @@ var
 } /* labCheckAndDefine */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void statement();
+void statement() { /* statement */
 var
     boundary: eptr;
     strLabPtr: *strLabel;
@@ -4926,12 +4845,11 @@ void expression; forward;
    first token that is neither a postfix operator nor the trailing `]`
    of an index list.  Safe to call when the next token isn't a postfix
    at all (loop simply exits). */
-void parsePostfix();
+void parsePostfix() {
 var
     l4exp1z, l4exp2z: eptr;
     l4typ3z: tptr;
     l4var4z: kind;
-{
 13462:
     l4typ3z  =  curExpr->typ;
     l4var4z  =  l4typ3z.p.pk;
@@ -5011,10 +4929,9 @@ var
 } /* parsePostfix */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseLval();
+void parseLval() {
 var
     l4exp1z: eptr;
-{
     if (hashTravPtr->cl == FIELDID) {
         /* Implicit field of the `with` variable: build GETFIELD on
            withIter directly, then continue with any further postfix. */
@@ -5039,10 +4956,9 @@ var
 } /* parseLval */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void castToReal(value: *eptr);
+void castToReal(value: *eptr) {
 var
     cast: eptr;
-{
     cast = malloc(sizeof(expr));
     with *cast do {
         typ  =  realType;
@@ -5052,8 +4968,7 @@ var
     }
 } /* castToReal */
 //
-int areTypesCompatible(l4arg1z: *eptr);
-{
+int areTypesCompatible(l4arg1z: *eptr) {
     if (arg1Type == realType) {
         if (typeCheck(intType, arg2Type)) {
             castToReal(l4arg1z);
@@ -5068,14 +4983,13 @@ int areTypesCompatible(l4arg1z: *eptr);
 } /* areTypesCompatible */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseCallArgs(subroutine: irptr);
+void parseCallArgs(subroutine: irptr) {
 var
     noArgs: int;
     curActual, callExpr, argList: eptr;
     curFormal: irptr;
     actualOp: operator;
     formClass: idclass;
-{
     with *subroutine do {
         if (typ != voidType)
             liveRegs &= ~flags;
@@ -5169,8 +5083,7 @@ var
 } /* parseCallArgs */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int getPrec(sym: symbol; cls: operator);
-{
+int getPrec(sym: symbol; cls: operator) {
     if (sym == EXPROP)
         return opPrec[cls];
     else if (sym == BECOMES)
@@ -5180,9 +5093,8 @@ int getPrec(sym: symbol; cls: operator);
 } /* getPrec */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldBitOp(oper: operator; leftArg: eptr);
-var finalExpr: eptr;
-{
+void bldBitOp(oper: operator; leftArg: eptr) {
+    var finalExpr: eptr;
     if (arg1Type.p.pk != kindScalar || arg2Type.p.pk != kindScalar) {
         error(errNeedOtherTypesOfOperands);
         curExpr = uVarPtr;
@@ -5199,11 +5111,10 @@ var finalExpr: eptr;
 } /* bldBitOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldArithOp(oper: operator; leftExpr: eptr; match: int);
+void bldArithOp(oper: operator; leftExpr: eptr; match: int) {
 var
     finalExpr: eptr;
     k1, k2: kind;
-{
     k1 = arg1Type.p.pk;
     k2 = arg2Type.p.pk;
     if (k1 > kindScalar || k2 > kindScalar) {
@@ -5235,9 +5146,8 @@ var
 } /* bldArithOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldRelOp(oper: operator; ex2: eptr);
+void bldRelOp(oper: operator; ex2: eptr) {
 var ex1: eptr;
-{
     if (typeCheck(arg1Type, arg2Type)) {
         if ((arg1Type.p.pk == kindFile) ||
             (arg1Type.p.psize != 1) &&
@@ -5272,9 +5182,8 @@ var ex1: eptr;
 } /* bldRelOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldLogOp(oper: operator; leftExpr: eptr; match: int);
+void bldLogOp(oper: operator; leftExpr: eptr; match: int) {
 var finalExpr: eptr;
-{
     if (!match || ((arg1Type != boolType) && (arg1Type != intType))) {
         error(errNeedOtherTypesOfOperands);
         finalExpr = uVarPtr;
@@ -5291,10 +5200,9 @@ var finalExpr: eptr;
 } /* bldLogOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldCondOp(condExpr, thenExpr: eptr);
+void bldCondOp(condExpr, thenExpr: eptr) {
 var altExpr, condOpExpr: eptr;
     resType: tptr;
-{
     if (condExpr->typ.p.pk > kindPtr) {
         error(errBooleanNeeded);
         return;
@@ -5328,7 +5236,7 @@ var altExpr, condOpExpr: eptr;
 } /* bldCondOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void factor();
+void factor() { /* factor */
 var
     l4var1z, wasInCall, l4var3z, l4var4z: int;
     l4exp5z, newExpr, l4var7z, l4var8z: eptr;
@@ -5338,14 +5246,13 @@ var
     l4var12z: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void stdCall();
+void stdCall() {
 var
     l5op1z: operator;
     l5var2z: tptr;
     argKind: kind;
     asBitset: int;
     stProcNo, checkMode, resultValue: int;
-{
     stProcNo  =  routine->low;
     if (SY != LPAREN) {
         requiredSymErr(LPAREN);
@@ -5447,7 +5354,6 @@ var
 } /* stdCall */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* factor */
     wasInCall  =  inCallArgs;
     inCallArgs  =  false;
     switch (SY) {
@@ -5607,11 +5513,10 @@ var
 } /* factor */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseUnaryExpression();
+void parseUnaryExpression() {
 var
     oper: operator;
     leftExpr, addExpr, oneExpr: eptr;
-{
     oper = NOOP;
     if (charClass IN [PLUSOP, MINUSOP, BITNEGOP, NOTOP, MUL, SETAND, INCROP, DECROP]) {
         if (charClass != PLUSOP)
@@ -5722,13 +5627,12 @@ var
 } /* parseUnaryExpression */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parsePrc(minPrec: int);
+void parsePrc(minPrec: int) {
 var
     oper: operator;
     leftExpr, thenExpr: eptr;
     curPrec: int;
     match: int;
-{
     /* Parse left operand with unary operators */
     parseUnaryExpression();
 
@@ -5849,8 +5753,7 @@ var
 } /* parsePrc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parentExpression();
-{
+void parentExpression() {
     if (readNext)
         inSymbol();
     checkSymAndRead(LPAREN);
@@ -5860,8 +5763,7 @@ void parentExpression();
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void expression();
-{
+void expression() {
     if (readNext)
         inSymbol();
     else
@@ -5871,8 +5773,7 @@ void expression();
 //
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void setStrLab(id:int);
-{
+void setStrLab(id:int) {
     strLabPtr = malloc(sizeof(strLabel));
     padToLeft();
     disableNorm();
@@ -5885,8 +5786,7 @@ void setStrLab(id:int);
 } /* setStrLab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void setBrCont();
-{
+void setBrCont() {
     /*=A3*/
     setStrLab('   BREAK');
     setStrLab('CONTINUE');
@@ -5894,8 +5794,7 @@ void setBrCont();
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void brContTarget();
-{
+void brContTarget() {
     /* assigning target for break/continue if used */
     with *strLabList do if (target != 0) {
         fixup(0, target);
@@ -5904,11 +5803,10 @@ void brContTarget();
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void forStatement();
+void forStatement() {
 var
    toLoop, leave : int;
    loopExpr      : eptr;
-{
     inSymbol();
     checkSymAndRead(LPAREN);
     if (SY != SEMICOLON) {
@@ -5951,12 +5849,11 @@ var
 } /* forStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void withStatement();
+void withStatement() {
 var
     oldWith: eptr;
     oldRegs, usedRegs: int;
     oldSize: int;
-{
     oldWith  =  withList;
     oldSize  =  localSize;
     oldRegs  =  freeRegs;
@@ -5979,16 +5876,14 @@ var
 } /* withStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void reportStmtType();
-{
+void reportStmtType() {
     writeln(' STATEMENT ', stmtname:0, ' IN ', startLine:0, ' LINE');
 } /* reportStmtType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void structBranch();
+void structBranch() {
 var
     curLab: *strLabel;
-{
     curLab  =  strLabList;
     while (curLab != NIL) {
         if (curLab->ident == curIdent) {
@@ -6002,7 +5897,7 @@ var
 } /* structBranch */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void caseStatement();
+void caseStatement() { /* caseStatement */
 typedef
     casechain = struct {
         next:   *casechain;
@@ -6018,11 +5913,9 @@ var
     itemvalue: int;
     itemSpan: int;
     expected: word;
-    startLine, decoder, endOfStmt: int;
+var startLine, decoder, endOfStmt: int;
     minValue, maxValue: word;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* caseStatement */
+
     startLine  =  lineCnt;
     parentExpression();
     exprtype  =  curExpr->typ;
@@ -6183,8 +6076,7 @@ var
 } /* caseStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void ifWhileStatement();
-{
+void ifWhileStatement() {
     disableNorm();
     parentExpression();
     if ((curExpr->typ != boolType) && (curExpr->typ != intType))
@@ -6198,8 +6090,7 @@ void ifWhileStatement();
 } /* ifWhileStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int allocDataRef(l6arg1z: int);
-{
+int allocDataRef(l6arg1z: int) {
     if (l6arg1z >= 2048) {
         curVal.i  =  l6arg1z;
         return allocSymtab((curVal.i | 040000000U) & halfWord);
@@ -6209,22 +6100,20 @@ int allocDataRef(l6arg1z: int);
 } /* allocDataRef */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseData();
+void parseData() { /* parseData */
 var
     dsize, setcount, dataLoc, length, repCount: int;
-    boundary: eptr;
+var boundary: eptr;
     l4var7z: int;
     savedVal: word;
     dataSegLen: int;
-    F: file of int;
+var F: file of int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void putDataRec(count: int);
+void putDataRec(count: int) { /* putDataRec */
 var
     rec: int;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* putDataRec */
+
     rec  =  allocDataRef(length) << 36;
     if (FcstCnt == dataLoc) {
         curVal  =  savedVal;
@@ -6249,7 +6138,6 @@ var
 } /* putDataRec */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* parseData */
     dsize  =  FcstCnt;
     inSymbol();
     setcount  =  0;
@@ -6329,8 +6217,7 @@ var
 } /* parseData */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseConstExpression();
-{
+void parseConstExpression() {
     readNext  =  false;
     ceTyp  =  voidType;
     ceVal  =  1;
@@ -6342,7 +6229,7 @@ void parseConstExpression();
 } /* parseConstExpression */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void standProc();
+void standProc() { /* standProc */
 var
     l4typ1z, l4typ2z, l4typ3z: tptr;
     firstWidth, secondWidth: eptr;
@@ -6357,8 +6244,7 @@ var
     l4var18z: opgen;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void verifyType(t: tptr);
-{
+void verifyType(t: tptr) {
     readNext = false;
     expression();
     if (!(curExpr->op IN lvalOpSet) ||
@@ -6369,8 +6255,7 @@ void verifyType(t: tptr);
 } /* verifyType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void startWrite();
-{
+void startWrite() {
     expression();
     l4typ3z  =  curExpr->typ;
     l4exp7z  =  curExpr;
@@ -6399,8 +6284,7 @@ void startWrite();
 } /* startWrite */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr parseWidthSpecifier();
-{
+eptr parseWidthSpecifier() {
     expression();
     if (! typeCheck(intType, curExpr->typ)) {
         error(14); /* errExprIsNotInt */
@@ -6410,8 +6294,7 @@ eptr parseWidthSpecifier();
 } /* parseWidthSpecifier */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void callHelperWithArg();
-{
+void callHelperWithArg() {
     if ([12] & usedRegs || needR12) {
         curExpr  =  workExpr;
         formOperator(SETREG12);
@@ -6422,8 +6305,7 @@ void callHelperWithArg();
 } /* callHelperWithArg */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void checkElement();
-{
+void checkElement() {
     usedRegs &= ~[12];
     curVarKind  =  l4typ3z.p.pk;
     helperNo  =  36;              /* C/WI */
@@ -6456,8 +6338,7 @@ void checkElement();
 } /* checkElement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void writeProc();
-{
+void writeProc() {
     workExpr  =  NIL;
     isCharFile  =  true;
     do {
@@ -6553,8 +6434,7 @@ void writeProc();
 } /* writeProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void checkArrayArg();
-{
+void checkArrayArg() {
     verifyType(voidType);
     workExpr  =  curExpr;
     l4typ1z  =  curExpr->typ;
@@ -6568,10 +6448,9 @@ void checkArrayArg();
 } /* checkArrayArg */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void doPackUnpack();
+void doPackUnpack() {
 var
     t: tptr;
-{
     l4exp7z = malloc(sizeof(expr));
     l4exp7z->typ  =  l4typ1z.rep->base;
     l4exp7z->op  =  GETELT;
@@ -6591,7 +6470,6 @@ var
 } /* doPackUnpack */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* standProc */
     curVal.i  =  l3idr12z->low;
     procNo  =  curVal.i;
     l4bool10z  =  (SY == LPAREN);
@@ -6753,7 +6631,6 @@ var
 } /* standProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* statement */
     if (freeRegs != ceRegs && SY == SEMICOLON) {
         inSymbol();
         return;
@@ -6939,10 +6816,9 @@ var
 } /* statement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseConstDeclValue(typ: *tptr; value: *int);
+void parseConstDeclValue(typ: *tptr; value: *int) {
 var
     savedFreeRegs: int;
-{
     if (SY == STRINGSY) {
         *typ  =  parseLiteral(value, true);
         inSymbol();
@@ -6957,10 +6833,9 @@ var
 } /* parseConstDeclValue */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void outputObjFile();
+void outputObjFile() {
 var
     idx: int;
-{
     padToLeft();
     for (idx = 1; idx < objBufIdx; ++idx)
         write(_CHILD_, objBuffer[idx]);
@@ -6969,12 +6844,11 @@ var
 } /* outputObjFile */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void defineRoutine(bodyBlock: int);
+void defineRoutine(bodyBlock: int) {
 var
     l3var1z, l3var2z, l3int4z: int;
     l3idr5z: irptr;
     l3var7z: int;
-{
     objBufIdx  =  1;
     objBuffer[objBufIdx]  =  0U;
     curInsnTemplate  =  KXTA;
@@ -7084,7 +6958,7 @@ var
 } /* defineRoutine */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void mainProgram();
+void mainProgram() { /* mainProgram */
 var
     l3var1z, l3var5z, l3var6z: int;
     l3var7z: irptr;
@@ -7093,24 +6967,21 @@ var
     l3var11z: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regSysType(l4arg1z:int; l4arg2z: tptr);
-{
+void regSysType(l4arg1z:int; l4arg2z: tptr) {
     curIdRec = malloc(offsetof(identrec, szIdent));
     CTOR(*curIdRec, l4arg1z, 0, , l4arg2z, TYPEID);
     addToHashTab(curIdRec);
 } /* regSysType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regSysEnum(l4arg1z: int; l4arg2z: int);
-{
+void regSysEnum(l4arg1z: int; l4arg2z: int) {
     curIdRec = malloc(offsetof(identrec, szIdent));
     CTOR(*curIdRec, l4arg1z, 48, , temptype, ENUMID, NIL, l4arg2z);
     addToHashTab(curIdRec);
 } /* regSysEnum */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regSysProc(l4arg1z: int);
-{
+void regSysProc(l4arg1z: int) {
     curIdRec = malloc(offsetof(identrec, szSys));
     CTOR(*curIdRec, l4arg1z, 0, , temptype, ROUTINEID, sysProcNum);
     ++sysProcNum;
@@ -7118,8 +6989,7 @@ void regSysProc(l4arg1z: int);
 } /* registerSysProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void defExtern();
-{
+void defExtern() {
     l3var8z  =  0;
     l3var11z  =  30U | [24,27,28,29];
     l3var1z  =  leftAlign(curIdent);
@@ -7168,7 +7038,6 @@ void defExtern();
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* mainProgram */
     boolType.rep = malloc(offsetof(types, szScalar));
     with *(boolType.rep) do {
         numen  =  2;
@@ -7371,8 +7240,7 @@ void defExtern();
 } /* mainProgram */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void makeExtFile();
-{
+void makeExtFile() {
     l2var10z = malloc(sizeof(expr));
     with *l2var10z do {
         typ.rep  =  typptr(curExternFile);
@@ -7383,7 +7251,7 @@ void makeExtFile();
 } /* makeExtFile */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseParameters();
+void parseParameters() {
 var
     l3var1z, l3var2z, l3var3z: irptr;
     parClass: idclass;
@@ -7391,7 +7259,6 @@ var
     l3sym7z: symbol;
     noComma: int;
     expType: tptr;
-{
     lookup2  =  0;
     l3var5z  =  0;
     lookupMode  =  lookDef;
@@ -7490,11 +7357,12 @@ var
         }
     }
     checkSymAndRead (RPAREN);
+    lookup2  =  lookUse;
+    lookupMode  =  lookUse;
 } /* parseParameters */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void exitScope(a: int);
-{
+void exitScope(a: int) {
     for (ii = 0; ii < 128; ++ii) {
         workidr  = a ? symHash[ii] : fieldHash[ii];
         while (workidr != NIL && workidr >= scopeBound)
@@ -7507,8 +7375,7 @@ void exitScope(a: int);
 } /* exitScope */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void markTypeSym();
-{
+void markTypeSym() {
     if (SY == IDENT) {
         curVal.i  =  curIdent & hashMask;
         bucket = mapAI(curVal.a);
@@ -7522,7 +7389,6 @@ void markTypeSym();
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //
-{ /* programme */
     localSize  =  *retSizePtr;
     ceRegs  =  halfWord | (E48 >> 23);
     if (localSize == 0) {
@@ -7533,9 +7399,7 @@ void markTypeSym();
     preDefHead  =  irptr(0);
     inTypeDef  =  false;
     hasFiles  =  0;
-    bodyStatSys  =  statBegSys | [IDENT,EXPROP,LPAREN,INTCONST,REALCONST,
-                                  CHARCONST,STRINGSY,LBRACK,BREAKSY,CONTSY,
-                                  SEMICOLON];
+    bodyStatSys  =  statBegSys;
     strLabList  =  NIL;
     ++lineNesting;
     labFence  =  numLabTop;
@@ -7703,7 +7567,8 @@ void markTypeSym();
             }
             lookupMode  =  lookDef;
             checkSymAndRead(SEMICOLON);
-            if ((SY != IDENT) && ! (SY IN skipToSet))
+            if ((SY != IDENT) && ! (SY IN skipToSet) &&
+                (! bodyBlock || ! (SY IN statBegSys)))
                 errAndSkip(errBadSymbol, skipToSet | [IDENT]);
             /* A leading type-IDENT after ';' starts a new C-style
                routine decl, not another variable; bail out so the
@@ -7895,23 +7760,7 @@ void markTypeSym();
             curIdRec->flags  =  curIdRec->flags | curVal.i;
             curIdRec->sigtyp  =  makeRoutineType(curIdRec);
         } else {
-            if ((curIdRec->argList == NIL) && ! hadParens)
-                error(42); /* errNoParamList */
-            do {
-                scopeBound = irptr(setup());
-                programme(&l2int18z, curIdRec, false);
-                if (CH == '\0')
-                    break;
-                markTypeSym();
-                /* A type-ident also opens a new C-style routine decl. */
-                if (! (SY IN [VOIDSY,BEGINSY,TYPESY]))
-                    errAndSkip(errBadSymbol, skipToSet);
-            } while (! (SY IN [VOIDSY,BEGINSY,TYPESY]));
-            curIdRec->sigtyp  =  makeRoutineType(curIdRec);
-            myrollup(int(scopeBound));
-            exitScope(0);
-            exitScope(1);
-            goto 23301;
+            error(errBadSymbol);
         }
         inSymbol();
         checkSymAndRead(SEMICOLON);
@@ -7949,6 +7798,8 @@ void markTypeSym();
         }
         writeLN;
     }
+    lookup2  =  lookUse;
+    lookupMode  =  lookUse;
     defineRoutine(bodyBlock);
     l2bool8z  =  true;
     while (numLabTop > labFence) {
@@ -7966,15 +7817,14 @@ void markTypeSym();
 } /* programme */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void initTables();
+void initTables() { /* initTables */
 var
     idx, jdx: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void initInsnTemplates();
+void initInsnTemplates() {
 var
     op: operator;
-{
     for (idx = 1; idx < 16; ++idx)
         indexreg[idx]  =  idx << 20;
     jumpType  =  KUJ;
@@ -8019,27 +7869,9 @@ var
 } /* initInsnTemplates */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regKeywords();
+void regKeywords() { /*=A3 regKeywords */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regResWord(keyword: int);
-var
-    kw: *kword;
-{
-    curVal.i  =  keyword & hashMask;
-    curVal.i = mapai(curVal.a);
-    kw = malloc(sizeof(kword));
-    with *kw do {
-        w  =  keyword;
-        sym  =  SY;
-        op  =  charClass;
-        next  =  kwordHash[curVal.i];
-    }
-    kwordHash[curVal.i]  =  kw;
-} /* regResWord */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /*=A3 regKeywords */
     SY  =  EXPROP;
     charClass  =  INOP;
     regResWord('      IN');
@@ -8055,7 +7887,6 @@ var
 } /*=A2 regKeywords */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-{ /* initTables */
     FcstCnt  =  0;
     FcstCount  =  0;
     initInsnTemplates();
@@ -8077,11 +7908,10 @@ var
 } /* initTables */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void finalize();
+void finalize() {
 var
     idx, cnt: int;
     sizes: int[10];
-{
     sizes[0]  =  1;
     sizes[1]  =  symTabPos - 074000 - 1;
     sizes[4]  =  longSymCnt;
@@ -8123,8 +7953,7 @@ var
 } /* finalize */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void initOptions();
-{
+void initOptions() {
     pasinfor.startOffset  =  (pasinfor.startOffset & ~[0..6]) - 16384;
     commentModeCH  =  ' ';
     lineNesting  =  0;
@@ -8158,7 +7987,7 @@ void initOptions();
     paseofcd  =  '*copy:';
 } /* initOptions */
 //
-{ /* main */
+void main() {
     if (PASINFOR.listMode != 0)
         writeln(boilerplate);
     if (setjmp(&jb9999)) goto 9999;
@@ -8175,13 +8004,16 @@ void initOptions();
         writeln(' MAXHEAP = ', maxHeap:5 oct);
     }
 }
+{ main(); }
 .data
     frameRegTemplate  =  04000000;
     constRegTemplate  =  I8;
     disNormTemplate  =   KNTR+7;
     blockBegSys  =  [CONSTSY, TYPEDEFSY, VARSY, VOIDSY, BEGINSY];
-    statBegSys  =   [BEGINSY, IFSY, SWITCHSY, DOSY, WHILESY, FORSY, WITHSY,
-                    GOTOSY];
+    statBegSys  =   [IDENT, EXPROP, LPAREN, INTCONST, REALCONST,
+                     CHARCONST, STRINGSY, LBRACK, BEGINSY, IFSY,
+                     SWITCHSY, DOSY, WHILESY, FORSY, WITHSY, GOTOSY,
+                     BREAKSY, CONTSY, SEMICOLON];
     hashMask  =  0203407U;
     statEndSys  =  [SEMICOLON, ENDSY, ELSESY, WHILESY];
     lvalOpSet  =  [GETELT, GETVAR, op37, GETFIELD, DEREF, FILEPTR];

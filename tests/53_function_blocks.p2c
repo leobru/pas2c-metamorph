@@ -7,8 +7,10 @@ int outer(base: int) {
     var total: int;
         slot: pint;
     int addbias(x: int) {
+    var f: int[30];
         return x + bias;
     }
+    *slot = 0;
     slot = &total;
     *slot = addbias(base);
     return total;
