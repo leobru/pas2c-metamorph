@@ -2,8 +2,7 @@
 extern _output_;
 var result: int;
 //
-int square(x: int);
-{
+int square(x: int) {
     return x * x;
 }
 //

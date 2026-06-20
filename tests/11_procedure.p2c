@@ -1,8 +1,7 @@
 /*=p-,t-,s8,y+,k9,l0*/
 extern _output_;
 //
-void greet(x: int);
-{
+void greet(x: int) {
     writeln('Hello, number ', x:0);
 }
 //

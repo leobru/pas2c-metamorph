@@ -4,18 +4,15 @@ extern _output_;
 typedef intptr = *int;
 var g: int;
 //
-void ping();
-{
+void ping() {
     writeln('PING');
 }
 //
-int add(a, b: int);
-{
+int add(a, b: int) {
     return a + b;
 }
 //
-void addto(p: intptr; delta: int);
-{
+void addto(p: intptr; delta: int) {
     *p = *p + delta;
 }
 //

@@ -4,18 +4,15 @@ extern _output_;
 void later;
 FORWARD;
 //
-void ping();
-{
+void ping() {
     writeln('PING');
 }
 //
-int answer();
-{
+int answer() {
     return 42;
 }
 //
-void later();
-{
+void later() {
     writeln('LATER');
 }
 //

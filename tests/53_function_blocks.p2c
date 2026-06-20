@@ -1,0 +1,20 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+int outer(base: int) {
+    const bias = 3;
+    typedef pint = *int;
+    var total: int;
+        slot: pint;
+    int addbias(x: int) {
+        return x + bias;
+    }
+    slot = &total;
+    *slot = addbias(base);
+    return total;
+}
+//
+{
+    writeln('blocks ', outer(5):0);
+}
+.

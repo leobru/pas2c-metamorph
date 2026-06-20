@@ -6,16 +6,14 @@ var
     arspan: int;
 
 // expected words: ceil(arspan * bitW / 48)
-int wrdsExp(bitW: int);
-{
+int wrdsExp(bitW: int) {
     if (bitW > 24)
         return arspan;
     else
         return (arspan * bitW + 47) / 48;
 }
 
-int chkWords(tag: int; got: int; exp: int);
-{
+int chkWords(tag: int; got: int; exp: int) {
     if (got != exp) {
         writeln('FAIL size tag=', tag:0, ' got=', got:0,
                 ' exp=', exp:0);
@@ -26,46 +24,40 @@ int chkWords(tag: int; got: int; exp: int);
     }
 }
 
-int tsz08();
-var a: __packed int:8[1..12];
-{
+int tsz08() {
+    var a: __packed int:8[1..12];
     return chkWords(8, sizeof(a), wrdsExp(8));
 }
 
-int tsz16();
-var b: __packed int:16[1..12];
-{
+int tsz16() {
+    var b: __packed int:16[1..12];
     return chkWords(16, sizeof(b), wrdsExp(16));
 }
 
-int tsz24();
-var c: __packed int:24[1..12];
-{
+int tsz24() {
+    var c: __packed int:24[1..12];
     return chkWords(24, sizeof(c), wrdsExp(24));
 }
 
-int tsz32();
-var d: __packed int:32[1..12];
-{
+int tsz32() {
+    var d: __packed int:32[1..12];
     return chkWords(32, sizeof(d), wrdsExp(32));
 }
 
-int tsz40();
-var e: __packed int:40[1..12];
-{
+int tsz40() {
+    var e: __packed int:40[1..12];
     return chkWords(40, sizeof(e), wrdsExp(40));
 }
 
-int trw08();
-var buf: __packed int:8[0..13];
-var i: int;
-    lo: int;
-    hi: int;
-    fail: int;
-    v: int:8;
-    maxv: int:8;
-    g: int:8;
-{
+int trw08() {
+    var buf: __packed int:8[0..13];
+    var i: int;
+        lo: int;
+        hi: int;
+        fail: int;
+        v: int:8;
+        maxv: int:8;
+        g: int:8;
     fail = 0;
     lo = 3;
     hi = 9;
@@ -111,15 +103,14 @@ var i: int;
     return 0;
 }
 
-int trw16();
-var buf: __packed int:16[0..13];
-var i: int;
-    lo: int;
-    fail: int;
-    v: int:16;
-    maxv: int:16;
-    g: int:16;
-{
+int trw16() {
+    var buf: __packed int:16[0..13];
+    var i: int;
+        lo: int;
+        fail: int;
+        v: int:16;
+        maxv: int:16;
+        g: int:16;
     fail = 0;
     lo = 5;
     v = 4660;
@@ -157,14 +148,13 @@ var i: int;
     return 0;
 }
 
-int trw24();
-var buf: __packed int:24[0..13];
-var i: int;
-    lo: int;
-    fail: int;
-    v: int:24;
-    g: int:24;
-{
+int trw24() {
+    var buf: __packed int:24[0..13];
+    var i: int;
+        lo: int;
+        fail: int;
+        v: int:24;
+        g: int:24;
     fail = 0;
     lo = 4;
     v = 1000000;
@@ -195,13 +185,12 @@ var i: int;
     return 0;
 }
 
-int tdense();
-var a: __packed int:1[1..48];
-var i: int;
-    fail: int;
-    one: int:1;
-    zero: int:1;
-{
+int tdense() {
+    var a: __packed int:1[1..48];
+    var i: int;
+        fail: int;
+        one: int:1;
+        zero: int:1;
     fail = 0;
     one = 1;
     zero = 0;

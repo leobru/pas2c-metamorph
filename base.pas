@@ -510,13 +510,15 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %              PROGRAMME                 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure programme(var l2arg1z: integer; procName: irptr);
+procedure programme(var l2arg1z: integer; procName: irptr;
+                    bodyBlock: boolean);
 label 23301;
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
     isPredefined, done, retSeen, inTypeDef, hadParens: boolean;
     l2var10z: eptr;
     hasFiles: integer;
+    bodyStatSys: setofsys;
     l2var12z: word;
     l2typ13z, l2typ14z, typedRetType, ceTyp: tptr;
     ceVal: word;
@@ -7328,7 +7330,7 @@ var
 }; (* outputObjFile *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure defineRoutine;
+procedure defineRoutine(bodyBlock: boolean);
 var
     l3var1z, l3var2z, l3var3z: word;
     l3int4z: integer;
@@ -7352,7 +7354,7 @@ var
     if (curProcNesting <> 1) then
         parseDecls(2);
     l2int21z := localSize;
-    if (SY <> BEGINSY) then
+    if not bodyBlock and (SY <> BEGINSY) then
         requiredSymErr(BEGINSY);
     if 23 IN procName@.flags then {
         l3idr5z := procName@.argList;
@@ -7376,19 +7378,28 @@ var
     if not (NoStackCheck IN optSflags.m) then
         fixup(-1, 95); (* P/SC *)
     l3var2z.i := lineNesting;
-    repeat
-        statement;
-        if (curProcNesting = 1) then
-            done := (SY = PERIOD) or (CH = '_000')
+    if bodyBlock then {
+        while (SY <> ENDSY) and (CH <> '_000') do
+            statement;
+        if (SY <> ENDSY) then
+            requiredSymErr(ENDSY)
         else
-            done := (SY IN blockBegSys) or (SY = TYPESY) or (CH = '_000');
-        if not done then
-           if (curProcNesting = 1) then
-               requiredSymErr(PERIOD)
-           else {
-               errAndSkip(errBadSymbol, skipToSet);
-           }
-    until done;
+            inSymbol;
+    } else {
+        repeat
+            statement;
+            if (curProcNesting = 1) then
+                done := (SY = PERIOD) or (CH = '_000')
+            else
+                done := (SY IN blockBegSys) or (SY = TYPESY) or (CH = '_000');
+            if not done then
+               if (curProcNesting = 1) then
+                   requiredSymErr(PERIOD)
+               else {
+                   errAndSkip(errBadSymbol, skipToSet);
+               }
+        until done;
+    };
     procName@.flags := (usedRegs * [0:15]) + (procName@.flags - l3var7z.m);
     lineNesting := l3var2z.i - 1;
     if not bool48z and not doPMD and (l2int21z = 3) and
@@ -7720,7 +7731,7 @@ var l : integer;
     lookupMode := lookUse;
     l3var6z := 40;
     repeat
-        programme(l3var6z, programObj);
+        programme(l3var6z, programObj, false);
     until (SY = PERIOD) or (CH = '_000');
     if (CH <> 'D') then {
         lookup2 := 0;
@@ -7904,6 +7915,9 @@ procedure markTypeSym;
     inTypeDef := false;
     retSeen := ;
     hasFiles := 0;
+    bodyStatSys := statBegSys + [IDENT,EXPROP,LPAREN,INTCONST,REALCONST,
+                                 CHARCONST,STRINGSY,LBRACK,BREAKSY,CONTSY,
+                                 SEMICOLON];
     strLabList := NIL;
     lineNesting := lineNesting + 1;
     labFence := numLabTop;
@@ -8083,7 +8097,9 @@ procedure markTypeSym;
                via a scope-agnostic walk over the hash bucket. *)
             hashTravPtr := NIL;
             markTypeSym;
-        until (SY <> IDENT);
+        until (SY <> IDENT) or
+              (bodyBlock and (hashTravPtr <> NIL) and
+               (hashTravPtr@.cl <> TYPEID));
     }; (* VARSY -> 23003 *)
     if (curProcNesting = 1) then {
         workidr := outputFile;
@@ -8233,6 +8249,20 @@ procedure markTypeSym;
                 checkSymAndRead(RPAREN);
             };
         };
+        if (SY = BEGINSY) then {
+            if (curIdRec@.argList = NIL) and not hadParens then
+                error(42); (* errNoParamList *)
+            setup(scopeBound);
+            inSymbol;
+            programme(l2int18z, curIdRec, true);
+% ifdef kindrout
+            curIdRec@.sigtyp := makeRoutineType(curIdRec);
+% endif
+            myrollup(ord(scopeBound));
+            exitScope(symHash);
+            exitScope(fieldHash);
+            goto 23301;
+        };
         checkSymAndRead(SEMICOLON);
         with curIdRec@ do if (curIdent = litForward) then {
             if (isPredefined) then
@@ -8265,7 +8295,7 @@ procedure markTypeSym;
                 error(42); (* errNoParamList *)
             (loop) repeat
                     setup(scopeBound);
-                    programme(l2int18z, curIdRec);
+                    programme(l2int18z, curIdRec, false);
                     if CH = '_000' then exit loop;
                     markTypeSym;
                     (* A type-ident also opens a new C-style routine decl. *)
@@ -8296,9 +8326,17 @@ procedure markTypeSym;
     };
     markTypeSym;
     if CH = '_000' then exit;
-    if not (SY IN blockBegSys) and not (SY IN [VOIDSY,TYPESY]) then
+    if bodyBlock then {
+        if not (SY IN (bodyStatSys + blockBegSys)) and
+           not (SY IN [VOIDSY,TYPESY,ENDSY]) then
+            errAndSkip(84 (* errErrorInDeclarations *),
+                       skipToSet + bodyStatSys + blockBegSys + [ENDSY]);
+    } else if not (SY IN blockBegSys) and not (SY IN [VOIDSY,TYPESY]) then
         errAndSkip(84 (* errErrorInDeclarations *), skipToSet);
-    until (SY in statBegSys) or (SY IN [VOIDSY,TYPESY]);
+    until (bodyBlock and ((SY IN bodyStatSys) or
+                          (SY IN [VOIDSY,TYPESY,ENDSY]))) or
+          (not bodyBlock and ((SY in statBegSys) or
+                              (SY IN [VOIDSY,TYPESY])));
     if (preDefHead <> ptr(0)) then {
         error(85); (* errNotFullyDefinedProcedures *)
         while (preDefHead <> ptr(0)) do {
@@ -8307,13 +8345,14 @@ procedure markTypeSym;
         };
         writeLN;
     };
-    defineRoutine;
+    defineRoutine(bodyBlock);
     if (curProcNesting > 1) and
         not retSeen and (procName@.typ <> voidType) then {
         writeln(' above function must return a value');
         error(200);
     };
-    while (numLabTop > 0) do {
+    done := true;
+    while (numLabTop > labFence) do {
         if not (numLabs[numLabTop].defined) then {
             write(' ', numLabs[numLabTop].id.i:0, ':');
             done := false;
@@ -8546,7 +8585,7 @@ procedure initOptions;
     initOptions;
     curInsnTemplate := 0;
     initTables;
-    programme(curInsnTemplate, hashTravPtr);
+    programme(curInsnTemplate, hashTravPtr, false);
     if errors then {
 9999:   writeln(' IN ', (lineCnt-1):0, ' LINES ',
             totalErrors:0, ' ERRORS');

@@ -6,15 +6,13 @@ int setjmp(jmpbuf: *int); assembler;
 var jb: int;
 var n: int;
 //
-void inner();
-{
+void inner() {
     writeln(' inner: about to longjmp');
     longjmp(jb, 1);
     writeln(' inner: unreachable');
 }
 //
-void middle();
-{
+void middle() {
     writeln(' middle: calling inner');
     inner();
     writeln(' middle: unreachable');

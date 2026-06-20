@@ -1,8 +1,7 @@
 /*=p-,t-,s8,y+,k9,l0*/
 extern _output_;
 //
-int fact(n: int);
-{
+int fact(n: int) {
     if (n <= 1) {
         return 1;
     } else {

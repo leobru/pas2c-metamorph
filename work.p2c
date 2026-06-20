@@ -1793,12 +1793,13 @@ int leftAlign(val:int);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PROGRAMME                 %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void programme(retSizePtr: *int; procName: irptr);
+void programme(retSizePtr: *int; procName: irptr; bodyBlock: int);
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
     isPredefined, l2bool8z, inTypeDef, hadParens: int;
     l2var10z: eptr;
     hasFiles: int;
+    bodyStatSys: int;
     l2var12z: int;
     l2typ13z, l2typ14z, typedRetType, ceTyp: tptr;
     ceVal, ceRegs: int;
@@ -6968,7 +6969,7 @@ var
 } /* outputObjFile */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void defineRoutine();
+void defineRoutine(bodyBlock: int);
 var
     l3var1z, l3var2z, l3int4z: int;
     l3idr5z: irptr;
@@ -6992,7 +6993,7 @@ var
     if (curProcNesting != 1)
         parseDecls(2);
     sizeCount  =  localSize;
-    if (SY != BEGINSY)
+    if (! bodyBlock && SY != BEGINSY)
         requiredSymErr(BEGINSY);
     if ((E48 >> 23) & procName->flags) {
         l3idr5z  =  procName->argList;
@@ -7016,19 +7017,28 @@ var
     if (! (NoStackCheck IN optSflags))
         fixup(-1, 95); /* P/SC */
     l3var2z  =  lineNesting;
-    do {
-        statement();
-        if (curProcNesting == 1)
-            l2bool8z = (SY == PERIOD) || (CH == '\0');
+    if (bodyBlock) {
+        while (SY != ENDSY && CH != '\0')
+            statement();
+        if (SY != ENDSY)
+            requiredSymErr(ENDSY);
         else
-            l2bool8z = (SY IN blockBegSys) || (SY == TYPESY) || (CH == '\0');
-        if (! l2bool8z) {
-           if (curProcNesting == 1)
-               requiredSymErr(PERIOD);
-           else
-               errAndSkip(errBadSymbol, skipToSet);
-        }
-    } while (! l2bool8z);
+            inSymbol();
+    } else {
+        do {
+            statement();
+            if (curProcNesting == 1)
+                l2bool8z = (SY == PERIOD) || (CH == '\0');
+            else
+                l2bool8z = (SY IN blockBegSys) || (SY == TYPESY) || (CH == '\0');
+            if (! l2bool8z) {
+               if (curProcNesting == 1)
+                   requiredSymErr(PERIOD);
+               else
+                   errAndSkip(errBadSymbol, skipToSet);
+            }
+        } while (! l2bool8z);
+    }
     procName->flags  =  usedRegs & [0:15] | procName->flags & ~l3var7z;
     lineNesting  =  l3var2z - 1;
     if (!bool48z && ! doPMD && (sizeCount == 3) &&
@@ -7344,7 +7354,7 @@ void defExtern();
     lookupMode  =  lookUse;
     l3var6z  =  40;
     do {
-        programme(&l3var6z, programObj);
+        programme(&l3var6z, programObj, false);
     } while ((SY != PERIOD) && (CH != '\0'));
     if (CH != 'D') {
         lookup2  =
@@ -7523,6 +7533,9 @@ void markTypeSym();
     preDefHead  =  irptr(0);
     inTypeDef  =  false;
     hasFiles  =  0;
+    bodyStatSys  =  statBegSys | [IDENT,EXPROP,LPAREN,INTCONST,REALCONST,
+                                  CHARCONST,STRINGSY,LBRACK,BREAKSY,CONTSY,
+                                  SEMICOLON];
     strLabList  =  NIL;
     ++lineNesting;
     labFence  =  numLabTop;
@@ -7700,7 +7713,9 @@ void markTypeSym();
                via a scope-agnostic walk over the hash bucket. */
             hashTravPtr  =  NIL;
             markTypeSym();
-        } while (SY == IDENT);
+        } while (SY == IDENT &&
+                 (! bodyBlock || hashTravPtr == NIL ||
+                  hashTravPtr->cl == TYPEID));
     }
     if (curProcNesting == 1) {
         workidr  =  outputFile;
@@ -7844,6 +7859,18 @@ void markTypeSym();
                 checkSymAndRead(RPAREN);
             }
         }
+        if (SY == BEGINSY) {
+            if (curIdRec->argList == NIL && ! hadParens)
+                error(42); /* errNoParamList */
+            scopeBound = irptr(setup());
+            inSymbol();
+            programme(&l2int18z, curIdRec, true);
+            curIdRec->sigtyp  =  makeRoutineType(curIdRec);
+            myrollup(int(scopeBound));
+            exitScope(0);
+            exitScope(1);
+            goto 23301;
+        }
         checkSymAndRead(SEMICOLON);
         with *curIdRec do if (curIdent == litForward) {
             if (isPredefined)
@@ -7872,7 +7899,7 @@ void markTypeSym();
                 error(42); /* errNoParamList */
             do {
                 scopeBound = irptr(setup());
-                programme(&l2int18z, curIdRec);
+                programme(&l2int18z, curIdRec, false);
                 if (CH == '\0')
                     break;
                 markTypeSym();
@@ -7902,10 +7929,18 @@ void markTypeSym();
     markTypeSym();
     if (CH == '\0')
         return;
-    if ((SY != BEGINSY) && ! (SY IN [VOIDSY,TYPESY]) &&
+    if (bodyBlock) {
+        if (! (SY IN (bodyStatSys | blockBegSys)) &&
+            ! (SY IN [VOIDSY,TYPESY,ENDSY]))
+            errAndSkip(84 /* errErrorInDeclarations */,
+                       skipToSet | bodyStatSys | blockBegSys | [ENDSY]);
+    } else if ((SY != BEGINSY) && ! (SY IN [VOIDSY,TYPESY]) &&
        (! allowCompat || ! (SY IN blockBegSys)))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
-    } while (! ((SY in statBegSys) || (SY IN [VOIDSY,TYPESY])));
+    } while (! ((bodyBlock && ((SY IN bodyStatSys) ||
+                               (SY IN [VOIDSY,TYPESY,ENDSY]))) ||
+                (! bodyBlock && ((SY in statBegSys) ||
+                                 (SY IN [VOIDSY,TYPESY])))));
     if (preDefHead != irptr(0)) {
         error(85); /* errNotFullyDefinedVoids */
         while (preDefHead != irptr(0)) {
@@ -7914,7 +7949,8 @@ void markTypeSym();
         }
         writeLN;
     }
-    defineRoutine();
+    defineRoutine(bodyBlock);
+    l2bool8z  =  true;
     while (numLabTop > labFence) {
         if (! numLabs[numLabTop].defined) {
             write(' ', numLabs[numLabTop].id:0, ':');
@@ -8129,7 +8165,7 @@ void initOptions();
     initOptions();
     curInsnTemplate  =  0;
     initTables();
-    programme(&curInsnTemplate, hashTravPtr);
+    programme(&curInsnTemplate, hashTravPtr, false);
     if (errors) {
 9999:   writeln(' IN ', (lineCnt-1):0, ' LINES ',
             totalErrors:0, ' ERRORS');
