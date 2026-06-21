@@ -28,8 +28,10 @@ C   until this file is moved into paslib).  In the meantime
 C   the FILEINIT-style frame we just pushed is popped back
 C   off and the procedure returns through the caller's M13.
 C===========================================================
+ p/co  :        , subp,
+ p/it  :        , subp,
                 , ntr , 7      . ABI requirement
-            6   , base, area   . M6 = base for local cells
+            14  , base, area   . M14 = base for local cells
 C ---- save the FCB pointer; ACC at entry is fcb ----
                 , atx , afcb   . afcb := fcb (no pop; nothing on stack)
 C ---- M12 := fcb (P/CO requires it) ----
@@ -40,17 +42,10 @@ C ---- FILEINIT-style frame, with a non-zero close marker ----
             15  , atx ,        . [SP] := M13
                 , xta , afcb   . ACC := fcb (the close marker, into P/CO)
 C ---- intended call P/CO (helper #69) and tail-jump to P/IT
-C      (helper #70).  Disabled because P/CO and P/IT are paslib-
-C      only and not visible at libc link time; uncomment the
-C      following two lines once they are libc-resolvable:
-C           13  , vjm , p/co
-C               , uj  , p/it
-C ---- fallback: pop the [SP]=M13 word that ,its,13 + ,atx,SP
-C      placed on the stack, then return through the caller's
-C      M13 (still in M13, since we never made the VJM call).
-                , stx , afcb   . pop the saved-link slot (target irrelevant)
-            13  , uj  ,        . return via M13
-C ---- local cells (M6-relative) ----
+C      (helper #70).
+            13  , vjm , p/co
+                , uj  , p/it
+C ---- local cells (M14-relative) ----
  area  :       , bss ,
  afcb  :       , log ,
                 , end ,

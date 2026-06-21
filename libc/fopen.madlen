@@ -36,8 +36,10 @@ C   so the calling convention is fully exercised and the
 C   compiler's existing implicit FILEINIT/C/EF mechanism
 C   still owns the actual buffer/track allocation.
 C===========================================================
+ p/co  :        , subp,
+ p/it  :        , subp,
                 , ntr , 7      . ABI requirement
-            6   , base, area   . M6 = base for the local cells
+            14  , base, area   . M6 = base for the local cells
 C ---- consume the 6 args off the Pascal stack (5 STX + 1 ATX) ----
                 , stx , aname  . aname := name; pop -> ACC = bufsize
                 , stx , absz   . absz := bufsize; pop -> ACC = basesize
@@ -61,17 +63,9 @@ C ---- FILEINIT-style frame: ,its,13 + ,atx,SP, then re-load name ----
             15  , atx ,        . [SP] := M13 (return link, FILEINIT-style)
                 , xta , aname  . ACC := name (final input to P/CO)
 C ---- intended call P/CO (helper #69) and tail-jump to P/IT
-C      (helper #70).  Disabled because P/CO and P/IT are paslib-
-C      only and not visible at libc link time; uncomment the
-C      following two lines once they are libc-resolvable:
-C           13  , vjm , p/co
-C               , uj  , p/it
-C ---- fallback: pop the [SP]=M13 word that ,its,13 + ,atx,SP
-C      placed on the stack (so the caller's stack stays balanced),
-C      then return through the caller's M13 (still in M13, since
-C      we never made the VJM call that would have rewritten it).
-                , stx , aname  . pop the saved-link slot (target irrelevant)
-            13  , uj  ,        . return via M13
+C      (helper #70).
+            13  , vjm , p/co
+                , uj  , p/it
 C ---- local cells (M6-relative) ----
  area  :       , bss ,
  aname :       , log ,
@@ -80,4 +74,4 @@ C ---- local cells (M6-relative) ----
  aelsz :       , log ,
  apck  :       , log ,
  afcb  :       , log ,
-                , end ,
+               , end ,
