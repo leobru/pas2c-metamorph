@@ -375,7 +375,7 @@ extfilerec = struct {
 NumberFormat = enum {DECIMAL, OCTAL, FULLWORD, HEX};
 hashArray = irptr[128];
 tok = int:15;
-ifcb = struct { d:*int; rest: int[29]; };
+ifcb = struct { data:*int; rest: int[29]; };
 //
 var
     numFormat: NumberFormat;
@@ -5325,7 +5325,7 @@ var
         checkMode  =  [fnSQRT:fnABS,fnMALLOC,fnCARD,fnMINEL];
     else if ((arg1Type == charType) || (argKind == kindScalar) || (argKind == kindPtr))
         checkMode  =  0U;
-    else if (argKind == kindFile)
+    else if (arg1Type.p.psize == 30)
         checkMode  =  [fnEOF, fnEOLN];
     else {
         checkMode  =  0U;
@@ -6107,7 +6107,9 @@ var boundary: eptr;
     l4var7z: int;
     savedVal: word;
     dataSegLen: int;
-var F: file of int;
+var F: ifcb;
+void fopen(fcb: *ifcb; packed, elsize, basesize, bufsize, name: int);
+assembler;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void putDataRec(count: int) { /* putDataRec */
@@ -6130,7 +6132,7 @@ var
     }
     rec  =  rec | curVal.i & 07777U;
     dataSegLen  =  count * length + dataSegLen;
-    *F  =  rec;
+    *F.data  =  rec;
     put(F);
     ++setcount;
     length  =  0;
@@ -6138,6 +6140,7 @@ var
 } /* putDataRec */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    fopen(&F, 0, 0, 1, 1, 0);
     dsize  =  FcstCnt;
     inSymbol();
     setcount  =  0;
@@ -6208,7 +6211,7 @@ var
         error(errBadSymbol);
     reset(F);
     while (! eof(F)) {
-        write(FCST, *F);
+        write(FCST, *F.data);
         get(F);
     }
     lookup2  =  FcstCnt - dsize;

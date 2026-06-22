@@ -5771,7 +5771,7 @@ var
         checkMode := chkSCALAR
     else if (argKind = kindPtr) then
         checkMode := chkPTR
-    else if (argKind = kindFile) then
+    else if (arg1Type.p.psize = 30) then
         checkMode := chkFILE
     else {
         checkMode := chkOTHER;

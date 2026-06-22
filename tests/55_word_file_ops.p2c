@@ -13,7 +13,6 @@ void fclose(fcb: *fileblk); assembler;
 //
 var
     f: fileblk;
-    x, y: int;
 //
 {
     fopen(&f, 0, 48, 1, 1, 0);
@@ -22,18 +21,20 @@ var
     rewrite(f);
     writeln('rewrite ', f.w4:0, ' ', f.w14:0, ' ', f.w2:0, ' ', f.w16:0);
 
-    x = 1234;
-    f.data = &x;
+    *f.data = 1234;
+    put(f);
+    *f.data = 2345;
+    put(f);
+    *f.data = 3456;
     put(f);
     writeln('put ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
 
     reset(f);
-    writeln('reset ', f.w4:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
-
-    y = 0;
-    f.data = &y;
+    writeln('reset ', *f.data:0, ' ', f.w4:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
     get(f);
-    writeln('get ', y:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
+    writeln('get1 ', *f.data:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
+    get(f);
+    writeln('get2 ', *f.data:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
 
     fclose(&f);
     writeln('close ', f.w4:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
