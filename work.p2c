@@ -290,8 +290,7 @@ types = struct {
                 numen,
                 start:     int; szScalar: int};
         struct {base:      tptr; szPtr: int};
-        struct {fbase:     tptr;
-                elsize:    int; szFile: int};
+        struct {fbase:     tptr; szFile: int};
         struct {variants: tptr;
                 fields:    irptr;
                 flag,
@@ -376,6 +375,7 @@ extfilerec = struct {
 NumberFormat = enum {DECIMAL, OCTAL, FULLWORD, HEX};
 hashArray = irptr[128];
 tok = int:15;
+ifcb = struct { d:*int; rest: int[29]; };
 //
 var
     numFormat: NumberFormat;
@@ -3946,39 +3946,39 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void formFileInit() {
-var l4exf1z: *extfilerec;
-    l4var2z: tptr;
-    l4var3z: irptr;
-    l4int4z, elSize: int;
+var extFileP: *extfilerec;
+    fileBase: tptr;
+    fileSym: irptr;
+    fileAddr, elemSize: int;
     if ((E48 >> S5) & optSflags) {
         formAndAlign(KUJ+I13);
         return;
     }
     form2Insn(KITS+13, KATX+SP);
     while (curExpr != NIL) {
-        l4exf1z  =  pextf(curExpr->typ);
-        l4var3z  =  curExpr->id2;
-        l4int4z  =  l4var3z->value;
-        l4var2z  =  l4var3z->typ.rep->base;
-        elSize  =  l4var3z->typ.rep->elsize;
-        if (l4int4z < 074000) {
-            form1Insn(getValueOrAllocSymtab(l4int4z) +
+        extFileP  =  pextf(curExpr->typ);
+        fileSym  =  curExpr->id2;
+        fileAddr  =  fileSym->value;
+        fileBase  =  fileSym->typ.rep->base;
+        elemSize  =  fileSym->typ.p.pad;
+        if (fileAddr < 074000) {
+            form1Insn(getValueOrAllocSymtab(fileAddr) +
                       KUTC + I7);
-            l4int4z  =  0;
+            fileAddr  =  0;
         }
-        form3Insn(KVTM+I12 + l4int4z, KVTM+I10 + fileBufSize,
-                  KVTM+I9 + elSize);
-        form1Insn(KVTM+I11 + l4var2z.p.psize);
-        if (l4exf1z == NIL) {
+        form3Insn(KVTM+I12 + fileAddr, KVTM+I10 + fileBufSize,
+                  KVTM+I9 + elemSize);
+        form1Insn(KVTM+I11 + fileBase.p.psize);
+        if (extFileP == NIL) {
             form1Insn(KXTA);
         } else {
-            curVal.i  =  l4exf1z->location;
+            curVal.i  =  extFileP->location;
             if (curVal.i == 512)
-                curVal.i  =  l4exf1z->offset;
+                curVal.i  =  extFileP->offset;
             form1Insn(KXTA+I8 + getFCSToffset());
         }
         formAndAlign(getHelperProc(69)); /*"P/CO"*/
-        curVal.i  =  l4var3z->id;
+        curVal.i  =  fileSym->id;
         form2Insn(KXTA+I8+getFCSToffset(), KATX+I12+26);
 // File structure offset 25: a bit pattern to add after unpacking
 // No need to do that for integers with zero exponent
@@ -4638,8 +4638,8 @@ var
                 l3int22z  =  0;
             with *(curType.rep) do {
                 base  =  nestedType;
-                elsize  =  l3int22z;
             }
+            curType.p.pad  =  l3int22z;
             curType.p.psize  =  30;
             curType.p.bits  =  48;
             curType.p.pk  =  kindFile;
@@ -7083,8 +7083,8 @@ void defExtern() {
     textType.rep = malloc(offsetof(types, szFile));
     with *(textType.rep) do {
         base  =  charType;
-        elsize  =  8;
     }
+    textType.p.pad  =  8;
     textType.p.psize  =  30;
     textType.p.bits  =  48;
     textType.p.pk  =  kindFile;

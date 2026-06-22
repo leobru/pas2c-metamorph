@@ -4221,10 +4221,10 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure formFileInit;
-var l4exf1z: @extfilerec;
-    l4var2z: tptr;
-    l4var3z: irptr;
-    l4int4z, l4int5z: integer;
+var extFileP: @extfilerec;
+    fileBase: tptr;
+    fileSym:  irptr;
+    fileAddr, elemSize: integer;
 {
     if (S5 IN optSflags.m) then {
         formAndAlign(KUJ+I13);
@@ -4232,29 +4232,29 @@ var l4exf1z: @extfilerec;
     };
     form2Insn(KITS+13, KATX+SP);
     while (curExpr <> NIL) do {
-        l4exf1z := ptr(ord(curExpr@.vt.typ.rep));
-        l4var3z := curExpr@.id2;
-        l4int4z := l4var3z@.value;
-        l4var2z := l4var3z@.typ.rep@.base;
-        l4int5z := l4var3z@.typ.p.pad;
-        if (l4int4z < 74000B) then {
-            form1Insn(getValueOrAllocSymtab(l4int4z) +
+        extFileP := ptr(ord(curExpr@.vt.typ.rep));
+        fileSym := curExpr@.id2;
+        fileAddr := fileSym@.value;
+        fileBase := fileSym@.typ.rep@.base;
+        elemSize := fileSym@.typ.p.pad;
+        if (fileAddr < 74000B) then {
+            form1Insn(getValueOrAllocSymtab(fileAddr) +
                       insnTemp[UTC] + I7);
-            l4int4z := 0;
+            fileAddr := 0;
         };
-        form3Insn(KVTM+I12 + l4int4z, KVTM+I10 + fileBufSize,
-                  KVTM+I9 + l4int5z);
-        form1Insn(KVTM+I11 + l4var2z.p.psize);
-        if (l4exf1z = NIL) then {
+        form3Insn(KVTM+I12 + fileAddr, KVTM+I10 + fileBufSize,
+                  KVTM+I9 + elemSize);
+        form1Insn(KVTM+I11 + fileBase.p.psize);
+        if (extFileP = NIL) then {
             form1Insn(insnTemp[XTA]);
         } else {
-            curVal.i := l4exf1z@.location;
+            curVal.i := extFileP@.location;
             if (curVal.i = 512) then
-                curVal.i := l4exf1z@.offset;
+                curVal.i := extFileP@.offset;
             form1Insn(KXTA+I8 + getFCSToffset);
         };
         formAndAlign(getHelperProc(69)); (*"P/CO"*)
-        curVal := l4var3z@.id;
+        curVal := fileSym@.id;
         form2Insn(KXTA+I8+getFCSToffset, KATX+I12+26);
         curExpr := curExpr@.expr1;
     };

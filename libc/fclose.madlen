@@ -18,8 +18,6 @@ C
 C   Calling convention (single arg, in ACC):
 C     ACC = fcb     (pointer to the file's FCB)
 C
-C   M6 bases the local cells; M12 ends up holding the FCB.
-C
 C   The trailing two-instruction tail (vjm,p/co + uj,p/it) is
 C   the intended body but references paslib-only symbols that
 C   the libc-time linker cannot resolve, so those two lines
@@ -31,21 +29,15 @@ C===========================================================
  p/co  :        , subp,
  p/it  :        , subp,
                 , ntr , 7      . ABI requirement
-            14  , base, area   . M14 = base for local cells
-C ---- save the FCB pointer; ACC at entry is fcb ----
-                , atx , afcb   . afcb := fcb (no pop; nothing on stack)
 C ---- M12 := fcb (P/CO requires it) ----
                 , ati , 12     . M12 := fcb (ACC still holds fcb)
 C ---- FILEINIT-style frame, with a non-zero close marker ----
-                , xta , afcb   . ACC := fcb (non-zero -> close discriminator)
+                , bss ,        . ACC is fcb (non-zero -> close discriminator)
                 , its , 13     . push ACC; ACC := M13
             15  , atx ,        . [SP] := M13
-                , xta , afcb   . ACC := fcb (the close marker, into P/CO)
+                , bss ,        . ACC is M13 (non-zero -> close marker into P/CO)
 C ---- intended call P/CO (helper #69) and tail-jump to P/IT
 C      (helper #70).
             13  , vjm , p/co
                 , uj  , p/it
-C ---- local cells (M14-relative) ----
- area  :       , bss ,
- afcb  :       , log ,
                 , end ,

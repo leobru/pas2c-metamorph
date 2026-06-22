@@ -23,7 +23,7 @@ C     [SP-2]       = elsize
 C     [SP-3]       = packed
 C     [SP-4 bot.]  = fcb       (pointer to the file's FCB)
 C
-C   M6 bases the local cells; M12 is left free for the FCB.
+C   M14 bases the local cells; M12 is left free for the FCB.
 C
 C   The trailing two-instruction tail (vjm,p/co + uj,p/it) is
 C   the intended body but references paslib-only symbols that
@@ -39,7 +39,7 @@ C===========================================================
  p/co  :        , subp,
  p/it  :        , subp,
                 , ntr , 7      . ABI requirement
-            14  , base, area   . M6 = base for the local cells
+            14  , base, area   . M14 = base for the local cells
 C ---- consume the 6 args off the Pascal stack (5 STX + 1 ATX) ----
                 , stx , aname  . aname := name; pop -> ACC = bufsize
                 , stx , absz   . absz := bufsize; pop -> ACC = basesize
@@ -66,7 +66,7 @@ C ---- intended call P/CO (helper #69) and tail-jump to P/IT
 C      (helper #70).
             13  , vjm , p/co
                 , uj  , p/it
-C ---- local cells (M6-relative) ----
+C ---- local cells (M14-relative) ----
  area  :       , bss ,
  aname :       , log ,
  absz  :       , log ,
