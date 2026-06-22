@@ -6488,7 +6488,7 @@ var
         jumpTarget  =  getHelperProc(29 + procNo); /* P/PF */
     switch (procNo) {
     case 0: case 1: case 2: case 3: /* put, get, rewrite, reset */
-        if (curVarKind != kindFile)
+        if (arg1Type.p.psize != 30)
             error(47); /* errNoVarOfFileType */
         if (procNo == 3 && SY == COMMA) { // reset with file location
             formOperator(SETREG12);

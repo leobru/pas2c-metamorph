@@ -6991,7 +6991,7 @@ var
         jumpTarget := getHelperProc(29 + procNo); (* P/PF *)
     case procNo of
     0, 1, 2, 3: { (* put, get, rewrite, reset *)
-        if (curVarKind <> kindFile) then
+        if (arg1Type.p.psize <> 30) then
             error(47); (* errNoVarOfFileType *)
         if (procNo = 3) and
            (SY = COMMA) then {
