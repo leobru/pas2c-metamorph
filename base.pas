@@ -1085,13 +1085,10 @@ var
         form3Insn(KITA+14, insnTemp[ASN] + arg, KAOX+I7+1);
         form1Insn(KATX+I7+1);
         exit;
-    } else if (mode = 1) or (mode < -2) then {
+    } else if (mode < -2) then {
         arg := arg - curVal.i;
         offset := getFCSToffset;
-        if mode = 1 then
-            work := getHelperProc(68) + (-64200000B) (* P/DA *)
-        else
-            work := -mode;
+        work := -mode;
         curVal.i := arg;
         arg := getFCSToffset;
         form3Insn(KATX+SP+1, KSUB+I8 + offset, work);

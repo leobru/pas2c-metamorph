@@ -8,14 +8,14 @@ typedef fileblk = struct {
     w21, w22, w23, w24, w25, w26, w27, w28, w29: int;
 };
 //
-void fopen(fcb: *fileblk; packed, elsize, basesize, bufsize, name: int); assembler;
+void fopen(fcb: *fileblk; sizes, name: int); assembler;
 void fclose(fcb: *fileblk); assembler;
 //
 var
     f: fileblk;
 //
 {
-    fopen(&f, 0, 48, 1, 1, 0);
+    fopen(&f, 010000100060, 0);
     writeln('open ', f.w4:0, ' ', f.w18:0, ' ', f.w27:0, ' ', f.w2:0);
 
     rewrite(f);

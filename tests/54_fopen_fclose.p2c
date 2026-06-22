@@ -8,14 +8,14 @@ typedef fileblk = struct {
     w21, w22, w23, w24, w25, w26, w27, w28, w29: int;
 };
 //
-void fopen(fcb: *fileblk; packed, elsize, basesize, bufsize, name: int); assembler;
+void fopen(fcb: *fileblk; sizes, name: int); assembler;
 void fclose(fcb: *fileblk); assembler;
 //
 var
     f, a, b, c: fileblk;
 //
 {
-    fopen(&f, 0, 8, 1, 1, 0);
+    fopen(&f, 010000100010, 0);
     writeln('open ',
             f.w18:0, ' ',
             f.w27:0, ' ',
@@ -28,16 +28,16 @@ var
             f.w23:0, ' ',
             f.w24:0);
 
-    fopen(&a, 0, 8, 1, 1, 0);
+    fopen(&a, 010000100010, 0);
     writeln('a ', a.w18:0, ' ', a.w27:0, ' ', a.w1 != 0:0);
     fclose(&a);
-    fopen(&b, 0, 8, 1, 1, 0);
+    fopen(&b, 010000100010, 0);
     writeln('b ', b.w18:0, ' ', b.w27:0, ' ', b.w1 != 0:0);
     fclose(&b);
-    fopen(&c, 0, 8, 1, 1, 0);
+    fopen(&c, 010000100010, 0);
     writeln('c ', c.w18:0, ' ', c.w27:0, ' ', c.w1 != 0:0);
     fclose(&c);
-    fopen(&a, 0, 8, 1, 1, 0);
+    fopen(&a, 010000100010, 0);
     writeln('a2 ', a.w18:0, ' ', a.w27:0, ' ', a.w1 != 0:0);
     fclose(&a);
 }

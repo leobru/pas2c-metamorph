@@ -1,6 +1,6 @@
  fopen :       , name,
 C===========================================================
-C fopen(fcb, packed, elsize, basesize, bufsize, name)
+C fopen(fcb, sizes, name)
 C   Explicit-parameter analogue of P/CO's open path.  Mirrors
 C   one iteration of the FILEINIT block emitted by formFileInit
 C   in base.pas: feeds P/CO the same M12/M10/M9/M11/ACC tuple,
@@ -9,19 +9,11 @@ C   ,atx,SP entry and tail-jump to P/IT so the runtime sees
 C   the same stack shape it sees from a compiler-emitted
 C   FILEINIT.
 C
-C   The packed parameter is accepted for API symmetry; today
-C   the runtime infers packing from elsize/basesize, so the
-C   value is staged into apck but not pushed into the FCB.
-C   A future packed-aware P/CO entry can read it from there.
-C
 C   Calling convention (last argument in ACC, others on the
 C   Pascal call stack, like longjmp(env, val)):
 C     ACC          = name      (FCST-packed external name, or 0)
-C     [SP top]     = bufsize
-C     [SP-1]       = basesize
-C     [SP-2]       = elsize
-C     [SP-3]       = packed
-C     [SP-4 bot.]  = fcb       (pointer to the file's FCB)
+C     [SP top]     = sizes     ((bufsize << 30) | (basesize << 15) | elsize)
+C     [SP-1 bot.]  = fcb       (pointer to the file's FCB)
 C
 C   M14 bases the local cells; M12 is left free for the FCB.
 C
@@ -40,22 +32,15 @@ C===========================================================
  p/it  :        , subp,
                 , ntr , 7      . ABI requirement
             14  , base, area   . M14 = base for the local cells
-C ---- consume the 6 args off the Pascal stack (5 STX + 1 ATX) ----
-                , stx , aname  . aname := name; pop -> ACC = bufsize
-                , stx , absz   . absz := bufsize; pop -> ACC = basesize
-                , stx , abasz  . abasz := basesize; pop -> ACC = elsize
-                , stx , aelsz  . aelsz := elsize; pop -> ACC = packed
-                , stx , apck   . apck := packed; pop -> ACC = fcb
-                , atx , afcb   . afcb := fcb (no pop, ACC unchanged)
+C ---- consume the 3 args off the Pascal stack (2 STX + 1 ATX) ----
+                , stx , aname  . aname := name; pop -> ACC = sizes
+C ---- unpack sizes = (bufsize << 30) | (basesize << 15) | elsize ----
 C ---- M9, M10, M11 (matching the per-file VTMs in formFileInit) ----
-                , xta , absz
-                , ati , 10     . M10 := bufsize
-                , xta , aelsz
                 , ati , 9      . M9  := elsize
-                , xta , abasz
+                , asn , 64+15
                 , ati , 11     . M11 := basesize
-C ---- M12 := fcb (last setup that needs M-base, since M12 was free) ----
-                , xta , afcb
+                , asn , 64+15
+                , sti , 10     . M10 := bufsize, pop fcb to ACC
                 , ati , 12     . M12 := fcb
 C ---- FILEINIT-style frame: ,its,13 + ,atx,SP, then re-load name ----
                 , xta , aname  . ACC := name (will get pushed by ITS)
@@ -69,9 +54,4 @@ C      (helper #70).
 C ---- local cells (M14-relative) ----
  area  :       , bss ,
  aname :       , log ,
- absz  :       , log ,
- abasz :       , log ,
- aelsz :       , log ,
- apck  :       , log ,
- afcb  :       , log ,
                , end ,

@@ -510,7 +510,7 @@ var
     iso2text: char['\052'..'\177'];
     text2iso: __packed char['\0'..'\77'];
     maxHeap: int;
-    fcst: file of int; /* last */
+    fcst: ifcb; /* last */
 //
     pasinput: text;
 //
@@ -535,6 +535,7 @@ void longjmp(jmpbuf, val: int); assembler;
 int setjmp(jmpbuf: *int); assembler;
 int setup(); assembler;
 void rollup(addr: int); assembler;
+void fopen(fcb: *ifcb; sizes, name: int); assembler;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
@@ -632,7 +633,8 @@ void addToHashTab(arg: irptr) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void toFCST() {
-    write(FCST, curVal.i);
+    *FCST.data = curVal.i;
+    put(FCST);
     ++FcstCnt;
 } /* toFCST */
 //
@@ -992,13 +994,10 @@ var
         form3Insn(KITA+14, KASN + arg, KAOX+I7+1);
         form1Insn(KATX+I7+1);
         return;
-    } else if (mode == 1 || mode < -2) {
+    } else if (mode < -2) {
         arg  -=  curVal.i;
         offset  =  getFCSToffset();
-        if (mode == 1)
-            work  =  getHelperProc(68) + (KU1A-KVJM-I13); /* P/DA */
-        else
-            work  =  -mode;
+        work  =  -mode;
         curVal.i  =  arg;
         arg  =  getFCSToffset();
         form3Insn(KATX+SP+1, KSUB+I8 + offset, work);
@@ -6108,8 +6107,6 @@ var boundary: eptr;
     savedVal: word;
     dataSegLen: int;
 var F: ifcb;
-void fopen(fcb: *ifcb; packed, elsize, basesize, bufsize, name: int);
-assembler;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void putDataRec(count: int) { /* putDataRec */
@@ -6140,7 +6137,7 @@ var
 } /* putDataRec */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    fopen(&F, 0, 0, 1, 1, 0);
+    fopen(&F, 010000100000, 0);
     dsize  =  FcstCnt;
     inSymbol();
     setcount  =  0;
@@ -6211,7 +6208,8 @@ var
         error(errBadSymbol);
     reset(F);
     while (! eof(F)) {
-        write(FCST, *F.data);
+        *FCST.data = *F.data;
+        put(FCST);
         get(F);
     }
     lookup2  =  FcstCnt - dsize;
@@ -7929,7 +7927,7 @@ var
     symTab[074001]  =  [24,29] | curVal.i;
     reset(FCST);
     while (! eof(FCST)) {
-        write(_CHILD_, *FCST);
+        write(_CHILD_, *FCST.data);
         get(FCST);
     }
     curVal.i  =  (symTabPos - 070000) << 24;
@@ -7997,6 +7995,7 @@ void main() {
     initOptions();
     curInsnTemplate  =  0;
     initTables();
+    fopen(&FCST, 010000100000, 0);
     programme(&curInsnTemplate, hashTravPtr, false);
     if (errors) {
 9999:   writeln(' IN ', (lineCnt-1):0, ' LINES ',
