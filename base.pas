@@ -143,11 +143,11 @@ type
         PERIOD,     ARROW,      COLON,      BECOMES,
 (*20B*) BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
         VARSY,      TYPESY,     ENUMSY,
-(*30B*) PACKEDSY,   ARRAYSY,    STRUCTSY,   FILESY,
-        IFSY,       SWITCHSY,   WHILESY,    FORSY,
-(*40B*) WITHSY,     GOTOSY,     ELSESY,     OFSY,
-        DOSY,       EXTERNSY,   BREAKSY,    CONTSY,
-(*50B*) CASESY,     DEFAULTSY,  UNIONSY,    NOSY
+(*30B*) PACKEDSY,   STRUCTSY,   FILESY,     IFSY,
+        SWITCHSY,   WHILESY,    FORSY,      WITHSY,
+(*40B*) GOTOSY,     ELSESY,     OFSY,       DOSY,
+        EXTERNSY,   BREAKSY,    CONTSY,     CASESY,
+(*50B*) DEFAULTSY,  UNIONSY,    NOSY
 );
 %
 idclass = (
@@ -8466,7 +8466,7 @@ procedure regKeywords;
     regResWord(5156C(*"      IN"*));
     SY := CONSTSY;
     charClass := NOOP;
-    for idx := 0 to 23 do {
+    for idx := 0 to 22 do {
         if (SY <> TYPESY) then
             regResWord(resWordName[idx]);
         SY := succ(SY);
@@ -8629,7 +8629,6 @@ procedure initOptions;
         0C                      (*"was FUNCTION"*),
         45566555C               (*"    ENUM"*),
         1212604143534544C       (*"**PACKED"*),
-        0C                      (*"was ARRAY"*),
         636462654364C           (*"  STRUCT"*),
         46515445C               (*"    FILE"*),
         5146C                   (*"      IF"*),
