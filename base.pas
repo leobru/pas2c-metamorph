@@ -142,7 +142,7 @@ type
 (*10B*) RPAREN,     RBRACK,     COMMA,      SEMICOLON,
         PERIOD,     ARROW,      COLON,      BECOMES,
 (*20B*) BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
-        VARSY,      TYPESY,     VOIDSY,     ENUMSY,
+        VARSY,      TYPESY,     ENUMSY,
 (*30B*) PACKEDSY,   ARRAYSY,    STRUCTSY,   FILESY,
         IFSY,       SWITCHSY,   WHILESY,    FORSY,
 (*40B*) WITHSY,     GOTOSY,     ELSESY,     OFSY,
@@ -7633,6 +7633,7 @@ var l : integer;
     regSysType(62454154C(*"    REAL"*), realType);
     regSysType(41544641C(*"    ALFA"*), alfaType);
     regSysType(64457064C(*"    TEXT"*), textType);
+    regSysType(66575144C(*"    VOID"*), voidType);
     tempType := voidPtr;
     regSysEnum(565154C(*"     NIL"*), 74000C);
     maxSmallString := 0;
@@ -7785,6 +7786,20 @@ procedure makeExtFile;
 }; (* makeExtFile *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure markTypeSym;
+{
+    if (SY = IDENT) then {
+        curVal.m := curIdent.m * hashMask.m;
+        mapAI(curVal.a, bucket);
+        hashTravPtr := symHash[bucket];
+        while (hashTravPtr <> NIL) and (hashTravPtr@.id <> curIdent) do
+            hashTravPtr := hashTravPtr@.next;
+        if (hashTravPtr <> NIL) and (hashTravPtr@.cl = TYPEID) then
+            SY := TYPESY;
+    };
+}; (* markTypeSym *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure parseParameters;
 var
     l3var1z, l3var2z, l3var3z: irptr;
@@ -7805,10 +7820,14 @@ var
         lookupMode := lookUse;
         exit;
     };
-    if not (SY IN [IDENT,VOIDSY]) then
+    if (SY = IDENT) then
+        markTypeSym;
+    if not (SY IN [IDENT,TYPESY]) then
         errAndSkip(errBadSymbol, (skipToSet + [IDENT,RPAREN]));
     lookup2 := lookUse;
-    while (SY IN [IDENT,VOIDSY]) do {
+    while (SY IN [IDENT,TYPESY]) do {
+        if (SY = IDENT) then
+            markTypeSym;
         l3sym7z := SY;
         if (SY = IDENT) then
             parClass := VARID
@@ -7816,8 +7835,8 @@ var
             parClass := ROUTINEID;
         };
         l3var3z := NIL;
-        if (SY = VOIDSY) then
-            expType := voidType
+        if (SY = TYPESY) then
+            expType := hashTravPtr@.typ
         else
             expType := integerType;
         l3var6z := 0;
@@ -7857,7 +7876,7 @@ var
             inSymbol;
         };
         until noComma;
-        if (l3sym7z <> VOIDSY) then {
+        if (l3sym7z <> TYPESY) then {
             checkSymAndRead(COLON);
             parseTypeRef(expType, (skipToSet + [IDENT,RPAREN]));
             if (isFileType(expType)) then
@@ -7874,7 +7893,7 @@ var
         if (SY = SEMICOLON) then {
             lookupMode := lookDef;
             inSymbol;
-            if not (SY IN (skipToSet + [IDENT,VOIDSY])) then
+            if not (SY IN (skipToSet + [IDENT,TYPESY])) then
                 errAndSkip(errBadSymbol, (skipToSet + [IDENT,RPAREN]));
         };
     };
@@ -7913,20 +7932,6 @@ procedure exitScope(var arg: hashArray);
         arg[ii] := workidr;
     };
 }; (* exitScope *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure markTypeSym;
-{
-    if (SY = IDENT) then {
-        curVal.m := curIdent.m * hashMask.m;
-        mapAI(curVal.a, bucket);
-        hashTravPtr := symHash[bucket];
-        while (hashTravPtr <> NIL) and (hashTravPtr@.id <> curIdent) do
-            hashTravPtr := hashTravPtr@.next;
-        if (hashTravPtr <> NIL) and (hashTravPtr@.cl = TYPEID) then
-            SY := TYPESY;
-    };
-}; (* markTypeSym *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -8155,18 +8160,13 @@ procedure markTypeSym;
         };
     outputObjFile;
     markTypeSym;
-    while (SY = VOIDSY) or (SY = TYPESY) do {
-        done := SY = VOIDSY;
+    while (SY = TYPESY) do {
+        done := hashTravPtr@.typ = voidType;
         (* For the new C-style syntax 'RETTYPE NAME(args);' the current
            TYPESY names the return type; stash it before inSymbol clobbers
            hashTravPtr.  NIL marks "not new-style" so the code that sets
            curIdRec@.typ knows which path to take. *)
-        if not done then
-            markTypeSym;
-        if (SY = TYPESY) then
-            typedRetType := hashTravPtr@.typ
-        else
-            typedRetType := voidType;
+        typedRetType := hashTravPtr@.typ;
         if (curFrameRegTemplate = 7) then {
             error(81); (* errProcNestingTooDeep *)
         };
@@ -8337,15 +8337,15 @@ procedure markTypeSym;
     if CH = '_000' then exit;
     if bodyBlock then {
         if not (SY IN (bodyStatSys + blockBegSys)) and
-           not (SY IN [VOIDSY,TYPESY,ENDSY]) then
+           not (SY IN [TYPESY,ENDSY]) then
             errAndSkip(84 (* errErrorInDeclarations *),
                        skipToSet + bodyStatSys + blockBegSys + [ENDSY]);
-    } else if not (SY IN blockBegSys) and not (SY IN [VOIDSY,TYPESY]) then
+    } else if not (SY IN blockBegSys) and (SY <> TYPESY) then
         errAndSkip(84 (* errErrorInDeclarations *), skipToSet);
     until (bodyBlock and ((SY IN bodyStatSys) or
-                          (SY IN [VOIDSY,TYPESY,ENDSY]))) or
+                          (SY IN [TYPESY,ENDSY]))) or
           (not bodyBlock and ((SY in statBegSys) or
-                              (SY IN [VOIDSY,TYPESY])));
+                              (SY = TYPESY)));
     if (preDefHead <> ptr(0)) then {
         error(85); (* errNotFullyDefinedProcedures *)
         while (preDefHead <> ptr(0)) do {
@@ -8451,8 +8451,9 @@ procedure regKeywords;
     regResWord(5156C(*"      IN"*));
     SY := CONSTSY;
     charClass := NOOP;
-    for idx := 0 to 25 do {
-        regResWord(resWordName[idx]);
+    for idx := 0 to 23 do {
+        if (SY <> TYPESY) then
+            regResWord(resWordName[idx]);
         SY := succ(SY);
     }
 }; (* regKeywords *)
@@ -8590,7 +8591,7 @@ procedure initOptions;
     frameRegTemplate := 04000000B;
     constRegTemplate := I8;
     disNormTemplate :=  KNTR+7;
-    blockBegSys := [CONSTSY, TYPEDEFSY, VARSY, VOIDSY, BEGINSY];
+    blockBegSys := [CONSTSY, TYPEDEFSY, VARSY, TYPESY, BEGINSY];
     statBegSys :=  [IDENT, EXPROP, LPAREN, INTCONST, REALCONST,
                     CHARCONST, STRINGSY, LBRACK, BEGINSY, IFSY,
                     SWITCHSY, DOSY, WHILESY, FORSY, WITHSY, GOTOSY,
@@ -8611,7 +8612,6 @@ procedure initOptions;
         64716045444546C         (*" TYPEDEF"*),
         664162C                 (*"     VAR"*),
         0C                      (*"was FUNCTION"*),
-        66575144C               (*"    VOID"*),
         45566555C               (*"    ENUM"*),
         1212604143534544C       (*"**PACKED"*),
         0C                      (*"was ARRAY"*),

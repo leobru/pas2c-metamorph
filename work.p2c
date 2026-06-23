@@ -161,7 +161,7 @@ typedef
 /*10B*/ RPAREN,     RBRACK,     COMMA,      SEMICOLON,
         PERIOD,     ARROW,      COLON,      BECOMES,
 /*20B*/ BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
-        VARSY,      TYPESY,     VOIDSY,     ENUMSY,
+        VARSY,      TYPESY,     ENUMSY,
 /*30B*/ PACKEDSY,   ARRAYSY,    STRUCTSY,   FILESY,
         IFSY,       SWITCHSY,   WHILESY,    FORSY,
 /*40B*/ WITHSY,     GOTOSY,     ELSESY,     OFSY,
@@ -7108,6 +7108,7 @@ void defExtern() {
     regSysType('    REAL', realType);
     regSysType('    ALFA', alfaType);
     regSysType('    TEXT', textType);
+    regSysType('    VOID', voidType);
     tempType = voidPtr;
     regSysEnum('     NIL', 074000U);
     maxSmallString  =  0;
@@ -7252,6 +7253,19 @@ void makeExtFile() {
 } /* makeExtFile */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void markTypeSym() {
+    if (SY == IDENT) {
+        curVal.i  =  curIdent & hashMask;
+        bucket = mapAI(curVal.a);
+        hashTravPtr  =  symHash[bucket];
+        while ((hashTravPtr != NIL) && (hashTravPtr->id != curIdent))
+            hashTravPtr  =  hashTravPtr->next;
+        if ((hashTravPtr != NIL) && (hashTravPtr->cl == TYPEID))
+            SY  =  TYPESY;
+    }
+} /* markTypeSym */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseParameters() {
 var
     l3var1z, l3var2z, l3var3z: irptr;
@@ -7271,10 +7285,14 @@ var
         lookupMode  =  lookUse;
         return;
     }
-    if (! (SY IN [IDENT,VOIDSY]))
+    if (SY == IDENT)
+        markTypeSym();
+    if (! (SY IN [IDENT,TYPESY]))
         errAndSkip(errBadSymbol, (skipToSet | [IDENT,RPAREN]));
     lookup2  =  1;
-    while (SY IN [IDENT,VOIDSY]) {
+    while (SY IN [IDENT,TYPESY]) {
+        if (SY == IDENT)
+            markTypeSym();
         l3sym7z  =  SY;
         if (SY == IDENT)
             parClass  =  VARID;
@@ -7282,7 +7300,7 @@ var
             parClass  =  ROUTINEID;
         }
         l3var3z  =  NIL;
-        expType  =  (SY == VOIDSY) ? voidType : intType;
+        expType  =  (SY == TYPESY) ? hashTravPtr->typ : intType;
         l3var6z  =  0;
         if (SY != IDENT) {
             lookupMode  =  lookDef;
@@ -7321,7 +7339,7 @@ var
             inSymbol();
         }
         } while (! noComma);
-        if (l3sym7z != VOIDSY) {
+        if (l3sym7z != TYPESY) {
             checkSymAndRead(COLON);
             expType = parseTypeRef(skipToSet | [IDENT,RPAREN]);
                 if (isFileType(expType))
@@ -7337,7 +7355,7 @@ var
         if (SY == SEMICOLON) {
             lookupMode  =  lookDef;
             inSymbol();
-            if (! (SY IN (skipToSet | [IDENT,VARSY,VOIDSY])))
+            if (! (SY IN (skipToSet | [IDENT,VARSY,TYPESY])))
                 errAndSkip(errBadSymbol, skipToSet | [IDENT,RPAREN]);
         }
     }
@@ -7374,19 +7392,6 @@ void exitScope(a: int) {
             fieldHash[ii]  =  workidr;
     }
 } /* exitScope */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void markTypeSym() {
-    if (SY == IDENT) {
-        curVal.i  =  curIdent & hashMask;
-        bucket = mapAI(curVal.a);
-        hashTravPtr  =  symHash[bucket];
-        while ((hashTravPtr != NIL) && (hashTravPtr->id != curIdent))
-            hashTravPtr  =  hashTravPtr->next;
-        if ((hashTravPtr != NIL) && (hashTravPtr->cl == TYPEID))
-            SY  =  TYPESY;
-    }
-} /* markTypeSym */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //
@@ -7611,18 +7616,13 @@ void markTypeSym() {
     }
     outputObjFile();
     markTypeSym();
-    while ((SY == VOIDSY) || (SY == TYPESY)) {
-        l2bool8z  =  SY == VOIDSY;
+    while (SY == TYPESY) {
+        l2bool8z  =  hashTravPtr->typ == voidType;
         /* For the new C-style syntax 'RETTYPE NAME(args);' the current
            TYPESY names the return type; stash it before inSymbol clobbers
            hashTravPtr.  NIL marks "not new-style" so the code that sets
            curIdRec->typ knows which path to take. */
-        if (! l2bool8z)
-            markTypeSym();
-        if (SY == TYPESY)
-            typedRetType  =  hashTravPtr->typ;
-        else
-            typedRetType  =  voidType;
+        typedRetType  =  hashTravPtr->typ;
         if (curFrameRegTemplate == 7) {
             error(81); /* errProcNestingTooDeep */
         }
@@ -7781,16 +7781,16 @@ void markTypeSym() {
         return;
     if (bodyBlock) {
         if (! (SY IN (bodyStatSys | blockBegSys)) &&
-            ! (SY IN [VOIDSY,TYPESY,ENDSY]))
+            ! (SY IN [TYPESY,ENDSY]))
             errAndSkip(84 /* errErrorInDeclarations */,
                        skipToSet | bodyStatSys | blockBegSys | [ENDSY]);
-    } else if ((SY != BEGINSY) && ! (SY IN [VOIDSY,TYPESY]) &&
+    } else if ((SY != BEGINSY) && (SY != TYPESY) &&
        (! allowCompat || ! (SY IN blockBegSys)))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
     } while (! ((bodyBlock && ((SY IN bodyStatSys) ||
-                               (SY IN [VOIDSY,TYPESY,ENDSY]))) ||
+                               (SY IN [TYPESY,ENDSY]))) ||
                 (! bodyBlock && ((SY in statBegSys) ||
-                                 (SY IN [VOIDSY,TYPESY])))));
+                                 (SY == TYPESY)))));
     if (preDefHead != irptr(0)) {
         error(85); /* errNotFullyDefinedVoids */
         while (preDefHead != irptr(0)) {
@@ -7878,7 +7878,7 @@ void regKeywords() { /*=A3 regKeywords */
     regResWord('      IN');
     SY  =  CONSTSY;
     charClass  =  NOOP;
-    for (idx = 0; idx < 27; ++idx) {
+    for (idx = 0; idx < 24; ++idx) {
         /* 'function' keyword is retired: C-style "RetType name();"
            is the only accepted routine-declaration form. */
         if (SY != TYPESY)
@@ -8011,7 +8011,7 @@ void main() {
     frameRegTemplate  =  04000000;
     constRegTemplate  =  I8;
     disNormTemplate  =   KNTR+7;
-    blockBegSys  =  [CONSTSY, TYPEDEFSY, VARSY, VOIDSY, BEGINSY];
+    blockBegSys  =  [CONSTSY, TYPEDEFSY, VARSY, TYPESY, BEGINSY];
     statBegSys  =   [IDENT, EXPROP, LPAREN, INTCONST, REALCONST,
                      CHARCONST, STRINGSY, LBRACK, BEGINSY, IFSY,
                      SWITCHSY, DOSY, WHILESY, FORSY, WITHSY, GOTOSY,
@@ -8028,7 +8028,6 @@ void main() {
         ' TYPEDEF',
         '     VAR',
         '        ',                      // was FUNCTION
-        '    VOID',
         '    ENUM',
         '**PACKED',
         '        ',                      // was ARRAY
