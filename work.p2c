@@ -6977,7 +6977,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void mainProgram() { /* mainProgram */
 var
-    l3var1z, l3var5z, l3var6z: int;
+    l3var1z, l3var5z, l3var6z, savedIdent: int;
     l3var7z: irptr;
     l3var8z, sysProcNum: int;
     temptype: tptr;
@@ -7235,8 +7235,10 @@ void defExtern() {
         checkSymAndRead(SEMICOLON);
     }
     if (outputFile == NIL) {
+        savedIdent  =  curIdent;
         curIdent  =  litOutput;
         defExtern();
+        curIdent  =  savedIdent;
     }
     lookupMode  =  lookUse;
     l3var6z  =  40;

@@ -7495,7 +7495,7 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure initScalars;
 var
-    l3var1z, outName, inName: word;
+    l3var1z, outName, inName, savedIdent: word;
     l3var5z, l3var6z: integer;
     l3var7z: irptr;
     l3var8z, sysProcNum: integer;
@@ -7768,8 +7768,10 @@ var l : integer;
         checkSymAndRead(SEMICOLON);
     }; (* while SY = EXTERNSY *)
     if (outputFile = NIL) then {
+        savedIdent := curIdent;
         curIdent := outName;
         defExtern;
+        curIdent := savedIdent;
     };
     lookupMode := lookUse;
     l3var6z := 40;
