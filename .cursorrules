@@ -1,9 +1,21 @@
 Identifiers must be unique by the first 8 characters, case-insensitive.
+
 Do not use git
+
 Grep only in files *.pas and *.p2c
+
+Do not look into any subdirectory except tests/
+
 In work.p2c, use constants false and true for int variables with Boolean meaning.
+
 Line length in base.pas must not exceed 80 characters.
 
 Output of test programs is all uppercase.
+
 The input language is case-insensitive.
+
 Do not increase time limits in shell scripts.
+
+Do not integrate changes to work.p2c until base.pas is tested and ./work.sh passes.
+
+Before modifying base.pas or work.p2c, save the known good state for ease of reverting if needed.

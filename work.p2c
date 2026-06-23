@@ -1766,6 +1766,7 @@ void programme(retSizePtr: *int; procName: irptr; bodyBlock: int) { /* programme
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
     isPredefined, l2bool8z, inTypeDef, hadParens: int;
+    typedefPending: int;
     l2var10z: eptr;
     hasFiles: int;
     bodyStatSys: int;
@@ -4190,6 +4191,19 @@ var extFileP: *extfilerec;
 } /* formOperator */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void markTypeSym() {
+    if (SY == IDENT) {
+        curVal.i  =  curIdent & hashMask;
+        bucket = mapAI(curVal.a);
+        hashTravPtr  =  symHash[bucket];
+        while ((hashTravPtr != NIL) && (hashTravPtr->id != curIdent))
+            hashTravPtr  =  hashTravPtr->next;
+        if ((hashTravPtr != NIL) && (hashTravPtr->cl == TYPEID))
+            SY  =  TYPESY;
+    }
+} /* markTypeSym */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 tptr parseTypeRef(skipTarget: setofsys) {
 typedef
     pair = struct {
@@ -4512,6 +4526,8 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     isPacked  =  false;
 12247:
+    if (SY == IDENT)
+        markTypeSym();
     if (SY == ENUMSY) {
         inSymbol();
         checkSymAndRead(BEGINSY);
@@ -7253,19 +7269,6 @@ void makeExtFile() {
 } /* makeExtFile */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void markTypeSym() {
-    if (SY == IDENT) {
-        curVal.i  =  curIdent & hashMask;
-        bucket = mapAI(curVal.a);
-        hashTravPtr  =  symHash[bucket];
-        while ((hashTravPtr != NIL) && (hashTravPtr->id != curIdent))
-            hashTravPtr  =  hashTravPtr->next;
-        if ((hashTravPtr != NIL) && (hashTravPtr->cl == TYPEID))
-            SY  =  TYPESY;
-    }
-} /* markTypeSym */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseParameters() {
 var
     l3var1z, l3var2z, l3var3z: irptr;
@@ -7404,6 +7407,8 @@ void exitScope(a: int) {
     }
     preDefHead  =  irptr(0);
     inTypeDef  =  false;
+    typedefPending  =  false;
+    typelist  =  NIL;
     hasFiles  =  0;
     bodyStatSys  =  statBegSys;
     strLabList  =  NIL;
@@ -7447,7 +7452,9 @@ void exitScope(a: int) {
         inTypeDef  =  true;
         typelist  =  NIL;
         parseDecls(0);
-        while (SY == IDENT) {
+        do {
+            if (SY != IDENT)
+                goto 23302;
             if (isDefined)
                 error(errIdentAlreadyDefined);
             ii  =  bucket;
@@ -7485,18 +7492,26 @@ void exitScope(a: int) {
             symHash[ii]  =  curIdRec;
             lookupMode  =  lookDef;
             checkSymAndRead(SEMICOLON);
-        }
-        while (typelist != NIL) {
-            l2var12z  =  typelist->id;
-            curIdRec  =  typelist;
-            parseDecls(1);
-            error(79); /* errNotFullyDefined */
-            typelist  =  typelist->next;
-        }
+            hashTravPtr  =  NIL;
+            markTypeSym();
+        } while (SY != TYPESY);
+23302:
+        typedefPending  =  true;
     }
     inTypeDef  =  false;
     curExpr  =  NIL;
     if (SY == VARSY) {
+        if (typedefPending) {
+            while (typelist != NIL) {
+                l2var12z  =  typelist->id;
+                curIdRec  =  typelist;
+                parseDecls(1);
+                error(79); /* errNotFullyDefined */
+                typelist  =  typelist->next;
+            }
+            typedefPending  =  false;
+            typelist  =  NIL;
+        }
         parseDecls(0);
         do {
             workidr  =  NIL;

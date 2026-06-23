@@ -534,10 +534,11 @@ var
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure programme(var l2arg1z: integer; procName: irptr;
                     bodyBlock: boolean);
-label 23301;
+label 23301, 23302;
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
     isPredefined, done, retSeen, inTypeDef, hadParens: boolean;
+    typedefPending: boolean;
     l2var10z: eptr;
     hasFiles: integer;
     bodyStatSys: setofsys;
@@ -4479,6 +4480,20 @@ if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
 }; (* formOperator *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure markTypeSym;
+{
+    if (SY = IDENT) then {
+        curVal.m := curIdent.m * hashMask.m;
+        mapAI(curVal.a, bucket);
+        hashTravPtr := symHash[bucket];
+        while (hashTravPtr <> NIL) and (hashTravPtr@.id <> curIdent) do
+            hashTravPtr := hashTravPtr@.next;
+        if (hashTravPtr <> NIL) and (hashTravPtr@.cl = TYPEID) then
+            SY := TYPESY;
+    };
+}; (* markTypeSym *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure parseTypeRef(var newtype: tptr; skipTarget: setofsys);
 label
     12247, 12366, 13020;
@@ -4909,6 +4924,8 @@ procedure readDclCore;
 { (* parseTypeRef *)
     isPacked := false;
 12247:
+    if (SY = IDENT) then
+        markTypeSym;
     if (SY = ENUMSY) then {
         inSymbol;
         checkSymAndRead(BEGINSY);
@@ -7786,20 +7803,6 @@ procedure makeExtFile;
 }; (* makeExtFile *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure markTypeSym;
-{
-    if (SY = IDENT) then {
-        curVal.m := curIdent.m * hashMask.m;
-        mapAI(curVal.a, bucket);
-        hashTravPtr := symHash[bucket];
-        while (hashTravPtr <> NIL) and (hashTravPtr@.id <> curIdent) do
-            hashTravPtr := hashTravPtr@.next;
-        if (hashTravPtr <> NIL) and (hashTravPtr@.cl = TYPEID) then
-            SY := TYPESY;
-    };
-}; (* markTypeSym *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure parseParameters;
 var
     l3var1z, l3var2z, l3var3z: irptr;
@@ -7945,6 +7948,8 @@ procedure exitScope(var arg: hashArray);
     };
     preDefHead := ptr(0);
     inTypeDef := false;
+    typedefPending := false;
+    typelist := NIL;
     retSeen := ;
     hasFiles := 0;
     bodyStatSys := statBegSys;
@@ -7989,7 +7994,9 @@ procedure exitScope(var arg: hashArray);
         inTypeDef := true;
         typelist := NIL;
         parseDecls(0);
-        while SY = IDENT do {
+        repeat
+            if (SY <> IDENT) then
+                goto 23302;
             if isDefined then
                 error(errIdentAlreadyDefined);
             ii := bucket;
@@ -8027,18 +8034,26 @@ procedure exitScope(var arg: hashArray);
             symHash[ii] := curIdRec;
             lookupMode := lookDef;
             checkSymAndRead(SEMICOLON);
-        };
-        while (typelist <> NIL) do {
-            l2var12z := typelist@.id;
-            curIdRec := typelist;
-            parseDecls(1);
-            error(79); (* errNotFullyDefined *)
-            typelist := typelist@.next;
-        }
+            hashTravPtr := NIL;
+            markTypeSym;
+        until (SY = TYPESY);
+23302:
+        typedefPending := true;
     }; (* TYPEDEFSY -> 22612 *)
     inTypeDef := false;
     curExpr := NIL;
     if (SY = VARSY) then {
+        if (typedefPending) then {
+            while (typelist <> NIL) do {
+                l2var12z := typelist@.id;
+                curIdRec := typelist;
+                parseDecls(1);
+                error(79); (* errNotFullyDefined *)
+                typelist := typelist@.next;
+            };
+            typedefPending := false;
+            typelist := NIL;
+        };
         parseDecls(0);
 
         repeat

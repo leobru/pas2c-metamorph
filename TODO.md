@@ -1,5 +1,4 @@
 # Remains to be done
- - `case <type> of` -> `union`
  - `enum`, allow assigning values to elements
  - optimize !x 
  - increment/decrement (post-)
@@ -9,11 +8,9 @@
  - C style of function declarations
  - `main` as a regular function
  - starting routine calling `main`
- - `sizeof(type)`
  - function pointers
  - operations on pointers to words
  - `char *`, operations of `char *`
  - nested case labels (Duff's device)
  - vararg functions
  - `printf`
- - nested case labels (Duff's device)
