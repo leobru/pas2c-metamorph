@@ -5525,6 +5525,43 @@ var
        [idx] for array element).  parseLval already drained them above;
        parsePostfix is a no-op when SY is not a postfix token. */
     parsePostfix();
+    if (charClass == INCROP || charClass == DECROP) {
+        if (! (curExpr->op IN lvalOpSet))
+            error(27);
+        if (! typeCheck(curExpr->typ, intType))
+            error(62);
+        l4var7z = malloc(sizeof(expr));
+        CTOR(*l4var7z, intType, GETENUM, 1U);
+        l4var8z = malloc(sizeof(expr));
+        with *l4var8z do {
+            typ = intType;
+            op = (charClass == INCROP) ? INTPLUS : INTMINUS;
+            expr1 = l4var7z;
+            expr2 = NIL;
+        };
+        l4exp5z = malloc(sizeof(expr));
+        with *l4exp5z do {
+            typ = intType;
+            op = RMWASSIGN;
+            expr1 = curExpr;
+            expr2 = l4var8z;
+        };
+        newExpr = malloc(sizeof(expr));
+        with *newExpr do {
+            typ = intType;
+            if (charClass == INCROP) {
+                op = INTMINUS;
+                expr1 = l4exp5z;
+                expr2 = l4var7z;
+            } else {
+                op = INTPLUS;
+                expr1 = l4exp5z;
+                expr2 = l4var7z;
+            }
+        };
+        inSymbol();
+        curExpr = newExpr;
+    }
 } /* factor */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7808,7 +7845,7 @@ void exitScope(a: int) {
             errAndSkip(84 /* errErrorInDeclarations */,
                        skipToSet | bodyStatSys | blockBegSys | [ENDSY]);
     } else if ((SY != BEGINSY) && (SY != TYPESY) &&
-       (! allowCompat || ! (SY IN blockBegSys)))
+       ! (SY IN blockBegSys))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
     } while (! ((bodyBlock && ((SY IN bodyStatSys) ||
                                (SY IN [TYPESY,ENDSY]))) ||
@@ -7849,6 +7886,7 @@ void exitScope(a: int) {
 void initTables() { /* initTables */
 var
     idx, jdx: int;
+
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void initInsnTemplates() {

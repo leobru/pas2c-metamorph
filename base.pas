@@ -5986,6 +5986,46 @@ var
        [idx] for array element).  parseLval already drained them above;
        parsePostfix is a no-op when SY is not a postfix token. *)
     parsePostfix;
+    if (charClass = INCROP) or (charClass = DECROP) then {
+        if not (curExpr@.op IN lvalOpSet) then
+            error(27);
+        if not typeCheck(curExpr@.vt.typ, integerType) then
+            error(62);
+        new(l4exp5z);
+        l4exp5z@ := [integerType, GETENUM, 1C];
+        new(l4var8z);
+        with l4var8z@ do {
+            vt.typ := integerType;
+            if (charClass = INCROP) then
+                op := INTPLUS
+            else
+                op := INTMINUS;
+            expr1 := l4exp5z;
+            expr2 := NIL;
+        };
+        new(l4var7z);
+        with l4var7z@ do {
+            vt.typ := integerType;
+            op := RMWASSIGN;
+            expr1 := curExpr;
+            expr2 := l4var8z;
+        };
+        new(newExpr);
+        with newExpr@ do {
+            vt.typ := integerType;
+            if (charClass = INCROP) then {
+                op := INTMINUS;
+                expr1 := l4var7z;
+                expr2 := l4exp5z;
+            } else {
+                op := INTPLUS;
+                expr1 := l4var7z;
+                expr2 := l4exp5z;
+            };
+        };
+        inSymbol;
+        curExpr := newExpr;
+    };
 
 }; (* factor *)
 %

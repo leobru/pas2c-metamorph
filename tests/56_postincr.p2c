@@ -1,0 +1,63 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+typedef
+    intptr = *int;
+    rec    = struct { x, y: int; };
+    recptr = *rec;
+var
+    i, j, k, n, a: int;
+    arr: int [1..4];
+    p:   intptr;
+    rp:  recptr;
+    r:   rec;
+{
+    /* simple postfix */
+    i = 5;
+    j = i++;
+    writeln(' s01 ', j:0, ' ', i:0);
+
+    /* statement form */
+    i = 10;
+    i++;
+    writeln(' s02 ', i:0);
+
+    /* prefix still works */
+    i = 7;
+    k = ++i;
+    writeln(' s03 ', k:0, ' ', i:0);
+
+    /* for-loop step */
+    n = 0;
+    for (i = 0; i < 3; i++)
+        n = n + 1;
+    writeln(' s04 ', n:0, ' ', i:0);
+
+    /* precedence: postfix binds tighter than + */
+    a = 4;
+    writeln(' s05 ', (a++ + 1):0, ' ', a:0);
+
+    /* array element via variable index */
+    arr[1] = 10; arr[2] = 20;
+    i = 2;
+    j = arr[i]++;
+    writeln(' a01 ', j:0, ' ', arr[2]:0);
+
+    /* pointer deref */
+    n = 50;
+    p = &n;
+    j = (*p)++;
+    writeln(' p01 ', j:0, ' ', n:0);
+
+    /* struct field via pointer */
+    r.x = 100;
+    rp = &r;
+    j = rp->x++;
+    writeln(' r01 ', j:0, ' ', r.x:0);
+
+    /* postfix decrement */
+    i = 3;
+    j = i--;
+    writeln(' d01 ', j:0, ' ', i:0);
+}
+.
