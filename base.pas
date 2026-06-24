@@ -7893,7 +7893,11 @@ var
                     typ := expType;
                     l3var3z := list;
                 };
-        };
+        } else if (l3var3z <> NIL) then
+            while (l3var3z <> curIdRec) do with l3var3z@ do {
+                typ := expType;
+                l3var3z := list;
+            };
 
         if (SY = SEMICOLON) then {
             lookupMode := lookDef;

@@ -1765,7 +1765,7 @@ var
 void programme(retSizePtr: *int; procName: irptr; bodyBlock: int) { /* programme */
 var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
-    isPredefined, l2bool8z, inTypeDef, hadParens: int;
+    isPredefined, l2bool8z, retSeen, inTypeDef, hadParens: int;
     typedefPending: int;
     l2var10z: eptr;
     hasFiles: int;
@@ -6591,6 +6591,7 @@ var
                     writeln(' functions must not use files');
                     error(200);
                 }
+                retSeen  =  true;
                 readNext = false;
                 expression();
                 if (typeCheck(procName->typ, curExpr->typ)) {
@@ -7356,7 +7357,11 @@ var
                     typ  =  expType;
                     l3var3z  =  list;
                 }
-        }
+        } else if (l3var3z != NIL)
+            while (l3var3z != curIdRec) with *l3var3z do {
+                typ  =  expType;
+                l3var3z  =  list;
+            };
         if (SY == SEMICOLON) {
             lookupMode  =  lookDef;
             inSymbol();
@@ -7411,6 +7416,7 @@ void exitScope(a: int) {
     inTypeDef  =  false;
     typedefPending  =  false;
     typelist  =  NIL;
+    retSeen  =  false;
     hasFiles  =  0;
     bodyStatSys  =  statBegSys;
     strLabList  =  NIL;
@@ -7819,6 +7825,11 @@ void exitScope(a: int) {
     lookup2  =  lookUse;
     lookupMode  =  lookUse;
     defineRoutine(bodyBlock);
+    if ((curProcNesting > 1) && ! retSeen &&
+            (procName->typ != voidType)) {
+        writeln(' above function must return a value');
+        error(200);
+    }
     l2bool8z  =  true;
     while (numLabTop > labFence) {
         if (! numLabs[numLabTop].defined) {
