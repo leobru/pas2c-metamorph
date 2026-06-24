@@ -1890,6 +1890,48 @@ var
 } /* typeCheck */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+eptr mkExpr(oper: operator; resTyp: tptr; e1, e2: eptr) {
+    var n: eptr;
+    n = malloc(sizeof(expr));
+    with *n do {
+        typ = resTyp;
+        op = oper;
+        expr1 = e1;
+        expr2 = e2;
+    }
+    return n;
+} /* mkExpr */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+eptr mkIntLit(val: int) {
+    var n: eptr;
+    n = malloc(sizeof(expr));
+    with *n do {
+        typ = intType;
+        op = GETENUM;
+        num1 = val;
+    }
+    return n;
+} /* mkIntLit */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+eptr bldIncDec(lval: eptr; isInc, isPost: int) {
+var
+    one, inner, rmw, post: eptr;
+    one = mkIntLit(1);
+    inner = mkExpr(isInc ? INTPLUS : INTMINUS, intType, one, NIL);
+    rmw = mkExpr(RMWASSIGN, intType, lval, inner);
+    if (! isPost)
+        return rmw;
+    return mkExpr(isInc ? INTMINUS : INTPLUS, intType, rmw, one);
+} /* bldIncDec */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void castToReal(value: *eptr) {
+    *value = mkExpr(TOREAL, realType, *value, NIL);
+} /* castToReal */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void formOperator(l3arg1z: opgen) { /* formOperator */
 var
     l3int1z, l3int2z, l3int3z: int;
@@ -3545,32 +3587,13 @@ var
         addToInsnList(macro + mcPUSH);
         genOneOp();
         insnList = NIL;
-        rmwLhs = malloc(sizeof(expr));
-        with *rmwLhs do {
-            typ = lhsExpr->typ;
-            op = STKLVAL;
-            expr1 = NIL;
-            expr2 = NIL;
-        }
+        rmwLhs  =  mkExpr(STKLVAL, lhsExpr->typ, NIL, NIL);
     } else {
         rmwLhs = lhsExpr;
     }
 
-    synthOp = malloc(sizeof(expr));
-    with *synthOp do {
-        typ = innerNode->typ;
-        op = innerOp;
-        expr1 = rmwLhs;
-        expr2 = rhsExpr;
-    }
-
-    synthAsn = malloc(sizeof(expr));
-    with *synthAsn do {
-        typ = exprToGen->typ;
-        op = ASSIGNOP;
-        expr1 = rmwLhs;
-        expr2 = synthOp;
-    }
+    synthOp = mkExpr(innerOp, innerNode->typ, rmwLhs, rhsExpr);
+    synthAsn = mkExpr(ASSIGNOP, exprToGen->typ, rmwLhs, synthOp);
 
     genFullExpr(synthAsn);
 } /* genRMWAssign */
@@ -4871,13 +4894,9 @@ var
     if (SY == ARROW) {
         /* '->' is deref + struct field selection; build DEREF here,
            then jump to label 55 to consume the field IDENT. */
-        l4exp1z = malloc(sizeof(expr));
-        l4exp1z->expr1  =  curExpr;
         if ((l4var4z == kindPtr) &&
             (l4typ3z.rep->base.p.pk == kindStruct)) {
-            l4exp1z->typ  =  l4typ3z.rep->base;
-            l4exp1z->op   =  DEREF;
-            curExpr  =  l4exp1z;
+            curExpr  =  mkExpr(DEREF, l4typ3z.rep->base, curExpr, NIL);
             l4typ3z  =  l4typ3z.rep->base;
             goto 55;
         /* leaving it here for the future when accessing fields of the FILE
@@ -4890,10 +4909,12 @@ var
         } else {
             stmtName  =  '  ->  ';
             error(errWrongVarTypeBefore);
+            l4exp1z = malloc(sizeof(expr));
+            l4exp1z->expr1  =  curExpr;
             l4exp1z->typ  =  l4typ3z;
+            curExpr  =  l4exp1z;
+            inSymbol();
         }
-        curExpr  =  l4exp1z;
-        inSymbol();
     } else if (SY == PERIOD) {
         if (l4var4z == kindStruct) {
 55:
@@ -4903,14 +4924,8 @@ var
             if (hashTravPtr == NIL) {
                 error(20); /* errDigitGreaterThan7 ??? */
             } else {
-                l4exp1z = malloc(sizeof(expr));
-                with *l4exp1z do {
-                    typ  =  hashTravPtr->typ;
-                    op  =  GETFIELD;
-                    expr1  =  curExpr;
-                    id2  =  hashTravPtr;
-                }
-                curExpr  =  l4exp1z;
+                curExpr  =  mkExpr(GETFIELD, hashTravPtr->typ,
+                                   curExpr, eptr(hashTravPtr));
             }
             inSymbol();
         } else {
@@ -4926,14 +4941,8 @@ var
         if (l4typ3z.p.pk != kindArray) {
             error(errWrongVarTypeBefore);
         } else {
-            l4exp2z = malloc(sizeof(expr));
-            with *l4exp2z do {
-                typ  =  l4typ3z.rep->base;
-                expr1  =  l4exp1z;
-                expr2  =  curExpr;
-                op  =  GETELT;
-            }
-            l4exp1z  =  l4exp2z;
+            l4exp1z  =  mkExpr(GETELT, l4typ3z.rep->base,
+                              l4exp1z, curExpr);
         }
         curExpr  =  l4exp1z;
         if (SY != RBRACK)
@@ -4945,44 +4954,19 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseLval() {
-var
-    l4exp1z: eptr;
     if (hashTravPtr->cl == FIELDID) {
         /* Implicit field of the `with` variable: build GETFIELD on
            withIter directly, then continue with any further postfix. */
-        l4exp1z = malloc(sizeof(expr));
-        with *l4exp1z do {
-            typ  =  hashTravPtr->typ;
-            op  =  GETFIELD;
-            expr1  =  withIter;
-            id2  =  hashTravPtr;
-        }
-        curExpr  =  l4exp1z;
+        curExpr  =  mkExpr(GETFIELD, hashTravPtr->typ,
+                           withIter, eptr(hashTravPtr));
     } else {
-        curExpr = malloc(sizeof(expr));
-        with *curExpr do {
-            typ  =  hashTravPtr->typ;
-            op  =  GETVAR;
-            id1  =  hashTravPtr;
-        }
+        curExpr  =  mkExpr(GETVAR, hashTravPtr->typ, eptr(hashTravPtr), NIL);
     }
     inSymbol();
     parsePostfix();
 } /* parseLval */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void castToReal(value: *eptr) {
-var
-    cast: eptr;
-    cast = malloc(sizeof(expr));
-    with *cast do {
-        typ  =  realType;
-        op  =  TOREAL;
-        expr1  =  *value;
-        *value  =  cast;
-    }
-} /* castToReal */
-//
 int areTypesCompatible(l4arg1z: *eptr) {
     if (arg1Type == realType) {
         if (typeCheck(intType, arg2Type)) {
@@ -5109,27 +5093,20 @@ int getPrec(sym: symbol; cls: operator) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void bldBitOp(oper: operator; leftArg: eptr) {
-    var finalExpr: eptr;
     if (arg1Type.p.pk != kindScalar || arg2Type.p.pk != kindScalar) {
         error(errNeedOtherTypesOfOperands);
         curExpr = uVarPtr;
         return;
     }
-    finalExpr = malloc(sizeof(expr));
-    with *finalExpr do {
-        op = oper;
-        expr1 = leftArg;
-        expr2 = curExpr;
-        typ = arg1Type;
-    }
-    curExpr = finalExpr;
+    curExpr = mkExpr(oper, arg1Type, leftArg, curExpr);
 } /* bldBitOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void bldArithOp(oper: operator; leftExpr: eptr; match: int) {
 var
-    finalExpr: eptr;
     k1, k2: kind;
+    resOp: operator;
+    resTyp: tptr;
     k1 = arg1Type.p.pk;
     k2 = arg2Type.p.pk;
     if (k1 > kindScalar || k2 > kindScalar) {
@@ -5137,32 +5114,28 @@ var
 1:      curExpr = uVarPtr;
         return;
     }
-    finalExpr = malloc(sizeof(expr));
-    with *finalExpr do {
-        if (k1 == kindReal || k2 == kindReal) {
-            if (oper == IMODOP) {
-                error(62); // errIntNeeded
-                goto 1;
-            }
-            if (k1 != kindReal)
-                castToReal(&curExpr);
-            if (k2 != kindReal)
-                castToReal(&leftExpr);
-            op = oper;
-            typ = realType;
-        } else {
-            op = intOpMap[oper];
-            typ = intType;
+    if (k1 == kindReal || k2 == kindReal) {
+        if (oper == IMODOP) {
+            error(62); // errIntNeeded
+            goto 1;
         }
-        expr1 = leftExpr;
-        expr2 = curExpr;
-   };
-   curExpr = finalExpr;
+        if (k1 != kindReal)
+            castToReal(&curExpr);
+        if (k2 != kindReal)
+            castToReal(&leftExpr);
+        resOp = oper;
+        resTyp = realType;
+    } else {
+        resOp = intOpMap[oper];
+        resTyp = intType;
+    }
+    curExpr = mkExpr(resOp, resTyp, leftExpr, curExpr);
 } /* bldArithOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void bldRelOp(oper: operator; ex2: eptr) {
-var ex1: eptr;
+var
+    resOp: operator;
     if (typeCheck(arg1Type, arg2Type)) {
         if ((arg1Type.p.pk == kindFile) ||
             (arg1Type.p.psize != 1) &&
@@ -5180,44 +5153,29 @@ var ex1: eptr;
             goto 1;
         }
     }
-    ex1 = malloc(sizeof(expr));
-    with *ex1 do {
-        typ = boolType;
-        if (oper IN [GTOP, LEOP]) {
-            expr1 = curExpr;
-            expr2 = ex2;
-            op = (oper == GTOP) ? LTOP : GEOP;
-        } else {
-            expr1 = ex2;
-            expr2 = curExpr;
-            op = oper;
-        }
-        curExpr = ex1;
+    if (oper IN [GTOP, LEOP]) {
+        resOp = (oper == GTOP) ? LTOP : GEOP;
+        curExpr = mkExpr(resOp, boolType, curExpr, ex2);
+    } else {
+        curExpr = mkExpr(oper, boolType, ex2, curExpr);
     }
 } /* bldRelOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void bldLogOp(oper: operator; leftExpr: eptr; match: int) {
-var finalExpr: eptr;
     if (!match || ((arg1Type != boolType) && (arg1Type != intType))) {
         error(errNeedOtherTypesOfOperands);
-        finalExpr = uVarPtr;
+        curExpr = uVarPtr;
     } else {
-        finalExpr = malloc(sizeof(expr));
-        with *finalExpr do {
-            typ = boolType;
-            op = oper;
-            expr1 = leftExpr;
-            expr2 = curExpr;
-        }
+        curExpr = mkExpr(oper, boolType, leftExpr, curExpr);
     }
-    curExpr = finalExpr;
 } /* bldLogOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void bldCondOp(condExpr, thenExpr: eptr) {
-var altExpr, condOpExpr: eptr;
+var
     resType: tptr;
+    altExpr: eptr;
     if (condExpr->typ.p.pk > kindPtr) {
         error(errBooleanNeeded);
         return;
@@ -5233,21 +5191,8 @@ var altExpr, condOpExpr: eptr;
         error(errNeedOtherTypesOfOperands);
         return;
     }
-    altExpr = malloc(sizeof(expr));
-    with *altExpr do {
-        typ = resType;
-        op = ALTERN;
-        expr1 = thenExpr;
-        expr2 = curExpr;
-    }
-    condOpExpr = malloc(sizeof(expr));
-    with *condOpExpr do {
-        typ = resType;
-        op = CONDOP;
-        expr1 = condExpr;
-        expr2 = altExpr;
-    }
-    curExpr = condOpExpr;
+    altExpr = mkExpr(ALTERN, resType, thenExpr, curExpr);
+    curExpr = mkExpr(CONDOP, resType, condExpr, altExpr);
 } /* bldCondOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5316,13 +5261,7 @@ var
         } else {
             resultValue = l5var2z.p.psize;
         }
-        newExpr = malloc(sizeof(expr));
-        with *newExpr do {
-            op = GETENUM;
-            num1 = resultValue;
-            typ = intType;
-        }
-        curExpr = newExpr;
+        curExpr = mkIntLit(resultValue);
         checkSymAndRead(RPAREN);
         return;
     }
@@ -5353,18 +5292,10 @@ var
     } else if ((arg1Type == intType) && (stProcNo == fnABS)) {
         stProcNo  =  fnABSI;
     }
-    newExpr = malloc(sizeof(expr));
-    if (stProcNo == fnSIZEOF) {
-        newExpr->op  =  GETENUM;
-        newExpr->num1  =  arg1Type.p.psize;
-        newExpr->typ  =  intType;
-    } else {
-        newExpr->op  =  STANDPROC;
-        newExpr->expr1  =  curExpr;
-        newExpr->num2  =  stProcNo;
-        newExpr->typ  =  arg1Type;
-    }
-    curExpr  =  newExpr;
+    if (stProcNo == fnSIZEOF)
+      curExpr  =  mkIntLit(arg1Type.p.psize);
+   else
+      curExpr  =  mkExpr(STANDPROC, arg1Type, curExpr, eptr(stProcNo));
     checkSymAndRead(RPAREN);
 } /* stdCall */
 //
@@ -5427,17 +5358,11 @@ var
                         break;
                     }
                 }
-                curExpr = malloc(sizeof(expr));
                 if (! (SY IN [RPAREN, COMMA])) {
                     error(errNoCommaOrParenOrTooFewArgs);
                     longjmp(jb8888, 1);
                 }
-                with *curExpr do {
-                    typ  =  routine->typ;
-                    op  =  l4op10z;
-                    expr1  =  NIL;
-                    id2  =  routine;
-                }
+                curExpr  =  mkExpr(l4op10z, routine->typ, NIL, eptr(routine));
                 break;
             case VARID: case FORMALID: case FIELDID:
                 parseLval();
@@ -5498,13 +5423,7 @@ var
                     }
                     error(errNoConstant);
                 }
-                curExpr = malloc(sizeof(expr));
-                with *curExpr do {
-                    typ  =  intType;
-                    op  =  SETOR;
-                    expr1  =  newExpr;
-                    expr2  =  l4exp5z;
-                }
+                curExpr  =  mkExpr(SETOR, intType, newExpr, l4exp5z);
 14567:          ;
             } while (SY == COMMA);
         }
@@ -5530,37 +5449,9 @@ var
             error(27);
         if (! typeCheck(curExpr->typ, intType))
             error(62);
-        l4var7z = malloc(sizeof(expr));
-        CTOR(*l4var7z, intType, GETENUM, 1U);
-        l4var8z = malloc(sizeof(expr));
-        with *l4var8z do {
-            typ = intType;
-            op = (charClass == INCROP) ? INTPLUS : INTMINUS;
-            expr1 = l4var7z;
-            expr2 = NIL;
-        };
-        l4exp5z = malloc(sizeof(expr));
-        with *l4exp5z do {
-            typ = intType;
-            op = RMWASSIGN;
-            expr1 = curExpr;
-            expr2 = l4var8z;
-        };
-        newExpr = malloc(sizeof(expr));
-        with *newExpr do {
-            typ = intType;
-            if (charClass == INCROP) {
-                op = INTMINUS;
-                expr1 = l4exp5z;
-                expr2 = l4var7z;
-            } else {
-                op = INTPLUS;
-                expr1 = l4exp5z;
-                expr2 = l4var7z;
-            }
-        };
+        l4var1z = (charClass == INCROP);
         inSymbol();
-        curExpr = newExpr;
+        curExpr = bldIncDec(curExpr, l4var1z, true);
     }
 } /* factor */
 //
@@ -5568,7 +5459,7 @@ var
 void parseUnaryExpression() {
 var
     oper: operator;
-    leftExpr, addExpr, oneExpr: eptr;
+    leftExpr: eptr;
     oper = NOOP;
     if (charClass IN [PLUSOP, MINUSOP, BITNEGOP, NOTOP, MUL, SETAND, INCROP, DECROP]) {
         if (charClass != PLUSOP)
@@ -5581,99 +5472,64 @@ var
         factor();
     if (oper != NOOP) {
         arg1Type = curExpr->typ;
-        leftExpr = malloc(sizeof(expr));
-        with *leftExpr do {
-            typ = arg1Type;
-            expr1 = curExpr;
-            switch (oper) {
-            case MINUSOP:
-                if (arg1Type == realType) {
-                    leftExpr->op = RNEGOP;
-                    leftExpr->typ = realType;
-                } else if (typeCheck(arg1Type, intType)) {
-                    leftExpr->op = INEGOP;
-                    leftExpr->typ = intType;
-                } else {
-                    error(69); /* errUnaryMinusNeedRealOrInteger */
-                    return;
-                }
-                break;
-            case BITNEGOP:
-                if (typeCheck(arg1Type, intType)) {
-                    leftExpr->op = BITNEGOP;
-                    leftExpr->typ = intType;
-                } else {
-                    error(62); /* errIntegerNeeded */
-                    return;
-                }
-                break;
-            case NOTOP:
-                leftExpr->typ = boolType;
-                if (arg1Type == boolType) {
-                    leftExpr->op = NOTOP;
-                } else if (arg1Type == intType) {
-                    leftExpr->op = EQOP;
-                    leftExpr->expr2 = malloc(sizeof(expr));
-                    CTOR(*leftExpr->expr2, intType, GETENUM, 0U);
-                } else {
-                    error(errNeedOtherTypesOfOperands);
-                    return;
-                }
-                break;
-            case MUL:
-                with *leftExpr do {
-                    if (arg1Type.p.pk == kindPtr) {
-                        typ = arg1Type.rep->base;
-                        op = DEREF;
-                    } else if (arg1Type.p.pk == kindFile) {
-                        typ = arg1Type.rep->base;
-                        op = FILEPTR;
-                    } else {
-                        stmtName = 'unary*';
-                        error(errWrongVarTypeBefore);
-                    }
-                }
-            break;
-            case SETAND:
-                if (! (curExpr->op IN lvalOpSet))
-                    error(27); /* errExpressionWhereVariableExpected */
-                with *leftExpr do {
-                    typ = voidPtr;
-                    op = STANDPROC;
-                    expr1 = curExpr;
-                    num2 = fnREF;
-                }
-                break;
-            case INCROP:
-            case DECROP:
-                /* Pre-increment (++x) / pre-decrement (--x):
-                   lower to RMWASSIGN(x, INTPLUS|INTMINUS(1, NIL)).
-                   Codegen materialises x's address once (when needed)
-                   and reuses the spill slot for both load and store,
-                   so side-effectful lvalues fire only once. */
-                if (! (curExpr->op IN lvalOpSet)) {
-                    error(27); /* errExpressionWhereVariableExpected */
-                    return;
-                }
-                if (! typeCheck(arg1Type, intType)) {
-                    error(62); /* errIntegerNeeded */
-                    return;
-                }
-                oneExpr = malloc(sizeof(expr));
-                CTOR(*oneExpr, intType, GETENUM, 1U);
-                addExpr = malloc(sizeof(expr));              /* INTPLUS / INTMINUS node */
-                with *addExpr do {
-                    typ = intType;
-                    op = (oper == INCROP) ? INTPLUS : INTMINUS;
-                    expr1 = oneExpr;        /* RHS = 1 */
-                    expr2 = NIL;             /* don't-care slot */
-                }
-                leftExpr->typ = intType;
-                leftExpr->op = RMWASSIGN;
-                leftExpr->expr2 = addExpr;
-                break;
+        switch (oper) {
+        case MINUSOP:
+            if (arg1Type == realType) {
+                curExpr = mkExpr(RNEGOP, realType, curExpr, NIL);
+            } else if (typeCheck(arg1Type, intType)) {
+                curExpr = mkExpr(INEGOP, intType, curExpr, NIL);
+            } else {
+                error(69); /* errUnaryMinusNeedRealOrInteger */
+                return;
             }
-            curExpr = leftExpr;
+            break;
+        case BITNEGOP:
+            if (typeCheck(arg1Type, intType)) {
+                curExpr = mkExpr(BITNEGOP, intType, curExpr, NIL);
+            } else {
+                error(62); /* errIntegerNeeded */
+                return;
+            }
+            break;
+        case NOTOP:
+            if (arg1Type == boolType) {
+                curExpr = mkExpr(NOTOP, boolType, curExpr, NIL);
+            } else if (arg1Type == intType) {
+                curExpr = mkExpr(EQOP, boolType, curExpr, mkIntLit(0));
+            } else {
+                error(errNeedOtherTypesOfOperands);
+                return;
+            }
+            break;
+        case MUL:
+            if (arg1Type.p.pk == kindPtr) {
+                curExpr = mkExpr(DEREF, arg1Type.rep->base,
+                                 curExpr, NIL);
+            } else if (arg1Type.p.pk == kindFile) {
+                curExpr = mkExpr(FILEPTR, arg1Type.rep->base,
+                                 curExpr, NIL);
+            } else {
+                stmtName = 'unary*';
+                error(errWrongVarTypeBefore);
+            }
+            break;
+        case SETAND:
+            if (! (curExpr->op IN lvalOpSet))
+                error(27); /* errExpressionWhereVariableExpected */
+            curExpr  =  mkExpr(STANDPROC, voidPtr, curExpr, eptr(fnREF));
+            break;
+        case INCROP:
+        case DECROP:
+            if (! (curExpr->op IN lvalOpSet)) {
+                error(27); /* errExpressionWhereVariableExpected */
+                return;
+            }
+            if (! typeCheck(arg1Type, intType)) {
+                error(62); /* errIntegerNeeded */
+                return;
+            }
+            curExpr = bldIncDec(curExpr, oper == INCROP, false);
+            break;
         }
     }
 } /* parseUnaryExpression */
@@ -5760,17 +5616,8 @@ var
                 else
                     error(33); /* errIllegalTypesForAssignment */
             }
-            thenExpr = malloc(sizeof(expr));
-            with *thenExpr do {
-                typ  =  arg1Type;
-                if (oper != ASSIGNOP)
-                    op  =  RMWASSIGN;
-                else
-                    op  =  ASSIGNOP;
-                expr1  =  leftExpr;
-                expr2  =  curExpr;
-            }
-            curExpr = thenExpr;
+            curExpr = mkExpr(oper != ASSIGNOP ? RMWASSIGN : ASSIGNOP,
+                             arg1Type, leftExpr, curExpr);
         } else {
             /* Recursively parse right operand with higher precedence */
             /* For left-associative: use curPrec + 1 */
@@ -6326,14 +6173,8 @@ void startWrite() {
         /* typeCheck(arg2Type.rep->base, charType); */
         isCharFile  =  arg2Type.rep->base == charType;
         needR12  =  true;
-        l4exp8z = malloc(sizeof(expr));
-        l4exp8z->typ  =  arg2Type.rep->base;
-        l4exp8z->op  =  FILEPTR;
-        l4exp8z->expr1  =  workExpr;
-        l4exp6z = malloc(sizeof(expr));
-        l4exp6z->typ  =  l4exp8z->typ;
-        l4exp6z->op  =  ASSIGNOP;
-        l4exp6z->expr1  =  l4exp8z;
+        l4exp8z = mkExpr(FILEPTR, arg2Type.rep->base, workExpr, NIL);
+        l4exp6z = mkExpr(ASSIGNOP, l4exp8z->typ, l4exp8z, NIL);
     }
 } /* startWrite */
 //
@@ -6505,11 +6346,7 @@ void checkArrayArg() {
 void doPackUnpack() {
 var
     t: tptr;
-    l4exp7z = malloc(sizeof(expr));
-    l4exp7z->typ  =  l4typ1z.rep->base;
-    l4exp7z->op  =  GETELT;
-    l4exp7z->expr1  =  workExpr;
-    l4exp7z->expr2  =  l4exp8z;
+    l4exp7z  =  mkExpr(GETELT, l4typ1z.rep->base, workExpr, l4exp8z);
     t  =  l4exp6z->typ;
     if ((t.p.pk != kindArray) ||
        ! t.rep->pck ||
@@ -6826,12 +6663,7 @@ var
         } else {
             jumpTarget  =  curOffset;
             whileExpr  =  curExpr;
-            curExpr = malloc(sizeof(expr));
-            with *curExpr do {
-                typ  =  boolType;
-                op  =  NOTOP;
-                expr1  =  whileExpr;
-            }
+            curExpr = mkExpr(NOTOP, boolType, whileExpr, NIL);
             formOperator(BRANCH);
         }
         brContTarget();
@@ -7299,13 +7131,7 @@ void defExtern() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void makeExtFile() {
-    l2var10z = malloc(sizeof(expr));
-    with *l2var10z do {
-        typ.rep  =  typptr(curExternFile);
-        id2  =  workidr;
-        expr1  =  curExpr;
-    }
-    curExpr  =  l2var10z;
+    curExpr  =  mkExpr(NOOP, tptr(curExternFile), curExpr, eptr(workidr));
 } /* makeExtFile */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

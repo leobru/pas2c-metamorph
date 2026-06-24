@@ -539,7 +539,6 @@ var
     preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
     isPredefined, done, retSeen, inTypeDef, hadParens: boolean;
     typedefPending: boolean;
-    l2var10z: eptr;
     hasFiles: integer;
     bodyStatSys: setofsys;
     l2var12z: word;
@@ -2037,6 +2036,62 @@ function leftAlign: bitset;
     };
     leftAlign := curVal.m;
 }; (* leftAlign *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function mkExpr(oper: operator; resTyp: tptr; e1, e2: eptr): eptr;
+var n: eptr;
+{
+    new(n);
+    with n@ do {
+        vt.typ := resTyp;
+        op := oper;
+        expr1 := e1;
+        expr2 := e2;
+    };
+    mkExpr := n;
+}; (* mkExpr *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function mkIntLit(val: integer): eptr;
+var n: eptr;
+{
+    new(n);
+    n@ := [integerType, GETENUM, val];
+    mkIntLit := n;
+}; (* mkIntLit *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function bldIncDec(lval: eptr; isInc, isPost: boolean): eptr;
+var one, inner, rmw, post: eptr;
+{
+    one := mkIntLit(1C);
+    new(inner);
+    with inner@ do {
+        vt.typ := integerType;
+        if isInc then
+            op := INTPLUS
+        else
+            op := INTMINUS;
+        expr1 := one;
+        expr2 := NIL;
+    };
+    rmw := mkExpr(RMWASSIGN, integerType, lval, inner);
+    if not isPost then {
+        bldIncDec := rmw;
+        exit;
+    };
+    new(post);
+    with post@ do {
+        vt.typ := integerType;
+        if isInc then
+            op := INTMINUS
+        else
+            op := INTPLUS;
+        expr1 := rmw;
+        expr2 := one;
+    };
+    bldIncDec := post;
+}; (* bldIncDec *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure formOperator(l3arg1z: opgen);
@@ -3776,33 +3831,12 @@ var
         addToInsnList(macro + mcPUSH);
         genOneOp;
         insnList := NIL;
-        new(rmwLhs);
-        with rmwLhs@ do {
-            vt.typ := lhsExpr@.vt.typ;
-            op := STKLVAL;
-            expr1 := NIL;
-            expr2 := NIL;
-        };
+        rmwLhs := mkExpr(STKLVAL, lhsExpr@.vt.typ, NIL, NIL);
     } else {
         rmwLhs := lhsExpr;
     };
-
-    new(synthOp);
-    with synthOp@ do {
-        vt.typ := innerNode@.vt.typ;
-        op := innerOp;
-        expr1 := rmwLhs;
-        expr2 := rhsExpr;
-    };
-
-    new(synthAsn);
-    with synthAsn@ do {
-        vt.typ := exprToGen@.vt.typ;
-        op := ASSIGNOP;
-        expr1 := rmwLhs;
-        expr2 := synthOp;
-    };
-
+    synthOp := mkExpr(innerOp, innerNode@.vt.typ, rmwLhs, rhsExpr);
+    synthAsn := mkExpr(ASSIGNOP, exprToGen@.vt.typ, rmwLhs, synthOp);
     genFullExpr(synthAsn);
 }; (* genRMWAssign *)
 %
@@ -5279,7 +5313,7 @@ procedure parsePostfix;
 label
     13462, 55;
 var
-    l4exp1z, l4exp2z: eptr;
+    l4exp1z: eptr;
     l4typ3z: tptr;
     l4var4z: kind;
 {
@@ -5320,14 +5354,8 @@ var
             if (hashTravPtr = NIL) then {
                 error(20); (* errDigitGreaterThan7 ??? *)
             } else {
-                new(l4exp1z);
-                with l4exp1z@ do {
-                    vt.typ := hashTravPtr@.typ;
-                    op := GETFIELD;
-                    expr1 := curExpr;
-                    id2 := hashTravPtr;
-                };
-                curExpr := l4exp1z;
+                curExpr := (*=c-*)mkExpr(GETFIELD, hashTravPtr@.typ,
+                                   curExpr, hashTravPtr);(*=c+*)
             };
             inSymbol;
         } else {
@@ -5343,14 +5371,8 @@ var
         if (l4typ3z.p.pk <> kindArray) then {
             error(errWrongVarTypeBefore);
         } else {
-            new(l4exp2z);
-            with l4exp2z@ do {
-                vt.typ := l4typ3z.rep@.base;
-                expr1 := l4exp1z;
-                expr2 := curExpr;
-                op := GETELT;
-            };
-            l4exp1z := l4exp2z;
+            l4exp1z := mkExpr(GETELT, l4typ3z.rep@.base,
+                              l4exp1z, curExpr);
         };
         curExpr := l4exp1z;
         if (SY <> RBRACK) then
@@ -5368,21 +5390,11 @@ var
     if (hashTravPtr@.cl = FIELDID) then {
         (* Implicit field of the `with` variable: build GETFIELD on
            withIter directly, then continue with any further postfix. *)
-        new(l4exp1z);
-        with l4exp1z@ do {
-            vt.typ := hashTravPtr@.typ;
-            op := GETFIELD;
-            expr1 := withIter;
-            id2 := hashTravPtr;
-        };
-        curExpr := l4exp1z;
+        curExpr := (*=c-*)mkExpr(GETFIELD, hashTravPtr@.typ,
+                                   withIter, hashTravPtr);(*=c+*)
     } else {
-        new(curExpr);
-        with curExpr@ do {
-            vt.typ := hashTravPtr@.typ;
-            op := GETVAR;
-            id1 := hashTravPtr;
-        };
+        curExpr := (*=c-*)mkExpr(GETVAR, hashTravPtr@.typ,
+                                   hashTravPtr, NIL);(*=c+*)
     };
     inSymbol;
     parsePostfix;
@@ -5390,16 +5402,8 @@ var
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure castToReal(var value: eptr);
-var
-    cast: eptr;
 {
-    new(cast);
-    with cast@ do {
-        vt.typ := realType;
-        op := TOREAL;
-        expr1 := value;
-        value := cast;
-    }
+    value := mkExpr(TOREAL, realType, value, NIL);
 }; (* castToReal *)
 %
 function areTypesCompatible(var other: eptr): boolean;
@@ -5537,28 +5541,21 @@ function getPrec(sym: symbol; cls: operator): integer;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure bldBitOp(oper: operator; leftArg: eptr);
-var finalExpr: eptr;
 {
     if (arg1Type.p.pk <> kindScalar)
     or (arg2Type.p.pk <> kindScalar) then {
         error(errNeedOtherTypesOfOperands);
         exit;
     };
-    new(finalExpr);
-    with finalExpr@ do {
-        op := oper;
-        expr1 := leftArg;
-        expr2 := curExpr;
-        vt.typ := arg1Type;
-    };
-    curExpr := finalExpr;
+    curExpr := mkExpr(oper, arg1Type, leftArg, curExpr);
 };
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure bldArithOp(oper: operator; leftExpr: eptr; match: boolean);
 var
-    finalExpr: eptr;
     k1, k2: kind;
+    resOp: operator;
+    resTyp: tptr;
 {
     k1 := arg1Type.p.pk;
     k2 := arg2Type.p.pk;
@@ -5566,32 +5563,27 @@ var
         error(errNeedOtherTypesOfOperands);
         exit;
     };
-    new(finalExpr);
-    with finalExpr@ do {
-        if (k1 = kindReal) or (k2 = kindReal) then {
-            if (oper = IMODOP) then {
-                error(62); (* errIntegerNeeded *)
-                exit;
-            };
-            if (k1 <> kindReal) then
-                castToReal(curExpr);
-            if (k2 <> kindReal) then
-                castToReal(leftExpr);
-            op := oper;
-            vt.typ := realType;
-        } else {
-            op := intOpMap[oper];
-            vt.typ := integerType;
+    if (k1 = kindReal) or (k2 = kindReal) then {
+        if (oper = IMODOP) then {
+            error(62); (* errIntegerNeeded *)
+            exit;
         };
-        expr1 := leftExpr;
-        expr2 := curExpr;
-   };
-   curExpr := finalExpr;
+        if (k1 <> kindReal) then
+            castToReal(curExpr);
+        if (k2 <> kindReal) then
+            castToReal(leftExpr);
+        resOp := oper;
+        resTyp := realType;
+    } else {
+        resOp := intOpMap[oper];
+        resTyp := integerType;
+    };
+    curExpr := mkExpr(resOp, resTyp, leftExpr, curExpr);
 }; (* bldArithOp *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure bldRelOp(oper: operator; ex2: eptr);
-var ex1: eptr;
+var resOp: operator;
 {
     if typeCheck(arg1Type, arg2Type) then {
         if
@@ -5608,48 +5600,30 @@ var ex1: eptr;
             error(errNeedOtherTypesOfOperands);
         }
     };
-    new(ex1);
-    with ex1@ do {
-        vt.typ := booleanType;
-        if (oper IN [GTOP, LEOP]) then {
-            expr1 := curExpr;
-            expr2 := ex2;
-            if (oper = GTOP) then
-                op := LTOP
-            else
-                op := GEOP;
-        } else {
-            expr1 := ex2;
-            expr2 := curExpr;
-            op := oper;
-        };
-        curExpr := ex1;
-    }
+    if (oper IN [GTOP, LEOP]) then {
+        if (oper = GTOP) then
+            resOp := LTOP
+        else
+            resOp := GEOP;
+        curExpr := mkExpr(resOp, booleanType, curExpr, ex2);
+    } else
+        curExpr := mkExpr(oper, booleanType, ex2, curExpr);
 }; (* bldRelOp *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure bldLogOp(oper: operator; leftExpr: eptr; match: boolean);
-var finalExpr: eptr;
 {
     if (not match) or
-       ((arg1Type <> booleanType) and (arg1Type <> integerType)) then {
-        error(errNeedOtherTypesOfOperands);
-    } else {
-        new(finalExpr);
-        with finalExpr@ do {
-            vt.typ := booleanType;
-            op := oper;
-            expr1 := leftExpr;
-            expr2 := curExpr;
-            curExpr := finalExpr;
-        }
-    }
+       ((arg1Type <> booleanType) and (arg1Type <> integerType)) then
+        error(errNeedOtherTypesOfOperands)
+    else
+        curExpr := mkExpr(oper, booleanType, leftExpr, curExpr);
 }; (* bldLogOp *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure bldCondOp(condExpr, thenExpr: eptr);
-var altExpr, condOpExpr: eptr;
-    resType: tptr;
+var resType: tptr;
+    altExpr: eptr;
 {
     if (condExpr@.vt.typ.p.pk > kindPtr) then {
         error(errBooleanNeeded);
@@ -5666,21 +5640,8 @@ var altExpr, condOpExpr: eptr;
         error(errNeedOtherTypesOfOperands);
         exit;
     };
-    new(altExpr);
-    with altExpr@ do {
-        vt.typ := resType;
-        op := ALTERN;
-        expr1 := thenExpr;
-        expr2 := curExpr;
-    };
-    new(condOpExpr);
-    with condOpExpr@ do {
-        vt.typ := resType;
-        op := CONDOP;
-        expr1 := condExpr;
-        expr2 := altExpr;
-    };
-    curExpr := condOpExpr;
+    altExpr := mkExpr(ALTERN, resType, thenExpr, curExpr);
+    curExpr := mkExpr(CONDOP, resType, condExpr, altExpr);
 }; (* bldCondOp *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5757,13 +5718,7 @@ var
         } else {
             resultValue := l5var2z.p.psize;
         };
-        new(newExpr);
-        with newExpr@ do {
-            op := GETENUM;
-            lit.c := chr(resultValue);
-            vt.typ := integerType;
-        };
-        curExpr := newExpr;
+        curExpr := (*=c-*)mkIntLit(chr(resultValue));(*=c+*)
         checkSymAndRead(RPAREN);
         exit;
     };
@@ -5807,19 +5762,11 @@ var
     } else if (checkMode = chkINT) and (asBitset <= [fnABS]) then {
         stProcNo := fnABSI
     };
-    new(newExpr);
-    with newExpr@ do
-        if (stProcNo = fnSIZEOF) then {
-            op := GETENUM;
-            lit.c := chr(arg1Type.p.psize);
-            vt.typ := integerType;
-        } else {
-            op := STANDPROC;
-            expr1 := curExpr;
-            num2 := stProcNo;
-            vt.typ := arg1Type;
-        };
-    curExpr := newExpr;
+   (*=c-*)if (stProcNo = fnSIZEOF) then
+      curExpr := mkIntLit(chr(arg1Type.p.psize))
+   else
+      curExpr := mkExpr(STANDPROC, arg1Type, curExpr, stProcNo);
+   (*=c+*)
     checkSymAndRead(RPAREN);
 
 }; (* stdCall *)
@@ -5885,17 +5832,12 @@ var
                             exit rout
                         };
                     };
-                    new(curExpr);
                     if not (SY IN [RPAREN, COMMA]) then {
                         error(errNoCommaOrParenOrTooFewArgs);
                         goto 8888;
                     };
-                    with curExpr@ do {
-                        vt.typ := routine@.typ;
-                        op := newOp;
-                        expr1 := NIL;
-                        id2 := routine;
-                    }
+                    curExpr :=
+                        (*=c-*)mkExpr(newOp, routine@.typ, NIL, routine);(*=c+*)
                 };
                 VARID, FORMALID, FIELDID:
                     parseLval;
@@ -5959,13 +5901,7 @@ var
                         };
                         error(errNoConstant);
                     };
-                    new(curExpr);
-                    with curExpr@ do {
-                        vt.typ := integerType;
-                        op := SETOR;
-                        expr1 := newExpr;
-                        expr2 := l4exp5z;
-                    };
+                    curExpr := mkExpr(SETOR, integerType, newExpr, l4exp5z);
 14567:              ;
                 until SY <> COMMA;
             };
@@ -5991,40 +5927,9 @@ var
             error(27);
         if not typeCheck(curExpr@.vt.typ, integerType) then
             error(62);
-        new(l4exp5z);
-        l4exp5z@ := [integerType, GETENUM, 1C];
-        new(l4var8z);
-        with l4var8z@ do {
-            vt.typ := integerType;
-            if (charClass = INCROP) then
-                op := INTPLUS
-            else
-                op := INTMINUS;
-            expr1 := l4exp5z;
-            expr2 := NIL;
-        };
-        new(l4var7z);
-        with l4var7z@ do {
-            vt.typ := integerType;
-            op := RMWASSIGN;
-            expr1 := curExpr;
-            expr2 := l4var8z;
-        };
-        new(newExpr);
-        with newExpr@ do {
-            vt.typ := integerType;
-            if (charClass = INCROP) then {
-                op := INTMINUS;
-                expr1 := l4var7z;
-                expr2 := l4exp5z;
-            } else {
-                op := INTPLUS;
-                expr1 := l4var7z;
-                expr2 := l4exp5z;
-            };
-        };
+        l4var1z.b := (charClass = INCROP);
         inSymbol;
-        curExpr := newExpr;
+        curExpr := bldIncDec(curExpr, l4var1z.b, true);
     };
 
 }; (* factor *)
@@ -6048,98 +5953,66 @@ var
         factor;
     if oper <> NOOP then {
         arg1Type := curExpr@.vt.typ;
-        new(leftExpr);
-        with leftExpr@ do {
-            vt.typ := arg1Type;
-            expr1 := curExpr;
-            case oper of
-            MINUSOP: {
-                if arg1Type = realType then {
-                    op := RNEGOP;
-                } else if typeCheck(arg1Type, integerType) then {
-                    leftExpr@.op := INEGOP;
-                    leftExpr@.vt.typ := integerType;
-                } else {
-                    error(69); (* errUnaryMinusNeedRealOrInteger *)
-                    exit
-                };
+        case oper of
+        MINUSOP: {
+            if arg1Type = realType then
+                curExpr := mkExpr(RNEGOP, realType, curExpr, NIL)
+            else if typeCheck(arg1Type, integerType) then
+                curExpr := mkExpr(INEGOP, integerType, curExpr, NIL)
+            else {
+                error(69); (* errUnaryMinusNeedRealOrInteger *)
+                exit
             };
-            BITNEGOP: {
-                if typeCheck(arg1Type, integerType) then {
-                    leftExpr@.op := BITNEGOP;
-                    leftExpr@.vt.typ := integerType;
-                } else {
-                    error(62); (* errIntegerNeeded *)
-                    exit
-                };
+        };
+        BITNEGOP: {
+            if typeCheck(arg1Type, integerType) then
+                curExpr := mkExpr(BITNEGOP, integerType, curExpr, NIL)
+            else {
+                error(62); (* errIntegerNeeded *)
+                exit
             };
-            NOTOP: with leftExpr@ do {
-                vt.typ := booleanType;
-                if (arg1Type = booleanType) then {
-                    op := NOTOP;
-                } else if (arg1Type = integerType) then {
-                    op := EQOP;
-                    new(expr2);
-                    expr2@ := [integerType, GETENUM, 0C];
-                } else {
-                    error(errNeedOtherTypesOfOperands);
-                    exit
-                };
+        };
+        NOTOP: {
+            if (arg1Type = booleanType) then
+                curExpr := mkExpr(NOTOP, booleanType, curExpr, NIL)
+            else if (arg1Type = integerType) then {
+                oneExpr := mkIntLit(0C);
+                curExpr := mkExpr(EQOP, booleanType, curExpr, oneExpr);
+            } else {
+                error(errNeedOtherTypesOfOperands);
+                exit
             };
-            MUL: with leftExpr@ do {
-                    if (arg1Type.p.pk = kindPtr) then {
-                        vt.typ := arg1Type.rep@.base;
-                        op := DEREF;
-                    } else if (arg1Type.p.pk = kindFile) then {
-                        vt.typ := arg1Type.rep@.base;
-                        op := FILEPTR;
-                    } else {
-                        stmtName := 'unary*';
-                        error(errWrongVarTypeBefore);
-                    }
+        };
+        MUL: {
+            if (arg1Type.p.pk = kindPtr) then
+                curExpr := mkExpr(DEREF, arg1Type.rep@.base,
+                                  curExpr, NIL)
+            else if (arg1Type.p.pk = kindFile) then
+                curExpr := mkExpr(FILEPTR, arg1Type.rep@.base,
+                                  curExpr, NIL)
+            else {
+                stmtName := 'unary*';
+                error(errWrongVarTypeBefore);
             };
-            SETAND: {
-                if not (curExpr@.op IN lvalOpSet) then
-                    error(27); (* errExpressionWhereVariableExpected *)
-                with leftExpr@ do {
-                    vt.typ := voidPtr;
-                    op := STANDPROC;
-                    num2 := fnREF;
-                }
+        };
+        SETAND: {
+            if not (curExpr@.op IN lvalOpSet) then
+                error(27); (* errExpressionWhereVariableExpected *)
+                curExpr :=
+                (*=c-*)mkExpr(STANDPROC, voidPtr, curExpr, fnREF);(*=c+*)
+        };
+        INCROP, DECROP: {
+            if not (curExpr@.op IN lvalOpSet) then {
+                error(27);
+                exit
             };
-            INCROP, DECROP: with leftExpr@ do {
-                (* Pre-increment (++x) / pre-decrement (--x):
-                   lower to RMWASSIGN(x, INTPLUS|INTMINUS(1, NIL)).
-                   Codegen materialises x's address once (when needed)
-                   and reuses the spill slot for both load and store,
-                   so side-effectful lvalues fire only once. *)
-                if not (curExpr@.op IN lvalOpSet) then {
-                    error(27); (* errExpressionWhereVariableExpected *)
-                    exit
-                };
-                if not typeCheck(arg1Type, integerType) then {
-                    error(62); (* errIntegerNeeded *)
-                    exit
-                };
-                new(oneExpr);
-                oneExpr@ := [integerType, GETENUM, 1C];
-                new(addExpr);                  (* INTPLUS / INTMINUS node *)
-                with addExpr@ do {
-                    vt.typ := integerType;
-                    if (oper = INCROP) then
-                        op := INTPLUS
-                    else
-                        op := INTMINUS;
-                    expr1 := oneExpr;          (* RHS = 1 *)
-                    expr2 := NIL;                (* don't-care slot *)
-                };
-                vt.typ := integerType;
-                op := RMWASSIGN;
-                expr2 := addExpr;
-            }
-            end;
-            curExpr := leftExpr;
+            if not typeCheck(arg1Type, integerType) then {
+                error(62);
+                exit
+            };
+            curExpr := bldIncDec(curExpr, oper = INCROP, false);
         }
+        };
     };
 }; (* parseUnaryExpression *)
 %
@@ -6220,17 +6093,12 @@ var
                 else
                     error(33); (*errIllegalTypesForAssignment*)
             };
-            new(thenExpr);
-            with thenExpr@ do {
-                vt.typ := arg1Type;
-                if (oper <> ASSIGNOP) then
-                    op := RMWASSIGN
-                else
-                    op := ASSIGNOP;
-                expr1 := leftExpr;
-                expr2 := curExpr;
-            };
-            curExpr := thenExpr;
+            if (oper <> ASSIGNOP) then
+                curExpr := mkExpr(RMWASSIGN, arg1Type,
+                                  leftExpr, curExpr)
+            else
+                curExpr := mkExpr(ASSIGNOP, arg1Type,
+                                  leftExpr, curExpr);
         } else {
             (* Recursively parse right operand with higher precedence *)
             (* For left-associative: use curPrec + 1 *)
@@ -6822,14 +6690,8 @@ procedure startWrite;
         (* typeCheck(arg2Type@.base, charType); *)
         isCharFile := arg2Type.rep@.base = charType;
         needR12 := true;
-        new(l4exp8z);
-        l4exp8z@.vt.typ := arg2Type.rep@.base;
-        l4exp8z@.op := FILEPTR;
-        l4exp8z@.expr1 := workExpr;
-        new(l4exp6z);
-        l4exp6z@.vt.typ := l4exp8z@.vt.typ;
-        l4exp6z@.op := ASSIGNOP;
-        l4exp6z@.expr1 := l4exp8z
+        l4exp8z := mkExpr(FILEPTR, arg2Type.rep@.base, workExpr, NIL);
+        l4exp6z := mkExpr(ASSIGNOP, l4exp8z@.vt.typ, l4exp8z, NIL);
     }
 }; (* startWrite *)
 %
@@ -7006,11 +6868,7 @@ procedure doPackUnpack;
 var
     t: tptr;
 {
-    new(l4exp7z);
-    l4exp7z@.vt.typ := l4typ1z.rep@.base;
-    l4exp7z@.op := GETELT;
-    l4exp7z@.expr1 := workExpr;
-    l4exp7z@.expr2 := l4exp8z;
+    l4exp7z := mkExpr(GETELT, l4typ1z.rep@.base, workExpr, l4exp8z);
     t := l4exp6z@.vt.typ;
     if (t.p.pk <> kindArray) or
        not t.rep@.pck or
@@ -7350,12 +7208,7 @@ var
             } else {
                 jumpTarget := curOffset.i;
                 whileExpr := curExpr;
-                new(curExpr);
-                with curExpr@do {
-                    vt.typ := booleanType;
-                    op := NOTOP;
-                    expr1 := whileExpr;
-                };
+                curExpr := mkExpr(NOTOP, booleanType, whileExpr, NIL);
                 formOperator(BRANCH);
             };
             brContTarget; (* removing break *)
@@ -7835,13 +7688,7 @@ var l : integer;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure makeExtFile;
 {
-    new(l2var10z);
-    with l2var10z@ do {
-        vt.typ.rep := ptr(ord(curExternFile));
-        id2 := workidr;
-        expr1 := curExpr;
-    };
-    curExpr := l2var10z;
+    curExpr := (*=c-*)mkExpr(NOOP, curExternFile, curExpr, workidr);(*=c+*)
 }; (* makeExtFile *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
