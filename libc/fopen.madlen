@@ -42,10 +42,15 @@ C ---- M9, M10, M11 (matching the per-file VTMs in formFileInit) ----
                 , asn , 64+15
                 , sti , 10     . M10 := bufsize, pop fcb to ACC
                 , ati , 12     . M12 := fcb
-C ---- FILEINIT-style frame: ,its,13 + ,atx,SP, then re-load name ----
-                , xta , aname  . ACC := name (will get pushed by ITS)
-                , its , 13     . push ACC; ACC := M13
-            15  , atx ,        . [SP] := M13 (return link, FILEINIT-style)
+C ---- FILEINIT-style frame: push a ZERO flag word (its,13) then
+C      the return link (atx,SP).  P/CO reads [SP-2] as its mode
+C      flag; FILEINIT leaves 0 there to select the fresh-init
+C      path.  ACC must be 0 here, NOT the name, or P/CO falls
+C      through to the capacity-decrement/reopen path and never
+C      lays out the FCB.  The name is re-loaded just before VJM.
+                , xta ,        . ACC := 0 (P/CO mode flag, FILEINIT)
+                , its , 13     . push the 0 flag; ACC := M13
+            15  , atx ,        . push M13 (return link, FILEINIT-style)
                 , xta , aname  . ACC := name (final input to P/CO)
 C ---- intended call P/CO (helper #69) and tail-jump to P/IT
 C      (helper #70).

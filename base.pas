@@ -6660,7 +6660,7 @@ procedure startWrite;
     l4typ3z := curExpr@.vt.typ;
     l4exp7z := curExpr;
     if (workExpr = NIL) then {
-        if (l4typ3z.p.pk = kindFile) then {
+        if (l4typ3z.p.psize = 30) then {
             workExpr := curExpr;
         } else {
             new(workExpr);
@@ -6670,7 +6670,8 @@ procedure startWrite;
         };
         arg2Type := workExpr@.vt.typ;
         (* typeCheck(arg2Type@.base, charType); *)
-        isCharFile := arg2Type.rep@.base = charType;
+        isCharFile := (l4typ3z.p.pk <> kindFile) or
+                      (arg2Type.rep@.base = charType);
         needR12 := true;
         l4exp8z := mkExpr(FILEPTR, arg2Type.rep@.base, workExpr, NIL);
         l4exp6z := mkExpr(ASSIGNOP, l4exp8z@.vt.typ, l4exp8z, NIL);
