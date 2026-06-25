@@ -162,9 +162,9 @@ typedef
         PERIOD,     ARROW,      COLON,      BECOMES,
 /*20B*/ BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
         VARSY,      TYPESY,     ENUMSY,
-/*30B*/ PACKEDSY,   STRUCTSY,   FILESY,     IFSY,
-        SWITCHSY,   WHILESY,    FORSY,      WITHSY,
-/*40B*/ GOTOSY,     ELSESY,     OFSY,       DOSY,
+/*30B*/ PACKEDSY,   STRUCTSY,   IFSY,       SWITCHSY,
+        WHILESY,    FORSY,      WITHSY,     GOTOSY,
+/*40B*/ ELSESY,     DOSY,
         EXTERNSY,   BREAKSY,    CONTSY,     CASESY,
 /*50B*/ DEFAULTSY,  UNIONSY,    NOSY
 };
@@ -500,7 +500,7 @@ var
 //
     symTab: int[074000 .. 075500];
     systemProcNames: int[23];
-    resWordName: int[27];
+    resWordName: int[21];
     longSymCnt: int;
     longSym: int[1..90];
     longSyms: int[1..90];
@@ -510,11 +510,7 @@ var
     iso2text: char['\052'..'\177'];
     text2iso: __packed char['\0'..'\77'];
     maxHeap: int;
-    fcst: ifcb; /* last */
-//
-    pasinput: text;
-//
-    _child_: file of int;
+    fcst, pasinput, _child_: ifcb;
 //
     pasinfor: struct {
         /*0*/ listMode:     int;
@@ -1027,7 +1023,7 @@ void requiredSymErr(sym: symbol) {
 void readToPos80() {
     while (linePos < 80) {
         ++linePos;
-        lineBuf[linePos]  =  *PASINPUT;
+        lineBuf[linePos]  =  *PASINPUT.data;
         if (linePos != 80)  get(PASINPUT);
     }
     endOfLine();
@@ -1037,7 +1033,7 @@ void readToPos80() {
 void nextCH() {
     do {
         atEOL  =  eoln(PASINPUT);
-        CH  =  *PASINPUT;
+        CH  =  *PASINPUT.data;
         get(PASINPUT);
         ++linePos;
         lineBuf[linePos]  =  CH;
@@ -1176,7 +1172,7 @@ escMap = 007101412151113;
                         expLiteral  =  8*expLiteral + CH - '0';
                         ++tokenLen;
                         if ((tokenLen < 3) &&
-                            ('0' <= *PASINPUT) && (*PASINPUT <= '7'))
+                            ('0' <= *PASINPUT.data) && (*PASINPUT.data <= '7'))
                             nextCH();
                         else
                             break;
@@ -4662,25 +4658,6 @@ var
             cases.count  =  0;
             inSymbol();
             parseRecordDecl(&curType, true);
-        } else if (SY == FILESY) {
-            inSymbol();
-            checkSymAndRead(OFSY);
-            nestedType = parseTypeRef(skipTarget);
-            if (isPacked) {
-                l3int22z  =  typeBits(nestedType);
-                if (24 < l3int22z)
-                    isPacked  =  false;
-            }
-            curType.rep = malloc(offsetof(types, szFile));
-            if (! isPacked)
-                l3int22z  =  0;
-            with *(curType.rep) do {
-                base  =  nestedType;
-            }
-            curType.p.pad  =  l3int22z;
-            curType.p.psize  =  30;
-            curType.p.bits  =  48;
-            curType.p.pk  =  kindFile;
         } else {
             error(errNotAType);
         }
@@ -4707,7 +4684,7 @@ var
         isPacked  =  false;
 13020:
     if (errors)
-        skip(skipToSet | [RPAREN, RBRACK, SEMICOLON, OFSY]);
+        skip(skipToSet | [RPAREN, RBRACK, SEMICOLON]);
     return curType;
 } /* parseTypeRef */
 //
@@ -6997,7 +6974,6 @@ void defExtern() {
     regSysType('    CHAR', charType);
     regSysType('    REAL', realType);
     regSysType('    ALFA', alfaType);
-    regSysType('    TEXT', textType);
     regSysType('    VOID', voidType);
     tempType = voidPtr;
     regSysEnum('     NIL', 074000U);
@@ -7774,7 +7750,7 @@ void regKeywords() { /*=A3 regKeywords */
     regResWord('      IN');
     SY  =  CONSTSY;
     charClass  =  NOOP;
-    for (idx = 0; idx < 23; ++idx) {
+    for (idx = 0; idx <= 20; ++idx) {
         /* 'function' keyword is retired: C-style "RetType name();"
            is the only accepted routine-declaration form. */
         if (SY != TYPESY)
@@ -7791,7 +7767,6 @@ void regKeywords() { /*=A3 regKeywords */
     bigSkipSet  =  skipToSet | statEndSys;
     unpack(*pasinfor.a3, iso2text, '\052'); /* '*' */
     iso2text['_'] = iso2text['*'];
-//    fopen(&_CHILD_, 010000100000, /*=a3*/'*CHILD* ');/*=a2*/
     rewrite(_CHILD_);
     for (jdx = 1; jdx <= 10; ++jdx)
         put(_CHILD_);
@@ -7838,7 +7813,7 @@ var
         putw(&_CHILD_, symTab[cnt]);
     for (cnt = 1; cnt <= longSymCnt; ++cnt)
         putw(&_CHILD_, longSyms[cnt]);
-//    fclose(&_CHILD_);
+    fclose(&_CHILD_);
     if (allowCompat) {
         writeln('     MODULE HEADER:   HDR REL    0    0 LSYM NCODE   0 CONST DATA SETS');
         write((lineCnt - 1):6, ' LINES STRUCTURE ');
@@ -7887,6 +7862,10 @@ void initOptions() {
 } /* initOptions */
 //
 void main() {
+    /*=A3*/
+    fopen(&PASINPUT, 010000100010, 'PASINPUT');
+    fopen(&_CHILD_, 010000100000,'*CHILD* ');
+    /*=A2*/
     if (PASINFOR.listMode != 0)
         writeln(boilerplate);
     writeln(' INITHEAP = ', setup():5 oct);
@@ -7930,7 +7909,6 @@ void main() {
         '    ENUM',
         '**PACKED',
         '  STRUCT',
-        '    FILE',
         '      IF',
         '  SWITCH',
         '   WHILE',
@@ -7938,7 +7916,6 @@ void main() {
         '    WITH',
         '    GOTO',
         '    ELSE',
-        '      OF',
         '      DO',
         '  EXTERN',
         '   BREAK',

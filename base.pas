@@ -143,9 +143,9 @@ type
         PERIOD,     ARROW,      COLON,      BECOMES,
 (*20B*) BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
         VARSY,      TYPESY,     ENUMSY,
-(*30B*) PACKEDSY,   STRUCTSY,   FILESY,     IFSY,
-        SWITCHSY,   WHILESY,    FORSY,      WITHSY,
-(*40B*) GOTOSY,     ELSESY,     OFSY,       DOSY,
+(*30B*) PACKEDSY,   STRUCTSY,   IFSY,       SWITCHSY,
+        WHILESY,    FORSY,      WITHSY,     GOTOSY,
+(*40B*) ELSESY,     DOSY,
         EXTERNSY,   BREAKSY,    CONTSY,     CASESY,
 (*50B*) DEFAULTSY,  UNIONSY,    NOSY
 );
@@ -482,7 +482,7 @@ var
 %
    symTab:array [74000B..75500B] of bitset;
    systemProcNames: array [0..22] of integer;
-   resWordName: array [0..25] of integer;
+   resWordName: array [0..20] of integer;
    longSymCnt: integer;
    longSym: array [1..90] of integer;
    longSyms: array [1..90] of bitset;
@@ -5055,25 +5055,6 @@ procedure readDclCore;
             cases.count := 0;
             inSymbol;
             parseRecordDecl(curType, true);
-        } else if (SY = FILESY) then {
-            inSymbol;
-            checkSymAndRead(OFSY);
-            parseTypeRef(nestedType, skipTarget);
-            if (isPacked) then {
-                l3int22z := nestedType.p.bits;
-                if (24 < l3int22z) then
-                    isPacked := false;
-            };
-            new(curType.rep, kindFile);
-            if (not isPacked) then
-                l3int22z := 0;
-            with curType.rep@ do {
-                base := nestedType;
-            };
-            curType.p.pad := l3int22z;
-            curType.p.psize := 30;
-            curType.p.bits := 48;
-            curType.p.pk := kindFile
         } else {
             error(errNotAType);
         };
@@ -5100,7 +5081,7 @@ procedure readDclCore;
         isPacked := false;
 13020:
     if (errors) then
-        skip(skipToSet + [RPAREN, RBRACK, SEMICOLON, OFSY]);
+        skip(skipToSet + [RPAREN, RBRACK, SEMICOLON]);
     newtype := curType;
 }; (* parseTypeRef *)
 %
@@ -7525,7 +7506,6 @@ var l : integer;
     regSysType(43504162C(*"    CHAR"*), charType);
     regSysType(62454154C(*"    REAL"*), realType);
     regSysType(41544641C(*"    ALFA"*), alfaType);
-    regSysType(64457064C(*"    TEXT"*), textType);
     regSysType(66575144C(*"    VOID"*), voidType);
     tempType := voidPtr;
     regSysEnum(565154C(*"     NIL"*), 74000C);
@@ -8342,7 +8322,7 @@ procedure regKeywords;
     regResWord(5156C(*"      IN"*));
     SY := CONSTSY;
     charClass := NOOP;
-    for idx := 0 to 22 do {
+    for idx := 0 to 20 do {
         if (SY <> TYPESY) then
             regResWord(resWordName[idx]);
         SY := succ(SY);
@@ -8508,7 +8488,6 @@ procedure initOptions;
         45566555C               (*"    ENUM"*),
         1212604143534544C       (*"**PACKED"*),
         636462654364C           (*"  STRUCT"*),
-        46515445C               (*"    FILE"*),
         5146C                   (*"      IF"*),
         636751644350C           (*"  SWITCH"*),
         6750515445C             (*"   WHILE"*),
@@ -8516,7 +8495,6 @@ procedure initOptions;
         67516450C               (*"    WITH"*),
         47576457C               (*"    GOTO"*),
         45546345C               (*"    ELSE"*),
-        5746C                   (*"      OF"*),
         4457C                   (*"      DO"*),
         457064456256C           (*"  EXTERN"*),
         4262454153C             (*"   BREAK"*),
