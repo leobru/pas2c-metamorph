@@ -536,6 +536,11 @@ int setjmp(jmpbuf: *int); assembler;
 int setup(); assembler;
 void rollup(addr: int); assembler;
 void fopen(fcb: *ifcb; sizes, name: int); assembler;
+void fclose(fcb: *ifcb); assembler;
+void putw(f: *ifcb; i: int) {
+    *f->data = i;
+    put(*f);
+}
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
@@ -633,8 +638,7 @@ void addToHashTab(arg: irptr) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void toFCST() {
-    *FCST.data = curVal.i;
-    put(FCST);
+    putw(&FCST, curVal.i);
     ++FcstCnt;
 } /* toFCST */
 //
@@ -6109,8 +6113,7 @@ var
         error(errBadSymbol);
     reset(F);
     while (! eof(F)) {
-        *FCST.data = *F.data;
-        put(FCST);
+        putw(&FCST, *F.data);
         get(F);
     }
     lookup2  =  FcstCnt - dsize;
@@ -6726,7 +6729,7 @@ var
     idx: int;
     padToLeft();
     for (idx = 1; idx < objBufIdx; ++idx)
-        write(_CHILD_, objBuffer[idx]);
+        putw(&_CHILD_, objBuffer[idx]);
     lineStartOffset  =  moduleOffset;
     prevOpcode  =  0;
 } /* outputObjFile */
@@ -7071,7 +7074,7 @@ void defExtern() {
     entryPtTable[3]  =  [1];
     entryPtCnt  =  4;
     /*=A2 done with TEXT constants */
-    write(_CHILD_, (KVTM+I8+074001) << 24 | KUJ+074002);
+    putw(&_CHILD_, (KVTM+I8+074001) << 24 | KUJ+074002);
     moduleOffset  =  040001;
     programObj->argList  =  NIL;
     programObj->flags  =  0U;
@@ -7788,6 +7791,7 @@ void regKeywords() { /*=A3 regKeywords */
     bigSkipSet  =  skipToSet | statEndSys;
     unpack(*pasinfor.a3, iso2text, '\052'); /* '*' */
     iso2text['_'] = iso2text['*'];
+//    fopen(&_CHILD_, 010000100000, /*=a3*/'*CHILD* ');/*=a2*/
     rewrite(_CHILD_);
     for (jdx = 1; jdx <= 10; ++jdx)
         put(_CHILD_);
@@ -7820,7 +7824,7 @@ var
     symTab[074001]  =  [24,29] | curVal.i;
     reset(FCST);
     while (! eof(FCST)) {
-        write(_CHILD_, *FCST.data);
+        putw(&_CHILD_, *FCST.data);
         get(FCST);
     }
     curVal.i  =  (symTabPos - 070000) << 24;
@@ -7831,9 +7835,10 @@ var
     }
     --symTabPos;
     for (cnt  =  074000; cnt <= symTabPos; ++cnt)
-        write(_CHILD_, symTab[cnt]);
+        putw(&_CHILD_, symTab[cnt]);
     for (cnt = 1; cnt <= longSymCnt; ++cnt)
-        write(_CHILD_, longSyms[cnt]);
+        putw(&_CHILD_, longSyms[cnt]);
+//    fclose(&_CHILD_);
     if (allowCompat) {
         writeln('     MODULE HEADER:   HDR REL    0    0 LSYM NCODE   0 CONST DATA SETS');
         write((lineCnt - 1):6, ' LINES STRUCTURE ');
