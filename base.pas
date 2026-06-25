@@ -2062,35 +2062,18 @@ var n: eptr;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function bldIncDec(lval: eptr; isInc, isPost: boolean): eptr;
-var one, inner, rmw, post: eptr;
+var one, rmw: eptr; op1, op2: operator;
 {
+if (isInc) then { op1 := INTPLUS; op2 := INTMINUS }
+           else { op2 := INTPLUS; op1 := INTMINUS };
     one := mkIntLit(1C);
-    new(inner);
-    with inner@ do {
-        vt.typ := integerType;
-        if isInc then
-            op := INTPLUS
-        else
-            op := INTMINUS;
-        expr1 := one;
-        expr2 := NIL;
-    };
-    rmw := mkExpr(RMWASSIGN, integerType, lval, inner);
+    rmw := mkExpr(RMWASSIGN, integerType, lval,
+                  mkExpr(op1, integerType, one, NIL));
     if not isPost then {
         bldIncDec := rmw;
         exit;
     };
-    new(post);
-    with post@ do {
-        vt.typ := integerType;
-        if isInc then
-            op := INTMINUS
-        else
-            op := INTPLUS;
-        expr1 := rmw;
-        expr2 := one;
-    };
-    bldIncDec := post;
+    bldIncDec := mkExpr(op2, integerType, rmw, one);
 }; (* bldIncDec *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5976,8 +5959,7 @@ var
             if (arg1Type = booleanType) then
                 curExpr := mkExpr(NOTOP, booleanType, curExpr, NIL)
             else if (arg1Type = integerType) then {
-                oneExpr := mkIntLit(0C);
-                curExpr := mkExpr(EQOP, booleanType, curExpr, oneExpr);
+                curExpr := mkExpr(EQOP, booleanType, curExpr, mkIntLit(0C));
             } else {
                 error(errNeedOtherTypesOfOperands);
                 exit
@@ -8482,6 +8464,8 @@ procedure initOptions;
 { (* main *)
     if PASINFOR.listMode <> 0 then
         writeln(boilerplate);
+    setup(insnList);
+    writeln(' INITHEAP = ', insnList:5 oct);
     initOptions;
     curInsnTemplate := 0;
     initTables;

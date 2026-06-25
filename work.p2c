@@ -1917,19 +1917,15 @@ eptr mkIntLit(val: int) {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 eptr bldIncDec(lval: eptr; isInc, isPost: int) {
 var
-    one, inner, rmw, post: eptr;
+    one, rmw: eptr;
+    op: operator;
+    op = isInc ? INTPLUS : INTMINUS;
     one = mkIntLit(1);
-    inner = mkExpr(isInc ? INTPLUS : INTMINUS, intType, one, NIL);
-    rmw = mkExpr(RMWASSIGN, intType, lval, inner);
+    rmw = mkExpr(RMWASSIGN, intType, lval, mkExpr(op, intType, one, NIL));
     if (! isPost)
         return rmw;
-    return mkExpr(isInc ? INTMINUS : INTPLUS, intType, rmw, one);
+    return mkExpr(INTPLUS + INTMINUS - op, intType, rmw, one);
 } /* bldIncDec */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void castToReal(value: *eptr) {
-    *value = mkExpr(TOREAL, realType, *value, NIL);
-} /* castToReal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void formOperator(l3arg1z: opgen) { /* formOperator */
@@ -4967,6 +4963,11 @@ void parseLval() {
 } /* parseLval */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void castToReal(value: *eptr) {
+    *value = mkExpr(TOREAL, realType, *value, NIL);
+} /* castToReal */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int areTypesCompatible(l4arg1z: *eptr) {
     if (arg1Type == realType) {
         if (typeCheck(intType, arg2Type)) {
@@ -7883,6 +7884,7 @@ void initOptions() {
 void main() {
     if (PASINFOR.listMode != 0)
         writeln(boilerplate);
+    writeln(' INITHEAP = ', setup():5 oct);
     if (setjmp(&jb9999)) goto 9999;
     initOptions();
     curInsnTemplate  =  0;
