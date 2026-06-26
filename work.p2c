@@ -3964,55 +3964,15 @@ var extFileP: *extfilerec;
     fileAddr, elemSize: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void initFile(fileSym: irptr; extFileP: *extfilerec) {
+void fcloseFile(fileSym: irptr) {
     fileAddr  =  fileSym->value;
-    fileBase  =  fileSym->typ.rep->base;
-    elemSize  =  fileSym->typ.p.pad;
-    if (fileAddr < 074000) {
-        form1Insn(getValueOrAllocSymtab(fileAddr) +
-                  KUTC + I7);
-        fileAddr  =  0;
-    }
-    form3Insn(KVTM+I12 + fileAddr, KVTM+I10 + fileBufSize,
-              KVTM+I9 + elemSize);
-    form1Insn(KVTM+I11 + fileBase.p.psize);
-    if (extFileP == NIL) {
-        form1Insn(KXTA);
-    } else {
-        curVal.i  =  extFileP->location;
-        if (curVal.i == 512)
-            curVal.i  =  extFileP->offset;
-        form1Insn(KXTA+I8 + getFCSToffset());
-    }
-    formAndAlign(getHelperProc(69)); /*"P/CO"*/
-    curVal.i  =  fileSym->id;
-    form2Insn(KXTA+I8+getFCSToffset(), KATX+I12+26);
-}
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void fopenFile(fileSym: irptr; extFileP: *extfilerec) {
-    fileAddr  =  fileSym->value;
-    fileBase  =  fileSym->typ.rep->base;
-    elemSize  =  fileSym->typ.p.pad;
     if (fileAddr < 074000) {
         form1Insn(getValueOrAllocSymtab(fileAddr) + KUTC + I7);
         fileAddr  =  0;
     }
     form1Insn(KVTM+I14 + fileAddr);
     form1Insn(KITS+14);
-// The only files opened this way are *INPUT* and *OUTPUT*
-// with known characteristics (1 word, 8 bits).
-    curVal.i  =  fileBufSize * 010000000000 + 0100010;
-    form1Insn(KXTS+I8 + getFCSToffset());
-    if (extFileP == NIL) {
-        form1Insn(KXTS);
-    } else {
-        curVal.i  =  extFileP->location;
-        if (curVal.i == 512)
-            curVal.i  =  extFileP->offset;
-        form1Insn(KXTS+I8 + getFCSToffset());
-    }
-    formAndAlign(getHelperProc(60)); /*"FOPEN   "*/
+    formAndAlign(getHelperProc(61)); /*"FCLOSE   "*/
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4022,9 +3982,9 @@ void fopenFile(fileSym: irptr; extFileP: *extfilerec) {
     }
     form2Insn(KITS+13, KATX+SP);
     if (inputFile != NIL)
-        initFile(inputFile, fileForInput);
+        fcloseFile(inputFile);
     if (outputFile != NIL)
-        initFile(outputFile, fileForOutput);
+        fcloseFile(outputFile);
     form1Insn(getHelperProc(70)/*"P/IT"*/ + (KUJ-KVJM-I13));
     padToLeft();
 } /* formFileInit */
@@ -4724,6 +4684,34 @@ var
 } /* dumpEnumNames */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void fopenFile(fileSym: irptr; extFileP: *extfilerec) {
+var fileBase: tptr;
+    fileAddr, elemSize: int;
+    fileAddr  =  fileSym->value;
+    fileBase  =  fileSym->typ.rep->base;
+    elemSize  =  fileSym->typ.p.pad;
+    if (fileAddr < 074000) {
+        form1Insn(getValueOrAllocSymtab(fileAddr) + KUTC + I7);
+        fileAddr  =  0;
+    }
+    form1Insn(KVTM+I14 + fileAddr);
+    form1Insn(KITS+14);
+// The only files opened this way are *INPUT* and *OUTPUT*
+// with known characteristics (1 word, 8 bits).
+    curVal.i  =  fileBufSize * 010000000000 + 0100010;
+    form1Insn(KXTS+I8 + getFCSToffset());
+    if (extFileP == NIL) {
+        form1Insn(KXTS);
+    } else {
+        curVal.i  =  extFileP->location;
+        if (curVal.i == 512)
+            curVal.i  =  extFileP->offset;
+        form1Insn(KXTS+I8 + getFCSToffset());
+    }
+    formAndAlign(getHelperProc(60)); /*"FOPEN   "*/
+}
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseDecls(l3arg1z: int) {
 var
     l3int1z, frame, l3var3z: int;
@@ -4788,8 +4776,10 @@ var
         if (l3var3z)
             form1Insn(KVTM+I8+074001);
         if (hasFiles != 0) {
-            form1Insn(KXTA);
-            formAndAlign(KVJM+I13 + hasFiles);
+            if (inputFile != NIL)
+                fopenFile(inputFile, fileForInput);
+            if (outputFile != NIL)
+                fopenFile(outputFile, fileForOutput);
             curVal.i  =  hasFiles;
             fixup(2, 49);
         }
@@ -5312,6 +5302,7 @@ var
         if (hashTravPtr == NIL) {
             error(errNotDefined);
             curExpr  =  uVarPtr;
+            inSymbol();
         } else
             switch (hashTravPtr->cl) {
             case ENUMID:
@@ -6529,6 +6520,7 @@ var
     case IDENT:
         if (hashTravPtr == NIL) {
             error(errNotDefined);
+            inSymbol();
 8888:       skip(skipToSet | statEndSys);
             break;
         }
@@ -6780,7 +6772,7 @@ var
     }
     procName->flags  =  usedRegs & [0:15] | procName->flags & ~l3var7z;
     lineNesting  =  l3var2z - 1;
-    if (!bool48z && ! doPMD && (sizeCount == 3) &&
+    if (!bool48z && (sizeCount == 3) &&
        (curProcNesting != 1) && (usedRegs & [1:15]) != [1:15]) {
         objBuffer[1]  =  (KNTR+7)<< 24 | KUTC;
         with *procName do
@@ -6806,8 +6798,6 @@ var
         form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
         if (curProcNesting == 1) {
             parseDecls(2);
-            if ((E48 >> S3) & optSflags)
-                formAndAlign(getHelperProc(78)); /* "P/PMDSET" */
             form1Insn(KUJ + l3var1z);
             curVal.i  =  procName->pos - 040000;
             symTab[074002]  =  [24,29] | (curVal.i & halfWord);
@@ -7840,7 +7830,6 @@ void initOptions() {
     forValue  =  true;
     atEOL  =  false;
     optSflags  =  pasinfor.flags << 39 >> 45;
-    doPMD  =  ! (42 in curVal.i);
     checkTypes  =  true;
     fixMult  =  true;
     checkBounds  =  ! (44 in curVal.i);

@@ -3860,7 +3860,6 @@ var i    : integer; ret: word;
             genComparison;
         } else {
             if arg1Const and arg2Const then {
-writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                 case curOP of
                 MUL:        arg1Val.r := arg1Val.r * arg2Val.r;
                 RDIVOP:     arg1Val.r := arg1Val.r / arg2Val.r;
@@ -4222,38 +4221,11 @@ var extFileP: @extfilerec;
     fileBase: tptr;
     fileSym:  irptr;
     fileAddr, elemSize: integer;
-procedure initFile(fileSym: irptr; extFileP: @extfilerec);
-{
-    fileAddr := fileSym@.value;
-    fileBase := fileSym@.typ.rep@.base;
-    elemSize := fileSym@.typ.p.pad;
-    if (fileAddr < 74000B) then {
-        form1Insn(getValueOrAllocSymtab(fileAddr) +
-                  insnTemp[UTC] + I7);
-        fileAddr := 0;
-    };
-    form3Insn(KVTM+I12 + fileAddr, KVTM+I10 + fileBufSize,
-              KVTM+I9 + elemSize);
-    form1Insn(KVTM+I11 + fileBase.p.psize);
-    if (extFileP = NIL) then {
-        form1Insn(insnTemp[XTA]);
-    } else {
-        curVal.i := extFileP@.location;
-        if (curVal.i = 512) then
-            curVal.i := extFileP@.offset;
-        form1Insn(KXTA+I8 + getFCSToffset);
-    };
-    formAndAlign(getHelperProc(69)); (*"P/CO"*)
-    curVal := fileSym@.id;
-    form2Insn(KXTA+I8+getFCSToffset, KATX+I12+26);
-};
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure fopenFile(fileSym: irptr; extFileP: @extfilerec);
+procedure fcloseFile(fileSym: irptr);
 {
     fileAddr := fileSym@.value;
-    fileBase := fileSym@.typ.rep@.base;
-    elemSize := fileSym@.typ.p.pad;
     if (fileAddr < 74000B) then {
         form1Insn(getValueOrAllocSymtab(fileAddr) +
                   insnTemp[UTC] + I7);
@@ -4261,19 +4233,7 @@ procedure fopenFile(fileSym: irptr; extFileP: @extfilerec);
     };
     form1Insn(KVTM+I14 + fileAddr);
     form1Insn(KITS+14);
-% The only files opened this way are *INPUT* and *OUTPUT*
-% with known characteristics (1 word, 8 bits).
-    curVal.i := fileBufSize * 10000000000B + 100010B;
-    form1Insn(KXTS+I8 + getFCSToffset);
-    if (extFileP = NIL) then {
-        form1Insn(KXTS);
-    } else {
-        curVal.i := extFileP@.location;
-        if (curVal.i = 512) then
-            curVal.i := extFileP@.offset;
-        form1Insn(KXTS+I8 + getFCSToffset);
-    };
-    formAndAlign(getHelperProc(60)); (*"FOPEN   "*)
+    formAndAlign(getHelperProc(61)); (*"FCLOSE   "*)
 };
 {
     if (S5 IN optSflags.m) then {
@@ -4282,10 +4242,10 @@ procedure fopenFile(fileSym: irptr; extFileP: @extfilerec);
     };
     form2Insn(KITS+13, KATX+SP);
     if (inputFile <> NIL) then
-        initFile(inputFile, fileForInput);
+        fcloseFile(inputFile);
     if (outputFile <> NIL) then
-        initFile(outputFile, fileForOutput);
-    form1Insn(getHelperProc(70)(*"P/IT"*) + (-I13-100000B));
+        fcloseFile(outputFile);
+    form1Insn(getHelperProc(70)(*"P/IT"*) + (KUJ-KVJM-I13));
     padToLeft;
 }; (* formFileInit *)
 procedure dump(expr : eptr; indent: integer);
@@ -5112,6 +5072,37 @@ var
 }; (* dumpEnumNames *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure fopenFile(fileSym: irptr; extFileP: @extfilerec);
+var fileBase: tptr;
+    fileAddr, elemSize: integer;
+{
+    fileAddr := fileSym@.value;
+    fileBase := fileSym@.typ.rep@.base;
+    elemSize := fileSym@.typ.p.pad;
+    if (fileAddr < 74000B) then {
+        form1Insn(getValueOrAllocSymtab(fileAddr) +
+                  insnTemp[UTC] + I7);
+        fileAddr := 0;
+    };
+    form1Insn(KVTM+I14 + fileAddr);
+    form1Insn(KITS+14);
+% The only files opened this way are *INPUT* and *OUTPUT*
+% with known characteristics (1 word, 8 bits).
+    curVal.i := fileBufSize * 10000000000B + 100010B;
+    curVal.m := curVal.m * [7..47];
+    form1Insn(KXTS+I8 + getFCSToffset);
+    if (extFileP = NIL) then {
+        form1Insn(KXTS);
+    } else {
+        curVal.i := extFileP@.location;
+        if (curVal.i = 512) then
+            curVal.i := extFileP@.offset;
+        form1Insn(KXTS+I8 + getFCSToffset);
+    };
+    formAndAlign(getHelperProc(60)); (*"FOPEN   "*)
+};
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure parseDecls(l3arg1z: integer);
 var
     l3int1z: integer;
@@ -5178,10 +5169,12 @@ var
         if l3var3z then
             form1Insn(KVTM+I8+74001B);
         if (hasFiles <> 0) then {
-            form1Insn(insnTemp[XTA]);
-            formAndAlign(KVJM+I13 + hasFiles);
+            if (inputFile <> NIL) then
+                fopenFile(inputFile, fileForInput);
+            if (outputFile <> NIL) then
+                fopenFile(outputFile, fileForOutput);
             curVal.i := hasFiles;
-            fixup(2, 49 (* "P/RDC" *));
+            fixup(2, 49);
         };
         if (curProcNesting = 1) then {
             if (heapCallsCnt <> 0) and
@@ -5757,6 +5750,7 @@ var
             if (hashTravPtr = NIL) then {
                 error(errNotDefined);
                 curExpr := uVarPtr;
+                inSymbol;
             } else
                 case hashTravPtr@.cl of
                 ENUMID: {
@@ -7059,6 +7053,7 @@ var
                 checkSymAndRead(SEMICOLON);
             } else {
                 error(errNotDefined);
+                inSymbol;
 8888:           skip(skipToSet + statEndSys);
             };
         } else if (SY IN [EXPROP, LPAREN, INTCONST,
@@ -7287,7 +7282,7 @@ var
     };
     procName@.flags := (usedRegs * [0:15]) + (procName@.flags - l3var7z.m);
     lineNesting := l3var2z.i - 1;
-    if not bool48z and not doPMD and (l2int21z = 3) and
+    if not bool48z and (l2int21z = 3) and
        (curProcNesting <> 1) and (usedRegs * [1:15] <> [1:15]) then {
         objBuffer[1] := [7:11,21:23,28,31]; (* ,NTR,7; ,UTC, *)
         with procName@ do
@@ -7312,11 +7307,9 @@ var
             jj := 27    (* C/E *)
         else
             jj := 28;   (* C/EF *)
-        form1Insn(getHelperProc(jj) + (-I13-100000B));
+        form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
         if (curProcNesting = 1) then {
             parseDecls(2);
-            if S3 IN optSflags.m then
-                formAndAlign(getHelperProc(78)); (* "P/PMDSET" *)
             form1Insn(insnTemp[UJ] + l3var1z.i);
             curVal.i := procName@.pos - 40000B;
             symTab[74002B] := [24,29] + (curVal.m * halfWord);
@@ -8405,7 +8398,6 @@ procedure initOptions;
     besm(ASN64 - 39);
     besm(ASN64 + 45);
     optSflags := ;
-    doPMD := not (42 in curVal.m);
     checkTypes := true;
     fixMult := true;
     checkBounds := not (44 in curVal.m);
