@@ -1,0 +1,52 @@
+/*=a3,p-,t-,s8,y+,l0*/
+extern _output_, _child_;
+//
+typedef ifcb = struct {
+    data: *int;
+    w1, w2, w3, w4, w5, w6, w7, w8, w9, w10,
+    w11, w12, w13, w14, w15, w16, w17, w18, w19, w20,
+    w21, w22, w23, w24, w25, w26, w27, w28, w29: int;
+};
+//
+var _child_ : ifcb;
+var i : int;
+
+//
+void fopen(fcb: *ifcb; sizes, name: int); assembler;
+void fclose(fcb: *ifcb); assembler;
+//
+int valueat(n: int) {
+    return n * 17 + 123;
+}
+//
+void writechild() {
+    fopen(&_child_, 010000100000, '*CHILD* ');
+    rewrite(_child_);
+    for (i = 0; i < 1105; i = i + 1) {
+        *_child_.data = valueat(i);
+        put(_child_);
+    }
+    fclose(&_child_);
+}
+//
+void readchild() {
+    fopen(&_child_, 010000100000, '*CHILD* ');
+    reset(_child_);
+    for (i = 0; i < 1105; i = i + 1) {
+        if (*_child_.data != valueat(i)) {
+            writeln(0 - i - 1:0);
+            fclose(&_child_);
+            return;
+        }
+        if (i + 1 < 1105)
+            get(_child_);
+    }
+    fclose(&_child_);
+    writeln(i:0);
+}
+//
+{
+    writechild();
+    readchild();
+}
+.

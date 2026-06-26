@@ -3962,40 +3962,69 @@ var extFileP: *extfilerec;
     fileBase: tptr;
     fileSym: irptr;
     fileAddr, elemSize: int;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void initFile(fileSym: irptr; extFileP: *extfilerec) {
+    fileAddr  =  fileSym->value;
+    fileBase  =  fileSym->typ.rep->base;
+    elemSize  =  fileSym->typ.p.pad;
+    if (fileAddr < 074000) {
+        form1Insn(getValueOrAllocSymtab(fileAddr) +
+                  KUTC + I7);
+        fileAddr  =  0;
+    }
+    form3Insn(KVTM+I12 + fileAddr, KVTM+I10 + fileBufSize,
+              KVTM+I9 + elemSize);
+    form1Insn(KVTM+I11 + fileBase.p.psize);
+    if (extFileP == NIL) {
+        form1Insn(KXTA);
+    } else {
+        curVal.i  =  extFileP->location;
+        if (curVal.i == 512)
+            curVal.i  =  extFileP->offset;
+        form1Insn(KXTA+I8 + getFCSToffset());
+    }
+    formAndAlign(getHelperProc(69)); /*"P/CO"*/
+    curVal.i  =  fileSym->id;
+    form2Insn(KXTA+I8+getFCSToffset(), KATX+I12+26);
+}
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void fopenFile(fileSym: irptr; extFileP: *extfilerec) {
+    fileAddr  =  fileSym->value;
+    fileBase  =  fileSym->typ.rep->base;
+    elemSize  =  fileSym->typ.p.pad;
+    if (fileAddr < 074000) {
+        form1Insn(getValueOrAllocSymtab(fileAddr) + KUTC + I7);
+        fileAddr  =  0;
+    }
+    form1Insn(KVTM+I14 + fileAddr);
+    form1Insn(KITS+14);
+// The only files opened this way are *INPUT* and *OUTPUT*
+// with known characteristics (1 word, 8 bits).
+    curVal.i  =  fileBufSize * 010000000000 + 0100010;
+    form1Insn(KXTS+I8 + getFCSToffset());
+    if (extFileP == NIL) {
+        form1Insn(KXTS);
+    } else {
+        curVal.i  =  extFileP->location;
+        if (curVal.i == 512)
+            curVal.i  =  extFileP->offset;
+        form1Insn(KXTS+I8 + getFCSToffset());
+    }
+    formAndAlign(getHelperProc(60)); /*"FOPEN   "*/
+}
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if ((E48 >> S5) & optSflags) {
         formAndAlign(KUJ+I13);
         return;
     }
     form2Insn(KITS+13, KATX+SP);
-    while (curExpr != NIL) {
-        extFileP  =  pextf(curExpr->typ);
-        fileSym  =  curExpr->id2;
-        fileAddr  =  fileSym->value;
-        fileBase  =  fileSym->typ.rep->base;
-        elemSize  =  fileSym->typ.p.pad;
-        if (fileAddr < 074000) {
-            form1Insn(getValueOrAllocSymtab(fileAddr) +
-                      KUTC + I7);
-            fileAddr  =  0;
-        }
-        form3Insn(KVTM+I12 + fileAddr, KVTM+I10 + fileBufSize,
-                  KVTM+I9 + elemSize);
-        form1Insn(KVTM+I11 + fileBase.p.psize);
-        if (extFileP == NIL) {
-            form1Insn(KXTA);
-        } else {
-            curVal.i  =  extFileP->location;
-            if (curVal.i == 512)
-                curVal.i  =  extFileP->offset;
-            form1Insn(KXTA+I8 + getFCSToffset());
-        }
-        formAndAlign(getHelperProc(69)); /*"P/CO"*/
-        curVal.i  =  fileSym->id;
-        form2Insn(KXTA+I8+getFCSToffset(), KATX+I12+26);
-// File structure offset 25: a bit pattern to add after unpacking
-// No need to do that for integers with zero exponent
-        curExpr  =  curExpr->expr1;
-    }
+    if (inputFile != NIL)
+        initFile(inputFile, fileForInput);
+    if (outputFile != NIL)
+        initFile(outputFile, fileForOutput);
     form1Insn(getHelperProc(70)/*"P/IT"*/ + (KUJ-KVJM-I13));
     padToLeft();
 } /* formFileInit */
@@ -4762,7 +4791,7 @@ var
             form1Insn(KXTA);
             formAndAlign(KVJM+I13 + hasFiles);
             curVal.i  =  hasFiles;
-            fixup(2, 49 /* "P/RDC" */);
+            fixup(2, 49);
         }
         if (curProcNesting == 1) {
             if (heapCallsCnt != 0 && heapSize == 0)
@@ -6685,6 +6714,10 @@ var
     objBuffer[objBufIdx]  =  0U;
     curInsnTemplate  =  KXTA;
     bool48z  =  ((E48 >> 22) & procName->flags) >> 25;
+    if (curProcNesting == 1 && hasFiles != 0) {
+        hasFiles  =  moduleOffset;
+        formOperator(FILEINIT);
+    }
     l3var1z  =
     lineStartOffset  =  moduleOffset;
     lookup2  =  2;
@@ -7424,11 +7457,7 @@ void exitScope(a: int) {
             makeExtFile();
         }
     }
-    if (curExpr != NIL) {
-        hasFiles  =  moduleOffset;
-        formOperator(FILEINIT);
-    } else
-        hasFiles  =  0;
+    hasFiles  =  0;
     if (curProcNesting == 1) {
         curExternFile  =  externFileList;
         while (curExternFile != NIL) {
@@ -7601,6 +7630,11 @@ void exitScope(a: int) {
         curFrameRegTemplate -= indexreg[1];
         --curProcNesting;
         markTypeSym();
+    }
+    if (curProcNesting == 1 && curExpr != NIL) {
+        hasFiles  =  1;
+    } else if (curProcNesting == 1) {
+        hasFiles  =  0;
     }
     markTypeSym();
     if (CH == '\0')
@@ -8053,8 +8087,8 @@ void main() {
         'P/CE    ',
         'P/TR    ',
         'P/LV    ',
-/*60*/  '        ',
-        '        ', // was P/SS, not needed anymore
+/*60*/  'FOPEN   ',
+        'FCLOSE  ',
         'P/BP    ',
         'P/B6    ',
         'P/PB    ',

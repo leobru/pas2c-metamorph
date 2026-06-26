@@ -4222,39 +4222,69 @@ var extFileP: @extfilerec;
     fileBase: tptr;
     fileSym:  irptr;
     fileAddr, elemSize: integer;
+procedure initFile(fileSym: irptr; extFileP: @extfilerec);
+{
+    fileAddr := fileSym@.value;
+    fileBase := fileSym@.typ.rep@.base;
+    elemSize := fileSym@.typ.p.pad;
+    if (fileAddr < 74000B) then {
+        form1Insn(getValueOrAllocSymtab(fileAddr) +
+                  insnTemp[UTC] + I7);
+        fileAddr := 0;
+    };
+    form3Insn(KVTM+I12 + fileAddr, KVTM+I10 + fileBufSize,
+              KVTM+I9 + elemSize);
+    form1Insn(KVTM+I11 + fileBase.p.psize);
+    if (extFileP = NIL) then {
+        form1Insn(insnTemp[XTA]);
+    } else {
+        curVal.i := extFileP@.location;
+        if (curVal.i = 512) then
+            curVal.i := extFileP@.offset;
+        form1Insn(KXTA+I8 + getFCSToffset);
+    };
+    formAndAlign(getHelperProc(69)); (*"P/CO"*)
+    curVal := fileSym@.id;
+    form2Insn(KXTA+I8+getFCSToffset, KATX+I12+26);
+};
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+procedure fopenFile(fileSym: irptr; extFileP: @extfilerec);
+{
+    fileAddr := fileSym@.value;
+    fileBase := fileSym@.typ.rep@.base;
+    elemSize := fileSym@.typ.p.pad;
+    if (fileAddr < 74000B) then {
+        form1Insn(getValueOrAllocSymtab(fileAddr) +
+                  insnTemp[UTC] + I7);
+        fileAddr := 0;
+    };
+    form1Insn(KVTM+I14 + fileAddr);
+    form1Insn(KITS+14);
+% The only files opened this way are *INPUT* and *OUTPUT*
+% with known characteristics (1 word, 8 bits).
+    curVal.i := fileBufSize * 10000000000B + 100010B;
+    form1Insn(KXTS+I8 + getFCSToffset);
+    if (extFileP = NIL) then {
+        form1Insn(KXTS);
+    } else {
+        curVal.i := extFileP@.location;
+        if (curVal.i = 512) then
+            curVal.i := extFileP@.offset;
+        form1Insn(KXTS+I8 + getFCSToffset);
+    };
+    formAndAlign(getHelperProc(60)); (*"FOPEN   "*)
+};
 {
     if (S5 IN optSflags.m) then {
         formAndAlign(KUJ+I13);
         exit
     };
     form2Insn(KITS+13, KATX+SP);
-    while (curExpr <> NIL) do {
-        extFileP := ptr(ord(curExpr@.vt.typ.rep));
-        fileSym := curExpr@.id2;
-        fileAddr := fileSym@.value;
-        fileBase := fileSym@.typ.rep@.base;
-        elemSize := fileSym@.typ.p.pad;
-        if (fileAddr < 74000B) then {
-            form1Insn(getValueOrAllocSymtab(fileAddr) +
-                      insnTemp[UTC] + I7);
-            fileAddr := 0;
-        };
-        form3Insn(KVTM+I12 + fileAddr, KVTM+I10 + fileBufSize,
-                  KVTM+I9 + elemSize);
-        form1Insn(KVTM+I11 + fileBase.p.psize);
-        if (extFileP = NIL) then {
-            form1Insn(insnTemp[XTA]);
-        } else {
-            curVal.i := extFileP@.location;
-            if (curVal.i = 512) then
-                curVal.i := extFileP@.offset;
-            form1Insn(KXTA+I8 + getFCSToffset);
-        };
-        formAndAlign(getHelperProc(69)); (*"P/CO"*)
-        curVal := fileSym@.id;
-        form2Insn(KXTA+I8+getFCSToffset, KATX+I12+26);
-        curExpr := curExpr@.expr1;
-    };
+    if (inputFile <> NIL) then
+        initFile(inputFile, fileForInput);
+    if (outputFile <> NIL) then
+        initFile(outputFile, fileForOutput);
     form1Insn(getHelperProc(70)(*"P/IT"*) + (-I13-100000B));
     padToLeft;
 }; (* formFileInit *)
@@ -7192,6 +7222,10 @@ var
     objBuffer[objBufIdx] := [];
     curInsnTemplate := insnTemp[XTA];
     bool48z := 22 IN procName@.flags;
+    if (curProcNesting = 1) and (hasFiles <> 0) then {
+        hasFiles := moduleOffset;
+        formOperator(FILEINIT);
+    };
     lineStartOffset := moduleOffset;
     l3var1z := ;
     lookup2 := lookWith;
@@ -7960,11 +7994,7 @@ procedure exitScope(var arg: hashArray);
             makeExtFile;
         }
     };
-    if (curExpr <> NIL) then {
-        hasFiles := moduleOffset;
-        formOperator(FILEINIT);
-    } else
-        hasFiles := 0;
+    hasFiles := 0;
     if (curProcNesting = 1) then {
         curExternFile := externFileList;
         while (curExternFile <> NIL) do {
@@ -8150,6 +8180,11 @@ procedure exitScope(var arg: hashArray);
         curFrameRegTemplate := curFrameRegTemplate - indexreg[1];
         curProcNesting := curProcNesting - 1;
         markTypeSym;
+    };
+    if (curProcNesting = 1) and (curExpr <> NIL) then {
+        hasFiles := 1;
+    } else if (curProcNesting = 1) then {
+        hasFiles := 0;
     };
     markTypeSym;
     if CH = '_000' then exit;
@@ -8618,8 +8653,8 @@ procedure initOptions;
         6017434500000000C      (*"P/CE    "*),
         6017646200000000C      (*"P/TR    "*),
         6017546600000000C      (*"P/LV    "*),
-(*60*)  0000000000000000C      (*" unused "*),
-        0000000000000000C      (*"P/PI obs"*),
+(*60*)  4657604556000000C      (*"FOPEN   "*),
+        4643545763450000C      (*"FCLOSE  "*),
         6017426000000000C      (*"P/BP    "*),
         6017422600000000C      (*"P/B6    "*),
         6017604200000000C      (*"P/PB    "*),

@@ -1,0 +1,18 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+var
+    a: int[0..4][0..4];
+    i, j, sum: int;
+{
+    sum = 0;
+    for (i = 0; i < 5; ++i)
+        for (j = 0; j < 5; ++j) {
+            a[i][j] = i + j;
+            sum += a[i][j];
+        }
+    writeln('diag ', a[0][0]:0, ' ', a[2][2]:0, ' ', a[4][4]:0);
+    writeln('edge ', a[0][4]:0, ' ', a[4][0]:0, ' ', a[3][1]:0);
+    writeln('sum ', sum:0, ' size ', sizeof(a):0);
+}
+.
