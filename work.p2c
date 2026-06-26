@@ -4,8 +4,8 @@ extern _output_, _child_, pasinput, pasinfor, paseofcd;
 const
     boilerplate = ' PASCAL 2 C METAMORPHOSIS (2025)';
 //
-    fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
-    fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
+    // slots 0-6 were SQRT, SIN, COS, ARCTAN, ARCSIN, LN, EXP
+    fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
     fnOFFSETOF=10;/*   11  */  /*    12  */  fnMALLOC = 13;fnEOF  = 14;
     fnREF   = 15; fnEOLN = 16; fnSETJMP = 17; fnROUND = 18; fnCARD = 19;
     fnMINEL = 20; fnABSI = 21;
@@ -3930,8 +3930,7 @@ var
                     addToInsnList(getHelperProc(P_TR));
                     goto 10122;
                 }
-                if (work IN [fnSQRT:fnEXP,
-                             /* was fnSUCC, but not fnPRED */ fnCARD]) {
+                if (work == fnCARD) {
                     l3int3z  =  0;
                 } else if (work == fnABS)
                     l3int3z  =  3;
@@ -5271,9 +5270,9 @@ var
     arg1Type  =  curExpr->typ;
     argKind  =  arg1Type.p.pk;
     if (arg1Type == realType)
-        checkMode  =  [fnSQRT:fnTRUNC, fnROUND];
+        checkMode  =  [fnABS:fnTRUNC, fnROUND];
     else if (arg1Type == intType)
-        checkMode  =  [fnSQRT:fnABS,fnMALLOC,fnCARD,fnMINEL];
+        checkMode  =  [fnABS, fnMALLOC, fnCARD, fnMINEL];
     else if ((arg1Type == charType) || (argKind == kindScalar) || (argKind == kindPtr))
         checkMode  =  0U;
     else if (arg1Type.p.psize == 30)
@@ -5890,7 +5889,7 @@ var startLine, decoder, endOfStmt: int;
     } else
         inSymbol();
     if (! typeCheck(firstType, exprtype)) {
-        error(88); /* errDifferentTypesOfLabelsAndExpr */;
+        error(74); /* errDifferentTypesOfLabelsAndExpr */;
         return;
     }
     formJump(&endOfStmt);
@@ -7010,13 +7009,13 @@ void defExtern() {
         regSysProc(systemProcNames[l3var5z]);
     sysProcNum  =  0;
     temptype  =  realType;
-    regSysProc('    SQRT');
-    regSysProc('     SIN');
-    regSysProc('     COS');
-    regSysProc('  ARCTAN');
-    regSysProc('  ARCSIN');
-    regSysProc('      LN');
-    regSysProc('     EXP');
+    regSysProc(0); /* was SQRT */
+    regSysProc(0); /* was SIN */
+    regSysProc(0); /* was COS */
+    regSysProc(0); /* was ATAN */
+    regSysProc(0); /* was ASIN */
+    regSysProc(0); /* was LN */
+    regSysProc(0); /* was EXP */
     regSysProc('     ABS');
     temptype  =  intType;
     regSysProc('   TRUNC');
@@ -7733,9 +7732,6 @@ var
     opFlags[ASSIGNOP]  =  opfASSN;
     opFlags[SHLEFT]  =  opfSHIFT;
     opFlags[SHRIGHT]  =  opfSHIFT;
-    for (jdx = 0; jdx <= 6; ++jdx) {
-        funcInsn[jdx]  =  0500000 + jdx;
-    }
 } /* initInsnTemplates */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -8111,13 +8107,13 @@ void main() {
         'P/CI    ',
 /*80*/  'PAIB    ',
         'P/WA    ',
-        'SQRT*   ',
-        'SIN*    ',
-        'COS*    ',
-        'ARCTAN* ',
-        'ARCSIN* ',
-        'LN*     ',
-        'EXP*    ',
+        '        ', // was SQRT*
+        '        ', // was SIN*
+        '        ', // was COS*
+        '        ', // was ARCTAN*
+        '        ', // was ARCSIN*
+        '        ', // was LN*
+        '        ', // was EXP*
         'P/EQ    ',
 /*90*/  'P/RA    ', // unused
         'P/GE    ',

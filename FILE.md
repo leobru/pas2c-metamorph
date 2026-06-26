@@ -7,26 +7,26 @@ the literal that appears in `p_sys.asm` (`12, ATX ,nnB`).
 
 | Off | Oct | Use                                       | Set by / Used by |
 |----:|----:|-------------------------------------------|------------------|
-|  0  |  0  | `f^` pointer / packed bit position        | P/CO init = SP; P/GF/P/PF read, OR with [17], store back, compare to [1] |
-|  1  |  1  | End-of-window sentinel (limit for [0])    | P/CO init = SP+6; compared via `12, AEX ,1` to detect buffer exhaustion |
-|  2  |  2  | "f^ valid / pending" flag (destination addr) | P/CO clears; P/PF errors if 0 (nothing to put); P/GF errors if non-0 (read already pending); P/GF success path sets it to caller's destination |
+|  0  |  0  | In-buffer element cursor                  | P/CO init = SP; P/GF/P/PF advance with `12, ARX ,21B` (+[17] words); compared to [1] via `12, AEX ,1` to detect window exhaustion |
+|  1  |  1  | End-of-window sentinel (limit for [0])    | P/CO init from buffer layout; compared via `12, AEX ,1` to detect buffer exhaustion |
+|  2  |  2  | EOF / pending flag                        | P/CO clears; P/GF aborts "GET(F) EOF=TRUE" if non-zero (`U1A` at *0306B*); P/PF aborts "PUT(F) EOF=FALSE" if zero (`UZA` at *0537B*); `P/EO`/`feof` return this field unchanged (0 = not EOF, non-zero = EOF) |
 |  3  |  3  | Mode/state byte; in the disk subsystem also the file's track-table descriptor / current track id | `1, ATX ,3` early in P/CO; set to a track id by GETTRACK / CLOSEWIN / OPENIN; conditionally zeroed at *0141B |
 |  4  |  4  | Open mode: input(0)/output(non-0)         | Checked by P/RE1, PASCTRP, P/GF, P/PF, P/RF, P/TF |
 |  5  |  5  | Buffered I/O: within-window bit-shift / step counter. Disk subsystem: current zone / track-entry cursor | Buffered: `12, XTA ,5` … `AEX ,17B` (compare with FILE[15]), reset to FILE[15] on wrap. Disk: holds the track id / zone, used as an address via `12, WTC ,5` in GETTRACK / ZONEIO / CLOSEWIN |
 |  6  |  6  | Working buffer descriptor / lane mask     | Set to `7 6000` (constant *0760B) by P/RF/P/TF; stacked by PASINBUF and P/PF |
-|  7  |  7  | Current element index used as `WTC` operand | `12, WTC ,7` for self-modifying access to packed slot; updated on each step |
-|  8  | 10  | Current data word being assembled / read  | Loaded from `[M1+8]` (caller value) or stored back to caller's variable |
+|  7  |  7  | Buffer slot index for `WTC`               | `12, WTC ,7` sets the working tag for the next memory access at the current element slot; updated by `ADVANCE` in the text path |
+|  8  | 10  | `f^` staging / last value                 | Holds the caller's `f^` word during stdin `READLINE`; XOR'd with [9] in P/GF text path; also written `1U` at open/reset to mark `f^` valid |
 |  9  | 11  | Packed-element bit counter                | OR'd with caller's bit pattern in P/PF; copied with [10] in P/RE2 |
 | 10  | 12  | Twin of [9] (input shadow)                | Written together with [9] at *0210B in P/RE2 |
 | 11  | 13  | Buffer-window upper bound for M14         | Read at *0563B (P/PF inner loop) into M14 |
 | 12  | 14  | Original buffer start pointer (`read* buf ptr`) | P/CO init = SP; compared to [19] in P/RF *0710B to detect empty buffer; saved across calls |
 | 13  | 15  | Buffer end pointer (for window/limit)     | P/CO init = SP; updated by P/GF/P/PF as window advances |
-| 14  | 16  | Packed-mode flag (0 = text, ≠ 0 = packed) | `12, XTA ,16B`+`U1A` selects packed iteration path in P/GF (*0336B*) and P/PF |
+| 14  | 16  | Packed-mode flag from open                | `12, XTA ,16B`+`U1A` selects packed branches in P/GF (*0336B*) and P/PF; cleared on some reset paths. Text dispatch in get/put also keys off [18] = 0 |
 | 15  | 17  | Wrap value for [5] (max bit shift)        | `XTA 17B` + `ATX 5` to reload [5] when packed slot crosses word |
 | 16  | 20  | Initial value of [6] (saved descriptor)   | Restored via `XTA 20B; ATX 6` in P/GF (*0336B*) and PASINBUF |
-| 17  | 21  | Bit step / increment per packed element   | Set in P/CO from M11 (= `l4var2z->size`); used in `12, ARX ,21B` to advance [0] and [19] |
-| 18  | 22  | Element width in bits (= M9 = `elSize`)   | Set in P/CO via `ITA 9; 12, ATX ,22B`; checked for 0 (text vs binary) in P/GF/P/PF/P/RF |
-| 19  | 23  | Current buffer pointer (packed write cur.) | P/CO init = SP; OR'd with caller index in P/PF / P/GF; XOR'd with [13]/[15] to detect end |
+| 17  | 21  | Element stride in **words**               | Set in P/CO from M11 (`base.size`); consumed by `12, ARX ,21B` / `12, A+X ,21B` to advance [0] and (on put) [19]. Despite the `p_sys.asm` comment "bit-step", the instructions add whole words, not bits |
+| 18  | 22  | Element width in bits (= M9 = `elSize`)   | Set in P/CO via `ITA 9; 12, ATX ,22B`; `UZA` on [18] selects the text/unpacked path in P/GF/P/PF/P/RF (see below) |
+| 19  | 23  | Current buffer write cursor               | P/CO init = SP; advanced by [17] on P/PF; on P/GF packed wrap bumped by 1 word only (*0317B*); compared to [13]/[15] to detect end |
 | 20  | 24  | `ASN` shift amount (= 64 − elSize)        | Default 56 from `*0104B` (text); else `64 − elSize` in P/CO. Loaded by P/RACPAK / packed-put as `12, XTA ,24B` and consumed by the following `,ASN,` |
 | 21  | 25  | VLM loop-count base (= 50 − 48/elSize)    | Default −4 from `*0104B+1` (text); else `50 − 48/elSize` in P/CO. Used both as `12, XTA ,25B` (load count into ACC) and as `12, WTC ,25B` (set working tag for the next instruction in the unpack loop) |
 | 22  | 26  | Negative shift seed for `ASX`             | Default = MSB constant (`[M1+21]`); else derived from elSize in P/CO. Consumed only as `12, ASX ,26B` to apply the per-element shift inside the packed unpack loop |
@@ -40,20 +40,33 @@ the literal that appears in `p_sys.asm` (`12, ATX ,nnB`).
 
 ## Setup register convention for `P/CO`
 
-The compiler (see `work.p2c` `formFileInit`, ~line 3867) sets up before calling
-P/CO:
+`P/CO` is reached either from the historical per-procedure **FILEINIT** block
+(see `FILEINIT.md`) or from the explicit **`fopen(fcb, sizes, name)`** helper in
+`libc/fopen.madlen`.  Both pass the same register tuple:
 
 | Reg | Meaning |
 |-----|---------|
-| M12 | Address of this FILE record |
-| M11 | Base type size (becomes [17], the bit-step per element) |
-| M10 | `fileBufSize` (used to size the inline buffer; ends up as base of [13]/[1]) |
-| M9  | `elSize` (becomes [18], element width in bits) |
+| M12 | Address of this FILE record (30-word FCB; `ifcb` / `fileblk` in tests) |
+| M11 | Base-type size in **words** (becomes [17], element stride) |
+| M10 | `fileBufSize` (used to size the inline buffer) |
+| M9  | `elSize` in **bits** (becomes [18]; 0 selects the text/unpacked path) |
 | A   | External file name (FCST offset), or 0 for an internal file |
 
-Immediately after P/CO returns, the compiler emits
-`KATX+I12+26` to overwrite [26] with the internal Pascal identifier of the file
-(the source-level variable name) — useful for diagnostics.
+The `fopen` sizes argument packs the three size fields the way the old
+`formFileInit` VTMs did:
+
+```
+sizes = (bufsize << 30) | (basesize << 15) | elsize
+```
+
+Examples: `0100010` = bufsize 1, basesize 1, elsize 8 (stdin/stdout via
+`fopenFile`); `010000100060` = bufsize 1, basesize 1, elsize 48 (test
+`55_word_file_ops`).
+
+The current compiler's `formFileInit` only emits `fclose` calls at procedure
+exit; new files are opened with `fopen` before `reset`/`rewrite`.  After a
+successful open the caller may overwrite [26] with a diagnostic source-name
+word (the old FILEINIT loop did this with `KATX+I12+26`).
 
 ## Per-call register convention
 
@@ -63,22 +76,54 @@ For every call to P/GF, P/PF, P/TF, P/RF:
 - **M1**  = caller's local-data base (parameters / `f^` location at `[M1+8]`)
 - **M13** = return address (preserved via `ITA 13`/`15, ATX,`)
 
+## Element stride ([17]) vs element width ([18])
+
+These two fields are set independently at open time and serve different roles:
+
+| Field | Source | Role |
+|-------|--------|------|
+| [17] | M11 = `base.size` in words | Buffer layout alignment; per-element cursor step for [0] and (on put) [19] |
+| [18] | M9 = `elSize` in bits | Text vs packed dispatch; packed shift/unpack constants |
+
+**Text / unpacked path ([18] = 0).**  P/GF (*0345B*) and P/PF advance [0] by
+[17] words per `get`/`put`.  `P/RE2` divides the buffer word count by [17] to
+seed [9] as an element counter.  This is the path intended for multi-word
+elements stored as contiguous whole words in the disk buffer.
+
+**Packed path ([18] ≠ 0).**  `P/CO` derives [20] = `64 − elSize`, [21] =
+`50 − 48/elSize`, and [22] from `48 mod elSize` (requires `1 ≤ elSize ≤ 48`).
+`P/RACPAK` and `PACKBUF` move one `elSize`-bit field per call; they do not
+loop [17] times.  Sub-word packing within a 48-bit word additionally uses [5],
+[7], and [15] (wrap for [5]).
+
+### When [17] > 1
+
+| Mode | Behaviour |
+|------|-----------|
+| [18] = 0 (unpacked) | Coherent: every get/put skips [17] words; buffer sizing and [9] counts are in elements, not raw words |
+| [18] ≠ 0 (packed) | Partial / inconsistent: [0] advances by [17] words, but `P/RACPAK`/`PACKBUF` still handle only one [18]-bit field; on window wrap P/GF bumps [19] by **1** word (*0317B*) while P/PF bumps [19] by **[17]** words — so packed multi-word elements are not supported end-to-end |
+| [18] > 48 | Broken: `48 / elSize` is 0 in `P/CO` and the packed constants are wrong |
+
+In this codebase all scalars have `psize = 1` and current `fopen` call sites
+pass `basesize = 1`; the exercised case is [17] = 1 with [18] ≤ 48.
+
 ## Notes on packed-mode iteration
 
-In packed mode (FILE[14] ≠ 0, i.e. `f: file of T` where T is not a text char):
+In packed mode ([18] ≠ 0; [14] may also be non-zero from open-time setup):
 
-1. `[0]` holds the *bit address* of the current element inside the buffer.
-2. Each `get`/`put` does `[0] |= [17]; if ([0] == [1]) flush/refill`.
-3. `[5]` tracks the within-word bit shift; when it equals `[15]` (wrap) the
-   logic advances to the next 48-bit word.
-4. `[20]`, `[21]`, `[22]` are **plain numeric values** (an `ASN` shift amount,
+1. `[0]` is the in-buffer cursor; each packed `get`/`put` does
+   `[0] += [17]` (words) and compares to [1].
+2. When several packed values share one 48-bit word, [5] tracks the
+   within-word bit shift; when it equals [15] (wrap) the logic advances via
+   `ADVANCE` / the next word.
+3. `[20]`, `[21]`, `[22]` are **plain numeric values** (an `ASN` shift amount,
    a VLM loop count, and an `ASX` shift seed respectively), **not** patched
-   instruction templates. They are computed once in `P/CO` from `elSize`
+   instruction templates. They are computed once in `P/CO` from [18] only
    (with text-mode defaults `56` / `−4` / MSB-constant pulled from
-   `*0104B`/`[M1+21]`) and are then consumed verbatim by `XTA`, `WTC` and
-   `ASX` instructions inside `P/RACPAK` and the packed-put path. There is
-   **no self-modifying code** in `p_sys.asm`: every `WTC` only sets the
-   working tag for the *next* instruction.
+   `*0104B`/`[M1+21]` when [18] = 0).  They are consumed verbatim by `XTA`,
+   `WTC`, and `ASX` inside `P/RACPAK` and `PACKBUF`.  There is **no
+   self-modifying code** in `p_sys.asm`: every `WTC` only sets the working
+   tag for the *next* instruction.
 
 ## External file designator and disk I/O
 
@@ -125,6 +170,11 @@ and `OPENIN`. `READ*` is **not** a disk primitive: it reads a single stdin line
   confirmed to mean "is standard input/output".
 - Original purpose of `[28]`/`[29]` — possibly reserved for an extension never
   used by the released runtime.
+- Whether the text/unpacked path ([18] = 0, [17] > 1) copies all [17] words
+  to/from `[M1+8]` (`f^`) on each get/put, or relies on `f^` pointing into
+  the buffer — not fully traced in the current compiler.
+- What a correct packed multi-word design would require (likely [17] = 1 with
+  [18] = total bit width ≤ 48, or a `P/RACPAK` loop over [17]).
 
 ## The M1 block (`P/1D`)
 

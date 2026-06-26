@@ -6,8 +6,8 @@ label 9999;
 const
     boilerplate = ' PASCAL METAMORPH HELPER (2025) ';
 %
-    fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
-    fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
+    (* slots 0-6 were SQRT, SIN, COS, ARCTAN, ARCSIN, LN, EXP *)
+    fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
     fnOFFSETOF=10;(*  11         12     *)  fnMALLOC = 13; (*  14  *)
     fnREF   = 15; (*  16         17     *)  fnROUND = 18; fnCARD = 19;
     fnMINEL = 20; fnPTR  = 21; fnABSI = 22;
@@ -4172,8 +4172,7 @@ var i    : integer; ret: word;
                         addToInsnList(getHelperProc(58)); (*"P/TR"*)
                         goto 10122;
                     };
-                    if (work IN [fnSQRT:fnEXP, (* was fnSUCC but not fnPRED *)
-                                 fnCARD, fnPTR]) then {
+                    if (work = fnCARD) or (work = fnPTR) then {
                         l3int3z := 0;
                     } else if (work = fnABS) then
                         l3int3z := 3
@@ -5706,9 +5705,9 @@ var
     };
     asBitset := [stProcNo];
     if (stProcNo <> fnSIZEOF) and not ((checkMode = chkREAL) and
-            (asBitset <= [fnSQRT:fnTRUNC, fnREF, fnROUND])
+            (asBitset <= [fnABS:fnTRUNC, fnREF, fnROUND])
            or ((checkMode = chkINT) and
-            (asBitset <= [fnSQRT:fnABS,fnMALLOC,fnREF,fnCARD,fnMINEL,fnPTR]))
+            (asBitset <= [fnABS,fnMALLOC,fnREF,fnCARD,fnMINEL,fnPTR]))
            or ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) and
             (asBitset <= [fnREF]))
            or ((checkMode = chkFILE) and
@@ -6340,7 +6339,7 @@ var
     } else
         inSymbol;
     if not typeCheck(firstType, exprtype) then {
-        error(88); (* errDifferentTypesOfLabelsAndExpr *);
+        error(74); (* errDifferentTypesOfLabelsAndExpr *);
         exit
     };
     formJump(endOfStmt);
@@ -7520,13 +7519,13 @@ var l : integer;
         regSysProc(systemProcNames[l3var5z]);
     sysProcNum := 0;
     temptype := realType;
-    regSysProc(63616264C(*"    SQRT"*));
-    regSysProc(635156C(*"     SIN"*));
-    regSysProc(435763C(*"     COS"*));
-    regSysProc(416243644156C(*"  ARCTAN"*));
-    regSysProc(416243635156C(*"  ARCSIN"*));
-    regSysProc(5456C(*"      LN"*));
-    regSysProc(457060C(*"     EXP"*));
+    regSysProc(0C(*"was SQRT"*));
+    regSysProc(0C(*"was SIN"*));
+    regSysProc(0C(*"was COS"*));
+    regSysProc(0C(*"was ATAN"*));
+    regSysProc(0C(*"was ASIN"*));
+    regSysProc(0C(*"was LN"*));
+    regSysProc(0C(*"was EXP"*));
     regSysProc(414263C(*"     ABS"*));
     temptype := integerType;
     regSysProc(6462655643C(*"   TRUNC"*));
@@ -8282,9 +8281,6 @@ var
     opFlags[ASSIGNOP] := opfASSN;
     opFlags[SHLEFT] := opfSHIFT;
     opFlags[SHRIGHT] := opfSHIFT;
-    for jdx := 0 to 6 do {
-        funcInsn[jdx] := 500000B + jdx;
-    }
 }; (* initInsnTemplates *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -8667,13 +8663,13 @@ procedure initOptions;
         6017435100000000C      (*"P/CI    "*),
 (*80*)  6041514200000000C      (*"PAIB    "*),
         6017674100000000C      (*"P/WA    "*),
-        6361626412000000C      (*"SQRT*   "*),
-        6351561200000000C      (*"SIN*    "*),
-        4357631200000000C      (*"COS*    "*),
-        4162436441561200C      (*"ARCTAN* "*),
-        4162436351561200C      (*"ARCSIN* "*),
-        5456120000000000C      (*"LN*     "*),
-        4570601200000000C      (*"EXP*    "*),
+        0C                     (*"was SQRT"*),
+        0C                     (*"was SIN"*),
+        0C                     (*"was COS"*),
+        0C                     (*"was ATAN"*),
+        0C                     (*"was ASIN"*),
+        0C                     (*"was LN"*),
+        0C                     (*"was EXP"*),
         6017456100000000C      (*"P/EQ    "*),
 (*90*)  6017624100000000C      (*"P/RA    "*),
         6017474500000000C      (*"P/GE    "*),
