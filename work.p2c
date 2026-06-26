@@ -1023,11 +1023,21 @@ void requiredSymErr(sym: symbol) {
 } /* requiredSymErr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int getc() {
+var c:int;
+    if (feof(&PASINPUT)) return -1;
+    c = *PASINPUT.data;
+    get(PASINPUT);
+    return c;
+}
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void readToPos80() {
+var c: int;
     while (linePos < 80) {
         ++linePos;
-        lineBuf[linePos]  =  *PASINPUT.data;
-        if (linePos != 80)  get(PASINPUT);
+        c  =  getc();
+        lineBuf[linePos]  =  c;
     }
     endOfLine();
 } /* readToPos80 */
@@ -1036,8 +1046,7 @@ void readToPos80() {
 void nextCH() {
     do {
         atEOL  =  feoln(&PASINPUT);
-        CH  =  *PASINPUT.data;
-        get(PASINPUT);
+        CH  =  getc();
         ++linePos;
         lineBuf[linePos]  =  CH;
     } while ((maxLineLen < linePos) && !atEOL);
@@ -1156,8 +1165,12 @@ void doCharConst(lim:char) {
 //             01 2345 6789 0123 4567 8901 2345 6789 0123 4567
 const escSet = 0xFF0062022A00;
 escMap = 007101412151113;
+var advanced:int;
+   advanced  =  false;
    for (tokenIdx = 6; tokenIdx <= 130; ++tokenIdx) {
-       nextCH();
+       if (! advanced)
+           nextCH();
+       advanced  =  false;
        if (CH == lim) {
            nextCH();
            return;
@@ -1174,11 +1187,11 @@ escMap = 007101412151113;
                     do {
                         expLiteral  =  8*expLiteral + CH - '0';
                         ++tokenLen;
-                        if ((tokenLen < 3) &&
-                            ('0' <= *PASINPUT.data) && (*PASINPUT.data <= '7'))
-                            nextCH();
-                        else
+                        nextCH();
+                        if ((tokenLen == 3) || (CH < '0') || ('7' < CH)) {
+                            advanced  =  true;
                             break;
+                        }
                     } while (true);
                     if (255 < expLiteral) {
                         error(errFirstDigitInCharLiteralGreaterThan3);
