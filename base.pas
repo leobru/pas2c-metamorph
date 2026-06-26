@@ -8,8 +8,8 @@ const
 %
     fnSQRT  = 0;  fnSIN  = 1;  fnCOS  = 2;  fnATAN  = 3;  fnASIN = 4;
     fnLN    = 5;  fnEXP  = 6;  fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
-    fnOFFSETOF=10;(*  11         12     *)  fnMALLOC = 13;fnEOF  = 14;
-    fnREF   = 15; fnEOLN = 16; fnSETJMP = 17; fnROUND = 18; fnCARD = 19;
+    fnOFFSETOF=10;(*  11         12     *)  fnMALLOC = 13; (*  14  *)
+    fnREF   = 15; (*  16         17     *)  fnROUND = 18; fnCARD = 19;
     fnMINEL = 20; fnPTR  = 21; fnABSI = 22;
 %
     S3 = 0;
@@ -175,7 +175,7 @@ operator = (
     IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
     RMWASSIGN,  op37,       GETENUM,    GETFIELD,   DEREF,
-    FILEPTR,    STKLVAL,    ALNUM,      PCALL,      FCALL,
+    STKLVAL,    ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
     STANDPROC,  NOOP
 );
@@ -195,7 +195,7 @@ opflg = (
 %
 kind = (
     kindVoid, kindReal, kindScalar, kindPtr,
-    kindArray, kindStruct, kindFile,
+    kindArray, kindStruct,
     kindCases, kindRoutine
 );
 %
@@ -266,7 +266,6 @@ types = record
                  numen,
                  start:     integer);
     kindPtr:    (sbase:      tptr);
-    kindFile:   (fbase:      tptr);
     kindStruct: (variants: tptr;
                  fields:    irptr;
                  flag,
@@ -1838,12 +1837,6 @@ var
 }; (* hash *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function isFileType(typtr: tptr): boolean;
-{
-isFileType := (typtr.p.pk = kindFile) or
-(typtr.p.pk = kindStruct) and typtr.rep@.flag;
-}; (* isFileType *)
-%
 function knownInType(var rec: irptr): boolean;
 {
     if (typelist <> NIL) then {
@@ -1953,10 +1946,6 @@ var
                         } else
                             goto 1
                     }
-                };
-                kindFile: {
-                    if typeCheck(type1.rep@.base, type2.rep@.base) then
-                        goto 1;
                 };
 % ifdef kindrout
                 kindRoutine: {
@@ -3994,7 +3983,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
             }
         }
     } else {
-        if (curOP <= FILEPTR) then {
+        if (curOP <= DEREF) then {
             if (curOP = GETVAR) then {
                 new(insnList);
                 curIdRec := exprToGen@.id1;
@@ -4052,7 +4041,7 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
             if (curOP = GETELT) then
                 genGetElt
             else
-            if (curOP = DEREF) or (curOP = FILEPTR) then {
+            if (curOP = DEREF) then {
                 genFullExpr(exprToGen@.expr1);
                 genDeref;
             } else
@@ -4165,21 +4154,14 @@ writeln(' consts ', arg1Val.i oct, arg2val.i oct);
                         };
                         exit
                     };
-                    fnEOF,
-                    fnREF,
-                    fnEOLN:
+                    fnREF:
                         error(201);
                     end;
                     insnList@.payload := arg1Val;
                 } else
-                if (work IN [fnEOF, fnREF, fnEOLN]) then {
-                    if (work = fnREF) then {
-                        setAddrTo(14);
-                        addToInsnList(KITA+14);
-                    } else {
-                        setAddrTo(12);
-                        addToInsnList(getHelperProc(work - 6));
-                    };
+                if (work = fnREF) then {
+                    setAddrTo(14);
+                    addToInsnList(KITA+14);
                     with insnList@ do {
                         ilm := ilRVAL;
                         regsused := regsused + [0];
@@ -4286,7 +4268,7 @@ procedure dump(expr : eptr; indent: integer);
 if not (expr@.op in [NOOP,ALNUM,GETVAR,GETENUM,STANDPROC]) then {
        dump(expr@.expr1, indent);
        if not (expr@.op in
-[INEGOP..BITNEGOP,TOREAL,DEREF,FILEPTR,NOTOP,GETFIELD,SHLEFT,SHRIGHT]) then
+[INEGOP..BITNEGOP,TOREAL,DEREF,NOTOP,GETFIELD,SHLEFT,SHRIGHT]) then
            dump(expr@.expr2, indent);
     }
 };
@@ -4597,8 +4579,6 @@ var
     } else {
         l3idr31z@.list := curField;
     };
-    cond := isFileType(selType);
-    curType.rep@.flag := cond or curType.rep@.flag;
     l3idr31z := curEnum;
     repeat
         curField@.typ := selType;
@@ -5296,13 +5276,6 @@ var
             curExpr  :=  l4exp1z;
             l4typ3z  :=  l4typ3z.rep@.base;
             goto 55;
-        (* leaving it here for the future when accessing fields of the FILE
-           structure is possible, that is, when kindFile is a special case
-           of kindStruct
-        } else if (l4var4z = kindFile) then {
-                                            typ  :=  l4typ3z@.base;
-                                            op  :=  FILEPTR;
-        *)
         } else {
             stmtName  :=  '  ->  ';
             error(errWrongVarTypeBefore);
@@ -5551,7 +5524,6 @@ var resOp: operator;
 {
     if typeCheck(arg1Type, arg2Type) then {
         if
-           (arg1Type.p.pk = kindFile) or
            (arg1Type.p.psize <> 1) and
            (oper >= LTOP) and
            not isCharArray(arg1Type) then
@@ -5687,8 +5659,8 @@ var
         exit;
     };
     expression;
-    if (stProcNo >= fnEOF) and (fnEOLN >= stProcNo) and
-       not (curExpr@.op IN [GETELT..FILEPTR]) then {
+    if (stProcNo = fnREF) and
+       not (curExpr@.op IN [GETELT..DEREF]) then {
         error(27); (* errExpressionWhereVariableExpected *)
         exit;
     };
@@ -5717,7 +5689,7 @@ var
            or ((checkMode IN [chkCHAR, chkSCALAR, chkPTR]) and
             (asBitset <= [fnREF]))
            or ((checkMode = chkFILE) and
-            (asBitset <= [fnEOF, fnREF, fnEOLN]))
+            (asBitset <= [fnREF]))
            or ((checkMode = chkOTHER) and
             (stProcNo = fnREF))) then
         error(errNeedOtherTypesOfOperands);
@@ -5949,9 +5921,6 @@ var
         MUL: {
             if (arg1Type.p.pk = kindPtr) then
                 curExpr := mkExpr(DEREF, arg1Type.rep@.base,
-                                  curExpr, NIL)
-            else if (arg1Type.p.pk = kindFile) then
-                curExpr := mkExpr(FILEPTR, arg1Type.rep@.base,
                                   curExpr, NIL)
             else {
                 stmtName := 'unary*';
@@ -6614,7 +6583,6 @@ var
     l4exp7z, l4exp8z, workExpr: eptr;
     l4bool10z,
     noWidth, needR12: boolean;
-    isCharFile: boolean;
     oldOffset: integer;
     defWidth: integer;
     procNo: integer;
@@ -6650,11 +6618,8 @@ procedure startWrite;
             workExpr@.id1 := outputFile;
         };
         arg2Type := workExpr@.vt.typ;
-        (* typeCheck(arg2Type@.base, charType); *)
-        isCharFile := (l4typ3z.p.pk <> kindFile) or
-                      (arg2Type.rep@.base = charType);
         needR12 := true;
-        l4exp8z := mkExpr(FILEPTR, arg2Type.rep@.base, workExpr, NIL);
+        l4exp8z := mkExpr(DEREF, arg2Type.rep@.base, workExpr, NIL);
         l4exp6z := mkExpr(ASSIGNOP, l4exp8z@.vt.typ, l4exp8z, NIL);
     }
 }; (* startWrite *)
@@ -6721,22 +6686,9 @@ procedure checkElementForReadWrite;
 procedure writeProc;
 {
     workExpr := NIL;
-    isCharFile := true;
     repeat {
         startWrite;
         if (l4exp7z <> workExpr) then {
-            if not isCharFile then {
-                helperNo := 29;         (* P/PF *)
-                usedRegs := usedRegs - [12];
-                if not typeCheck(l4exp8z@.vt.typ, l4exp7z@.vt.typ) then
-                    error(34) (* errTypeIsNotAFileElementType *)
-                else {
-                    l4exp6z@.expr2 := l4exp7z;
-                    curExpr := l4exp6z;
-                    formOperator(DOIT);
-                    callHelperWithArg;
-                }
-            } else {
                 checkElementForReadWrite;
                 secondWidth := NIL;
                 firstWidth := NIL;
@@ -6800,7 +6752,6 @@ procedure writeProc;
                         form1Insn(KVTM+I11 + l4typ3z.rep@.start);
                 };
                 callHelperWithArg;
-            }
         }
     } until (SY <> COMMA);
     if (procNo = 11) then {
@@ -7481,14 +7432,14 @@ var l : integer;
     voidPtr.p.psize := 1;
     voidPtr.p.bits := 15;
     voidPtr.p.pk := kindPtr;
-    new(textType.rep, kindFile);
+    new(textType.rep, kindPtr);
     with textType.rep@ do {
         base := charType;
     };
     textType.p.pad := 8;
     textType.p.psize := 30;
     textType.p.bits := 48;
-    textType.p.pk := kindFile;
+    textType.p.pk := kindPtr;
     new(alfaType.rep,kindArray);
     with alfaType.rep@ do {
         base := charType;
@@ -7734,9 +7685,7 @@ var
         if (l3sym7z <> TYPESY) then {
             checkSymAndRead(COLON);
             parseTypeRef(expType, (skipToSet + [IDENT,RPAREN]));
-            if (isFileType(expType)) then
-                error(5) (*errSimpleTypeReq *)
-            else if (expType.p.psize <> 1) then
+            if (expType.p.psize <> 1) then
                 l3var5z := l3var6z * expType.p.psize + l3var5z;
             if (l3var3z <> NIL) then
                 while (l3var3z <> curIdRec) do with l3var3z@ do {
@@ -7982,8 +7931,6 @@ procedure exitScope(var arg: hashArray);
                     localSize := localSize + jj;
                     curExternFile := NIL;
                 };
-                if l2typ13z.p.pk = kindFile then
-                    makeExtFile;
                 workidr := curIdRec;
             };
             lookupMode := lookDef;
@@ -8476,7 +8423,7 @@ procedure initOptions;
     halfWord := [24:47];
     hashMask := 203407C;
     statEndSys := [SEMICOLON, ENDSY, ELSESY, WHILESY];
-    lvalOpSet := [GETELT, GETVAR, op37, GETFIELD, DEREF, FILEPTR];
+    lvalOpSet := [GETELT, GETVAR, op37, GETFIELD, DEREF];
     symHash := NIL:128;
     fieldHash := NIL:128;
     kwordHash := NIL:128;
@@ -8619,9 +8566,9 @@ procedure initOptions;
         6017250000000000C      (*"P/5     "*),
         6017260000000000C      (*"P/6     "*),
         6017434100000000C      (*"P/CA    "*),
-        6017455700000000C      (*"P/EO    "*), (* fnEOF - 6 *)
+        0000000000000000C      (*"P/EO obs"*),
         0000000000000000C      (*"P/SS obs"*),
-(*10*)  6017455400000000C      (*"P/EL    "*), (* fnEOLN - 6 *)
+(*10*)  0000000000000000C      (*"P/EL obs"*),
         4317554400000000C      (*"C/MD    "*),
         6017555100000000C      (*"P/MI    "*),
         6017604100000000C      (*"P/PA    "*),

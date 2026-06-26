@@ -205,7 +205,7 @@ opflg = enum {
 //
 kind = enum {
     kindVoid, kindReal, kindScalar, kindPtr,
-    kindArray, kindStruct, kindFile,
+    kindArray, kindStruct,
     kindCases, kindRoutine
 };
 //
@@ -531,9 +531,12 @@ void longjmp(jmpbuf, val: int); assembler;
 int setjmp(jmpbuf: *int); assembler;
 int setup(); assembler;
 void rollup(addr: int); assembler;
-void fopen(fcb: *ifcb; sizes, name: int); assembler;
-void fclose(fcb: *ifcb); assembler;
-void putw(f: *ifcb; i: int) {
+typedef pfcb = *ifcb;
+void fopen(fcb: pfcb; sizes, name: int); assembler;
+void fclose(fcb: pfcb); assembler;
+int feof(fcb: pfcb); assembler;
+int feoln(fcb: pfcb); assembler;
+void putw(f: pfcb; i: int) {
     *f->data = i;
     put(*f);
 }
@@ -714,7 +717,7 @@ var
     lineStartOffset  =  moduleOffset;
     linePos  =  -1;
     ++lineCnt;
-    if (eof(pasinput)) {
+    if (feof(&pasinput)) {
 //        error(errEOFEncountered);
         writeln('EOF reached');
         halt;
@@ -1032,7 +1035,7 @@ void readToPos80() {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void nextCH() {
     do {
-        atEOL  =  eoln(PASINPUT);
+        atEOL  =  feoln(&PASINPUT);
         CH  =  *PASINPUT.data;
         get(PASINPUT);
         ++linePos;
@@ -1665,12 +1668,6 @@ var
 } /* hash */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int isFileType(typtr: tptr) {
-    return typtr.p.pk == kindFile ||
-        typtr.p.pk == kindStruct && typtr.rep->flag;
-} /* isFileType */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int typeBits(typtr: tptr) {
     return typtr.p.bits;
 } /* typeBits */
@@ -1874,10 +1871,6 @@ var
                         } else
                             goto 1;
                     }
-                    break;
-                case kindFile:
-                    if (typeCheck(type1.rep->base, type2.rep->base))
-                        goto 1;
                     break;
                 case kindRoutine:
                     if (sameRoutineType(type1, type2))
@@ -4294,8 +4287,6 @@ var
     } else {
         l3idr31z->list  =  curField;
     }
-    cond  =  isFileType(selType);
-    curType.rep->flag  =  cond || curType.rep->flag;
     l3idr31z  =  curEnum;
     do {
         curField->typ  =  selType;
@@ -4876,13 +4867,6 @@ var
             curExpr  =  mkExpr(DEREF, l4typ3z.rep->base, curExpr, NIL);
             l4typ3z  =  l4typ3z.rep->base;
             goto 55;
-        /* leaving it here for the future when accessing fields of the FILE
-           structure is possible, that is, when kindFile is a special case
-           of kindStruct
-        } else if (l4var4z == kindFile) {
-            typ  =  l4typ3z.rep->base;
-            op  =  FILEPTR;
-        */
         } else {
             stmtName  =  '  ->  ';
             error(errWrongVarTypeBefore);
@@ -5119,8 +5103,7 @@ void bldRelOp(oper: operator; ex2: eptr) {
 var
     resOp: operator;
     if (typeCheck(arg1Type, arg2Type)) {
-        if ((arg1Type.p.pk == kindFile) ||
-            (arg1Type.p.psize != 1) &&
+        if ((arg1Type.p.psize != 1) &&
             (oper >= LTOP) &&
             !isCharArray(arg1Type)) {
 1:          error(errNeedOtherTypesOfOperands);
@@ -5486,9 +5469,6 @@ var
         case MUL:
             if (arg1Type.p.pk == kindPtr) {
                 curExpr = mkExpr(DEREF, arg1Type.rep->base,
-                                 curExpr, NIL);
-            } else if (arg1Type.p.pk == kindFile) {
-                curExpr = mkExpr(FILEPTR, arg1Type.rep->base,
                                  curExpr, NIL);
             } else {
                 stmtName = 'unary*';
@@ -6089,7 +6069,7 @@ var
     if (SY != ENDSY)
         error(errBadSymbol);
     reset(F);
-    while (! eof(F)) {
+    while (! feof(&F)) {
         putw(&FCST, *F.data);
         get(F);
     }
@@ -6118,7 +6098,7 @@ var
     l4exp6z: eptr;
     l4exp7z, l4exp8z, workExpr: eptr;
     l4bool10z,
-    noWidth, needR12, isCharFile, l4var14z: int;
+    noWidth, needR12, l4var14z: int;
     defWidth: int;
     procNo: int;
     helperNo: int;
@@ -6142,7 +6122,7 @@ void startWrite() {
     l4typ3z  =  curExpr->typ;
     l4exp7z  =  curExpr;
     if (workExpr == NIL) {
-        if (l4typ3z.p.pk == kindFile) {
+        if (l4typ3z.p.psize == 30) {
             workExpr  =  curExpr;
         } else {
             workExpr = malloc(sizeof(expr));
@@ -6151,10 +6131,8 @@ void startWrite() {
             workExpr->id1  =  outputFile;
         }
         arg2Type  =  workExpr->typ;
-        /* typeCheck(arg2Type.rep->base, charType); */
-        isCharFile  =  arg2Type.rep->base == charType;
         needR12  =  true;
-        l4exp8z = mkExpr(FILEPTR, arg2Type.rep->base, workExpr, NIL);
+        l4exp8z = mkExpr(DEREF, arg2Type.rep->base, workExpr, NIL);
         l4exp6z = mkExpr(ASSIGNOP, l4exp8z->typ, l4exp8z, NIL);
     }
 } /* startWrite */
@@ -6216,22 +6194,9 @@ void checkElement() {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void writeProc() {
     workExpr  =  NIL;
-    isCharFile  =  true;
     do {
         startWrite();
         if (l4exp7z != workExpr) {
-            if (! isCharFile) {
-                helperNo  =  29;         /* P/PF */
-                usedRegs &= ~[12];
-                if (! typeCheck(l4exp8z->typ, l4exp7z->typ))
-                    error(34); /* errTypeIsNotAFileElementType */
-                else {
-                    l4exp6z->expr2  =  l4exp7z;
-                    curExpr  =  l4exp6z;
-                    formOperator(DOIT);
-                    callHelperWithArg();
-                }
-            } else {
                 checkElement();
                 secondWidth  =  NIL;
                 firstWidth  =  NIL;
@@ -6297,7 +6262,6 @@ void writeProc() {
                         form1Insn(KVTM+I11 + l4typ3z.rep->start);
                 }
                 callHelperWithArg();
-            }
         }
     } while (SY == COMMA);
     if (procNo == 11) {
@@ -6955,7 +6919,7 @@ void defExtern() {
     textType.p.pad  =  8;
     textType.p.psize  =  30;
     textType.p.bits  =  48;
-    textType.p.pk  =  kindFile;
+    textType.p.pk  =  kindPtr;
     alfaType.rep = malloc(offsetof(types, szArray));
     with *(alfaType.rep) do {
         base  =  charType;
@@ -7027,9 +6991,9 @@ void defExtern() {
     tempType  =  voidPtr;
     regSysProc('  MALLOC');
     temptype  =  boolType;
-    regSysProc('     EOF');
+    regSysProc('was  EOF');
     regSysProc('resrv   '); /* was REF, fnREF still used */
-    regSysProc('    EOLN');
+    regSysProc('was EOLN');
     temptype  =  intType;
     regSysProc('rsrv    '); /* was SETJMP, fn17 */
     regSysProc('   ROUND');
@@ -7191,10 +7155,8 @@ var
         if (l3sym7z != TYPESY) {
             checkSymAndRead(COLON);
             expType = parseTypeRef(skipToSet | [IDENT,RPAREN]);
-                if (isFileType(expType))
-                error(5); /*errSimpleTypeReq */
-                else if (expType.p.psize != 1)
-                     l3var5z  =  l3var6z * expType.p.psize + l3var5z;
+            if (expType.p.psize != 1)
+                l3var5z  =  l3var6z * expType.p.psize + l3var5z;
             if (l3var3z != NIL)
                 while (l3var3z != curIdRec) with *l3var3z do {
                     typ  =  expType;
@@ -7433,8 +7395,6 @@ void exitScope(a: int) {
                     localSize += jj;
                     curExternFile  =  NIL;
                 }
-                if (l2typ13z.p.pk == kindFile)
-                    makeExtFile();
                 workidr  =  curIdRec;
             }
             lookupMode  =  lookDef;
@@ -7798,7 +7758,7 @@ var
     curVal.i  =  moduleOffset - 040000;
     symTab[074001]  =  [24,29] | curVal.i;
     reset(FCST);
-    while (! eof(FCST)) {
+    while (! feof(&FCST)) {
         putw(&_CHILD_, *FCST.data);
         get(FCST);
     }
