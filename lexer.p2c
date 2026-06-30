@@ -1,0 +1,833 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+typedef
+    symbol = enum {
+        IDENT,      INTCONST,   REALCONST,  CHARCONST,
+        STRINGSY,   LPAREN,     LBRACK,     EXPROP,
+        RPAREN,     RBRACK,     COMMA,      SEMICOLON,
+        PERIOD,     ARROW,      COLON,      BECOMES,
+        BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
+        VARSY,      TYPESY,     ENUMSY,
+        PACKEDSY,   STRUCTSY,   IFSY,       SWITCHSY,
+        WHILESY,    FORSY,      WITHSY,     GOTOSY,
+        ELSESY,     DOSY,
+        EXTERNSY,   BREAKSY,    CONTSY,     CASESY,
+        DEFAULTSY,  UNIONSY,    NOSY,
+        PSEUDOSY,   EOLSY,      EOFSY
+    };
+    operator = enum {
+        SHLEFT,     SHRIGHT,
+        SETAND,     SETXOR,     SETOR,
+        MUL,        RDIVOP,     ANDOP,     IDIVOP,     IMODOP,
+        PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
+        LTOP,       GEOP,       GTOP,       LEOP,       INOP,
+        IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
+        INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
+        RMWASSIGN,  op37,       GETENUM,    GETFIELD,   DEREF,
+        STKLVAL,    ALNUM,      PCALL,      FCALL,
+        TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
+        STANDPROC,  NOOP
+    };
+    numberFormat = enum { decimal, octal, fullword, hex };
+    textchar = int:6;
+    bitset = int;
+    cfcb = struct { data: *char; rest: int[29]; };
+    ifcb = struct { data: *int; rest: int[29]; };
+    word = struct {
+        union {
+            struct { i: int };
+            struct { r: real };
+            struct { a: alfa };
+            struct { t: __packed textchar[8] };
+            struct { c: char };
+            struct { m: bitset };
+        };
+    };
+    charmap = __packed char['\0'..'\176'];
+    textmap = __packed char['\052'..'\177'];
+    entries = bitset[42];
+    charbuf = char[1..130];
+    kword = struct {
+        next: *kword;
+        w: word;
+        sym: symbol;
+        op: operator;
+    };
+//
+const
+    maxLineLen = 130;
+    ASN64 = 0360100;
+    BACKSLASH = '\035';
+    errNumberTooLarge = 43;
+    errFirstDigitInCharLiteralGreaterThan3 = 60;
+//
+var
+    PASINPUT: cfcb;
+    TOKENS: ifcb;
+    PASINFOR: struct {
+        listMode: int;
+        errors: *int;
+        entryptr: *entries;
+        startOffset: int;
+        a0, a1, a4: *charmap;
+        a3: *textmap;
+        sizes: int[10];
+        flags: bitset;
+    };
+    ISOPTEXT: textmap;
+    SY: symbol;
+    charClass: operator;
+    CH, prevCH: char;
+    atEOL, physicalEOF, eofEmitted, badScan: int;
+    lineCnt, linePos, bucket, idx, strLen, badCol, formIdx: int;
+    lineBuf, strBuf: charbuf;
+    curToken, curVal, curIdent, hashMask: word;
+    kwordHash: *kword[128];
+    charSym: symbol['\200'];
+    chrClass: operator['\200'];
+    iso2text: char['\052'..'\177'];
+    keywordName: int[22];
+    keywordHashPtr: *kword;
+    charEncoding: int;
+    intZero: bitset;
+    numFormat: numberFormat;
+    numstr: word[17];
+    localBuf: char[131];
+    curChar: char;
+    dummyFlag: int;
+    forming: word;
+//
+void PASTPR(val: word); extern;
+void PASISOCD(); extern;
+void PASCONTR(); extern;
+int mapai(a: alfa); assembler;
+void fopen(fcb: *int; sizes, name: int); assembler;
+void fclose(fcb: *int); assembler;
+int feof(fcb: *int); assembler;
+int feoln(fcb: *int); assembler;
+//
+void putw(f: *ifcb; i: int) {
+    *f->data = i;
+    put(*f);
+}
+//
+void emitByte(val: int) {
+    ++formIdx;
+    forming.a[formIdx] = val;
+    if (formIdx == 6) {
+        putw(&TOKENS, forming.i);
+        formIdx = 0;
+    }
+}
+//
+void emitWord(val: int) {
+    if (formIdx != 0) {
+        putw(&TOKENS, forming.i);
+        formIdx = 0;
+    }
+    putw(&TOKENS, val);
+}
+//
+void nextCH() {
+    if (feof(&PASINPUT) || (*PASINPUT.data == '\0')) {
+        physicalEOF = 1;
+        atEOL = 1;
+        CH = ' ';
+        return;
+    }
+    atEOL = feoln(&PASINPUT);
+    CH = *PASINPUT.data;
+    get(PASINPUT);
+    if (linePos < maxLineLen) {
+        ++linePos;
+        lineBuf[linePos] = CH;
+    }
+}
+//
+void endOfLine() {
+    ++lineCnt;
+    linePos = 0;
+    if (feof(&PASINPUT))
+        physicalEOF = 1;
+}
+//
+int skipSp() {
+    while ((CH == ' ' || CH == '\11') && !atEOL)
+        nextCH();
+    return 0;
+}
+//
+void markBad() {
+    badCol = linePos;
+    badScan = 1;
+}
+//
+void reportBadScan() {
+    while (!atEOL)
+        nextCH();
+    writeln(' ', lineBuf:linePos);
+    writeln('?':badCol + 1);
+}
+//
+void error(errno: int) {
+    write(' line ', lineCnt:0, ' pos ', linePos:0, ' error ', errno:0, ': ');
+    if (errno == 12) write('ILLEGAL SYMBOL');
+    else if (errno == 20) write('DIGIT ABOVE 7');
+    else if (errno == 43) write('NUMBER TOO LARGE');
+    else if (errno == 52) write('END OF FILE ENCOUNTERED');
+    else if (errno == 54) write('ERROR IN PSEUDO COMMENT');
+    else if (errno == 55) write('NUMBER ABOVE 16 DIGITS');
+    else if (errno == 56) write('AFTER DOT NO MANTISSA');
+    else if (errno == 57) write('NO EXPONENT AFTER E');
+    else if (errno == 58) write('EXPONENT ABOVE 18');
+    else if (errno == 59) write('IN LINE EOLN TRUE');
+    else if (errno == 60) write('1ST DIGIT IN BYTE ABOVE 3');
+    else if (errno == 61) write('EMPTY LINE');
+    writeln;
+    markBad();
+    reportBadScan();
+    halt;
+}
+//
+void regResWord(keyword: int) {
+    var kw: *kword;
+    curVal.i = keyword;
+    curVal.i = curVal.i & hashMask.i;
+    bucket = mapai(curVal.a);
+    kw = malloc(sizeof(kword));
+    kw->w.i = keyword;
+    kw->sym = SY;
+    kw->op = charClass;
+    kw->next = kwordHash[bucket];
+    kwordHash[bucket] = kw;
+}
+//
+void regKeywords() {
+    SY = EXPROP;
+    charClass = INOP;
+    regResWord(keywordName[0]);
+    /*=A3*/
+    SY = CONSTSY;
+    charClass = NOOP;
+    for (idx = 1; idx <= 21; ++idx) {
+        if (SY != TYPESY)
+            regResWord(keywordName[idx]);
+        ++SY;
+    }
+    /*=A2*/
+}
+//
+void scanComment() {
+    var badOpt, boolOpt, dummyFlag: int;
+    var optVal: int;
+    var o: char;
+//
+    int readOptVal(limit: int) {
+        var t: int;
+        nextCH();
+        t = 0;
+        while (('9' >= CH) && (CH >= '0')) {
+            t = 10 * t + CH - '0';
+            nextCH();
+        }
+        if (t <= limit)
+            badOpt = 0;
+        return t;
+    }
+//
+    void readOptFlag(res: *int) {
+        nextCH();
+        if (CH == '-' || CH == '+') {
+            *res = (CH == '+');
+            badOpt = 0;
+        }
+        nextCH();
+    }
+//
+    nextCH();
+    if (CH == '=') {
+        do {
+            nextCH();
+            badOpt = 1;
+            boolOpt = 0;
+            o = CH;
+            if (CH == 'Y' || CH == 'E' || CH == 'F' ||
+                CH == 'P' || CH == 'T' || CH == 'C' ||
+                CH == 'M') {
+                readOptFlag(&dummyFlag);
+                boolOpt = 1;
+            } else if (CH == 'D') {
+                curVal.i = readOptVal(15);
+            } else if (CH == 'S') {
+                readOptVal(8);
+                if (optVal == 3)
+                    lineCnt = 1;
+            } else if (CH == 'L') {
+                optVal = readOptVal(3);
+            } else if (CH == 'A') {
+                charEncoding = readOptVal(3);
+                optVal = charEncoding;
+            } else if (CH == 'B') {
+                optVal = readOptVal(4);
+            } else if (CH == 'K') {
+                optVal = readOptVal(23);
+            }
+            if (badOpt)
+                error(54);
+            else {
+                write(' PSEUDOSY value ', o);
+                emitByte(PSEUDOSY);
+                emitByte(o);
+                if (boolOpt) {
+                    write(' ', dummyFlag:0);
+                    emitByte(dummyFlag);
+                } else {
+                    write(' ', optVal:0);
+                    emitByte(optVal);
+                }
+                writeln;
+            }
+        } while (CH == ',');
+    }
+    do {
+        while ((CH != '*') && !physicalEOF) {
+            if (atEOL)
+                endOfLine();
+            nextCH();
+        }
+        if (physicalEOF) {
+            error(52);
+            return;
+        }
+        nextCH();
+    } while (CH != '/');
+    nextCH();
+}
+//
+void inSymbol() {
+    var tokenLen, tokenIdx: int;
+    var expSign: int;
+    var expMultiple, expValue: real;
+    var expLiteral, expMagnitude: int;
+    var jb1473: int;
+//
+    void doCharConst(lim: char) {
+        var advanced: int;
+        advanced = 0;
+        for (tokenIdx = 6; tokenIdx <= 130; ++tokenIdx) {
+            if (!advanced)
+                nextCH();
+            advanced = 0;
+            if (CH == lim) {
+                nextCH();
+                return;
+            }
+            if (atEOL) {
+                error(59);
+                return;
+            } else if (CH == BACKSLASH) {
+                nextCH();
+                if (('0' <= CH) && (CH <= '7')) {
+                    expLiteral = 0;
+                    tokenLen = 0;
+                    do {
+                        expLiteral = 8 * expLiteral + CH - '0';
+                        ++tokenLen;
+                        nextCH();
+                        if ((tokenLen == 3) || (CH < '0') || ('7' < CH)) {
+                            advanced = 1;
+                            break;
+                        }
+                    } while (1);
+                    if (255 < expLiteral)
+                        error(errFirstDigitInCharLiteralGreaterThan3);
+                    localBuf[tokenIdx] = expLiteral;
+                } else if (CH == 'a')
+                    localBuf[tokenIdx] = 7;
+                else if (CH == 'b')
+                    localBuf[tokenIdx] = 8;
+                else if (CH == 'f')
+                    localBuf[tokenIdx] = 12;
+                else if (CH == 'n')
+                    localBuf[tokenIdx] = 10;
+                else if (CH == 'r')
+                    localBuf[tokenIdx] = 13;
+                else if (CH == 't')
+                    localBuf[tokenIdx] = 9;
+                else if (CH == 'v')
+                    localBuf[tokenIdx] = 11;
+                else if (CH == BACKSLASH || CH == '\'' || CH == '"')
+                    localBuf[tokenIdx] = CH;
+                else if (charEncoding == 3) {
+                    if (CH < '*' || '\176' < CH)
+                        curChar = '\0';
+                    else
+                        curChar = iso2text[CH];
+                    localBuf[tokenIdx] = curChar;
+                } else {
+                    curChar = CH;
+                    localBuf[tokenIdx] = curChar;
+                }
+            } else {
+                if (charEncoding == 3) {
+                    if (CH < '*' || '\176' < CH)
+                        curChar = '\0';
+                    else
+                        curChar = iso2text[CH];
+                } else
+                    curChar = CH;
+                localBuf[tokenIdx] = curChar;
+            }
+        }
+        error(59);
+    }
+//
+    void lexer() {
+        if (SY == IDENT) {
+            curToken.i = 0U;
+            tokenLen = 1;
+            do {
+                curVal.c = iso2text[CH];
+                nextCH();
+                if (tokenLen <= 8) {
+                    ++tokenLen;
+                    curToken.i = (curToken.i << 6) | curVal.i;
+                }
+            } while (chrClass[CH] == ALNUM);
+            curVal.i = curToken.i & hashMask.i;
+            bucket = mapai(curVal.a);
+            curIdent.i = curToken.i;
+            keywordHashPtr = kwordHash[bucket];
+            while (keywordHashPtr != NIL) {
+                if (keywordHashPtr->w.i == curToken.i) {
+                    SY = keywordHashPtr->sym;
+                    charClass = keywordHashPtr->op;
+                    return;
+                }
+                keywordHashPtr = keywordHashPtr->next;
+            }
+            SY = IDENT;
+        } else if (SY == INTCONST) {
+            SY = INTCONST;
+            tokenLen = 0;
+            do {
+                ++tokenLen;
+                if (tokenLen <= 17)
+                    numstr[tokenLen].i = CH - '0';
+                else {
+                    error(55);
+                    tokenLen = 1;
+                }
+                nextCH();
+            } while (charSym[CH] == INTCONST);
+            if ((numstr[1].i == 0) && (CH != '.')) {
+                if ((tokenLen == 1) && (CH == 'X')) {
+                    numFormat = hex;
+                    nextCH();
+                    curToken.i = 0;
+                    while ((charSym[CH] == INTCONST) ||
+                           (('A' <= CH) && (CH <= 'F'))) {
+                        if (charSym[CH] == INTCONST)
+                            curVal.c = CH;
+                        else
+                            curVal.i = CH - 55;
+                        curToken.i = (curToken.i << 4) | curVal.i;
+                        nextCH();
+                    }
+                    if (CH == 'U')
+                        nextCH();
+                    return;
+                }
+                numFormat = octal;
+                if (CH == 'U') {
+                    numFormat = fullword;
+                    nextCH();
+                }
+                curToken.i = 0;
+                for (tokenIdx = 1; tokenIdx <= tokenLen; ++tokenIdx) {
+                    if (numstr[tokenIdx].i > 7)
+                        error(20);
+                    curToken.i = 8 * curToken.i + numstr[tokenIdx].i;
+                }
+                return;
+            }
+            numFormat = decimal;
+            curToken.i = 0;
+            for (tokenIdx = 1; tokenIdx <= tokenLen; ++tokenIdx) {
+                if (curToken.i <= 109951162777)
+                    curToken.i = 10 * curToken.i + numstr[tokenIdx].i;
+                else {
+                    error(errNumberTooLarge);
+                    curToken.i = 1;
+                }
+            }
+            if (CH == 'U') {
+                curToken.m = curToken.m & (~[0,1,3]);
+                numFormat = fullword;
+                nextCH();
+                return;
+            }
+            expMagnitude = 0;
+            if (CH == '.') {
+                nextCH();
+                if (CH == '.') {
+                    CH = ':';
+                    return;
+                }
+                curToken.r = curToken.i;
+                SY = REALCONST;
+                if (charSym[CH] != INTCONST)
+                    error(56);
+                else do {
+                    curToken.r = 10.0 * curToken.r + CH - '0';
+                    expMagnitude = expMagnitude - 1;
+                    nextCH();
+                } while (charSym[CH] == INTCONST);
+            }
+            if (CH == 'E') {
+                if (expMagnitude == 0) {
+                    curToken.r = curToken.i;
+                    SY = REALCONST;
+                }
+                expSign = 0;
+                nextCH();
+                if (CH == '+')
+                    nextCH();
+                else if (CH == '-') {
+                    expSign = 1;
+                    nextCH();
+                }
+                expLiteral = 0;
+                if (charSym[CH] != INTCONST)
+                    error(57);
+                else do {
+                    expLiteral = 10 * expLiteral + CH - '0';
+                    nextCH();
+                } while (charSym[CH] == INTCONST);
+                if (expSign)
+                    expMagnitude = expMagnitude - expLiteral;
+                else
+                    expMagnitude = expMagnitude + expLiteral;
+            }
+            if (expMagnitude != 0) {
+                expValue = 1.0;
+                expSign = (expMagnitude < 0);
+                expMagnitude = abs(expMagnitude);
+                expMultiple = 10.0;
+                if (expMagnitude > 18) {
+                    expMagnitude = 1;
+                    error(58);
+                }
+                do {
+                    if (expMagnitude & 1U)
+                        expValue = expValue * expMultiple;
+                    expMagnitude = expMagnitude / 2;
+                    if (expMagnitude != 0)
+                        expMultiple = expMultiple * expMultiple;
+                } while (expMagnitude != 0);
+                if (expSign)
+                    curToken.r = curToken.r / expValue;
+                else
+                    curToken.r = curToken.r * expValue;
+            } else
+                curToken.m = curToken.m - intZero;
+            return;
+        } else if (SY == CHARCONST) {
+            doCharConst(prevCH);
+            strLen = tokenIdx - 6;
+            if (strLen == 0) {
+                error(61);
+                strLen = 1;
+                localBuf[6] = ' ';
+            }
+            if (strLen == 1)
+                SY = CHARCONST;
+            else
+                SY = STRINGSY;
+            for (tokenLen = 1; tokenLen <= strLen; ++tokenLen)
+                strBuf[tokenLen] = localBuf[5 + tokenLen];
+            return;
+        }
+        prevCH = CH;
+        nextCH();
+        curToken.a = '      ';
+        curToken.a[1] = prevCH;
+        curToken.a[2] = CH;
+        if (((prevCH == '+') || (prevCH == '-') || (prevCH == '*') ||
+             (prevCH == '/') || (prevCH == '%') || (prevCH == '&') ||
+             (prevCH == '|') || (prevCH == '^')) && (CH == '=')) {
+            SY = BECOMES;
+            nextCH();
+        } else if ((prevCH == '<') && (CH == '=')) {
+            charClass = LEOP;
+            nextCH();
+        } else if ((prevCH == '<') && (CH == '<')) {
+            charClass = SHLEFT;
+            nextCH();
+            if (CH == '=') {
+                SY = BECOMES;
+                nextCH();
+            }
+        } else if ((prevCH == '<') && (CH == ':')) {
+            SY = BEGINSY;
+            nextCH();
+        } else if ((prevCH == '>') && (CH == '>')) {
+            charClass = SHRIGHT;
+            nextCH();
+            if (CH == '=') {
+                SY = BECOMES;
+                nextCH();
+            }
+        } else if ((prevCH == '>') && (CH == '=')) {
+            charClass = GEOP;
+            nextCH();
+        } else if ((prevCH == ':') && (CH == '>')) {
+            SY = ENDSY;
+            nextCH();
+        } else if ((prevCH == '=') && (CH == '=')) {
+            SY = EXPROP;
+            charClass = EQOP;
+            nextCH();
+        } else if ((prevCH == '!') && (CH == '=')) {
+            charClass = NEOP;
+            nextCH();
+        } else if ((prevCH == '-') && (CH == '>')) {
+            SY = ARROW;
+            nextCH();
+        } else if ((prevCH == '-') && (CH == '-')) {
+            charClass = DECROP;
+            nextCH();
+        } else if ((prevCH == '+') && (CH == '+')) {
+            charClass = INCROP;
+            nextCH();
+        } else if ((prevCH == '|') && (CH == '|')) {
+            charClass = OROP;
+            nextCH();
+        } else if ((prevCH == '&') && (CH == '&')) {
+            charClass = ANDOP;
+            nextCH();
+        } else if ((prevCH == '/') && (CH == '*')) {
+            scanComment();
+            jb1473 = 1;
+            return;
+        } else if ((prevCH == '/') && (CH == '/')) {
+            while (!atEOL)
+                nextCH();
+            jb1473 = 1;
+            return;
+        } else if ((prevCH == '.') && (CH == '.')) {
+            SY = COLON;
+            nextCH();
+        }
+    }
+//
+1473:
+    while (skipSp()) {
+    }
+    if (physicalEOF) {
+        if (eofEmitted)
+            SY = NOSY;
+        else {
+            eofEmitted = 1;
+            SY = EOFSY;
+        }
+        return;
+    }
+    if (atEOL) {
+        endOfLine();
+        if (!physicalEOF)
+            nextCH();
+        SY = EOLSY;
+        return;
+    }
+    SY = charSym[CH];
+    charClass = chrClass[CH];
+    if (SY == NOSY) {
+        error(12);
+        return;
+    }
+    jb1473 = 0;
+    lexer();
+    if (jb1473)
+        goto 1473;
+}
+//
+void writeEscapedChar(ch, quote: char) {
+    var value: int;
+    if (ch == quote)
+        write(BACKSLASH, ch);
+    else if (ch == BACKSLASH)
+        write(BACKSLASH, BACKSLASH);
+    else if (ch < ' ') {
+        value = ch;
+        write(BACKSLASH);
+        write(value / 64:0);
+        write((value / 8) % 8:0);
+        write(value % 8:0);
+    } else
+        write(ch);
+}
+//
+void writeBuf(buf: charbuf; len: int; quote: char) {
+    var i: int;
+    var w: word;
+    write(quote);
+    for (i = 1; i <= len; ++i)
+        writeEscapedChar(buf[i], quote);
+    write(quote);
+    i = 1;
+    do {
+        pck(buf[i], w.a);
+        emitWord(w.i);
+        i += 6;
+    } while (i <= len);
+}
+//
+void printToken() {
+    var w: word;
+    write(' ');
+    write(SY:1);
+    emitByte(SY);
+    if ((SY == EXPROP) || (SY == BECOMES)) {
+        write(' operator ', charClass:1);
+        emitByte(charClass);
+    }
+    if (SY == IDENT) {
+        write(' id ');
+        PASTPR(curToken);
+        emitWord(curToken.i);
+    }
+    if (SY == INTCONST) {
+        write(' value ', curToken:0 oct);
+        emitWord(curToken.i);
+    }
+    if (SY == REALCONST) {
+        write(' value ', curToken.r);
+        emitWord(curToken.i);
+    }
+    if (SY == CHARCONST) {
+        write(' value ');
+        write('\'');
+        writeEscapedChar(strBuf[1], BACKSLASH);
+        emitByte(strBuf[1]);
+        write('\'');
+    }
+    if (SY == STRINGSY) {
+        write(' value ');
+        emitByte(strLen);
+        writeBuf(strBuf, strLen, '"');
+    }
+    writeln;
+}
+//
+void initTables() {
+    /*=A3*/
+    hashMask.i = 0203407U;
+    for (idx = 0; idx < 128; ++idx) {
+        kwordHash[idx] = NIL;
+        charSym[idx] = NOSY;
+        chrClass[idx] = NOOP;
+    }
+    for (idx = '0'; idx <= '9'; ++idx) {
+        charSym[idx] = INTCONST;
+        chrClass[idx] = ALNUM;
+    }
+    for (idx = 'A'; idx <= 'Z'; ++idx) {
+        charSym[idx] = IDENT;
+        chrClass[idx] = ALNUM;
+    }
+    chrClass['_'] = ALNUM;
+    charSym['\047'] = CHARCONST;
+    charSym['"'] = CHARCONST;
+    charSym['_'] = IDENT;
+    charSym['<'] = EXPROP;
+    charSym['>'] = EXPROP;
+    chrClass['+'] = PLUSOP;
+    chrClass['-'] = MINUSOP;
+    chrClass['|'] = SETOR;
+    chrClass['*'] = MUL;
+    chrClass['/'] = RDIVOP;
+    chrClass['%'] = IMODOP;
+    chrClass['^'] = SETXOR;
+    chrClass['='] = ASSIGNOP;
+    chrClass['&'] = SETAND;
+    chrClass['>'] = GTOP;
+    chrClass['<'] = LTOP;
+    chrClass['!'] = NOTOP;
+    chrClass['~'] = BITNEGOP;
+    chrClass['?'] = CONDOP;
+    charSym['+'] = EXPROP;
+    charSym['-'] = EXPROP;
+    charSym['|'] = EXPROP;
+    charSym['*'] = EXPROP;
+    charSym['/'] = EXPROP;
+    charSym['%'] = EXPROP;
+    charSym['&'] = EXPROP;
+    charSym[','] = COMMA;
+    charSym['.'] = PERIOD;
+    charSym['^'] = EXPROP;
+    charSym['('] = LPAREN;
+    charSym[')'] = RPAREN;
+    charSym[';'] = SEMICOLON;
+    charSym['['] = LBRACK;
+    charSym[']'] = RBRACK;
+    charSym['='] = BECOMES;
+    charSym[':'] = COLON;
+    charSym['!'] = EXPROP;
+    charSym['~'] = EXPROP;
+    charSym['?'] = EXPROP;
+    keywordName[0] = '      IN';
+    keywordName[1] = '   CONST';
+    keywordName[2] = ' TYPEDEF';
+    keywordName[3] = '     VAR';
+    keywordName[4] = 0;
+    keywordName[5] = '    ENUM';
+    keywordName[6] = '**PACKED';
+    keywordName[7] = '  STRUCT';
+    keywordName[8] = '      IF';
+    keywordName[9] = '  SWITCH';
+    keywordName[10] = '   WHILE';
+    keywordName[11] = '     FOR';
+    keywordName[12] = '    WITH';
+    keywordName[13] = '    GOTO';
+    keywordName[14] = '    ELSE';
+    keywordName[15] = '      DO';
+    keywordName[16] = '  EXTERN';
+    keywordName[17] = '   BREAK';
+    keywordName[18] = 'CONTINUE';
+    keywordName[19] = '    CASE';
+    keywordName[20] = ' DEFAULT';
+    keywordName[21] = '   UNION';
+    unpack(ISOPTEXT, iso2text, '\052');
+    regKeywords();
+    /*=A2*/
+}
+//
+void main() {
+    fopen(&TOKENS, 010000100000, 0);
+    rewrite(TOKENS);
+    initTables();
+    lineCnt = 1;
+    linePos = 0;
+    formIdx = 0;
+    atEOL = 0;
+    physicalEOF = feof(&PASINPUT);
+    eofEmitted = 0;
+    badScan = 0;
+    charEncoding = 2;
+    intZero = [0,1,3];
+    if (!physicalEOF)
+        nextCH();
+    do {
+        inSymbol();
+        if (badScan) {
+            reportBadScan();
+            halt;
+        }
+        if (SY != NOSY)
+            printToken();
+    } while (SY != EOFSY);
+    PASISOCD();
+    emitWord(-1);
+}

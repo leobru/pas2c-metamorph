@@ -35,5 +35,7 @@ test_results/
 # But not the main ones
 !work.p2c
 !base.pas
+!lexer.p2c
+!lexer.pas
 !build_pascom.dub
 !tests/*.p2c
