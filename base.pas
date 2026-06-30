@@ -427,6 +427,8 @@ var
    integerType: tptr;
    realType: tptr;
    charType: tptr;
+   charPtrType, flatMemType: tptr;
+   flatMemVar: irptr;
    alfaType: tptr;
    arg1Type: tptr;
    arg2Type: tptr;
@@ -970,6 +972,12 @@ function nrOfBits(value: integer): integer;
     curVal.m := curVal.m * [7..47];
     nrOfBits := 48-minel(curval.m);
 }; (* nrOfBits *)
+%
+function isCharPtr(arg: tptr): boolean;
+{
+    isCharPtr := (arg.p.pk = kindPtr) and (arg.p.psize = 1) and
+                 (arg.rep@.base = charType);
+}; (* isCharPtr *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function mkIntScl(bitWid: integer): tptr;
@@ -2048,6 +2056,62 @@ var n: eptr;
     n@ := [integerType, GETENUM, val];
     mkIntLit := n;
 }; (* mkIntLit *)
+%
+function flatMemAt(idx: eptr): eptr;
+{
+idx@.vt.typ := integerType;
+    flatMemAt := mkExpr(GETELT, charType,
+(*=c-*) mkExpr(GETVAR, flatMemType, flatMemVar, NIL), idx);(*=c+*)
+}; (* flatMemAt *)
+%
+function mkCastInt(e: eptr): eptr;
+var n: eptr;
+{
+    new(n);
+    n@ := e@;
+    n@.vt.typ := integerType;
+    mkCastInt := n;
+}; (* mkCastInt *)
+%
+function mkRef(lval: eptr): eptr;
+var ret : eptr;
+{
+    ret := mkExpr(STANDPROC, voidPtr, lval, NIL);
+    ret@.num2 := fnREF;
+    mkRef := ret;
+}; (* mkRef *)
+function cpDsLval(e: eptr): eptr;
+{
+    if (e <> NIL) and (e@.op = DEREF) and
+       isCharPtr(e@.expr1@.vt.typ) then
+        cpDsLval := flatMemAt(e@.expr1)
+    else
+        cpDsLval := e;
+}; (* cpDsLval *)
+%
+function cpDsExpr(e: eptr): eptr;
+{
+    if e = NIL then
+        cpDsExpr := NIL
+    else if (e@.op = DEREF) and isCharPtr(e@.expr1@.vt.typ) then
+        cpDsExpr := flatMemAt(e@.expr1)
+    else
+        cpDsExpr := e;
+}; (* cpDsExpr *)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function getPtrType(baseType: tptr): tptr;
+var t : tptr;
+{
+    new(t.rep = 2);
+    with t.rep@ do {
+        base := baseType;
+    };
+    t.p.psize := 1;
+    t.p.bits := 15;
+    t.p.pk := kindPtr;
+    getPtrType := t;
+}; (* getPtrType *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function bldIncDec(lval: eptr; isInc, isPost: boolean): eptr;
@@ -3824,10 +3888,12 @@ var i    : integer; ret: word;
     shift := ret.m;
 };
 %
+%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 { (* genFullExpr *);
     if exprToGen = NIL then
         exit;
+    exprToGen := cpDsExpr(exprToGen);
 7567:
     curOP := exprToGen@.op;
     if (curOP = CONDOP) then {
@@ -4523,19 +4589,6 @@ procedure definePtrType(toType: tptr);
     curEnum@ := [curIdent, lineCnt, typelist, curType, TYPEID];
     typelist := curEnum;
 }; (* definePtrType *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function getPtrType(baseType: tptr): tptr;
-{
-    new(curType.rep = 2);
-    with curType.rep@ do {
-        base := baseType;
-    };
-    curType.p.psize := 1;
-    curType.p.bits := 15;
-    curType.p.pk := kindPtr;
-    getPtrType := curType;
-}; (* getPtrType *)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure parseRecordDecl(var rectype: tptr; isOuterDecl: boolean);
@@ -5327,13 +5380,16 @@ var
         l4exp1z := curExpr;
         expression;
         l4typ3z := l4exp1z@.vt.typ;
-        if (l4typ3z.p.pk <> kindArray) then {
+        if isCharPtr(l4typ3z) then
+            curExpr := flatMemAt(mkExpr(INTPLUS, charPtrType,
+                                     l4exp1z, curExpr))
+        else if (l4typ3z.p.pk <> kindArray) then {
             error(errWrongVarTypeBefore);
         } else {
             l4exp1z := mkExpr(GETELT, l4typ3z.rep@.base,
                               l4exp1z, curExpr);
+            curExpr := l4exp1z;
         };
-        curExpr := l4exp1z;
         if (SY <> RBRACK) then
             error(67 (*errNeedBracketAfterIndices*));
         inSymbol;
@@ -5518,6 +5574,18 @@ var
 {
     k1 := arg1Type.p.pk;
     k2 := arg2Type.p.pk;
+    if isCharPtr(arg1Type) and typeCheck(integerType, arg2Type) then {
+        resOp := intOpMap[oper];
+        resTyp := charPtrType;
+        curExpr := mkExpr(resOp, resTyp, leftExpr, curExpr);
+        exit;
+    };
+    if isCharPtr(arg2Type) and typeCheck(integerType, arg1Type) then {
+        resOp := intOpMap[oper];
+        resTyp := charPtrType;
+        curExpr := mkExpr(resOp, resTyp, curExpr, leftExpr);
+        exit;
+    };
     if (k1 > kindScalar) or (k2 > kindScalar) then {
         error(errNeedOtherTypesOfOperands);
         exit;
@@ -5942,7 +6010,9 @@ var
             };
         };
         MUL: {
-            if (arg1Type.p.pk = kindPtr) then
+            if isCharPtr(arg1Type) then
+                curExpr := flatMemAt(curExpr)
+            else if (arg1Type.p.pk = kindPtr) then
                 curExpr := mkExpr(DEREF, arg1Type.rep@.base,
                                   curExpr, NIL)
             else {
@@ -5953,8 +6023,27 @@ var
         SETAND: {
             if not (curExpr@.op IN lvalOpSet) then
                 error(27); (* errExpressionWhereVariableExpected *)
-                curExpr :=
-                (*=c-*)mkExpr(STANDPROC, voidPtr, curExpr, fnREF);(*=c+*)
+            if (curExpr@.op = GETELT) and
+               (curExpr@.expr1@.op = GETVAR) and
+               (curExpr@.expr1@.id1 = flatMemVar) then {
+                curExpr := curExpr@.expr2;
+                curExpr@.vt.typ := charPtrType;
+            } else if (arg1Type = charType) then
+                curExpr := mkExpr(INTPLUS, charPtrType,
+                    mkExpr(IMULOP, integerType,
+                           mkCastInt(mkRef(curExpr)), mkIntLit(6C)),
+                    mkIntLit(5C))
+            else if (curExpr@.op = GETELT) and
+                    isCharArray(curExpr@.expr1@.vt.typ) then
+                curExpr := mkExpr(INTPLUS, charPtrType,
+                    mkExpr(IMULOP, integerType,
+                           mkCastInt(mkRef(curExpr@.expr1)),
+                           mkIntLit(6C)),
+                    curExpr@.expr2)
+            else {
+                curExpr := mkExpr(STANDPROC, voidPtr, curExpr, NIL);
+                curExpr@.num2 := fnREF;
+            };
         };
         INCROP, DECROP: {
             if not (curExpr@.op IN lvalOpSet) then {
@@ -6041,10 +6130,14 @@ var
                 curExpr@.expr2 := NIL;
                 arg2Type := curExpr@.vt.typ;
             };
+            leftExpr := cpDsLval(leftExpr);
             if not typeCheck(arg1Type, arg2Type) then {
                 if (arg1Type = realType) and
                    typeCheck(integerType, arg2Type) then
                     castToReal(curExpr)
+                else if isCharPtr(arg1Type) and
+                        isCharPtr(arg2Type) then
+                    curExpr := curExpr
                 else
                     error(33); (*errIllegalTypesForAssignment*)
             };
@@ -7478,6 +7571,28 @@ var l : integer;
     alfaType.p.psize := 1;
     alfaType.p.bits := 48;
     alfaType.p.pk := kindArray;
+    charPtrType := getPtrType(charType);
+    new(flatMemType.rep, kindArray);
+    with flatMemType.rep@ do {
+        base := charType;
+        pck := true;
+        perword := 6;
+        pcksize := 8;
+        aleft := 0;
+        aright := 32768 * 6 - 1;
+    };
+    flatMemType.p.psize := 32767;
+    flatMemType.p.bits := 48;
+    flatMemType.p.pk := kindArray;
+    new(flatMemVar);
+    with flatMemVar@ do {
+        id.i := 0C;
+        offset := 0B;
+        typ := flatMemType;
+        cl := VARID;
+        list := NIL;
+        value := 0;
+    };
     smallStringType[6] := alfaType;
     regSysType(515664C  (*"     INT"*), integerType);
     regSysType(43504162C(*"    CHAR"*), charType);

@@ -450,6 +450,8 @@ var
     intType: tptr;
     realType: tptr;
     charType: tptr;
+    charPtrType, flatMemType: tptr;
+    flatMemVar: irptr;
     alfaType: tptr;
     arg1Type: tptr;
     arg2Type: tptr;
@@ -832,6 +834,12 @@ void formAndAlign(arg: int) {
 int isCharArray(arg: tptr) {
     with *(arg.rep) do return arg.p.pk == kindArray && base == charType;
 } /* isCharArray */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int isCharPtr(arg: tptr) {
+    return arg.p.pk == kindPtr && arg.p.psize == 1 &&
+           arg.rep->base == charType;
+} /* isCharPtr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void putToSymTab(arg: int) {
@@ -1919,6 +1927,61 @@ eptr mkIntLit(val: int) {
     }
     return n;
 } /* mkIntLit */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+eptr flatMemAt(idx: eptr) {
+    idx->typ = intType;
+    return mkExpr(GETELT, charType,
+                  mkExpr(GETVAR, flatMemType, eptr(flatMemVar), NIL), idx);
+} /* flatMemAt */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+eptr mkCastInt(e: eptr) {
+var
+    n: eptr;
+    n = malloc(sizeof(expr));
+    *n = *e;
+    n->typ = intType;
+    return n;
+} /* mkCastInt */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+eptr mkRef(lval: eptr) {
+var
+    ret: eptr;
+    ret = mkExpr(STANDPROC, voidPtr, lval, NIL);
+    ret->num2 = fnREF;
+    return ret;
+} /* mkRef */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+eptr cpDsLval(e: eptr) {
+    if ((e != NIL) && (e->op == DEREF) &&
+        isCharPtr(e->expr1->typ))
+        return flatMemAt(e->expr1);
+    return e;
+} /* cpDsLval */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+eptr cpDsExpr(e: eptr) {
+    if (e == NIL)
+        return NIL;
+    if ((e->op == DEREF) && isCharPtr(e->expr1->typ))
+        return flatMemAt(e->expr1);
+    return e;
+} /* cpDsExpr */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+tptr getPtrType(toType: tptr) {
+var
+    t: tptr;
+    t.rep = malloc(offsetof(types, szPtr));
+    t.rep->base = toType;
+    t.p.psize = 1;
+    t.p.bits = 15;
+    t.p.pk = kindPtr;
+    return t;
+} /* getPtrType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 eptr bldIncDec(lval: eptr; isInc, isPost: int) {
@@ -3603,6 +3666,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if (exprToGen == NIL)
         return;
+    exprToGen = cpDsExpr(exprToGen);
 7567:
     curOP  =  exprToGen->op;
     if (curOP == CONDOP) {
@@ -4241,16 +4305,6 @@ var
     ranges: rangeList;
     curRange: rangeRec;
     l3idr31z: irptr;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr getPtrType(toType: tptr) {
-    curType.rep = malloc(offsetof(types, szPtr));
-    curType.rep->base  =  toType;
-    curType.p.psize  =  1;
-    curType.p.bits  =  15;
-    curType.p.pk  =  kindPtr;
-    return curType;
-}
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void definePtrType(toType: tptr) {
@@ -4930,13 +4984,16 @@ var
         l4exp1z  =  curExpr;
         expression();
         l4typ3z  =  l4exp1z->typ;
-        if (l4typ3z.p.pk != kindArray) {
+        if (isCharPtr(l4typ3z))
+            curExpr = flatMemAt(mkExpr(INTPLUS, charPtrType,
+                                      l4exp1z, curExpr));
+        else if (l4typ3z.p.pk != kindArray) {
             error(errWrongVarTypeBefore);
         } else {
             l4exp1z  =  mkExpr(GETELT, l4typ3z.rep->base,
                               l4exp1z, curExpr);
+            curExpr  =  l4exp1z;
         }
-        curExpr  =  l4exp1z;
         if (SY != RBRACK)
             error(67 /*errNeedBracketAfterIndices*/);
         inSymbol();
@@ -5106,6 +5163,18 @@ var
     resTyp: tptr;
     k1 = arg1Type.p.pk;
     k2 = arg2Type.p.pk;
+    if (isCharPtr(arg1Type) && typeCheck(intType, arg2Type)) {
+        resOp = intOpMap[oper];
+        resTyp = charPtrType;
+        curExpr = mkExpr(resOp, resTyp, leftExpr, curExpr);
+        return;
+    }
+    if (isCharPtr(arg2Type) && typeCheck(intType, arg1Type)) {
+        resOp = intOpMap[oper];
+        resTyp = charPtrType;
+        curExpr = mkExpr(resOp, resTyp, curExpr, leftExpr);
+        return;
+    }
     if (k1 > kindScalar || k2 > kindScalar) {
         error(errNeedOtherTypesOfOperands);
 1:      curExpr = uVarPtr;
@@ -5499,7 +5568,9 @@ var
             }
             break;
         case MUL:
-            if (arg1Type.p.pk == kindPtr) {
+            if (isCharPtr(arg1Type))
+                curExpr = flatMemAt(curExpr);
+            else if (arg1Type.p.pk == kindPtr) {
                 curExpr = mkExpr(DEREF, arg1Type.rep->base,
                                  curExpr, NIL);
             } else {
@@ -5510,7 +5581,27 @@ var
         case SETAND:
             if (! (curExpr->op IN lvalOpSet))
                 error(27); /* errExpressionWhereVariableExpected */
-            curExpr  =  mkExpr(STANDPROC, voidPtr, curExpr, eptr(fnREF));
+            if ((curExpr->op == GETELT) &&
+                (curExpr->expr1->op == GETVAR) &&
+                (curExpr->expr1->id1 == flatMemVar)) {
+                curExpr = curExpr->expr2;
+                curExpr->typ = charPtrType;
+            } else if (arg1Type == charType) {
+                curExpr = mkExpr(INTPLUS, charPtrType,
+                    mkExpr(IMULOP, intType,
+                           mkCastInt(mkRef(curExpr)), mkIntLit(6)),
+                    mkIntLit(5));
+            } else if ((curExpr->op == GETELT) &&
+                       isCharArray(curExpr->expr1->typ)) {
+                curExpr = mkExpr(INTPLUS, charPtrType,
+                    mkExpr(IMULOP, intType,
+                           mkCastInt(mkRef(curExpr->expr1)),
+                           mkIntLit(6)),
+                    curExpr->expr2);
+            } else {
+                curExpr = mkExpr(STANDPROC, voidPtr, curExpr, NIL);
+                curExpr->num2 = fnREF;
+            }
             break;
         case INCROP:
         case DECROP:
@@ -5603,10 +5694,14 @@ var
                 curExpr->expr2 = NIL;
                 arg2Type = curExpr->typ;
             }
+            leftExpr = cpDsLval(leftExpr);
             if (! typeCheck(arg1Type, arg2Type)) {
                 if (arg1Type == realType
                     && typeCheck(intType, arg2Type))
                     castToReal(&curExpr);
+                else if (isCharPtr(arg1Type) &&
+                         isCharPtr(arg2Type))
+                    curExpr = curExpr;
                 else
                     error(33); /* errIllegalTypesForAssignment */
             }
@@ -6968,6 +7063,28 @@ void defExtern() {
     alfaType.p.bits  =  48;
     alfaType.p.pk  =  kindArray;
     smallStringType[6]  =  alfaType;
+    charPtrType = getPtrType(charType);
+    flatMemType.rep = malloc(offsetof(types, szArray));
+    with *(flatMemType.rep) do {
+        base = charType;
+        pck = true;
+        perword = 6;
+        pcksize = 8;
+        aleft = 0;
+        aright = 32768 * 6 - 1;
+    }
+    flatMemType.p.psize = 32767;
+    flatMemType.p.bits = 48;
+    flatMemType.p.pk = kindArray;
+    flatMemVar = malloc(offsetof(identrec, szIdent));
+    with *flatMemVar do {
+        id = 0;
+        offset = 0;
+        typ = flatMemType;
+        cl = VARID;
+        list = NIL;
+        value = 0;
+    }
      /*=A3 constructing TEXT constants */
     regSysType('     INT', intType);
     regSysType('    CHAR', charType);
