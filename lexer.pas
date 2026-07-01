@@ -1,5 +1,5 @@
 (*=p-,t-,s8,u-,y+,k9,l0*)
-program lexer(output, pasinput, pasinfor, isoptext,
+program lexer(output, pasinput 100440000B, pasinfor, isoptext,
               tokens 100450000B);
 const
     maxLineLen = 130;
@@ -426,20 +426,20 @@ done := false;
                 expMagnitude := 0;
                 if CH = '.' then {
                     nextCH;
-                    if CH = '.' then {
-                        CH := ':';
-                        exit
+                    if CH = '.' then
+                        CH := ':'
+                    else {
+                        curToken.r := curToken.i;
+                        SY := REALCONST;
+                        if charSym[CH] <> INTCONST then
+                            error(56) (* errNeedMantissaAfterDecimal *)
+                        else
+                            repeat
+                                curToken.r := 10.0*curToken.r + ord(CH)-48;
+                                expMagnitude := expMagnitude-1;
+                                nextCH;
+                            until charSym[CH] <> INTCONST;
                     };
-                    curToken.r := curToken.i;
-                    SY := REALCONST;
-                    if charSym[CH] <> INTCONST then
-                        error(56) (* errNeedMantissaAfterDecimal *)
-                    else
-                        repeat
-                            curToken.r := 10.0*curToken.r + ord(CH)-48;
-                            expMagnitude := expMagnitude-1;
-                            nextCH;
-                        until charSym[CH] <> INTCONST;
                 };
                 if CH = 'E' then {
                     if expMagnitude = 0 then {
@@ -669,6 +669,9 @@ var
     write(' ');
     write(SY:1);
     emitByte(ord(SY));
+    if (SY = EOLSY) then {
+        write(' of line ', lineCnt-1:0);
+    };
     if (SY = EXPROP) or (SY = BECOMES) then {
         write(' operator ', charClass:1);
         emitByte(ord(charClass));

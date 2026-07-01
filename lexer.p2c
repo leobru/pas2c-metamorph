@@ -1,5 +1,12 @@
 /*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+extern _output_, pasinfor, isoptext;
+//
+const
+    maxLineLen = 130;
+    ASN64 = 0360100;
+    BACKSLASH = '\035';
+    errNumberTooLarge = 43;
+    errFirstDigitInCharLiteralGreaterThan3 = 60;
 //
 typedef
     symbol = enum {
@@ -31,6 +38,7 @@ typedef
     };
     numberFormat = enum { decimal, octal, fullword, hex };
     textchar = int:6;
+    tok = int:15;
     bitset = int;
     cfcb = struct { data: *char; rest: int[29]; };
     ifcb = struct { data: *int; rest: int[29]; };
@@ -45,7 +53,7 @@ typedef
         };
     };
     charmap = __packed char['\0'..'\176'];
-    textmap = __packed char['\052'..'\177'];
+    textmap = __packed int:6['\052'..'\177'];
     entries = bitset[42];
     charbuf = char[1..130];
     kword = struct {
@@ -55,15 +63,8 @@ typedef
         op: operator;
     };
 //
-const
-    maxLineLen = 130;
-    ASN64 = 0360100;
-    BACKSLASH = '\035';
-    errNumberTooLarge = 43;
-    errFirstDigitInCharLiteralGreaterThan3 = 60;
-//
 var
-    PASINPUT: cfcb;
+    PASINPUT: ifcb;
     TOKENS: ifcb;
     PASINFOR: struct {
         listMode: int;
@@ -86,7 +87,7 @@ var
     kwordHash: *kword[128];
     charSym: symbol['\200'];
     chrClass: operator['\200'];
-    iso2text: char['\052'..'\177'];
+    iso2text: int:6['\052'..'\177'];
     keywordName: int[22];
     keywordHashPtr: *kword;
     charEncoding: int;
@@ -102,10 +103,11 @@ void PASTPR(val: word); extern;
 void PASISOCD(); extern;
 void PASCONTR(); extern;
 int mapai(a: alfa); assembler;
-void fopen(fcb: *int; sizes, name: int); assembler;
-void fclose(fcb: *int); assembler;
-int feof(fcb: *int); assembler;
-int feoln(fcb: *int); assembler;
+typedef pfcb = *ifcb;
+void fopen(fcb: pfcb; sizes, name: int); assembler;
+void fclose(fcb: pfcb); assembler;
+int feof(fcb: pfcb); assembler;
+int feoln(fcb: pfcb); assembler;
 //
 void putw(f: *ifcb; i: int) {
     *f->data = i;
@@ -130,7 +132,7 @@ void emitWord(val: int) {
 }
 //
 void nextCH() {
-    if (feof(&PASINPUT) || (*PASINPUT.data == '\0')) {
+    if (feof(&PASINPUT) || (*PASINPUT.data == 0)) {
         physicalEOF = 1;
         atEOL = 1;
         CH = ' ';
@@ -207,7 +209,6 @@ void regKeywords() {
     SY = EXPROP;
     charClass = INOP;
     regResWord(keywordName[0]);
-    /*=A3*/
     SY = CONSTSY;
     charClass = NOOP;
     for (idx = 1; idx <= 21; ++idx) {
@@ -215,7 +216,6 @@ void regKeywords() {
             regResWord(keywordName[idx]);
         ++SY;
     }
-    /*=A2*/
 }
 //
 void scanComment() {
@@ -258,9 +258,9 @@ void scanComment() {
                 readOptFlag(&dummyFlag);
                 boolOpt = 1;
             } else if (CH == 'D') {
-                curVal.i = readOptVal(15);
+                optVal = readOptVal(15);
             } else if (CH == 'S') {
-                readOptVal(8);
+                optVal = readOptVal(8);
                 if (optVal == 3)
                     lineCnt = 1;
             } else if (CH == 'L') {
@@ -384,7 +384,8 @@ void inSymbol() {
     }
 //
     void lexer() {
-        if (SY == IDENT) {
+        switch (SY) {
+        case IDENT: {
             curToken.i = 0U;
             tokenLen = 1;
             do {
@@ -408,7 +409,9 @@ void inSymbol() {
                 keywordHashPtr = keywordHashPtr->next;
             }
             SY = IDENT;
-        } else if (SY == INTCONST) {
+            break;
+        } /* IDENT */
+        case INTCONST: {
             SY = INTCONST;
             tokenLen = 0;
             do {
@@ -429,7 +432,7 @@ void inSymbol() {
                     while ((charSym[CH] == INTCONST) ||
                            (('A' <= CH) && (CH <= 'F'))) {
                         if (charSym[CH] == INTCONST)
-                            curVal.c = CH;
+                            curVal.i = CH - '0';
                         else
                             curVal.i = CH - 55;
                         curToken.i = (curToken.i << 4) | curVal.i;
@@ -448,7 +451,7 @@ void inSymbol() {
                 for (tokenIdx = 1; tokenIdx <= tokenLen; ++tokenIdx) {
                     if (numstr[tokenIdx].i > 7)
                         error(20);
-                    curToken.i = 8 * curToken.i + numstr[tokenIdx].i;
+                    curToken.i = (curToken.i << 3) | numstr[tokenIdx].i;
                 }
                 return;
             }
@@ -463,7 +466,6 @@ void inSymbol() {
                 }
             }
             if (CH == 'U') {
-                curToken.m = curToken.m & (~[0,1,3]);
                 numFormat = fullword;
                 nextCH();
                 return;
@@ -471,19 +473,19 @@ void inSymbol() {
             expMagnitude = 0;
             if (CH == '.') {
                 nextCH();
-                if (CH == '.') {
+                if (CH == '.')
                     CH = ':';
-                    return;
+                else {
+                    curToken.r = curToken.i;
+                    SY = REALCONST;
+                    if (charSym[CH] != INTCONST)
+                        error(56);
+                    else do {
+                        curToken.r = 10.0 * curToken.r + CH - '0';
+                        expMagnitude = expMagnitude - 1;
+                        nextCH();
+                    } while (charSym[CH] == INTCONST);
                 }
-                curToken.r = curToken.i;
-                SY = REALCONST;
-                if (charSym[CH] != INTCONST)
-                    error(56);
-                else do {
-                    curToken.r = 10.0 * curToken.r + CH - '0';
-                    expMagnitude = expMagnitude - 1;
-                    nextCH();
-                } while (charSym[CH] == INTCONST);
             }
             if (CH == 'E') {
                 if (expMagnitude == 0) {
@@ -530,11 +532,11 @@ void inSymbol() {
                     curToken.r = curToken.r / expValue;
                 else
                     curToken.r = curToken.r * expValue;
-            } else
-                curToken.m = curToken.m - intZero;
+            }
             return;
-        } else if (SY == CHARCONST) {
-            doCharConst(prevCH);
+        } /* INTCONST */
+        case CHARCONST: {
+            doCharConst(CH);
             strLen = tokenIdx - 6;
             if (strLen == 0) {
                 error(61);
@@ -548,78 +550,64 @@ void inSymbol() {
             for (tokenLen = 1; tokenLen <= strLen; ++tokenLen)
                 strBuf[tokenLen] = localBuf[5 + tokenLen];
             return;
-        }
-        prevCH = CH;
-        nextCH();
-        curToken.a = '      ';
-        curToken.a[1] = prevCH;
-        curToken.a[2] = CH;
-        if (((prevCH == '+') || (prevCH == '-') || (prevCH == '*') ||
-             (prevCH == '/') || (prevCH == '%') || (prevCH == '&') ||
-             (prevCH == '|') || (prevCH == '^')) && (CH == '=')) {
-            SY = BECOMES;
+        } /* CHARCONST */
+        default:
+            prevCH = CH;
             nextCH();
-        } else if ((prevCH == '<') && (CH == '=')) {
-            charClass = LEOP;
-            nextCH();
-        } else if ((prevCH == '<') && (CH == '<')) {
-            charClass = SHLEFT;
-            nextCH();
-            if (CH == '=') {
-                SY = BECOMES;
+            switch (tok(prevCH << 8 | CH)) {
+            case tok('+=') >> 32:
+            case tok('-=') >> 32:
+            case tok('*=') >> 32:
+            case tok('/=') >> 32:
+            case tok('%=') >> 32:
+            case tok('&=') >> 32:
+            case tok('|=') >> 32:
+            case tok('^=') >> 32: SY = BECOMES; break;
+            case tok('<=') >> 32: charClass = LEOP; break;
+            case tok('<<') >> 32:
+                charClass = SHLEFT;
                 nextCH();
-            }
-        } else if ((prevCH == '<') && (CH == ':')) {
-            SY = BEGINSY;
-            nextCH();
-        } else if ((prevCH == '>') && (CH == '>')) {
-            charClass = SHRIGHT;
-            nextCH();
-            if (CH == '=') {
-                SY = BECOMES;
+                if (CH == '=') {
+                    SY = BECOMES;
+                    nextCH();
+                }
+                return;
+            case tok('<:') >> 32: SY = BEGINSY; break;
+            case tok('>>') >> 32:
+                charClass = SHRIGHT;
                 nextCH();
-            }
-        } else if ((prevCH == '>') && (CH == '=')) {
-            charClass = GEOP;
+                if (CH == '=') {
+                    SY = BECOMES;
+                    nextCH();
+                }
+                return;
+            case tok('>=') >> 32: charClass = GEOP; break;
+            case tok(':>') >> 32: SY = ENDSY; break;
+            case tok('==') >> 32:
+                SY = EXPROP;
+                charClass = EQOP;
+                break;
+            case tok('!=') >> 32: charClass = NEOP; break;
+            case tok('->') >> 32: SY = ARROW; break;
+            case tok('--') >> 32: charClass = DECROP; break;
+            case tok('++') >> 32: charClass = INCROP; break;
+            case tok('||') >> 32: charClass = OROP; break;
+            case tok('&&') >> 32: charClass = ANDOP; break;
+            case tok('/*') >> 32:
+                scanComment();
+                jb1473 = 1;
+                return;
+            case tok('//') >> 32:
+                while (!atEOL)
+                    nextCH();
+                jb1473 = 1;
+                return;
+            case tok('..') >> 32: SY = COLON; break;
+            default:
+                return;
+            } /* switch prevCH, CH */
             nextCH();
-        } else if ((prevCH == ':') && (CH == '>')) {
-            SY = ENDSY;
-            nextCH();
-        } else if ((prevCH == '=') && (CH == '=')) {
-            SY = EXPROP;
-            charClass = EQOP;
-            nextCH();
-        } else if ((prevCH == '!') && (CH == '=')) {
-            charClass = NEOP;
-            nextCH();
-        } else if ((prevCH == '-') && (CH == '>')) {
-            SY = ARROW;
-            nextCH();
-        } else if ((prevCH == '-') && (CH == '-')) {
-            charClass = DECROP;
-            nextCH();
-        } else if ((prevCH == '+') && (CH == '+')) {
-            charClass = INCROP;
-            nextCH();
-        } else if ((prevCH == '|') && (CH == '|')) {
-            charClass = OROP;
-            nextCH();
-        } else if ((prevCH == '&') && (CH == '&')) {
-            charClass = ANDOP;
-            nextCH();
-        } else if ((prevCH == '/') && (CH == '*')) {
-            scanComment();
-            jb1473 = 1;
-            return;
-        } else if ((prevCH == '/') && (CH == '/')) {
-            while (!atEOL)
-                nextCH();
-            jb1473 = 1;
-            return;
-        } else if ((prevCH == '.') && (CH == '.')) {
-            SY = COLON;
-            nextCH();
-        }
+        } /* switch SY */
     }
 //
 1473:
@@ -685,127 +673,75 @@ void writeBuf(buf: charbuf; len: int; quote: char) {
 }
 //
 void printToken() {
-    var w: word;
+    var w: word; i: int;
     write(' ');
     write(SY:1);
     emitByte(SY);
-    if ((SY == EXPROP) || (SY == BECOMES)) {
+    switch (SY) {
+    case EOLSY:
+        write(' of line ', lineCnt-1:0);
+        break;
+    case EXPROP: case BECOMES:
         write(' operator ', charClass:1);
         emitByte(charClass);
-    }
-    if (SY == IDENT) {
+        break;
+    case IDENT:
         write(' id ');
         PASTPR(curToken);
         emitWord(curToken.i);
-    }
-    if (SY == INTCONST) {
-        write(' value ', curToken:0 oct);
+        break;
+    case INTCONST:
+        write(' value ', curToken oct);
         emitWord(curToken.i);
-    }
-    if (SY == REALCONST) {
+        break;
+    case REALCONST:
         write(' value ', curToken.r);
         emitWord(curToken.i);
-    }
-    if (SY == CHARCONST) {
+        break;
+    case CHARCONST:
         write(' value ');
         write('\'');
         writeEscapedChar(strBuf[1], BACKSLASH);
         emitByte(strBuf[1]);
         write('\'');
-    }
-    if (SY == STRINGSY) {
+        break;
+    case STRINGSY:
         write(' value ');
         emitByte(strLen);
-        writeBuf(strBuf, strLen, '"');
+        if (charEncoding == 2) {
+            writeBuf(strBuf, strLen, '"');
+        } else {
+            /* not A2: pack the characters into 48-bit words (eight
+               6-bit codes each) and print them as raw octal words */
+            i = 1;
+            while (i <= strLen) {
+                w.i = 0;
+                for (idx = 0; idx < 8; ++idx) {
+                    w.i <<= 6;
+                    if (i + idx <= strLen) {
+                        w.i |= strBuf[i + idx];
+                    }
+                }
+                write(' ', w oct);
+                emitWord(w.i);
+                i = i + 8;
+            }
+        }
     }
     writeln;
 }
 //
 void initTables() {
-    /*=A3*/
-    hashMask.i = 0203407U;
-    for (idx = 0; idx < 128; ++idx) {
-        kwordHash[idx] = NIL;
-        charSym[idx] = NOSY;
-        chrClass[idx] = NOOP;
-    }
-    for (idx = '0'; idx <= '9'; ++idx) {
-        charSym[idx] = INTCONST;
-        chrClass[idx] = ALNUM;
-    }
-    for (idx = 'A'; idx <= 'Z'; ++idx) {
-        charSym[idx] = IDENT;
-        chrClass[idx] = ALNUM;
-    }
-    chrClass['_'] = ALNUM;
-    charSym['\047'] = CHARCONST;
-    charSym['"'] = CHARCONST;
-    charSym['_'] = IDENT;
-    charSym['<'] = EXPROP;
-    charSym['>'] = EXPROP;
-    chrClass['+'] = PLUSOP;
-    chrClass['-'] = MINUSOP;
-    chrClass['|'] = SETOR;
-    chrClass['*'] = MUL;
-    chrClass['/'] = RDIVOP;
-    chrClass['%'] = IMODOP;
-    chrClass['^'] = SETXOR;
-    chrClass['='] = ASSIGNOP;
-    chrClass['&'] = SETAND;
-    chrClass['>'] = GTOP;
-    chrClass['<'] = LTOP;
-    chrClass['!'] = NOTOP;
-    chrClass['~'] = BITNEGOP;
-    chrClass['?'] = CONDOP;
-    charSym['+'] = EXPROP;
-    charSym['-'] = EXPROP;
-    charSym['|'] = EXPROP;
-    charSym['*'] = EXPROP;
-    charSym['/'] = EXPROP;
-    charSym['%'] = EXPROP;
-    charSym['&'] = EXPROP;
-    charSym[','] = COMMA;
-    charSym['.'] = PERIOD;
-    charSym['^'] = EXPROP;
-    charSym['('] = LPAREN;
-    charSym[')'] = RPAREN;
-    charSym[';'] = SEMICOLON;
-    charSym['['] = LBRACK;
-    charSym[']'] = RBRACK;
-    charSym['='] = BECOMES;
-    charSym[':'] = COLON;
-    charSym['!'] = EXPROP;
-    charSym['~'] = EXPROP;
-    charSym['?'] = EXPROP;
-    keywordName[0] = '      IN';
-    keywordName[1] = '   CONST';
-    keywordName[2] = ' TYPEDEF';
-    keywordName[3] = '     VAR';
-    keywordName[4] = 0;
-    keywordName[5] = '    ENUM';
-    keywordName[6] = '**PACKED';
-    keywordName[7] = '  STRUCT';
-    keywordName[8] = '      IF';
-    keywordName[9] = '  SWITCH';
-    keywordName[10] = '   WHILE';
-    keywordName[11] = '     FOR';
-    keywordName[12] = '    WITH';
-    keywordName[13] = '    GOTO';
-    keywordName[14] = '    ELSE';
-    keywordName[15] = '      DO';
-    keywordName[16] = '  EXTERN';
-    keywordName[17] = '   BREAK';
-    keywordName[18] = 'CONTINUE';
-    keywordName[19] = '    CASE';
-    keywordName[20] = ' DEFAULT';
-    keywordName[21] = '   UNION';
     unpack(ISOPTEXT, iso2text, '\052');
+    iso2text['_'] = iso2text['*'];
     regKeywords();
-    /*=A2*/
 }
 //
 void main() {
+    fopen(&PASINPUT, 010000100010, 0);
+    reset(PASINPUT, 0100540000);
     fopen(&TOKENS, 010000100000, 0);
+    reset(TOKENS, 0100450000);
     rewrite(TOKENS);
     initTables();
     lineCnt = 1;
@@ -829,5 +765,78 @@ void main() {
             printToken();
     } while (SY != EOFSY);
     PASISOCD();
-    emitWord(-1);
+    emitWord(~0U);
+    fclose(&TOKENS);
+}
+{ main(); }.data
+    hashMask = 0203407;
+    kwordHash = NIL:128;
+    charSym = NOSY:128;
+    chrClass = NOOP:128;
+    charSym['0'] = INTCONST:10;
+    chrClass['0'] = ALNUM:10;
+    charSym['A'] = IDENT:26;
+    chrClass['A'] = ALNUM:26;
+    chrClass['_'] = ALNUM;
+    charSym['\047'] = CHARCONST;
+    charSym['_'] = IDENT;
+    charSym['<'] = EXPROP;
+    charSym['>'] = EXPROP;
+    chrClass['+'] = PLUSOP;
+    chrClass['-'] = MINUSOP;
+    chrClass['*'] = MUL;
+    chrClass['/'] = RDIVOP;
+    chrClass['%'] = IMODOP;
+    chrClass['='] = ASSIGNOP;
+    chrClass['&'] = SETAND;
+    chrClass['|'] = SETOR;
+    chrClass['^'] = SETXOR;
+    chrClass['~'] = BITNEGOP;
+    chrClass['>'] = GTOP;
+    chrClass['<'] = LTOP;
+    chrClass['!'] = NOTOP;
+    chrClass['?'] = CONDOP;
+    charSym['+'] = EXPROP;
+    charSym['-'] = EXPROP;
+    charSym['|'] = EXPROP;
+    charSym['*'] = EXPROP;
+    charSym['/'] = EXPROP;
+    charSym['%'] = EXPROP;
+    charSym['&'] = EXPROP;
+    charSym[','] = COMMA;
+    charSym['.'] = PERIOD;
+    charSym['^'] = EXPROP;
+    charSym['('] = LPAREN;
+    charSym[')'] = RPAREN;
+    charSym[';'] = SEMICOLON;
+    charSym['['] = LBRACK;
+    charSym[']'] = RBRACK;
+    charSym['='] = BECOMES;
+    charSym[':'] = COLON;
+    charSym['!'] = EXPROP;
+    charSym['~'] = EXPROP;
+    charSym['?'] = EXPROP;
+    keywordName = /*=A3*/
+    '      IN',
+    '   CONST',
+    ' TYPEDEF',
+    '     VAR',
+    0,
+    '    ENUM',
+    '**PACKED',
+    '  STRUCT',
+    '      IF',
+    '  SWITCH',
+    '   WHILE',
+    '     FOR',
+    '    WITH',
+    '    GOTO',
+    '    ELSE',
+    '      DO',
+    '  EXTERN',
+    '   BREAK',
+    'CONTINUE',
+    '    CASE',
+    ' DEFAULT',
+    '   UNION';
 }

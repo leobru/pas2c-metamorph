@@ -1,5 +1,5 @@
 #!/bin/sh
-rm -f lexsrc.bin
+rm -f lexsrc.bin tokens.bin lexinp.bin
 runner=base
 if [ "$1" = "-work" ]; then
     runner=work
@@ -15,6 +15,8 @@ cat << EOF > tmp$$
 *file:pascom,42
 *file:libc,43
 *file:lexsrc,44
+*file:lexinp,54
+*file:tokens,45,w
 EOF
 if [ "$runner" = work ]; then
 cat << EOF >> tmp$$
@@ -37,7 +39,7 @@ P 2 0 1000440000B .
 *call *pascom
 EOF
 sed 's/{/<:/g;s/}/:>/g' < lexer.p2c > lexsrc.utxt
-printf '                                                                                \n' >> lexsrc.utxt
+/bin/echo -ne '\000' >> lexsrc.utxt
 cat << EOF >> tmp$$
 *copy:0,000000,000000
 *      libra:23
@@ -46,12 +48,13 @@ cat << EOF >> tmp$$
 *      assem
 *      read:1
 *perso:43,cont
-*      no load list
+*no load list
 *execute
+*end file
 EOF
-cat "$1" >> tmp$$
-echo '*end file' >> tmp$$
-ulimit -t 3
+cat "$1" | sed 's/{/<:/g;s/}/:>/g' | ./preprocess.py >> lexinp.utxt
+/bin/echo -ne '\000' >> lexinp.utxt
+ulimit -t 5
 dubna tmp$$ | tee lexerp2c.lst
 status=$?
 rm -f tmp$$
