@@ -1,22 +1,23 @@
 #!/bin/sh
-rm -f lexsrc.bin tokens.bin lexinp.bin
 runner=base
 if [ "$1" = "-work" ]; then
     runner=work
     shift
 fi
-if [ $# -ne 1 ]; then
-    echo "usage: $0 [-work] input-file" >&2
-    exit 2
+tokens="${1:-tokens.bin}"
+if [ ! -f "$tokens" ]; then
+    echo "usage: $0 [-work] [tokens-file]" >&2
+    echo "$0: $tokens not found (run lexer.sh first)" >&2
+    exit 1
 fi
+rm -f lexdump.bin
 cat << EOF > tmp$$
-*NAME lexer
+*NAME lexdump
 *disc:1/local
 *file:pascom,42
 *file:libc,43
 *file:lexsrc,44
-*file:lexinp,54
-*file:tokens,45,w
+*file:tokens,45,r
 EOF
 if [ "$runner" = work ]; then
 cat << EOF >> tmp$$
@@ -38,7 +39,7 @@ cat << EOF >> tmp$$
 P 2 0 1000440000B .
 *call *pascom
 EOF
-sed 's/{/<:/g;s/}/:>/g' < lexer.p2c > lexsrc.utxt
+sed 's/{/<:/g;s/}/:>/g' < lexdump.p2c > lexsrc.utxt
 dd bs=120 count=1 < /dev/zero >> lexsrc.utxt
 cat << EOF >> tmp$$
 *copy:0,000000,000000
@@ -52,10 +53,11 @@ cat << EOF >> tmp$$
 *execute
 *end file
 EOF
-cat "$1" | sed 's/{/<:/g;s/}/:>/g' | ./preprocess.py > lexinp.utxt
-dd bs=120 count=1 < /dev/zero >> lexinp.utxt
+if [ "$tokens" != "tokens.bin" ]; then
+    cp "$tokens" tokens.bin
+fi
 ulimit -t 5
-dubna tmp$$ | tee lexerp2c.lst
+dubna tmp$$ | tee lexdumpp2c.lst
 status=$?
 rm -f tmp$$
 exit $status

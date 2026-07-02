@@ -1,4 +1,4 @@
-/*=p-,t-,s8,y+,k9,l0*/
+/*=p-,t-,s8,y+,k9,l1*/
 extern _output_, pasinfor, isoptext;
 //
 const
@@ -218,6 +218,8 @@ void regKeywords() {
     }
 }
 //
+void printToken(); forward;
+//
 void scanComment() {
     var badOpt, boolOpt, dummyFlag: int;
     var optVal: int;
@@ -292,8 +294,11 @@ void scanComment() {
     }
     do {
         while ((CH != '*') && !physicalEOF) {
-            if (atEOL)
+            if (atEOL) {
                 endOfLine();
+                SY = EOLSY;
+                printToken();
+            }
             nextCH();
         }
         if (physicalEOF) {

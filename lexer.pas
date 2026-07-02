@@ -215,7 +215,7 @@ procedure regKeywords;
         SY := succ(SY);
     };
 }; (* regKeywords *)
-
+procedure printToken; forward;
 procedure scanComment;
 var badOpt, boolOpt, dummyFlag : boolean; optVal: integer; o:char;
 procedure readOptVal(var res   : integer; limit: integer);
@@ -280,8 +280,11 @@ procedure readOptFlag(var res: boolean);
     };
         repeat
             while (CH <> '*') and not physicalEOF do {
-                if atEOL then
+                if atEOL then {
                     endOfLine;
+                    SY := EOLSY;
+                    printToken;
+                };
                 nextCH;
             };
             if physicalEOF then {

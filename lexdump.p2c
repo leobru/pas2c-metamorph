@@ -1,0 +1,241 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+const
+    maxLineLen = 130;
+    BACKSLASH = '\035';
+//
+typedef
+    symbol = enum {
+        IDENT,      INTCONST,   REALCONST,  CHARCONST,
+        STRINGSY,   LPAREN,     LBRACK,     EXPROP,
+        RPAREN,     RBRACK,     COMMA,      SEMICOLON,
+        PERIOD,     ARROW,      COLON,      BECOMES,
+        BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
+        VARSY,      TYPESY,     ENUMSY,
+        PACKEDSY,   STRUCTSY,   IFSY,       SWITCHSY,
+        WHILESY,    FORSY,      WITHSY,     GOTOSY,
+        ELSESY,     DOSY,
+        EXTERNSY,   BREAKSY,    CONTSY,     CASESY,
+        DEFAULTSY,  UNIONSY,    NOSY,
+        PSEUDOSY,   EOLSY,      EOFSY
+    };
+    operator = enum {
+        SHLEFT,     SHRIGHT,
+        SETAND,     SETXOR,     SETOR,
+        MUL,        RDIVOP,     ANDOP,     IDIVOP,     IMODOP,
+        PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
+        LTOP,       GEOP,       GTOP,       LEOP,       INOP,
+        IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
+        INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
+        RMWASSIGN,  op37,       GETENUM,    GETFIELD,   DEREF,
+        STKLVAL,    ALNUM,      PCALL,      FCALL,
+        TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
+        STANDPROC,  NOOP
+    };
+    bitset = int;
+    ifcb = struct { data: *int; rest: int[29]; };
+    word = struct {
+        union {
+            struct { i: int };
+            struct { r: real };
+            struct { a: alfa };
+            struct { t: __packed int:6[8] };
+            struct { c: char };
+            struct { m: bitset };
+        };
+    };
+    charbuf = char[1..130];
+//
+var
+    TOKENS: ifcb;
+    SY: symbol;
+    charClass: operator;
+    lineCnt, strLen, charEncoding: int;
+    curToken, w: word;
+    strBuf, localBuf: charbuf;
+    byteQ: int[1..6];
+    byteQHead, byteQTail: int;
+    symTab: symbol[64];
+    opTab: operator[64];
+//
+void PASTPR(val: word); extern;
+typedef pfcb = *ifcb;
+void fopen(fcb: pfcb; sizes, name: int); assembler;
+void fclose(fcb: pfcb); assembler;
+int feof(fcb: pfcb); assembler;
+//
+int readWord() {
+    w.i = *TOKENS.data;
+    get(TOKENS);
+    return w.i;
+}
+//
+void clearByteQ() {
+    byteQHead = 1;
+    byteQTail = 0;
+}
+//
+void pushByte(b: int) {
+    ++byteQTail;
+    byteQ[byteQTail] = b;
+}
+//
+void enqueueWord(val: int) {
+    var idx: int;
+    w.i = val;
+    for (idx = 1; idx <= 6; ++idx)
+        pushByte(w.a[idx]);
+}
+//
+int getByte() {
+    if (byteQHead > byteQTail) {
+        byteQHead = 1;
+        byteQTail = 0;
+        w.i = readWord();
+        enqueueWord(w.i);
+    }
+    w.i = byteQ[byteQHead];
+    ++byteQHead;
+    return w.i;
+}
+//
+int getWord() {
+    clearByteQ();
+    return readWord();
+}
+//
+void initTabs() {
+    var i: int;
+    for (i = 0; i <= EOFSY; ++i)
+        symTab[i] = i;
+    for (i = 0; i <= NOOP; ++i)
+        opTab[i] = i;
+}
+//
+void writeEscapedChar(ch, quote: char) {
+    var value: int;
+    if (ch == quote)
+        write(BACKSLASH, ch);
+    else if (ch == BACKSLASH)
+        write(BACKSLASH, BACKSLASH);
+    else if (ch < ' ') {
+        value = ch;
+        write(BACKSLASH);
+        write(value / 64:0);
+        write((value / 8) % 8:0);
+        write(value % 8:0);
+    } else
+        write(ch);
+}
+//
+void prStrA2() {
+    var i, idx, nWords, pos: int;
+    write(' value ');
+    write('"');
+    i = 1;
+    nWords = (strLen + 5) / 6;
+    for (idx = 1; idx <= nWords; ++idx) {
+        curToken.i = getWord();
+        unpck(localBuf[1], curToken.a);
+        for (pos = 1; pos <= 6; ++pos) {
+            if (i <= strLen) {
+                writeEscapedChar(localBuf[pos], '"');
+                ++i;
+            }
+        }
+    }
+    write('"');
+}
+//
+void prStrOct() {
+    var idx, nWords: int;
+    write(' value ');
+    nWords = (strLen + 7) / 8;
+    for (idx = 1; idx <= nWords; ++idx) {
+        w.i = getWord();
+        write(' ', w oct);
+    }
+}
+//
+void printPseudo() {
+    var optCh: char;
+    var optVal: int;
+    optCh = getByte();
+    optVal = getByte();
+    write(' PSEUDOSY value ', optCh);
+    if (optCh == 'Y' || optCh == 'E' || optCh == 'F' ||
+        optCh == 'P' || optCh == 'T' || optCh == 'C' || optCh == 'M')
+        write(' ', optVal:0);
+    else {
+        write(' ', optVal:0);
+        if (optCh == 'A')
+            charEncoding = optVal;
+        if (optCh == 'S' && optVal == 3)
+            lineCnt = 1;
+    }
+    writeln;
+}
+//
+void printToken() {
+    write(' ');
+    write(SY:1);
+    if (SY == EOLSY) {
+        ++lineCnt;
+        write(' of line ', lineCnt - 1:0);
+    }
+    if (SY == EXPROP || SY == BECOMES) {
+        w.i = getByte();
+        charClass = opTab[w.i];
+        write(' operator ', charClass:1);
+    }
+    if (SY == IDENT) {
+        curToken.i = getWord();
+        write(' id ');
+        PASTPR(curToken);
+    }
+    if (SY == INTCONST) {
+        curToken.i = getWord();
+        write(' value ', curToken oct);
+    }
+    if (SY == REALCONST) {
+        curToken.i = getWord();
+        write(' value ', curToken.r);
+    }
+    if (SY == CHARCONST) {
+        strBuf[1] = getByte();
+        write(' value ');
+        write('\'');
+        writeEscapedChar(strBuf[1], BACKSLASH);
+        write('\'');
+    }
+    if (SY == STRINGSY) {
+        strLen = getByte();
+        if (charEncoding == 2)
+            prStrA2();
+        else
+            prStrOct();
+    }
+    writeln;
+}
+//
+void main() {
+    fopen(&TOKENS, 010000100000, 0);
+    reset(TOKENS, 0100450000);
+    initTabs();
+    lineCnt = 1;
+    charEncoding = 2;
+    clearByteQ();
+    do {
+        w.i = getByte();
+        SY = symTab[w.i];
+        if (SY == PSEUDOSY)
+            printPseudo();
+        else
+            printToken();
+    } while (SY != EOFSY);
+    if (!feof(&TOKENS))
+        w.i = readWord();
+    fclose(&TOKENS);
+}
+{ main(); }
