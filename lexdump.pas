@@ -87,11 +87,17 @@ function getByte: integer;
     byteQHead := byteQHead + 1;
 };
 
-function getWord: integer;
+function getTokWord: integer;
+{
+    read(tokens, w.i);
+    getTokWord := w.i;
+};
+
+function getStrWord: integer;
 {
     clearByteQ;
     read(tokens, w.i);
-    getWord := w.i;
+    getStrWord := w.i;
 };
 
 procedure initTabs;
@@ -130,7 +136,7 @@ var
     i := 1;
     nWords := (strLen + 5) div 6;
     for idx := 1 to nWords do {
-        curToken.i := getWord;
+        curToken.i := getStrWord;
         unpck(localBuf[1], curToken.a);
         for pos := 1 to 6 do {
             if i <= strLen then {
@@ -149,7 +155,7 @@ var
     write(' value ');
     nWords := (strLen + 7) div 8;
     for idx := 1 to nWords do {
-        w.i := getWord;
+        w.i := getStrWord;
         write(' ', w.m oct);
     };
 };
@@ -188,16 +194,16 @@ procedure printToken;
         write(' operator ', charClass:1);
     };
     if SY = IDENT then {
-        curToken.i := getWord;
+        curToken.i := getTokWord;
         write(' id ');
         pastpr(curToken);
     };
     if SY = INTCONST then {
-        curToken.i := getWord;
+        curToken.i := getTokWord;
         write(' value ', curToken oct);
     };
     if SY = REALCONST then {
-        curToken.i := getWord;
+        curToken.i := getTokWord;
         write(' value ', curToken.r);
     };
     if SY = CHARCONST then {

@@ -100,7 +100,11 @@ int getByte() {
     return w.i;
 }
 //
-int getWord() {
+int getTokWord() {
+    return readWord();
+}
+//
+int getStrWord() {
     clearByteQ();
     return readWord();
 }
@@ -136,7 +140,7 @@ void prStrA2() {
     i = 1;
     nWords = (strLen + 5) / 6;
     for (idx = 1; idx <= nWords; ++idx) {
-        curToken.i = getWord();
+        curToken.i = getStrWord();
         unpck(localBuf[1], curToken.a);
         for (pos = 1; pos <= 6; ++pos) {
             if (i <= strLen) {
@@ -153,7 +157,7 @@ void prStrOct() {
     write(' value ');
     nWords = (strLen + 7) / 8;
     for (idx = 1; idx <= nWords; ++idx) {
-        w.i = getWord();
+        w.i = getStrWord();
         write(' ', w oct);
     }
 }
@@ -190,16 +194,16 @@ void printToken() {
         write(' operator ', charClass:1);
     }
     if (SY == IDENT) {
-        curToken.i = getWord();
+        curToken.i = getTokWord();
         write(' id ');
         PASTPR(curToken);
     }
     if (SY == INTCONST) {
-        curToken.i = getWord();
+        curToken.i = getTokWord();
         write(' value ', curToken oct);
     }
     if (SY == REALCONST) {
-        curToken.i = getWord();
+        curToken.i = getTokWord();
         write(' value ', curToken.r);
     }
     if (SY == CHARCONST) {

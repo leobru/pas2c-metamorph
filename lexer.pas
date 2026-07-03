@@ -74,9 +74,11 @@ var
     charClass: operator;
     CH, prevCH: char;
     atEOL, physicalEOF, eofEmitted, badScan: boolean;
-    lineCnt, linePos, bucket, idx, strLen, badCol, formIdx: integer;
+    lineCnt, linePos, bucket, idx, strLen, badCol, formIdx,
+        wasteByts, pendCnt: integer;
     lineBuf, strBuf: charbuf;
-    curToken, curVal, curIdent, hashMask: word;
+    curToken, curVal, curIdent, hashMask, forming: word;
+    pendWords: array [1..6] of word;
     kwordHash: array [0..127] of kwordp;
     charSym: array ['_000'..'_177'] of symbol;
     chrClass: array ['_000'..'_177'] of operator;
@@ -90,10 +92,17 @@ var
     localBuf: array [0..130] of char;
     curChar: char;
     dummyFlag: boolean;
-    forming: word;
 procedure PASTPR(val: word); external;
 procedure PASISOCD; external;
 procedure PASCONTR; external;
+
+procedure flushPendWords;
+var i: integer;
+{
+    for i := 1 to pendCnt do
+        write(tokens, pendWords[i].i);
+    pendCnt := 0;
+};
 
 procedure emitByte(val : integer);
 {
@@ -102,16 +111,46 @@ procedure emitByte(val : integer);
     if formIdx = 6 then {
         write(tokens, forming.i);
         formIdx := 0;
+        flushPendWords;
+    }
+};
+
+procedure flushForm;
+{
+    if formIdx <> 0 then
+        wasteByts := wasteByts + (6 - formIdx);
+    while formIdx <> 0 do
+        emitByte(0);
+};
+
+procedure flushFPend;
+{
+    flushForm;
+};
+
+procedure emitPending;
+{
+    if (SY = STRINGSY) and (pendCnt > 0) then {
+        if formIdx <> 0 then
+            flushFPend
+        else
+            flushPendWords;
     }
 };
 
 procedure emitWord(val : integer);
 {
-    if (formIdx <> 0) then {
-        write(tokens, forming.i);
-        formIdx := 0;
-    };
-   write(tokens, val);
+    if (formIdx <> 0) or (pendCnt > 0) then {
+        if pendCnt = 6 then {
+            if formIdx <> 0 then
+                flushFPend
+            else
+                flushPendWords;
+        };
+        pendCnt := pendCnt + 1;
+        pendWords[pendCnt].i := val;
+    end else
+        write(tokens, val);
 };
 
 procedure nextCH;
@@ -725,6 +764,7 @@ var
             };
         };
     };
+    emitPending;
     writeln;
 }; (* printToken *)
 
@@ -741,6 +781,8 @@ procedure initTables;
     lineCnt := 1;
     linePos := 0;
     formIdx := 0;
+    pendCnt := 0;
+    wasteByts := 0;
     atEOL := false;
     physicalEOF := eof(pasinput);
     eofEmitted := false;
@@ -759,6 +801,8 @@ procedure initTables;
             printToken;
     until SY = EOFSY;
     pasisocd;
+    flushFPend;
+    writeln(' WASTED BYTES ', wasteByts:0);
     emitWord(7777777777777777C);
 %    reset(tokens);
 }

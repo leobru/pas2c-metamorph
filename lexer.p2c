@@ -81,9 +81,11 @@ var
     charClass: operator;
     CH, prevCH: char;
     atEOL, physicalEOF, eofEmitted, badScan: int;
-    lineCnt, linePos, bucket, idx, strLen, badCol, formIdx: int;
+    lineCnt, linePos, bucket, idx, strLen, badCol, formIdx,
+        wasteByts, pendCnt: int;
     lineBuf, strBuf: charbuf;
-    curToken, curVal, curIdent, hashMask: word;
+    curToken, curVal, curIdent, hashMask, forming: word;
+    pendWords: word[6];
     kwordHash: *kword[128];
     charSym: symbol['\200'];
     chrClass: operator['\200'];
@@ -97,7 +99,6 @@ var
     localBuf: char[131];
     curChar: char;
     dummyFlag: int;
-    forming: word;
 //
 void PASTPR(val: word); extern;
 void PASISOCD(); extern;
@@ -114,21 +115,55 @@ void putw(f: *ifcb; i: int) {
     put(*f);
 }
 //
+void flushPendWords() {
+    var i: int;
+    for (i = 1; i <= pendCnt; ++i)
+        putw(&TOKENS, pendWords[i].i);
+    pendCnt = 0;
+}
+//
 void emitByte(val: int) {
     ++formIdx;
     forming.a[formIdx] = val;
     if (formIdx == 6) {
         putw(&TOKENS, forming.i);
         formIdx = 0;
+        flushPendWords();
+    }
+}
+//
+void flushForm() {
+    if (formIdx != 0)
+        wasteByts += (6 - formIdx);
+    while (formIdx != 0)
+        emitByte(0);
+}
+//
+void flushFPend() {
+    flushForm();
+}
+//
+void emitPending() {
+    if (SY == STRINGSY && pendCnt > 0) {
+        if (formIdx != 0)
+            flushFPend();
+        else
+            flushPendWords();
     }
 }
 //
 void emitWord(val: int) {
-    if (formIdx != 0) {
-        putw(&TOKENS, forming.i);
-        formIdx = 0;
-    }
-    putw(&TOKENS, val);
+    if (formIdx != 0 || pendCnt > 0) {
+        if (pendCnt == 6) {
+            if (formIdx != 0)
+                flushFPend();
+            else
+                flushPendWords();
+        }
+        ++pendCnt;
+        pendWords[pendCnt].i = val;
+    } else
+        putw(&TOKENS, val);
 }
 //
 void nextCH() {
@@ -733,6 +768,7 @@ void printToken() {
             }
         }
     }
+    emitPending();
     writeln;
 }
 //
@@ -752,6 +788,8 @@ void main() {
     lineCnt = 1;
     linePos = 0;
     formIdx = 0;
+    pendCnt = 0;
+    wasteByts = 0;
     atEOL = 0;
     physicalEOF = feof(&PASINPUT);
     eofEmitted = 0;
@@ -770,6 +808,9 @@ void main() {
             printToken();
     } while (SY != EOFSY);
     PASISOCD();
+    flushFPend();
+    write(' WASTED BYTES ', wasteByts:0);
+    writeln;
     emitWord(~0U);
     fclose(&TOKENS);
 }
