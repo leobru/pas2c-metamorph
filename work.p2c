@@ -2109,18 +2109,25 @@ void processInsn() {
             } else {
                 l4var213z  =  false;
             }
-            if (curInsn == 0)
-                form1Insn(KUZA + moduleOffset + 2);
-            form1Insn(l4var213z ? KXTA : KXTA+E1);
-            form1Insn(KUJ + 2 + moduleOffset);
-            padToLeft();
+            curVal.i  =  l4var213z;
+            i  =  addCurValToFCST();
+            curVal.i  =  l4var213z ^ 1;
+            tempInsn  =  addCurValToFCST() - i;
+            if (curInsn == 0) {
+                padToLeft();
+                form1Insn(KUZA + moduleOffset + 1);
+            } else if (putLeft) {
+                /* Put UTC in the right half so the patched branch target is
+                   the following left-half XTA. */
+                form1Insn(KUTC);
+            }
+            form1Insn(KUTC + getValueOrAllocSymtab(tempInsn));
             if (curInsn) {
                 if (! findLabel())
                     error(211);
                 fixup(0, l4inl7z->code);
             }
-            form1Insn(l4var213z ? KXTA+E1 : KXTA);
-            padToLeft();
+            form1Insn(KXTA+I8 + i);
             return;
         }
         if (curInsn >= 2*macro) {

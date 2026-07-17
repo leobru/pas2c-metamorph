@@ -13,6 +13,10 @@ libc.bin: $(wildcard libc/*.madlen)
 base.o: base.pas
 	./base.sh
 
+# Host-native base compiler (port in progress, see port/NOTES.md)
+base: base.cc
+	g++ -O3 -Wall -std=c++17 -o base base.cc
+
 pascom.bin: build-pascom.dub
 	dubna build-pascom.dub
 

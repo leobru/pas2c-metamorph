@@ -2158,15 +2158,6 @@ var
     l4var213z: boolean;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-procedure P3363;
-{
-    if l4var213z then
-        form1Insn(insnTemp[XTA])
-    else
-        form1Insn(KXTA+E1)
-}; (* P3363 *)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 procedure  addInsnToBuf(insn: integer);
 {
     insnBuf[insnBufIdx].i := insn;
@@ -2433,19 +2424,25 @@ procedure addJumpInsn(opcode: integer);
             } else {
                 l4var213z := false;
             };
-            if (curInsn.i = 0) then
-                form1Insn(insnTemp[UZA] + moduleOffset + 2);
-            P3363;
-            form1Insn(insnTemp[UJ] + 2 + moduleOffset);
-            padToLeft;
+            curVal.b := l4var213z;
+            l4var2z := addCurValToFCST;
+            curVal.b := not l4var213z;
+            l4var3z := addCurValToFCST - l4var2z;
+            if (curInsn.i = 0) then {
+                padToLeft;
+                form1Insn(insnTemp[UZA] + moduleOffset + 1);
+            } else if putLeft then {
+                (* Put UTC in the right half so the patched branch target is
+                   the following left-half XTA. *)
+                form1Insn(KUTC);
+            };
+            form1Insn(insnTemp[UTC] + getValueOrAllocSymtab(l4var3z));
             if (curInsn.i <> 0) then {
                 if (not findLabel) then
                     error(211);
                 fixup(0, l4inl7z@.code);
             };
-            l4var213z := not l4var213z;
-            P3363;
-            padToLeft;
+            form1Insn(KXTA+I8 + l4var2z);
             exit iter
         };
         if (curInsn.i >= 2*macro) then {
