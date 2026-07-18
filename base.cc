@@ -1,12 +1,15 @@
 /*
- * A straightforward conversion of the Pascal-Monitor compiler
- * to C++. The compiler must be called with two arguments, infile and outfile.
- * Infile is the Pascal source in ASCII/UTF-8; outfile is a big-endian
- * bytestream representation of the object module.
- * The original compiler was forming the object module in an
- * "unpacked" form: the section lengths occupied one word each.
- * It was the job of the monitor system to pack it before putting
- * into the temporary/personal library.
+ * Host-native C++ port of the base.pas "Pascal to C metamorphosis" (P2C)
+ * compiler, replacing the emulator-hosted base compiler. base.pas is the
+ * authoritative source for semantics; work.p2c is the C-style mirror (a
+ * phrasing donor only — the two mirrors diverge, e.g. work.p2c drops fnPTR
+ * and adds fnEOF/fnEOLN/fnSETJMP).
+ *
+ * Invoked with two arguments, infile and outfile. Infile is the P2C source
+ * in ASCII/UTF-8 (read as KOI-8 via unicode_to_koi8); outfile is a
+ * big-endian bytestream of the object module. The module is emitted in the
+ * "unpacked" form (section lengths occupy one word each); the monitor system
+ * packs it before storing into the library.
  */
 #include <cstdio>
 #include <string>
@@ -992,24 +995,41 @@ static const char *koi2utf[64] = {
     "П","Я","Р","С","Т","У","Ж","В","Ь","Ы","З","Ш","Э","Щ","Ч","Ъ",
 };
 
-std::string escapeChar(int c) {
-    std::string ret;
-    if (c < 32 || c >= 127) {
-        char * strp;
-        if (0 <= asprintf(&strp, "_%03o", c)) {
-            ret = strp;
-            free(strp);
-        } else perror("asprintf");
-    } else
-        ret = char(c);
-    return ret;
-}
-
 std::string Expr::p()
 {
-    // Debug printer gutted during the metamorph merge; the real version
-    // returns with the expression-unit transplants (uses lit/vt model).
-    return "expr";
+    static const char * opName[] = {
+        "SHLEFT","SHRIGHT","SETAND","SETXOR","SETOR","MUL","RDIVOP","ANDOP",
+        "IDIVOP","IMODOP","PLUSOP","MINUSOP","OROP","NEOP","EQOP","LTOP",
+        "GEOP","GTOP","LEOP","INOP","IMULOP","INTPLUS","INTMINUS","CONDOP",
+        "ALTERN","INCROP","DECROP","ASSIGNOP","GETELT","GETVAR","RMWASSIGN",
+        "op37","GETENUM","GETFIELD","DEREF","STKLVAL","ALNUM","PCALL","FCALL",
+        "TOREAL","NOTOP","INEGOP","RNEGOP","BITNEGOP","STANDPROC","NOOP"
+    };
+    char buf[256];
+    const char * nm = (op >= 0 && op <= NOOP) ? opName[op] : "??";
+    if (op < GETELT) {
+        std::string a = expr1 ? expr1->p() : std::string("<nil>");
+        std::string b = expr2 ? expr2->p() : std::string("<nil>");
+        snprintf(buf, sizeof buf, "%s(%s, %s)", nm, a.c_str(), b.c_str());
+        return buf;
+    }
+    if (op == GETVAR) {
+        snprintf(buf, sizeof buf, "GETVAR[id=%ld off=%ld val=%ld]",
+                 id1 ? id1->id : -1, id1 ? id1->offset : -1,
+                 id1 ? id1->value_ : -1);
+        return buf;
+    }
+    if (op == GETENUM) {
+        snprintf(buf, sizeof buf, "GETENUM[%ld]", num1);
+        return buf;
+    }
+    if (op == NOOP) {
+        snprintf(buf, sizeof buf, "NOOP[lit=%ld]", lit.ii);
+        return buf;
+    }
+    // unary / other: show op and recurse expr1 if plausibly an expr
+    snprintf(buf, sizeof buf, "%s(...)", nm);
+    return buf;
 }
 
 struct programme {
@@ -1026,7 +1046,6 @@ struct programme {
     Word ceVal;
     Bitset ceRegs;
     SetOfSYs bodyStatSys;
-    NumLabel * l2var15z, * l2var16z;
     StrLabel * strLabList;
 
     int64_t l2int18z, ii, localSize, l2int21z, jj;
@@ -1400,7 +1419,7 @@ void formAndAlign(int64_t arg)
 void putToSymTab(int64_t arg)
 {
     symTab[symTabPos] = arg;
-    fprintf(stderr, "SYMTAB idx %05o = %016llo %s\n", symTabPos, arg, toAscii(arg).c_str());
+    fprintf(stderr, "SYMTAB idx %05lo = %016lo %s\n", (long)symTabPos, (long)arg, toAscii(arg).c_str());
     if (symTabPos == SYMTAB_LIMIT) {
         error(50); /* errSymbolTableOverflow */
         symTabPos = 074000;
@@ -1494,7 +1513,7 @@ int64_t addCurValToFCST()
             constVals[high] = curVal;
             constNums[high] = FcstCnt;
             lits.insert(curVal.i);
-            if (lits.size() != FcstTotal)
+            if (int64_t(lits.size()) != FcstTotal)
                 fprintf(stderr, "Literal divergence: %d\n", int(FcstTotal - lits.size()));
         };
         toFCST();
@@ -1702,7 +1721,9 @@ L1:     addr = curVal.ii & 077777;
         arg = arg - curVal.i;
         offset = getFCSToffset();
         work = -mode;
-        curVal.i = arg;
+        curVal.ii = arg; // base.pas `curVal.i := arg` keeps the word's exponent
+                         // (here 0/LOG, inherited from minValue); Integer's
+                         // operator= would force exp=0o150 (INT) -> mismatch.
         arg = getFCSToffset();
         form3Insn(KATX+SP+1, KSUB+I8 + offset, work);
         form3Insn(KRSUB+I8 + arg, work, KXTA+SP+1);
@@ -1834,6 +1855,8 @@ unicode_to_koi8(int val)
         uni2koi8[L'≤'] = 016;
         uni2koi8[L'≥'] = 017;
         uni2koi8[L'≡'] = 027;
+        uni2koi8[L'\\'] = 035;   // BACKSLASH (base.pas BACKSLASH = '\035'):
+                                 // the '\NNN' / '\<letter>' escape introducer.
         uni2koi8[L'÷'] = 032;
         uni2koi8[L'∨'] = 036;
         uni2koi8[L'~'] = 037;
@@ -1861,17 +1884,25 @@ static int utf8_getc(FILE *fin)
 
 static unsigned char ugetc(FILE * fin)
 {
-    return unicode_to_koi8(utf8_getc(fin));
+    int c = utf8_getc(fin);
+    // At EOF base.pas sees CH = '_000' (NUL); the programme/initScalars loops
+    // use `CH == 0` as the end-of-input sentinel. unicode_to_koi8(-1) would
+    // otherwise yield 0377, so the sentinel would never fire.
+    if (c < 0)
+        return 0;
+    return unicode_to_koi8(c);
 }
 
 void readToPos80()
 {
-    while (!feof(pasinput) && linePos < 81 && PASINPUT != '\n') {
+    // base.pas readToPos80: fill lineBuf to column 81, no endOfLine (adding one
+    // here trips the second-EOF guard on the final flush). ugetc yields NUL
+    // past EOF, matching base.pas's PASINPUT@ = '_000'.
+    while (linePos < 81) {
         linePos = linePos + 1;
         lineBufBase[linePos] = PASINPUT;
         if (linePos != 81) PASINPUT = ugetc(pasinput);
     }
-    endOfLine();
 }
 
 struct inSymbol {
@@ -2011,6 +2042,13 @@ unsigned char koi8_to_koi7(unsigned char ch)
         return (ch & 0177) | 040;
     if (ch >= 0200)
         return ' ';
+    // The BESM-6 charset has no ASCII vertical bar; the emulator's input
+    // conversion folds '|' (0174) onto the OR/caret glyph 0136 (dtran shows
+    // it as '^').  The generic 0140..0177 case-fold (ch ^= 040) would instead
+    // yield 0134 ('\'), so handle '|' first.  base.pas stores CH raw, relying
+    // on the native code already being 0136.
+    if (ch == '|')
+        return 0136;
     if (ch >= 0140)
         ch ^= 040;
     return ch;
@@ -2020,6 +2058,12 @@ bool skipSp()
 {
     while ((CH == ' ') or ((CH == 011) and not atEOL))
         nextCH();
+    // At true EOF ugetc yields the NUL sentinel (base.pas: CH = '_000').
+    // base.cc's atEOL is feof-sticky (unlike base.pas's per-line eoln), so
+    // without this guard skipSp would keep calling endOfLine past EOF and trip
+    // the second-EOF error. Stop here so the parser sees CH == 0 and unwinds.
+    if (CH == 0)
+        return false;
     if (atEOL) {
         endOfLine();
         nextCH();
@@ -2277,21 +2321,44 @@ L2:                 hashTravPtr = symHash[bucket];
                         if (atEOL) {
 L2175:                      error(59); /* errEOLNInStringLiteral */
                             goto exitLoop;
-                        } else if (((CH == '\035') or /* ≡ */
-                                    (charSymTabBase[CH] == REALCONST))
-                                   and (charSymTabBase[PASINPUT] == INTCONST)) {
-                            expLiteral = 0;
-                            for (tokenLen = 1; tokenLen <= 3; ++tokenLen) {
-                                nextCH();
-                                if ('7' < CH)
+                        } else if (CH == BACKSLASH) {
+                            // base.pas 1563: '\NNN' octal (1..3 digits) or a
+                            // named escape '\<letter>'.  base.pas indexes
+                            // escSet/escMap by the BESM-6 input code; base.cc
+                            // reads KOI-8, so map each (case-folded) letter
+                            // directly to the same control code escMap yields.
+                            nextCH();
+                            if ('0' <= CH and CH <= '7') {
+                                expLiteral = 0;
+                                for (tokenLen = 0; ; ) {
+                                    expLiteral = 8*expLiteral + CH - '0';
+                                    tokenLen = tokenLen + 1;
+                                    if (tokenLen < 3 and
+                                        '0' <= PASINPUT and PASINPUT <= '7')
+                                        nextCH();
+                                    else
+                                        break;
+                                }
+                                if (255 < expLiteral)
                                     error(
-                                        errFirstDigitInCharLiteralGreaterThan3
-                                        );
-                                expLiteral = 8*expLiteral + CH - 48;
+                                        errFirstDigitInCharLiteralGreaterThan3);
+                                localBuf[tokenIdx] = (unsigned char)expLiteral;
+                            } else {
+                                unsigned char e = (CH >= 'A' and CH <= 'Z')
+                                                  ? CH + 040 : CH;
+                                int64_t val;
+                                switch (e) {
+                                case 'a': val = 7;  break; /* BEL */
+                                case 'b': val = 8;  break; /* BS  */
+                                case 'f': val = 12; break; /* FF  */
+                                case 'n': val = 10; break; /* LF  */
+                                case 'r': val = 13; break; /* CR  */
+                                case 't': val = 9;  break; /* HT  */
+                                case 'v': val = 11; break; /* VT  */
+                                default:  goto L2233;   // not a known escape
+                                }
+                                localBuf[tokenIdx] = (unsigned char)val;
                             }
-                            if (255 < expLiteral)
-                                error(errFirstDigitInCharLiteralGreaterThan3);
-                            localBuf[tokenIdx] = (unsigned char)expLiteral;
                         } else {
                             // Modify output encoding:
                             // a0 - UTF-8, a1 - KOI-8, a2 - KOI7 (default).
@@ -2309,6 +2376,15 @@ L2233:                      switch (charEncoding) {
                             case 1:
                                 // KOI-8.
                                 localBuf[tokenIdx] = CH;
+                                break;
+                            case 3:
+                                // base.pas 1598: internal 6-bit text
+                                // (iso2text == koi2text), printable range
+                                // '*'(052)..'_176' only, else NUL.
+                                if (CH < '*' or 0176 < CH)
+                                    localBuf[tokenIdx] = 0;
+                                else
+                                    localBuf[tokenIdx] = koi2text[CH];
                                 break;
                             case 2:
                             default:
@@ -2333,21 +2409,33 @@ exitLoop:
                     pck(localBuf[tokenLen], curToken.a);
                     goto exitLexer;
                 } else {
-                    curVal.m.val = 0; // was 0x202020202020L;
+                    curVal.m.val = 0x202020202020L; // base.pas: curVal.a := '      '
                     SY = STRINGSY;
                     unpck(localBuf[tokenIdx], curVal.a);
                     pck(localBuf[6], curToken.a);
                     curVal = curToken;
                     if (6 >= strLen)
                         goto exitLexer;
-                    else {
+                    else if (charEncoding == 3 and strLen == 8) {
+                        // base.pas 1632: an 8-char string in 6-bit-text mode
+                        // packs into one 48-bit word (pack(localbuf,6,.t)) and
+                        // becomes an INTCONST.  Pack localBuf[6..13] MSB-first.
+                        curToken.ii = 0;
+                        for (tokenLen = 0; tokenLen < 8; ++tokenLen)
+                            curToken.ii = (curToken.ii << 6)
+                                        | (localBuf[6 + tokenLen] & 077);
+                        curVal = curToken;
+                        SY = INTCONST;
+                        goto exitLexer;
+                    } else {
                         curToken.i = FcstCnt;
                         tokenLen = 6;
 loop:                   {
                             toFCST();
                             tokenLen = tokenLen + 6;
-                            if (tokenIdx <= tokenLen)
-                                goto exitLexer;
+                            if (tokenIdx < tokenLen) // base.pas 1643: strict <
+                                goto exitLexer;      // exact multiples of 6 get
+                                                     // a trailing 6-space word
                             pck(localBuf[tokenLen], curVal.a);
                             goto loop;
                        }
@@ -2459,15 +2547,6 @@ void error(int64_t errNo)
 void skip(Bitset toset)
 {
     while (not toset.has(SY))
-        inSymbol();
-}
-
-void testSLICE(Symbol sym, Bitset toset)
-{
-    if (SY != sym) {
-        requiredSymErr(sym);
-        skip(toset);
-    } else
         inSymbol();
 }
 
@@ -3143,15 +3222,8 @@ void prepLoad()
                     l4bool9z = true;
                     helper = l4int3z + l4int2z;
                     if (l4bool7z) {
-                        if (30 < l4int3z) {
-                            addToInsnList(ASN64-48 + l4int3z);
-                            addToInsnList(InsnTemp[YTA]);
-                            if (helper == 48) /* P/RDR */
-                                l4bool9z = false;
-                        } else {
-                            if (l4int3z != 0)
-                                addToInsnList(ASN64 + l4int3z);
-                        }; /* 4477 */
+                        if (l4int3z != 0)
+                            addToInsnList(ASN64 + l4int3z);
                         if (l4bool9z) {
                             curVal.m = BitRange(48 - l4int2z, 47);
                             addToInsnList(KAAX+I8 + getFCSToffset());
@@ -3626,10 +3698,21 @@ L33:        prepLoad();
     } /* genBoolAnd */
 
     void genConstDiv() {
-        // TODO correctly
-        curVal.ii = (1L<<47)|(1L << 40)/arg2Val.i; // PASDIV(1/arg2Val.i);
-        ++curVal.ii;
-        addToInsnList(KMUL+I8 + getFCSToffset());
+        // base.pas 3561: power-of-2 divisors (card==1) collapse to a single
+        // arithmetic shift; other divisors emit a reciprocal multiply first,
+        // then the residual shift.
+        Real r;
+        if (card(arg2Val.m) > 1) {
+            arg2Val.m = arg2Val.m + intZero;
+            curVal.r = 1.0 / (double)(int64_t)arg2Val.i;
+            r = (double)curVal.r * (int64_t)arg2Val.i;
+            curVal.m = curVal.m * BitRange(7, 47) + intZero;
+            if ((double)r < 1.0)
+                curVal.i = curVal.i + 1;
+            curVal.m = curVal.m - Bits(1, 3);
+            addToInsnList(KMUL+I8 + getFCSToffset());
+        }
+        addToInsnList(ASN64 + 47 - minel(arg2Val.m - intZero));
     }; /* genConstDiv */
 
     /* Ternary conditional CONDOP{cond, ALTERN{then, else}}: build one deferred
@@ -3914,6 +3997,7 @@ struct genEntry {
     ExprPtr l5exp1z, l5exp2z;
     IdentRecPtr l5idr3z, l5idr4z, l5idr5z, l5idr6z;
     bool l5bool7z, l5bool8z, l5bool9z, l5bool10z, l5bool11z;
+    bool isAssembler; // base.pas: 26 in calleeFl.m (flags bit 26)
     Word l5var12z, l5var13z, l5var14z;
     int64_t l5var15z, l5var16z;
     Word l5var17z, l5var18z, l5var19z;
@@ -3949,8 +4033,9 @@ genEntry::genEntry()
     else
         l5var13z.i = 4;
     l5var12z.m = l5idr5z->flags();
-    l5bool10z = (l5var12z.m.has(21));
-    l5bool11z = (l5var12z.m.has(24));
+    l5bool10z = (l5var12z.m.has(21));   // isFortrn
+    isAssembler = (l5var12z.m.has(26)); // base.pas 3297
+    l5bool11z = (l5var12z.m.has(24));   // allByRef
     if (l5bool9z) {
         l5var14z.i = argCount(l5idr5z);
         l5idr6z = l5idr5z->argList();
@@ -3963,7 +4048,9 @@ genEntry::genEntry()
     insnList->typ = l5idr5z->typ;
     insnList->regsused = (l5idr5z->flags() + BitRange(7,15)) * (BitRange(0,8)+BitRange(10,15));
     insnList->ilm = ilRVAL;
-    if (l5bool10z) {
+    if (isAssembler) {          // base.pas 3311: assembler routine, no frame
+        l5bool8z = false;
+    } else if (l5bool10z) {     // isFortrn
         l5bool8z = not l5bool7z;
         if (checkFortran) {
             addToInsnList(getHelperProc(92)); /* "P/MF" */
@@ -4115,14 +4202,14 @@ genEntry::genEntry()
         l5var17z.i = 1;
     } /* 7132 */
     insnList->tail->mode = 2;
-    if (curProcNesting != l5var17z.i) {
+    if (not isAssembler and curProcNesting != l5var17z.i) { // base.pas 3459
         if (not l5bool10z) {
             if (l5var17z.i + 1 == curProcNesting) {
                 addToInsnList(KMTJ+I7 + curProcNesting);
             } else {
                 l5var15z = frameRestore[curProcNesting][l5var17z.i];
                 if (l5var15z == (0)) {
-                    curVal.ii = 06017L << 36; /* P/ */
+                    curVal.ii = 04317L << 36; /* C/ */
                     l5var19z.ii = (curProcNesting + 16) << 30;
                     l5var18z.ii = (l5var17z.i + 16) << 24;
                     curVal.m = curVal.m + l5var19z.m + l5var18z.m;
@@ -4133,7 +4220,9 @@ genEntry::genEntry()
             }
         }
     } /* 7176 */
-    if (not l5bool9z or (Bits(20, 21) * l5var12z.m != Bits())) {
+    // base.pas 3481: (not isAssembler) and (not isDirect or [20,21]*calleeFl)
+    if (not isAssembler
+        and (not l5bool9z or (Bits(20, 21) * l5var12z.m != Bits()))) {
         addToInsnList(KVTM+040074001);
     }
     usedRegs = (usedRegs + l5var12z.m) * BitRange(1,15);
@@ -4143,10 +4232,9 @@ genEntry::genEntry()
         else
             addToInsnList(getHelperProc(93));    /* "P/FM" */
         insnList->tail->mode = 2;
-    } else {
-        if (not l5bool7z)
-            addToInsnList(KXTA+SP + l5var13z.i - 1);
     } /* 7226 */
+    // NB: base.pas 3486 has no `else` here -- a non-Fortran function returns
+    // its value in ACC, so there is no `KXTA+SP` reload of the result.
     if (not l5bool7z) {
         insnList->typ = l5idr5z->typ;
         insnList->regsused = insnList->regsused + Bits(0L);
@@ -4179,19 +4267,31 @@ void startInsnList(ilmode l5arg1z)
 void genCopy()
 {
     int64_t size;
-    InsnList * &saved = formOperator::super.back()->saved;
+    InsnList * lhsIns, * rhsIns;
     int64_t &work = genFullExpr::super.back()->work;
     InsnList * &otherIns = genFullExpr::super.back()->otherIns;
 
     size = insnList->typ.p.psize;
     if (size == 1) {
-        saved = insnList;
+        // Merge the rhs-load and lhs-store instruction lists into insnList
+        // (base.pas builds the list; the upstream genOneOp version emitted
+        // directly and left insnList consumed -> NULL deref at the caller).
+        lhsIns = insnList;
         insnList = otherIns;
         prepLoad();
-        genOneOp();
-        insnList = saved;
+        rhsIns = insnList;
+        insnList = lhsIns;
         prepStore();
-        genOneOp();
+        lhsIns = insnList;
+        if (rhsIns->tail == NULL)
+            rhsIns->head = lhsIns->head;
+        else
+            rhsIns->tail->next = lhsIns->head;
+        if (lhsIns->tail != NULL)
+            rhsIns->tail = lhsIns->tail;
+        rhsIns->regsused = rhsIns->regsused + lhsIns->regsused + Bits(0);
+        rhsIns->ilm = ilRVAL;
+        insnList = rhsIns;
     } else {
         genFullExpr::super.back()->prepMultiWord();
         genOneOp();
@@ -4394,25 +4494,27 @@ L7567:
                     break;
                 case ANDOP:      arg1Val.ii = arg1Val.ii and arg2Val.ii;
                     break;
-                case IDIVOP:     arg1Val.i = arg1Val.i / arg2Val.i;
-                    break;
-                case IMODOP:     arg1Val.i = arg1Val.i % arg2Val.i;
-                    break;
+                case IDIVOP:     arg1Val.ii = (arg1Val.i / arg2Val.i) & 0x1FFFFFFFFFFL;
+                    break;        // base.pas strips exp (`.m := .m MOD intZero`)
+                case IMODOP:     arg1Val.ii = (arg1Val.i % arg2Val.i) & 0x1FFFFFFFFFFL;
+                    break;        // -> LOG; .ii reproduces that raw exp=0 word
                 case PLUSOP:     arg1Val.r = arg1Val.r + arg2Val.r;
                     break;
                 case MINUSOP:    arg1Val.r = arg1Val.r - arg2Val.r;
                     break;
                 case OROP:       arg1Val.ii = arg1Val.ii or arg2Val.ii;
                     break;
-                case IMULOP:     arg1Val.i = arg1Val.i * arg2Val.i;
-                    break;
+                case IMULOP:     arg1Val.ii = (arg1Val.i * arg2Val.i) & 0x1FFFFFFFFFFL;
+                    break;        // base.pas strips exp -> LOG (see IDIVOP)
                 case SETAND:     arg1Val.m = arg1Val.m * arg2Val.m;
                     break;
                 case SETXOR:     arg1Val.m = arg1Val.m ^ arg2Val.m;
                     break;
-                case INTPLUS:    arg1Val.i = arg1Val.i + arg2Val.i;
-                    break;
-                case INTMINUS:   arg1Val.i = arg1Val.i - arg2Val.i;
+                case INTPLUS:    arg1Val.ii = (arg1Val.i + arg2Val.i) & 0x1FFFFFFFFFFL;
+                    break;                // .ii keeps exp=0 (LOG), matching how
+                                          // all integer literals are stored;
+                                          // Integer's operator= would force INT.
+                case INTMINUS:   arg1Val.ii = (arg1Val.i - arg2Val.i) & 0x1FFFFFFFFFFL;
                     break;
                 case SETOR:      arg1Val.m = arg1Val.m + arg2Val.m;
                     break;
@@ -4789,6 +4891,8 @@ formOperator::formOperator(OpGen op)
         op!=PCKUNPCK)
         (void) genFullExpr(curExpr);
     switch (op) {
+    case gen0:
+        break; /* placeholder OpGen slot, never passed */
     case DOIT:
         genOneOp();
         break;
@@ -5523,7 +5627,11 @@ void fopenFile(IdentRecPtr fileSym, ExtFileRec * extFileP)
     } else {
         curVal.i = extFileP->location;
         if (curVal.i == 512)
-            curVal.i = extFileP->offset;
+            // offset holds a packed file name (e.g. "*OUTPUT*"), not a number.
+            // Integer::operator= would force exp=104 and corrupt the top chars
+            // ("*OUTPUT*" -> "T/UTPUT*"); copy the raw word instead (BESM-6
+            // integer-to-integer copy preserves the bits, which base.pas relies on).
+            curVal.ii = extFileP->offset;
         form1Insn(KXTS+I8 + getFCSToffset());
     }
     formAndAlign(getHelperProc(60)); /*"FOPEN"*/
@@ -5921,7 +6029,7 @@ void bldBitOp(Operator oper, ExprPtr leftArg)
     curExpr = mkExpr(oper, arg1Type, leftArg, curExpr);
 } /* bldBitOp */
 
-void bldArithOp(Operator oper, ExprPtr leftExpr, bool match)
+void bldArithOp(Operator oper, ExprPtr leftExpr, [[maybe_unused]] bool match)
 {
     Kind k1, k2;
     Operator resOp;
@@ -8269,7 +8377,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     error(errBadSymbol);
                 else
                     inSymbol();
-                parseConstDeclValue(workidr->typ, workidr->high());
+                parseConstDeclValue(workidr->typ, workidr->high_); // actually value() but need a Word here
                 if (workidr->typ == voidType) {
                     error(errNoConstant);
                     workidr->typ = IntegerType;
@@ -8287,7 +8395,9 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             }
         } /* 22511 */
         objBufIdx = 1;
-        if (SY == TYPESY) {
+        if (SY == TYPEDEFSY) {  // base.pas 7936: the `typedef` keyword, NOT a
+                                // type-name (TYPESY); otherwise TYPEDEFSY is
+                                // never consumed and the decl loop spins.
             inTypeDef = true;
             typelist = NULL;
             parseDecls(0);
@@ -8297,9 +8407,9 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 ii = bucket;
                 l2var12z = curIdent;
                 inSymbol();
-                if (charClass != EQOP)
-                    error(errBadSymbol);
-                else
+                if (charClass != ASSIGNOP)  // base.pas 7948: the `=` in a
+                    error(errBadSymbol);    // typedef is a single `=` (ASSIGNOP);
+                else                        // `==` (EQOP) is the equality op.
                     inSymbol();
                 parseTypeRef(l2typ13z, skipToSet + Bits(SEMICOLON));
                 curIdent = l2var12z;
@@ -8431,9 +8541,18 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             } /* 22771 */
             lookupMode = 0;
             checkSymAndRead(SEMICOLON);
-            if (SY != IDENT and not skipToSet.has(SY))
+            if (SY != IDENT and not skipToSet.has(SY)
+                and not (bodyBlock_ and statBegSys.has(SY)))
                 errAndSkip(errBadSymbol, skipToSet + Bits(IDENT));
-        } while (SY == IDENT);
+            /* base.pas 8079: a leading type-IDENT after ';' starts a new
+               C-style routine decl, not another variable; markTypeSym re-
+               resolves it (scope-agnostic bucket walk, hence the reset) so
+               the loop bails and the routine-decl loop below picks it up. */
+            hashTravPtr = NULL;
+            markTypeSym();
+        } while (SY == IDENT and
+                 not (bodyBlock_ and hashTravPtr != NULL and
+                      hashTravPtr->cl != TYPEID));
     } /* VARSY -> 23003 */
     if (curProcNesting == 1) {
         if (outputFile != NULL) {
@@ -8447,11 +8566,10 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             makeExtFile();
         }
     }
-    if (curExpr != NULL && !optSflags.m.has(S5)) {
-        hasFiles = moduleOffset;
-        (void) formOperator(FILEINIT);
-    } else
-        hasFiles = 0;
+    // base.pas just sets hasFiles := 0 here; the file-init code is emitted once,
+    // by defineRoutine's formOperator(FILEINIT). The upstream extra call here
+    // duplicated the file-close block.
+    hasFiles = 0;
     if (curProcNesting == 1) {
         curExternFile = externFileList;
         while (curExternFile != NULL) {
@@ -8793,6 +8911,7 @@ struct initTables {
                "\060\061\062\063\064\065\066\067" // 160-167 (p - w)
                "\070\071\072\000\000\000\000\000" // 170-177 (x y z { | } ~ )
                , 86);
+        koi2text['_'] = koi2text['*']; // base.pas: iso2text['_'] := iso2text['*']
         memcpy(&koi2text[0300],
                "\077\041\002\003\004\045\005\006" // 300-307 (ю - г)
                "\070\007\013\053\014\055\050\057" // 310-317 (х - о)
@@ -9127,7 +9246,8 @@ int main(int argc, char **argv)
     chrClassTabBase['&'] = SETAND;
     chrClassTabBase['|'] = SETOR;
     chrClassTabBase['^'] = SETXOR;
-    chrClassTabBase['~'] = BITNEGOP;
+    chrClassTabBase[037] = BITNEGOP;  // '~': BESM-6 code 037 (unicode_to_koi8),
+                                      // not ASCII 0176 -- base.pas `chrClass['~']`
     chrClassTabBase['>'] = GTOP;
     chrClassTabBase['<'] = LTOP;
     chrClassTabBase['!'] = NOTOP;
@@ -9150,7 +9270,7 @@ int main(int argc, char **argv)
     charSymTabBase['='] = BECOMES;
     charSymTabBase[':'] = COLON;
     charSymTabBase['!'] = EXPROP;
-    charSymTabBase['~'] = EXPROP;
+    charSymTabBase[037] = EXPROP;     // '~' -> BESM-6 037 (see chrClassTabBase)
     charSymTabBase['?'] = EXPROP;
 
     intOpMap[MUL] = IMULOP;
@@ -9158,6 +9278,34 @@ int main(int argc, char **argv)
     intOpMap[IMODOP] = IMODOP;
     intOpMap[PLUSOP] = INTPLUS;
     intOpMap[MINUSOP] = INTMINUS;
+
+    // Operator precedence table (base.pas 8649): default precNone, then the
+    // per-operator levels used by parsePrc/getPrec.  Without this every EXPROP
+    // operator reads back precAssign(0), collapsing `a + b` into an op-assign
+    // (RMWASSIGN) node.
+    for (int i = 0; i < 64; ++i)
+        opPrec[i] = precNone;
+    opPrec[CONDOP] = precCond;
+    opPrec[OROP] = precOr;
+    opPrec[ANDOP] = precAnd;
+    opPrec[SETOR] = precBitOr;
+    opPrec[SETXOR] = precBitXor;
+    opPrec[SETAND] = precBitAnd;
+    opPrec[NEOP] = precEq;
+    opPrec[EQOP] = precEq;
+    opPrec[LTOP] = precRel;
+    opPrec[GEOP] = precRel;
+    opPrec[GTOP] = precRel;
+    opPrec[LEOP] = precRel;
+    opPrec[INOP] = precRel;
+    opPrec[SHLEFT] = precShift;
+    opPrec[SHRIGHT] = precShift;
+    opPrec[PLUSOP] = precAdd;
+    opPrec[MINUSOP] = precAdd;
+    opPrec[MUL] = precMul;
+    opPrec[RDIVOP] = precMul;
+    opPrec[IDIVOP] = precMul;
+    opPrec[IMODOP] = precMul;
 
     // Main program starts here
 
@@ -9222,25 +9370,6 @@ int64_t resWordNameBase[21] = {
         043416345L               /*"    CASE"*/,
         044454641655464L         /*" DEFAULT"*/,
         06556515756L             /*"   UNION"*/};
-#if 0
-// Non-ASCII chars ignored so far
-    charSymTabBase['Ю'] := IDENT:31;
-    chrClassTabBase['Ю'] := ALNUM:31;
-    charSymTabBase['ю'] := IDENT:31;
-    chrClassTabBase['ю'] := ALNUM:31;
-    charSymTabBase[chr(27)] := CHARCONST;
-    charSymTabBase[chr(22)] := ARROW;
-    chrClassTabBase['÷'] := IDIVOP;
-    charSymTabBase['÷'] := MULOP;
-    chrClassTabBase['∨'] := OROP;
-    charSymTabBase['∨'] := ADDOP;
-    chrClassTabBase['×'] := MUL;
-    charSymTabBase['×'] := MULOP;
-    chrClassTabBase['≤'] := LEOP;
-    chrClassTabBase['≥'] := GEOP;
-    charSymTabBase['≤'] := RELOP;
-    charSymTabBase['≥'] := RELOP;
-#endif
 
 int64_t helperNames[100] = { 0L,
         06017210000000000L      /*"P/1     "*/,
@@ -9250,17 +9379,17 @@ int64_t helperNames[100] = { 0L,
         06017250000000000L      /*"P/5     "*/,
         06017260000000000L      /*"P/6     "*/,
         06017434100000000L      /*"P/CA    "*/,
-        06017455700000000L      /*"P/EO    "*/,
-        06017636300000000L      /*"P/SS    "*/,
-/*10*/  06017455400000000L      /*"P/EL    "*/,
-        06017554400000000L      /*"P/MD    "*/,
+        0L                      /*"P/EO obs"*/,
+        0L                      /*"P/SS obs"*/,
+/*10*/  0L                      /*"P/EL obs"*/,
+        04317554400000000L      /*"C/MD    "*/,
         06017555100000000L      /*"P/MI    "*/,
         06017604100000000L      /*"P/PA    "*/,
         06017655600000000L      /*"P/UN    "*/,
         06017436000000000L      /*"P/CP    "*/,
         06017414200000000L      /*"P/AB    "*/,
-        06017445100000000L      /*"P/DI    "*/,
-        06017624300000000L      /*"P/RC    "*/,
+        04317445100000000L      /*"C/DI    "*/,
+        04317624300000000L      /*"C/RC    "*/,
         06017454100000000L      /*"P/EA    "*/,
 /*20*/  06017564100000000L      /*"P/NA    "*/,
         06017424100000000L      /*"P/BA    "*/,
@@ -9269,8 +9398,8 @@ int64_t helperNames[100] = { 0L,
         06017625100000000L      /*"P/RI    "*/,
         06017214400000000L      /*"P/1D    "*/,
         06017474400000000L      /*"P/GD    "*/,
-        06017450000000000L      /*"P/E     "*/,
-        06017454600000000L      /*"P/EF    "*/,
+        04317450000000000L      /*"C/E     "*/,
+        04317454600000000L      /*"C/EF    "*/,
         06017604600000000L      /*"P/PF    "*/,
 /*30*/  06017474600000000L      /*"P/GF    "*/,
         06017644600000000L      /*"P/TF    "*/,
@@ -9278,7 +9407,7 @@ int64_t helperNames[100] = { 0L,
         06017566700000000L      /*"P/NW    "*/,
         06017446300000000L      /*"P/DS    "*/,
         06017506400000000L      /*"P/HT    "*/,
-        06017675100000000L      /*"P/WI    "*/,
+        04317675100000000L      /*"C/WI    "*/,
         06017676200000000L      /*"P/WR    "*/,
         06017674300000000L      /*"P/WC    "*/,
         06017412600000000L      /*"P/A6    "*/,
@@ -9302,8 +9431,8 @@ int64_t helperNames[100] = { 0L,
         06017434500000000L      /*"P/CE    "*/,
         06017646200000000L      /*"P/TR    "*/,
         06017546600000000L      /*"P/LV    "*/,
-/*60*/  06017724155000000L      /*"P/ZAM  u"*/,
-        06017605100000000L      /*"P/PI    "*/,
+/*60*/  04657604556000000L      /*"FOPEN   "*/,
+        04643545763450000L      /*"FCLOSE  "*/,
         06017426000000000L      /*"P/BP    "*/,
         06017422600000000L      /*"P/B6    "*/,
         06017604200000000L      /*"P/PB    "*/,
@@ -9324,13 +9453,13 @@ int64_t helperNames[100] = { 0L,
         06017435100000000L      /*"P/CI    "*/,
 /*80*/  06041514200000000L      /*"PAIB    "*/,
         06017674100000000L      /*"P/WA    "*/,
-        06361626412000000L      /*"SQRT*   "*/,
-        06351561200000000L      /*"SIN*    "*/,
-        04357631200000000L      /*"COS*    "*/,
-        04162436441561200L      /*"ARCTAN* "*/,
-        04162436351561200L      /*"ARCSIN* "*/,
-        05456120000000000L      /*"LN*     "*/,
-        04570601200000000L      /*"EXP*    "*/,
+        0L                      /*"was SQRT"*/,
+        0L                      /*"was SIN "*/,
+        0L                      /*"was COS "*/,
+        0L                      /*"was ATAN"*/,
+        0L                      /*"was ASIN"*/,
+        0L                      /*"was LN  "*/,
+        0L                      /*"was EXP "*/,
         06017456100000000L      /*"P/EQ    "*/,
 /*90*/  06017624100000000L      /*"P/RA    "*/,
         06017474500000000L      /*"P/GE    "*/,
@@ -9339,36 +9468,36 @@ int64_t helperNames[100] = { 0L,
         06017565600000000L      /*"P/NN    "*/,
         06017634300000000L      /*"P/SC    "*/,
         06017444400000000L      /*"P/DD    "*/,
-        06017624500000000L      /*"P/RE    "*/};
+        06017624500000000L      /*"P/RE    "*/,
+        04317635054000000L      /*"C/SHL   "*/,
+        04317635062000000L      /*"C/SHR   "*/};
 
+// Copied verbatim from base.pas 8796 (systemProcNames: array [0..22]).  The
+// registration loop (regSysProc) only reads indices 0..22; the trailing slots
+// zero-fill.  This is the P2C set (CTOR/RETURN/BESM/FREE...), NOT the upstream
+// pascompl set (READ/EXIT/DEBUG/NEW/DISPOSE...) -- index 14 in particular is
+// RETURN, not EXIT, so `return` is recognised as standproc #14.
 int64_t systemProcNames[30] = {
 /*0*/   0606564L                /*"     PUT"*/,
         0474564L                /*"     GET"*/,
         062456762516445L        /*" REWRITE"*/,
         06245634564L            /*"   RESET"*/,
-        0564567L                /*"     NEW"*/,
-        044516360576345L        /*" DISPOSE"*/,
+        0L                      /*" was NEW"*/,
+        044516360576345L        /*"    FREE"*/,
         050415464L              /*"    HALT"*/,
-        063645760L              /*"    STOP"*/,
-        06345646560L            /*"   SETUP"*/,
-        0625754546560L          /*"  ROLLUP"*/,
+        0L                      /*"was STOP"*/,
+        0L                      /*" was SETUP"*/,
+        0L                      /*" was ROLLUP"*/,
 /*10*/  06762516445L            /*"   WRITE"*/,
         067625164455456L        /*" WRITELN"*/,
-        062454144L              /*"    READ"*/,
-        0624541445456L          /*"  READLN"*/,
-        045705164L              /*"    EXIT"*/,
-        04445426547L            /*"   DEBUG"*/,
+        043645762L              /*"    CTOR"*/,
+        0L                      /*"  READLN"*/,
+        0624564656256L          /*"  RETURN"*/,
+        0L                      /*"was LONGJMP"*/,
         042456355L              /*"    BESM"*/,
-        05541605141L            /*"   MAPIA"*/,
-        05541604151L            /*"   MAPAI"*/,
+        0L                      /*"   MAPIA"*/,
+        0L                      /*"   MAPAI"*/,
         0604353L                /*"     PCK"*/,
 /*20*/  06556604353L            /*"   UNPCK"*/,
         060414353L              /*"    PACK"*/,
-        0655660414353L          /*"  UNPACK"*/,
-        05760455644L            /*"   OPEND"*/,
-        044455444L              /*"    DELD"*/,
-        056456744L              /*"    NEWD"*/,
-        060656444L              /*"    PUTD"*/,
-        047456444L              /*"    GETD"*/,
-        055574444L              /*"    MODD"*/,
-        046515644L              /*"    FIND"*/};
+        0655660414353L          /*"  UNPACK"*/};
