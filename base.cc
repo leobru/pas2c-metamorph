@@ -104,7 +104,7 @@ const int64_t
     BITS15 =    04000022,
     REAL05 =    04000023,
     ALLONES =   04000024,
-    E48 =       04000025,
+    MSB =       04000025,
     HEAPPTR =   04000027,
 
     KATX =      0000000,
@@ -231,87 +231,46 @@ enum Kind {
     kindCases, kindRoutine
 };
 
-struct Bitset {
-    uint64_t val:48;
-    Bitset operator *(Bitset x) const { x.val &= val; return x; }
-    Bitset operator +(Bitset x) const { x.val |= val; return x; }
-    Bitset operator -(Bitset x) const { x.val = val & ~x.val; return x; }
-    Bitset operator ^(Bitset x) const { x.val ^= val; return x; }
-    Bitset operator <<(int x) const {
-        Bitset ret;
-        ret.val = (val << x) & ((1L<<48)-1);
-        return ret;
-    }
-    Bitset operator >>(int x) const {
-        Bitset ret;
-        ret.val = (val >> x)  & ((1L<<48)-1);
-        return ret;
-    }
-    bool operator==(Bitset x) const { return val == x.val; }
-    bool operator!=(Bitset x) const { return !(*this == x); }
-    bool has(int64_t b) const {
-            return b < 48 && (val >> (47-b)) & 1;
-    }
-    bool operator <=(Bitset x) const {
-        return !(val & ~x.val);
-    }
-    std::string p() const;
-};
+// BESM-6 words are 48-bit sets/bitmaps.  work.p2c models these as plain int
+// with C bitwise ops (|, &, ^, & ~); base.cc does the same -- there is no
+// Bitset type and no Word.m.  Bit 0 is the MSB (position 47).  Bits()/BitRange()
+// build masks; has()/subset() test them (P2C's `bit in set` and `a <= b` have
+// no direct C++ spelling); shl48() keeps shifts inside 48 bits.
+static const int64_t MASK48 = (1L<<48)-1;
+static const int64_t INT41_MASK = 0x1FFFFFFFFFFL;
+static const int64_t INT41_SIGN = 1L << 40;
 
-Bitset Bits()
-{
-    Bitset ret;
-    ret.val = 0;
-    return ret;
+inline int64_t Bits() { return 0; }
+inline int64_t Bits(int64_t bit) { return (1L << (47-bit)) & MASK48; }
+inline int64_t Bits(int64_t b1, int64_t b2) { return Bits(b1) | Bits(b2); }
+inline int64_t Bits(int64_t b1, int64_t b2, int64_t b3) { return Bits(b1)|Bits(b2)|Bits(b3); }
+inline int64_t Bits(int64_t b1, int64_t b2, int64_t b3, int64_t b4) { return Bits(b1,b2)|Bits(b3,b4); }
+inline int64_t BitRange(int64_t b1, int64_t b2) {
+    int64_t r = 0;
+    for (; b1 <= b2; ++b1) r |= Bits(b1);
+    return r;
 }
+inline bool has(int64_t s, int64_t b) { return b < 48 && ((s >> (47-b)) & 1); }
+inline bool subset(int64_t a, int64_t b) { return (a & ~b) == 0; }
+inline int64_t shl48(int64_t a, int x) { return (a << x) & MASK48; }
+inline int64_t shr48(int64_t a, int x) { return (a >> x) & MASK48; }
 
-Bitset Bits(int64_t bit)
-{
-    Bitset ret;
-    ret.val = (1L << (47-bit)) & ((1L<<48)-1);
-    return ret;
-}
-
-Bitset Bits(int64_t bit1, int64_t bit2)
-{
-    return Bits(bit1) + Bits(bit2);
-}
-
-Bitset Bits(int64_t bit1, int64_t bit2, int64_t bit3)
-{
-    return Bits(bit1) + Bits(bit2) + Bits(bit3);
-}
-
-Bitset Bits(int64_t bit1, int64_t bit2, int64_t bit3, int64_t bit4)
-{
-    return Bits(bit1, bit2) + Bits(bit3, bit4);
-}
-
-Bitset BitRange(int64_t bit1, int64_t bit2)
-{
-    Bitset ret;
-    ret.val = 0;
-    for (; bit1 <= bit2; ++bit1)
-        ret = ret + Bits(bit1);
-    return ret;
-}
-
-typedef Bitset SetOfSYs; // set of ident .. selectsy;
+typedef int64_t SetOfSYs; // set of ident .. selectsy;
 
 struct Integer {
-    union { uint64_t val:48;
-        struct { int64_t ival:41; unsigned exp:7; };
-    };
+    int64_t val = 0;
     int64_t operator=(int64_t i);
-    operator int64_t() const { return ival; }
+    operator int64_t() const {
+        int64_t v = val & 0x1FFFFFFFFFFL;
+        if (v & (1L << 40))
+            v -= (1L << 41);
+        return v;
+    }
 };
 
 int64_t Integer::operator=(int64_t i)
 {
-    val = i;
-    if (exp != 0 && exp != 127 && exp != 104)
-        fprintf(stderr, "Data corruption!\n");
-    exp = 104;
+    val = i & 0x1FFFFFFFFFFL;
     return i;
 }
 
@@ -325,7 +284,7 @@ struct Real {
         else
             while ((mantissa >> 39) == 0 || (mantissa >> 39) == -1) { exponent--; mantissa <<= 1; }
     }
-    void operator=(Integer i) { (*this) = i.ival; }
+    void operator=(Integer i) { (*this) = int64_t(i); }
     operator double() const {
         return ldexp(mantissa, exponent-104);
     }
@@ -476,7 +435,7 @@ struct Alfa {
         return tmp >> 47;
     }
     // Better use
-    // bool operator<(const Alfa & x) const { return val < x.val; }
+    // bool operator<(const Alfa & x) const { return val < x; }
 
     std::string print() const;
 };
@@ -508,23 +467,25 @@ void pck(unsigned char & from, Alfa & to)
 struct Word {
     union {
         int64_t ii;
-        Integer i;
         Real r;
         bool b;
         Alfa a;
-        Bitset m;
         TPtr typ;
     };
     // Zero at construction: bits 48-63 have no BESM-6 counterpart, and
-    // bitfield writes through .i/.m/.a/.r never touch them. Without this,
+    // bitfield writes through .ii/.a/.r never touch them. Without this,
     // stack-allocated Words carry ASLR-dependent garbage into 64-bit .ii
     // reads, making symtab/FCST dedup (and thus output) nondeterministic.
     Word() : ii(0) {}
-    bool operator==(const Word & x) const { return i == x.i; }
-    bool operator!=(const Word & x) const { return i != x.i; }
+    bool operator==(const Word & x) const;
+    bool operator!=(const Word & x) const;
     std::string pt() const; 
 
 };
+
+bool Word::operator==(const Word &x) const { return ii == x.ii; }
+bool Word::operator!=(const Word &x) const { return !(*this == x); }
+
 typedef struct OneInsn * OneInsnPtr;
 
 struct OneInsn : public BESM6Obj {
@@ -538,7 +499,7 @@ enum state {stWORD, stSLICE, stPACKED};
 struct InsnList : public BESM6Obj {
     OneInsnPtr tail, head;
     TPtr typ;
-    Bitset regsused;
+    int64_t regsused;
     ilmode ilm;
     Word payload;
     int64_t disp;
@@ -578,7 +539,7 @@ struct Types : public BESM6Obj {
             TPtr rresult;
             SigPtr rparams;
             int64_t rargc;
-            Bitset rflags;
+            int64_t rflags;
         };
     };
     // Zero the largest arm: the arena recycles memory that held raw host
@@ -709,7 +670,7 @@ struct IdentRec : public BESM6Obj {
         struct {
             IdentRecPtr argList_, preDefLink_;
             int64_t level_, pos_;
-            Bitset flags_;
+            int64_t flags_;
             TPtr sigtyp_;
         };
     };
@@ -769,7 +730,7 @@ struct IdentRec : public BESM6Obj {
         assert(cl == ROUTINEID);
         return pos_;
     }
-    Bitset & flags() {
+    int64_t & flags() {
         assert(cl == ROUTINEID);
         return flags_;
     }
@@ -784,7 +745,7 @@ struct IdentRec : public BESM6Obj {
             ret = toAscii(id);
             if (verbose) {
                 if (0 <= asprintf(&strp, "(routine) procno: %ld value: %ld argl: %ld predef: %ld level: %ld pos: %ld flags: %lx",
-                                  procno_, value_, ord(argList_), ord(preDefLink_), level_, pos_, flags_.val)) {
+                                  procno_, value_, ord(argList_), ord(preDefLink_), level_, pos_, flags_)) {
                     ret += strp;
                     free(strp);
                 } else perror("asprintf");
@@ -800,7 +761,7 @@ struct IdentRec : public BESM6Obj {
 
     // The arena recycles memory that previously held raw host pointers, so
     // fields never assigned (e.g. flags_ of a formal routine parameter, read
-    // by genEntry via flags().has(24)) would otherwise contain PIE-base-
+    // by genEntry via has(flags(), 24)) would otherwise contain PIE-base-
     // dependent garbage, making generated code differ from run to run.
     // BESM-6 heap garbage has no host counterpart; zero deterministically.
     void zeroUnions() {
@@ -810,7 +771,7 @@ struct IdentRec : public BESM6Obj {
         preDefLink_ = nullptr;
         level_ = 0;
         pos_ = 0;
-        flags_ = Bitset();
+        flags_ = int64_t();
         sigtyp_ = TPtr();
     }
 };
@@ -906,9 +867,6 @@ ExtFileRec * externFileList;
 
 TPtr baseType, typ121z;
 TPtr voidType, voidPtr;
-// Integer 0 as stored on the BESM-6: exponent 0150B in bits 41:47,
-// i.e. Bits(0,1,3). base.pas initializes it with "intZero := 0".
-Bitset intZero = { 104L << 41 };
 // Expression-operator tables, filled in the initialize section
 // (base.pas: intOpMap[MUL] := IMULOP,IDIVOP... ; opPrec := precNone:48 ...).
 Operator intOpMap[64];
@@ -933,55 +891,55 @@ const int64_t leftAddr = 077777L << 24;
 
 int64_t leftInsn;
 int64_t curIdent;
-Bitset toAlloc, usedRegs, liveRegs, freeRegs, auxRegs;
+int64_t toAlloc, usedRegs, liveRegs, freeRegs, auxRegs;
 Word optSflags;
 int64_t litOct, litForward, litFortran, litAssembler;
 ExprPtr uVarPtr, curExpr;
 InsnList *  insnList;
 ExtFileRec * fileForOutput, * fileForInput;
-int64_t maxSmallString, extSymAdornment;
+int64_t maxSmallString;
 
 TPtr smallStringType[7]; // [2..6]
 int64_t symTabCnt;
 
 int64_t symTabArray[SYMTAB_MAX+1]; // array [1..80] of Word;
-int64_t symTabIndex[SYMTAB_MAX+1]; // array [1..80] of Integer;
+int64_t symTabIndex[SYMTAB_MAX+1];
 Entries entryPtTable;
 four frameRestore[7]; // array [3..6] of four;
-int64_t indexreg[16]; // array [1..15] of Integer;
-int64_t opToInsn[48]; // array [MUL..op44] of Integer;
-int64_t opToMode[48]; // array [MUL..op44] of Integer;
+int64_t indexreg[16];
+int64_t opToInsn[48];
+int64_t opToMode[48];
 OpFlg opFlags[48]; // array [MUL..op44] of OpFlg;
-int64_t funcInsn[24]; // array [0..23] of Integer;
-int64_t InsnTemp[48]; // array [Insn] of Integer;
+int64_t funcInsn[24];
+int64_t InsnTemp[48];
 
 int64_t frameRegTemplate = 04000000,
         constRegTemplate = I8,
         disNormTemplate = KNTR+7;
 
 char lineBufBase[132]; // array [1..130] of char;
-int64_t errMapBase[10]; // array [0..9] of Integer;
+int64_t errMapBase[10];
 Operator chrClassTabBase[256]; // array ['_000'..'_177'] of Operator;
 KeyWord * KeyWordHashTabBase[128]; // array [0..127] of @KeyWord;
 Symbol charSymTabBase[256]; // array ['_000'..'_177'] of Symbol;
 IdentRecPtr symHash[128]; // array [0..127] of IdentRecPtr;
 IdentRecPtr fieldHash[128]; //array [0..127] of IdentRecPtr;
-int64_t helperMap[100]; // array [1..99] of Integer;
-extern int64_t helperNames[100]; // array [1..99] of Bitset;
+int64_t helperMap[100];
+extern int64_t helperNames[100]; // array [1..99] of int64_t;
 
-int64_t symTab[SYMTAB_LIMIT + 1]; // array [74000B..75500B] of Bitset;
-extern int64_t systemProcNames[30]; // array [0..29] of Integer;
-extern int64_t resWordNameBase[21]; // array [0..20] of Integer;
+int64_t symTab[SYMTAB_LIMIT + 1]; // array [74000B..75500B] of int64_t;
+extern int64_t systemProcNames[30];
+extern int64_t resWordNameBase[21];
 int64_t longSymCnt;
-int64_t longSymTabBase[91]; // array [1..90] of Integer;
-int64_t longSyms[91]; // array [1..90] of Bitset;
+int64_t longSymTabBase[91];
+int64_t longSyms[91]; // array [1..90] of int64_t;
 Word constVals[MAXLIT+1]; // array [1..500] of Alfa;
-int64_t constNums[MAXLIT+1]; // array [1..500] of Integer;
-int64_t objBuffer[OBJBUF_SIZE+1]; // array [1..1024] of Bitset;
+int64_t constNums[MAXLIT+1];
+int64_t objBuffer[OBJBUF_SIZE+1]; // array [1..1024] of int64_t;
 char koi2text[256];
-std::vector<int64_t> FCST; // file of Bitset; /* last */
+std::vector<int64_t> FCST; // file of int64_t; /* last */
 
-std::vector<int64_t> CHILD; // file of Bitset;
+std::vector<int64_t> CHILD; // file of int64_t;
 
 struct PasInfor {
     int64_t listMode;
@@ -1044,7 +1002,7 @@ struct programme {
     int64_t l2var12z;
     TPtr l2typ13z, l2typ14z, typedRetType, ceTyp;
     Word ceVal;
-    Bitset ceRegs;
+    int64_t ceRegs;
     SetOfSYs bodyStatSys;
     StrLabel * strLabList;
 
@@ -1134,7 +1092,7 @@ void printErrMsg(int64_t errNo)
         else if (errNo == 20)
             errNo = (SY == IDENT)*2 + 1;
         else if (16 <= errNo && errNo <= 18)
-            printf("%ld ", int64_t(curToken.i));
+            printf("%ld ", int64_t(curToken.ii));
         printf("%s ", pasmitxt(errNo));
         if (errNo == 17)
             printf("%ld", errLine);
@@ -1155,7 +1113,7 @@ void printTextWord(int64_t val)
 
 std::string Word::pt() const
 {
-    return toAscii(i);
+    return toAscii(ii);
 }
 
 
@@ -1167,13 +1125,13 @@ int64_t toText(const char * str) {
     return ret;
 }
 
-int64_t leftAlign()
+int64_t leftAlign(int64_t val)
 {
-    // Shift curVal left 6 bits at a time until the top 6 bits are nonzero.
-    // (Cap at 8 shifts: a zero word would loop forever, as on the BESM-6.)
-    for (int i = 0; i < 8 && (curVal.ii & 0770000000000000LL) == 0; ++i)
-        curVal.ii = (curVal.ii << 6) & 0xFFFFFFFFFFFFL;
-    return curVal.ii;
+    // work.p2c: shift the packed name left until its low 6-bit slot is
+    // non-empty (left-justify the identifier in the word).
+    while ((val & BitRange(0, 5)) == 0)
+        val = shl48(val, 6);
+    return val;
 }
 
 TPtr makeStringType()
@@ -1323,10 +1281,10 @@ void form1Insn(int64_t arg)
 {
     Word Insn, opcode;
     int64_t pos;
-    Insn.i = arg;
-    opcode.i = Insn.i & ~077777;
-    if (opcode.i == InsnTemp[UJ]) {
-        if (prevOpcode == opcode.i)
+    Insn.ii = arg;
+    opcode.ii = Insn.ii & ~077777;
+    if (opcode.ii == InsnTemp[UJ]) {
+        if (prevOpcode == opcode.ii)
             // No need for a jump after jump.
             return;
         if (putLeft and (prevOpcode == 1)) {
@@ -1334,22 +1292,22 @@ void form1Insn(int64_t arg)
             if (((objBuffer[pos] >> 24) & ~077777) == I13+KVJM) {
                 // Chaining the call and the jump.
                 int64_t addr1, addr2;
-                prevOpcode = opcode.i;
+                prevOpcode = opcode.ii;
                 addr1 = Insn.ii & 077777;
                 addr2 = (objBuffer[pos] >> 24) & 077777;
                 objBuffer[pos] = (I13+KVTM+addr1) << 24 | (KUJ+addr2);
                 return;
             }
         }
-    } else if (prevOpcode != -1 && Insn.i % 4096 != 0 &&
-               (Insn.m ^ prevInsn.m) == Bits(32)) /* maybe ATX/XTA */ {
+    } else if (prevOpcode != -1 && Insn.ii % 4096 != 0 &&
+               (Insn.ii ^ prevInsn.ii) == Bits(32)) /* maybe ATX/XTA */ {
 // Load after store; if the load reg/off is the same as the store,
 // and the store was not a stack push, there is no need to so the read.
-        if ((prevInsn.i != 074000000) /* not 15,ATX, */ &&
-            (prevInsn.m * (Bits(28)+BitRange(30,35))) == Bits() /* but still ATX */) 
+        if ((prevInsn.ii != 074000000) /* not 15,ATX, */ &&
+            (prevInsn.ii & (Bits(28)|BitRange(30,35))) == Bits() /* but still ATX */) 
             return; /* skip the XTA */
     }
-    prevOpcode = opcode.i;
+    prevOpcode = opcode.ii;
     prevInsn = Insn;
     if (putLeft) {
         leftInsn = Insn.ii << 24;
@@ -1485,12 +1443,12 @@ int64_t addCurValToFCST()
         constVals[1] = curVal;
         constNums[1] = FcstCnt;
         toFCST();
-        lits.insert(curVal.i);
+        lits.insert(curVal.ii);
     } else {
         high = FcstTotal;
         do {
             mid = (low + high) / 2;
-            if (curVal.m == constVals[mid].m) {
+            if (curVal.ii == constVals[mid].ii) {
               return constNums[mid];
             }
             if (curVal.a < constVals[mid].a)
@@ -1512,7 +1470,7 @@ int64_t addCurValToFCST()
             FcstTotal = FcstTotal + 1;
             constVals[high] = curVal;
             constNums[high] = FcstCnt;
-            lits.insert(curVal.i);
+            lits.insert(curVal.ii);
             if (int64_t(lits.size()) != FcstTotal)
                 fprintf(stderr, "Literal divergence: %d\n", int(FcstTotal - lits.size()));
         };
@@ -1526,7 +1484,7 @@ int64_t allocSymtab(int64_t newSym)
     int64_t ret = symTabPos;
 
     // BESM-6 words are 48 bits; bits 48-63 of a Word can hold stack garbage
-    // (bitfield writes through .i/.m never touch them). Mask so value-based
+    // (bitfield writes through .ii never touch them). Mask so value-based
     // dedup below cannot depend on them (they are never emitted either).
     newSym &= 0xFFFFFFFFFFFFL;
 
@@ -1587,11 +1545,11 @@ int64_t getFCSToffset()
     return ret;
 }
 
-int64_t minel(Bitset b)
+int64_t minel(int64_t b)
 {
-    if (!b.val) return -1;
+    if (!b) return -1;
     int64_t ret = 0;
-    uint64_t t = b.val;
+    uint64_t t = b;
     while (((t >> 47) & 1) == 0) {
         ret++;
         t <<= 1;
@@ -1599,9 +1557,9 @@ int64_t minel(Bitset b)
     return ret;
 }
 
-int64_t card(Bitset b)
+int64_t card(int64_t b)
 {
-    int64_t val = b.val, ret = 0;
+    int64_t val = b, ret = 0;
     while (val) {
         ++ret;
         val &= val-1;
@@ -1609,14 +1567,13 @@ int64_t card(Bitset b)
     return ret;
 }
 
-std::string Bitset::p() const
+std::string bset(int64_t t)
 {
     std::ostringstream ostr;
     ostr <<'[';
-    Bitset t = *this;
     int64_t start = minel(t);
     int64_t prev = start;
-    t = t - Bits(start);
+    t = t & ~ Bits(start);
     while (t != Bits()) {
         int64_t m = minel(t);
         if (m != prev + 1) {
@@ -1627,7 +1584,7 @@ std::string Bitset::p() const
             start = m;
         }
         prev = m;
-        t = t - Bits(m);
+        t = t & ~ Bits(m);
     }
     if (ostr.str().size() != 1) ostr << ',';
     if (start >= 0) {
@@ -1642,14 +1599,14 @@ std::string Bitset::p() const
 int64_t nrOfBits(Integer value)
 {
     curVal.ii = value;
-    curVal.m = curVal.m * BitRange(7, 47);
-    return 48-minel(curVal.m);
+    curVal.ii = curVal.ii & BitRange(7, 47);
+    return 48-minel(curVal.ii);
 }
 
 int64_t nrOfBits(int64_t value)
 {
-    Bitset b;
-    b.val = value & ((1L<<48)-1);
+    int64_t b;
+    b = value & ((1L<<48)-1);
     return 48-minel(b);
 }
 
@@ -1663,7 +1620,6 @@ TPtr mkIntScl(int64_t bitWid)
     res.setRep(new Types);
     res.rep()->start = -1;
     res.rep()->enums = NULL;
-    // w.m := [47-bitWid] + intZero; numen := w.i
     res.rep()->numen = 1L << bitWid;
     res.p.psize = 1;
     res.p.bits = bitWid;
@@ -1673,10 +1629,10 @@ TPtr mkIntScl(int64_t bitWid)
 
 int64_t getValueOrAllocSymtab(int64_t value)
 {
-    curVal.i = value;
-    curVal.i = curVal.i & 077777;
-    if (040000 >= curVal.i)
-        return curVal.i;
+    curVal.ii = value;
+    curVal.ii = curVal.ii & 077777;
+    if (040000 >= curVal.ii)
+        return curVal.ii;
     else
         return
             allocSymtab((curVal.ii | 040000000) & halfWord);
@@ -1689,7 +1645,7 @@ void fixup(int64_t mode, int64_t arg)
         int64_t addr, insn, leftHalf;
         bool isLeft;
         padToLeft();
-        curVal.i = moduleOffset;
+        curVal.ii = moduleOffset;
 L1:     addr = curVal.ii & 077777;
         leftHalf = (curVal.ii & halfWord) << 24;
         while (arg != 0) {
@@ -1707,23 +1663,21 @@ L1:     addr = curVal.ii & 077777;
                 insn = (insn & ~077777L) | addr;
             };
             objBuffer[arg] = insn;
-            arg = curVal.i;
+            arg = curVal.ii;
         };
         return;
     } else if (mode == 2) {
-        form1Insn(KVTM+I14 + curVal.i);
-        if (curVal.i == 074001)
+        form1Insn(KVTM+I14 + curVal.ii);
+        if (curVal.ii == 074001)
             form1Insn(KUTM+I14 + FcstCnt);
         form3Insn(KITA+14, InsnTemp[ASN] + arg, KAOX+I7+1);
         form1Insn(KATX+I7+1);
         return;
     } else if (mode < -2) {
-        arg = arg - curVal.i;
+        arg = arg - curVal.ii;
         offset = getFCSToffset();
         work = -mode;
-        curVal.ii = arg; // base.pas `curVal.i := arg` keeps the word's exponent
-                         // (here 0/LOG, inherited from minValue); Integer's
-                         // operator= would force exp=0o150 (INT) -> mismatch.
+        curVal.ii = arg & 0x1FFFFFFFFFFL;
         arg = getFCSToffset();
         form3Insn(KATX+SP+1, KSUB+I8 + offset, work);
         form3Insn(KRSUB+I8 + arg, work, KXTA+SP+1);
@@ -1733,7 +1687,7 @@ L1:     addr = curVal.ii & 077777;
         formAndAlign(getHelperProc(arg));
         return;
     };
-    curVal.i = mode;
+    curVal.ii = mode;
     goto L1;
 } /* fixup */
 
@@ -1787,7 +1741,7 @@ void endOfLine()
         printf(" %05lo%5ld%3ld%c", (lineStartOffset + PASINFOR.startOffset),
                lineCnt, lineNesting, commentModeCH);
         startPos = 12;
-        if (optSflags.m.has(S4)
+        if (has(optSflags.ii, S4)
             and (maxLineLen == 72)
             and (linePos >= 80)) {
             for (err = 73; err <= 80; ++err)
@@ -1974,8 +1928,8 @@ parseComment::parseComment()
             badOpt = true;
             switch (CH) {
             case 'D': case 'd': {
-                curVal.i = readOptVal(15);
-                optSflags.m = optSflags.m * BitRange(0, 40) + curVal.m * BitRange(41, 47);
+                curVal.ii = readOptVal(15);
+                optSflags.ii = (optSflags.ii & BitRange(0, 40)) | (curVal.ii & BitRange(41, 47));
             } break;
             case 'Y': case 'y':
                 readOptFlag(allowCompat);
@@ -1984,11 +1938,11 @@ parseComment::parseComment()
                 readOptFlag(declEntry);
                 break;
             case 'S': case 's': {
-                curVal.i = readOptVal(8);
-                if (curVal.i == 3)
+                curVal.ii = readOptVal(8);
+                if (curVal.ii == 3)
                     lineCnt = 1;
-                else if (4 <= curVal.i && curVal.i <= 8)
-                    optSflags.m = optSflags.m + Bits(curVal.i - 3);
+                else if (4 <= curVal.ii && curVal.ii <= 8)
+                    optSflags.ii = optSflags.ii | Bits(curVal.ii - 3);
             } break;
             case 'F': case 'f':
                 readOptFlag(checkFortran);
@@ -2088,22 +2042,22 @@ L1473:
 //      lexer:
         switch (SY) {
             case IDENT: {
-                curToken.m.val = 0;
+                curToken.ii = 0;
                 tokenLen = 1;
                 do {
                     curVal.ii = koi2text[CH];
                     nextCH();
                     if (8 >= tokenLen) {
                         tokenLen = tokenLen + 1;
-                        curToken.m = curToken.m << 6;
-                        curToken.m = curToken.m + curVal.m;
+                        curToken.ii = shl48(curToken.ii, 6);
+                        curToken.ii = curToken.ii | curVal.ii;
                     }
                 } while (chrClassTabBase[CH] == ALNUM);
-                bucket = curToken.m.val % 65535 % 128;
+                bucket = curToken.ii % 65535 % 128;
                 curIdent = curToken.ii;
                 keyWordHashPtr = KeyWordHashTabBase[bucket];
                 while (keyWordHashPtr != NULL) {
-                    if (keyWordHashPtr->w.m == curToken.m) {
+                    if (keyWordHashPtr->w.ii == curToken.ii) {
                         SY = keyWordHashPtr->sym;
                         charClass = keyWordHashPtr->op;
                         goto exitLexer;
@@ -2190,15 +2144,15 @@ L2:                 hashTravPtr = symHash[bucket];
                             // Hex literal: 0Xhhh[U]
                             numFormat = hex;
                             nextCH();
-                            curToken.i = 0;
+                            curToken.ii = 0;
                             while ((charSymTabBase[CH] == INTCONST)
                                    or (('A' <= CH) and (CH <= 'F'))) {
-                                curToken.m = curToken.m << 4;
+                                curToken.ii = shl48(curToken.ii, 4);
                                 if (charSymTabBase[CH] == INTCONST)
                                     curVal.ii = CH;
                                 else
-                                    curVal.i = CH - 55;
-                                curToken.m = curToken.m + curVal.m * BitRange(44, 47);
+                                    curVal.ii = CH - 55;
+                                curToken.ii = curToken.ii | (curVal.ii & BitRange(44, 47));
                                 nextCH();
                             }
                             if (CH == 'U')
@@ -2218,23 +2172,23 @@ L2:                 hashTravPtr = symHash[bucket];
                     for (tokenIdx = 1; tokenIdx <= tokenLen; ++tokenIdx) {
                         if (7 < numstr[tokenIdx])
                             error(20); /* errDigitGreaterThan7 */
-                        curToken.m = curToken.m << 3;
-                        curToken.m.val = (numstr[tokenIdx] & 7) | curToken.m.val;
+                        curToken.ii = shl48(curToken.ii, 3);
+                        curToken.ii = (numstr[tokenIdx] & 7) | curToken.ii;
                     }
                     goto exitLexer;
                 } exitOctdec:
-                curToken.i = 0;
+                curToken.ii = 0;
                 for (tokenIdx = 1; tokenIdx <= tokenLen; ++tokenIdx) {
-                    if (109951162777L >= curToken.i)
-                        curToken.i = 10 * curToken.i +
+                    if (109951162777L >= curToken.ii)
+                        curToken.ii = 10 * curToken.ii +
                             numstr[tokenIdx];
                     else {
                         error(errNumberTooLarge);
-                        curToken.i = 1;
+                        curToken.ii = 1;
                     }
                 }
                 if (CH == 'U') {
-                    curToken.m = curToken.m - Bits(0, 1, 3);
+                    curToken.ii = curToken.ii & ~ Bits(0, 1, 3);
                     numFormat = fullword;
                     nextCH();
                     goto exitLexer;
@@ -2246,7 +2200,7 @@ L2:                 hashTravPtr = symHash[bucket];
                         CH = ':';
                         goto exitLexer;
                     }
-                    curToken.r = curToken.i;
+                    curToken.r = curToken.ii;
                     SY = REALCONST;
                     if (charSymTabBase[CH] != INTCONST)
                         error(56); /* errNeedMantissaAfterDecimal */
@@ -2259,7 +2213,7 @@ L2:                 hashTravPtr = symHash[bucket];
                 } /*2062*/
                 if (CH == 'E') {
                     if (expMagnitude == 0) {
-                        curToken.r = curToken.i;
+                        curToken.r = curToken.ii;
                         SY = REALCONST;
                     }
                     expSign = false;
@@ -2303,8 +2257,7 @@ L2:                 hashTravPtr = symHash[bucket];
                         curToken.r = curToken.r / expValue;
                     else
                         curToken.r = curToken.r * expValue;
-                } else
-                    curToken.m = curToken.m - intZero;
+                }
                 goto exitLexer;
             } break; /* INTCONST */ /*=m+*/
             case CHARCONST: {
@@ -2409,7 +2362,7 @@ exitLoop:
                     pck(localBuf[tokenLen], curToken.a);
                     goto exitLexer;
                 } else {
-                    curVal.m.val = 0x202020202020L; // base.pas: curVal.a := '      '
+                    curVal.ii = 0x202020202020L; // base.pas: curVal.a := '      '
                     SY = STRINGSY;
                     unpck(localBuf[tokenIdx], curVal.a);
                     pck(localBuf[6], curToken.a);
@@ -2428,7 +2381,7 @@ exitLoop:
                         SY = INTCONST;
                         goto exitLexer;
                     } else {
-                        curToken.i = FcstCnt;
+                        curToken.ii = FcstCnt;
                         tokenLen = 6;
 loop:                   {
                             toFCST();
@@ -2544,13 +2497,79 @@ void error(int64_t errNo)
     }
 }
 
-void skip(Bitset toset)
+bool rawIntOk(const Word &w)
 {
-    while (not toset.has(SY))
+    return (w.ii >> 41) == 0;
+}
+
+int64_t rawIntToI64(const Word &w)
+{
+    if (not rawIntOk(w)) {
+        error(200);
+        return w.ii;
+    }
+    int64_t out = w.ii & INT41_MASK;
+    if (out & INT41_SIGN)
+        out -= (1L << 41);
+    return out;
+}
+
+Word i64ToRawInt(int64_t value)
+{
+    Word out;
+    out.ii = value & INT41_MASK;
+    return out;
+}
+
+Word foldRawInt2(Operator op, const Word &lhs, const Word &rhs)
+{
+    int64_t a = rawIntToI64(lhs), b = rawIntToI64(rhs), r;
+
+    switch (op) {
+    case IDIVOP:
+        r = a / b;
+        break;
+    case IMODOP:
+        r = a % b;
+        break;
+    case IMULOP:
+        r = a * b;
+        break;
+    case INTPLUS:
+        r = a + b;
+        break;
+    case INTMINUS:
+        r = a - b;
+        break;
+    default:
+        error(200);
+        return lhs;
+    }
+    return i64ToRawInt(r);
+}
+
+Word foldRawInt1(Operator op, const Word &arg)
+{
+    int64_t a = rawIntToI64(arg), r;
+
+    switch (op) {
+    case INEGOP:
+        r = -a;
+        break;
+    default:
+        error(200);
+        return arg;
+    }
+    return i64ToRawInt(r);
+}
+
+void skip(int64_t toset)
+{
+    while (not has(toset, SY))
         inSymbol();
 }
 
-void errAndSkip(int64_t errNo, Bitset toset)
+void errAndSkip(int64_t errNo, int64_t toset)
 {
     error(errNo);
     skip(toset);
@@ -2569,9 +2588,9 @@ void parseLiteral(TPtr & litType, Word & litValue,
             if (litType != IntegerType) {
                 error(62); /* errIntegerNeeded */
                 litType = IntegerType;
-                litValue.i = 1;
+                litValue.ii = 1;
             } else if (l3var1z == MINUSOP) {
-                litValue.i = -litValue.i;
+                litValue.ii = -litValue.ii;
             }
         } else {
 L99:        litType.setRep(NULL);
@@ -2766,27 +2785,6 @@ int64_t argCount(IdentRecPtr l3arg1z)
     return l3var1z;
 } /* argCount */
 
-int64_t makeNameWithStars(bool isProc)
-{
-    bool wantBoth = not isProc and (extSymAdornment == 0);
-    if (curVal.m * BitRange(0, 5) == Bits()) {
-        curVal.m = curVal.m << 6;
-        if (wantBoth or (extSymAdornment == 1))
-            curVal.m = curVal.m + Bits(44, 46);
-        while (curVal.m * BitRange(0, 11) == Bits()) {
-            curVal.m = curVal.m << 6;
-        }
-        if (curVal.m * BitRange(0, 5) == Bits()) {
-            if (wantBoth)
-                curVal.m = Bits(2, 4) + curVal.m;
-            else {
-                curVal.m = curVal.m << 6;
-            }
-        }
-    }
-    return curVal.ii;
-}
-
 struct formOperator {
     static std::vector<formOperator*> super;
     formOperator(OpGen l3arg1z);
@@ -2824,13 +2822,13 @@ struct genOneOp {
     }; /* P3363 */
 
     void addInsnToBuf(int64_t insn) {
-        insnBuf[insnBufIdx].i = insn;
+        insnBuf[insnBufIdx].ii = insn;
         insnBufIdx = insnBufIdx + 1;
     }; /* addInsnToBuf */
 
     void add2InsnsToBuf(int64_t insn1, int64_t insn2) {
-        insnBuf[insnBufIdx].i = insn1;
-        insnBuf[insnBufIdx+1].i = insn2;
+        insnBuf[insnBufIdx].ii = insn1;
+        insnBuf[insnBufIdx+1].ii = insn2;
         insnBufIdx = insnBufIdx + 2;
     }; /* add2InsnsToBuf */
 
@@ -2838,7 +2836,7 @@ struct genOneOp {
         bool ret;
         l4inl7z = l4inl6z;
         while (l4inl7z != NULL) {
-            if (l4inl7z->mode == curInsn.i) {
+            if (l4inl7z->mode == curInsn.ii) {
                 ret = true;
                 while (l4inl7z->code == macro) {
                     l4inl7z = reinterpret_cast<OneInsn*>(ptr(l4inl7z->offset));
@@ -2855,7 +2853,7 @@ struct genOneOp {
         if (not F3413()) {
             l4inl7z = new OneInsn;
             l4inl7z->next = l4inl6z;
-            l4inl7z->mode = curInsn.i;
+            l4inl7z->mode = curInsn.ii;
             l4inl7z->code = 0;
             l4inl7z->offset = 0;
             l4inl6z = l4inl7z;
@@ -2866,7 +2864,7 @@ struct genOneOp {
     genOneOp() {
         if (insnList == NULL)
             return;
-        usedRegs = usedRegs + insnList->regsused;
+        usedRegs = usedRegs | insnList->regsused;
         l4oi212z = insnList->head;
         l4var9z = KNTR+7;
         insnBufIdx = 1;
@@ -2875,9 +2873,9 @@ struct genOneOp {
         l4inl6z = NULL;
 
         while (l4oi212z != NULL) {
-            tempInsn.i = l4oi212z->code;
-            l4var4z = tempInsn.i -  macro;
-            curInsn.i = l4oi212z->offset;
+            tempInsn.ii = l4oi212z->code;
+            l4var4z = tempInsn.ii -  macro;
+            curInsn.ii = l4oi212z->offset;
             switch (l4oi212z->mode) {
             case 0: break;
             case 1: if (arithMode != 1) {
@@ -2907,10 +2905,10 @@ struct genOneOp {
                     addJumpInsn(InsnTemp[U1A]);
                     break;
                 case 2: {
-                      tempInsn.i = curInsn.i % 4096;
-                      curInsn.i = curInsn.i / 4096;
+                      tempInsn.ii = curInsn.ii % 4096;
+                      curInsn.ii = curInsn.ii / 4096;
                       addJumpInsn(InsnTemp[UJ]);
-                      curInsn.i = tempInsn.i;
+                      curInsn.ii = tempInsn.ii;
 L3556:
                       if (F3413())
                           addInsnToBuf(2*macro+ord(l4inl7z));
@@ -2918,11 +2916,11 @@ L3556:
                           error(206);
                 } break;
                 case 3: {
-                      tempInsn.i = curInsn.i % 4096;
-                      curInsn.i = curInsn.i / 4096;
+                      tempInsn.ii = curInsn.ii % 4096;
+                      curInsn.ii = curInsn.ii / 4096;
                       l4var213z =  F3413();
                       l4inl8z = l4inl7z;
-                      curInsn.i = tempInsn.i;
+                      curInsn.ii = tempInsn.ii;
                       l4var213z = l4var213z && F3413();
                       if (l4var213z) {
                           l4inl7z->code = macro;
@@ -2932,21 +2930,21 @@ L3556:
                           error(207);
                 } break;
                 case 20:
-                    addInsnToBuf(3*macro + curInsn.i);
+                    addInsnToBuf(3*macro + curInsn.ii);
                     break;
                 case 4: {
-                    if (insnBuf[insnBufIdx-1].m * (BitRange(21,23)+BitRange(28,35)) == Bits())
-                        insnBuf[insnBufIdx-1].m = insnBuf[insnBufIdx-1].m + Bits(35);
+                    if ((insnBuf[insnBufIdx-1].ii & (BitRange(21,23)|BitRange(28,35))) == Bits())
+                        insnBuf[insnBufIdx-1].ii = insnBuf[insnBufIdx-1].ii | Bits(35);
                     else
                         addInsnToBuf(KXTA+SP);
                 } break;
                 case 5:
                     /*blk*/ {
                     if (l4oi212z != NULL) {
-                        tempInsn.i = l4oi212z->code;
-                        if (tempInsn.m * (BitRange(21,23)+BitRange(28,35)) == Bits(32)) {
+                        tempInsn.ii = l4oi212z->code;
+                        if ((tempInsn.ii & (BitRange(21,23)|BitRange(28,35))) == Bits(32)) {
                             l4oi212z->code =
-                                tempInsn.i - InsnTemp[XTA] + InsnTemp[XTS];
+                                tempInsn.ii - InsnTemp[XTA] + InsnTemp[XTS];
                             break; // exit blk
                         }
                     };
@@ -2959,27 +2957,27 @@ L3556:
                     addInsnToBuf(getHelperProc(12));        /* P/MI */
                 } break;
                 case mcADDSTK2REG:
-                    add2InsnsToBuf(KWTC+SP, KUTM+indexreg[curInsn.i]);
+                    add2InsnsToBuf(KWTC+SP, KUTM+indexreg[curInsn.ii]);
                     break;
                 case mcADDACC2REG:
-                    add2InsnsToBuf(KATI+14, KMADDJ+I14 + curInsn.i);
+                    add2InsnsToBuf(KATI+14, KMADDJ+I14 + curInsn.ii);
                     break;
                 case mcROUND: {
                     addInsnToBuf(KADD+REAL05);                /* round */
                     add2InsnsToBuf(KNTR+7, KADD+ZERO);
                 } break;
                 case 14:
-                    add2InsnsToBuf(indexreg[curInsn.i] + KVTM, KITA + curInsn.i);
+                    add2InsnsToBuf(indexreg[curInsn.ii] + KVTM, KITA + curInsn.ii);
                     break;
                 case mcMINEL: {
-                    add2InsnsToBuf(KANX+ZERO, KSUB+PLUS1);   /* minel */
+                    add2InsnsToBuf(KANX, KSUB+E1);   /* minel */
                 } break;
                 case 16:
-                    add2InsnsToBuf(InsnTemp[XTA], KATX+SP + curInsn.i);
+                    add2InsnsToBuf(InsnTemp[XTA], KATX+SP + curInsn.ii);
                     break;
                 case 17: {
                     addInsnToBuf(KXTS);
-                    add2InsnsToBuf(KATX+SP+1, KUTM+SP + curInsn.i);
+                    add2InsnsToBuf(KATX+SP+1, KUTM+SP + curInsn.ii);
                 } break;
                 case 18:
                     add2InsnsToBuf(KVTM+I10, getHelperProc(65)); /* P/B7 */
@@ -2992,25 +2990,33 @@ L3556:
                     add2InsnsToBuf(KVTM+I14, KXTA+I14);
                       curVal.ii = 040077777;
                       add2InsnsToBuf(allocSymtab(curVal.ii) + (KXTS+SP),
-                                     KAAX+I8 + curInsn.i);
+                                     KAAX+I8 + curInsn.ii);
                       add2InsnsToBuf(KAEX+SP, KATX+I14);
                 } break;
+                case mcMALLOC:
+                /* MALLOC(N): N is in ACC (placed there by prepLoad).
+                   Move N to register 14 and invoke the heap-allocator
+                   helper P/PF + 4 (helper #33), which returns the newly
+                   allocated pointer in ACC.  Same calling convention as
+                   the NEW system procedure. */
+                    add2InsnsToBuf(KATI+14, getHelperProc(33));
+                    break;
                 }; /* case */
             } else { /* 4003 */
-                if (tempInsn.m.has(28)) {
-                    addInsnToBuf(getValueOrAllocSymtab(curInsn.i)+tempInsn.i);
+                if (has(tempInsn.ii, 28)) {
+                    addInsnToBuf(getValueOrAllocSymtab(curInsn.ii)+tempInsn.ii);
                 } else {
-                    curVal.i = curInsn.i & 077777;
-                    if (curVal.i < 2048)
-                        addInsnToBuf(tempInsn.i + curInsn.i);
+                    curVal.ii = curInsn.ii & 077777;
+                    if (curVal.ii < 2048)
+                        addInsnToBuf(tempInsn.ii + curInsn.ii);
                     else
-                        if ((curVal.i >= 28672) or (curVal.i < 4096)) {
+                        if ((curVal.ii >= 28672) or (curVal.ii < 4096)) {
                             addInsnToBuf(
                                 allocSymtab((curVal.ii | 040000000) & halfWord)
-                                + tempInsn.i - 28672);
+                                + tempInsn.ii - 28672);
                         } else {
-                            add2InsnsToBuf(getValueOrAllocSymtab(curVal.i)
-                                           + InsnTemp[UTC], tempInsn.i);
+                            add2InsnsToBuf(getValueOrAllocSymtab(curVal.ii)
+                                           + InsnTemp[UTC], tempInsn.ii);
                         }
                 }
             }
@@ -3019,12 +3025,12 @@ L3556:
 
         for (l4var4z = insnBufIdx; l4var4z >= 1; --l4var4z) {
             curInsn = insnBuf[l4var4z];
-            if ((curInsn.i == InsnTemp[NTR]) or
-                (curInsn.i == KNTR+7)) {
+            if ((curInsn.ii == InsnTemp[NTR]) or
+                (curInsn.ii == KNTR+7)) {
                 l4var3z = l4var4z - 1;
                 l4var213z = false;
                 while (l4var3z >= 1) {
-                    tempInsn.m = insnBuf[l4var3z].m * BitRange(28,32);
+                    tempInsn.ii = insnBuf[l4var3z].ii & BitRange(28,32);
                     if ((tempInsn.ii != KUTC) and (tempInsn.ii != KWTC))
                         break;
                     l4var3z = l4var3z-1;
@@ -3042,55 +3048,55 @@ L3556:
         for (l4var4z = 1; l4var4z <= insnBufIdx; ++l4var4z)
             /*iter*/  {
             curInsn = insnBuf[l4var4z];
-            tempInsn.m = curInsn.m * (Bits(0, 1, 3) + BitRange(23,32));
-            if (tempInsn.i == KATX+SP) {
+            tempInsn.ii = curInsn.ii & (Bits(0, 1, 3) | BitRange(23,32));
+            if (tempInsn.ii == KATX+SP) {
                 l4var2z = l4var4z + 1;
                 while (insnBufIdx + 1 != l4var2z) {
-                    curVal.m = insnBuf[l4var2z].m * (Bits(0, 1, 3, 23) + BitRange(28,35));
-                    tempInsn.m = curVal.m * (Bits(0, 1, 3, 23) + BitRange(28,32));
-                    if (curVal.i == InsnTemp[XTA]) {
-                        insnBuf[l4var2z].m =
-                            insnBuf[l4var2z].m ^ Bits(32, 34, 35);
+                    curVal.ii = insnBuf[l4var2z].ii & (Bits(0, 1, 3, 23) | BitRange(28,35));
+                    tempInsn.ii = curVal.ii & (Bits(0, 1, 3, 23) | BitRange(28,32));
+                    if (curVal.ii == InsnTemp[XTA]) {
+                        insnBuf[l4var2z].ii =
+                            insnBuf[l4var2z].ii ^ Bits(32, 34, 35);
                         goto exit_iter;
-                    } else if (curVal.i == InsnTemp[ITA]) {
-                        insnBuf[l4var2z].m = insnBuf[l4var2z].m + Bits(35);
+                    } else if (curVal.ii == InsnTemp[ITA]) {
+                        insnBuf[l4var2z].ii = insnBuf[l4var2z].ii | Bits(35);
                         goto exit_iter;
-                    } else if ((curVal.i == InsnTemp[NTR]) or
-                               (tempInsn.i == InsnTemp[UTC]) or
-                               (tempInsn.i == InsnTemp[WTC]) or
-                               (tempInsn.i == InsnTemp[VTM]))
+                    } else if ((curVal.ii == InsnTemp[NTR]) or
+                               (tempInsn.ii == InsnTemp[UTC]) or
+                               (tempInsn.ii == InsnTemp[WTC]) or
+                               (tempInsn.ii == InsnTemp[VTM]))
                         l4var2z = l4var2z + 1;
                     else
                         l4var2z = insnBufIdx + 1;
                 }
             } /* 4150 */
-            if (curInsn.i == InsnTemp[UTC])
+            if (curInsn.ii == InsnTemp[UTC])
                 continue; // exit iter
-            if (curInsn.i < macro) {
-                form1Insn(curInsn.i);
-                tempInsn.m = curInsn.m * BitRange(28,32);
-                if ((tempInsn.i == 03100000) or /* VJM */
-                    (tempInsn.i == 00500000))    /* ELFUN */
+            if (curInsn.ii < macro) {
+                form1Insn(curInsn.ii);
+                tempInsn.ii = curInsn.ii & BitRange(28,32);
+                if ((tempInsn.ii == 03100000) or /* VJM */
+                    (tempInsn.ii == 00500000))    /* ELFUN */
                     {
                         padToLeft();
                         prevOpcode = 1;
                     };
                 continue; // exit iter
             }
-            if (curInsn.i >= 3*macro) {
-                curInsn.i = curInsn.i - (3*macro);
-                if (curInsn.i >= 4096) {
+            if (curInsn.ii >= 3*macro) {
+                curInsn.ii = curInsn.ii - (3*macro);
+                if (curInsn.ii >= 4096) {
                     l4var213z = true;
-                    curInsn.i = curInsn.i - 4096;
+                    curInsn.ii = curInsn.ii - 4096;
                 } else {
                   l4var213z = false;
                 }
-                if (curInsn.i == 0)
+                if (curInsn.ii == 0)
                     form1Insn(InsnTemp[UZA] + moduleOffset + 2);
                 P3363();
                 form1Insn(InsnTemp[UJ] + 2 + moduleOffset);
                 padToLeft();
-                if (curInsn.i != 0) {
+                if (curInsn.ii != 0) {
                     if (not F3413())
                         error(211);
                     fixup(0, l4inl7z->code);
@@ -3100,16 +3106,16 @@ L3556:
                 padToLeft();
                 continue;
             }; /* 4230 */
-            if (curInsn.i >= 2*macro) {
-                l4inl7z = reinterpret_cast<OneInsn*>(ptr(curInsn.i - (2*macro)));
+            if (curInsn.ii >= 2*macro) {
+                l4inl7z = reinterpret_cast<OneInsn*>(ptr(curInsn.ii - (2*macro)));
                 fixup(0, l4inl7z->code);
                 l4inl7z->offset = moduleOffset;
             } else {
-                curInsn.i = curInsn.i - macro;
-                curVal.m = curInsn.m * (Bits(0, 1, 3) + BitRange(28,32));
-                jumpType = curVal.i;
-                curVal.m = (Bits(0, 1, 3) + BitRange(33,47)) * curInsn.m;
-                l4inl7z = reinterpret_cast<OneInsn*>(ptr(curVal.i));
+                curInsn.ii = curInsn.ii - macro;
+                curVal.ii = curInsn.ii & (Bits(0, 1, 3) | BitRange(28,32));
+                jumpType = curVal.ii;
+                curVal.ii = (Bits(0, 1, 3) | BitRange(33,47)) & curInsn.ii;
+                l4inl7z = reinterpret_cast<OneInsn*>(ptr(curVal.ii));
                 formJump(l4inl7z->code);
                 jumpType = InsnTemp[UJ];
                 continue;
@@ -3125,7 +3131,7 @@ L3556:
             } else
                 l4inl6z = l4inl6z->next;
         }
-        liveRegs = liveRegs - usedRegs;
+        liveRegs = liveRegs & ~ usedRegs;
     }
 }; /* genOneOp */
 
@@ -3165,102 +3171,98 @@ void prependToInsnList(int64_t insn)
 void prepLoad()
 {
     int64_t helper, l4int2z, l4int3z;
-    TPtr l4typ4z;
+    TPtr valueType;
     Kind l4var5z;
     state l4st6z;
-    bool l4bool7z, l4bool8z, l4bool9z;
+    bool isSimple;
 
-    l4typ4z = insnList->typ;
+    valueType = insnList->typ;
     switch (insnList->ilm) {
         case ilCONST: {
-            curVal = insnList->payload;
-            if (l4typ4z.p.psize == 1)
-              curVal.i = getFCSToffset();
-            addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
+            curVal.ii = insnList->payload.ii;
+            if (valueType.p.psize == 1)
+                curVal.ii = getFCSToffset();
+            addToInsnList(constRegTemplate + curInsnTemplate + curVal.ii);
         } break;
         case ilLVAL: {
             helper = insnList->addrmd;
-            l4int2z = insnList->payload.i;
+            l4int2z = insnList->payload.ii;
             l4int3z = insnList->disp;
             if (15 < helper) {
                 /* empty */
+            } else if (helper == 15) {
+                addToInsnList(macro + mcACC2ADDR);
             } else {
-                if (helper == 15) { /* P/CP */
-                    addToInsnList(macro + mcACC2ADDR);
+                helper = indexreg[insnList->addrmd];
+                if ((l4int2z == 0) and (insnList->st == stWORD)) {
+                    addInsnAndOffset(helper + curInsnTemplate,
+                                     l4int3z);
+                    goto L4602;
                 } else {
-                    helper = indexreg[insnList->addrmd];
-                    if ((l4int2z == 0) and (insnList->st == stWORD)) {
-                        addInsnAndOffset(helper + curInsnTemplate,
-                                         l4int3z);
-                        goto L4602;
-                    } else {
-                        addToInsnList(helper + InsnTemp[UTC]);
-                    }
+                    addToInsnList(helper + InsnTemp[UTC]);
                 }
             }
             l4st6z = insnList->st;
             if (l4st6z == stWORD) {
                 addInsnAndOffset(l4int2z + curInsnTemplate, l4int3z);
             } else {
-                l4var5z = (Kind)(l4typ4z.p.pk);
+                l4var5z = (Kind)(valueType.p.pk);
                 if (l4var5z < kindArray or
-                    (l4var5z == kindStruct and optSflags.m.has(S6))) {
-                    l4bool7z = true;
-                    l4bool8z = typeCheck(l4typ4z, IntegerType);
+                    (l4var5z == kindStruct and has(optSflags.ii, S6))) {
+                    isSimple = true;
                 } else {
-                    l4bool7z = false;
-                    l4bool8z = false;
+                    isSimple = false;
                 }
                 if (l4st6z == stSLICE) {
                     if ((l4int3z != l4int2z) or
-                        (helper != 18) or /* P/RC */
+                        (helper != 15) or
                         (l4int2z != 0))
                         addInsnAndOffset(l4int2z + InsnTemp[XTA],
                                          l4int3z);
                     l4int3z = insnList->shift;
                     l4int2z = insnList->width;
-                    l4bool9z = true;
                     helper = l4int3z + l4int2z;
-                    if (l4bool7z) {
-                        if (l4int3z != 0)
-                            addToInsnList(ASN64 + l4int3z);
-                        if (l4bool9z) {
-                            curVal.m = BitRange(48 - l4int2z, 47);
+                    if (isSimple) {
+// The commented out optimization is specific to the original BESM-6
+// without a barrel shifter. Now there is no need for it.
+//                      if (30 < l4int3z) {
+//                          addToInsnList(ASN64-48 + l4int3z);
+//                          addToInsnList(KYTA);
+//                      } else {
+                            if (l4int3z != 0)
+                                addToInsnList(ASN64 + l4int3z);
+//                      }
+                        if (helper != 48) {
+                            curVal.ii = MASK48 >> (48 - l4int2z);
                             addToInsnList(KAAX+I8 + getFCSToffset());
                         }
-                    } else { /* 4511 */
+                    } else {
                         if (helper != 48)
                             addToInsnList(ASN64-48 + helper);
-                        curVal.m = BitRange(0, l4int2z-1);
+                        curVal.ii = shl48(MASK48, 48 - l4int2z);
                         addToInsnList(KAAX+I8 + getFCSToffset());
-                    }; /* 4525 */
-                    if (l4bool8z)
-                        addToInsnList(KAEX+ZERO);
-                } else { /* 4531 */
-                    if (l4bool7z)
-                        helper = l4bool8z+74; /* P/LDAR[IN] */
-                    else
-                        helper = 56; /* P/RR */
-                    addToInsnList(getHelperProc(helper));
+                    }
+                } else {
+                    addToInsnList(getHelperProc(isSimple ? 74 : 56)); /* P/LDAR : P/RR */
                     insnList->tail->mode = 1;
                 }
             }
             goto L4545;
         } break;
         case ilRVAL: {
-L4545:      if (forValue and (l4typ4z == BooleanType) and
-                insnList->regsused.has(16))
+L4545:      if (forValue and (valueType == BooleanType) and
+                has(insnList->regsused, 16))
                 addToInsnList(KAEX+E1);
         } break;
-        case ilCOND: { /* 4555 */
+        case ilCOND: {
             if (forValue)
-                addInsnAndOffset(macro+20,
-                                 insnList->regsused.has(16)*010000 + insnList->payload.i);
+                addInsnAndOffset(macro+mcCOND2INT,
+                                 has(insnList->regsused, 16)*010000 + insnList->payload.ii);
         } break;
     } /* case */
 L4602:
     insnList->ilm = ilRVAL;
-    insnList->regsused = insnList->regsused + Bits(0L);
+    insnList->regsused = insnList->regsused | Bits(0L);
 } /* prepLoad */
 
 void P4606()
@@ -3275,22 +3277,22 @@ struct setAddrTo {
         l4var6z, regField;
 
     void P4613() {
-        l4var1z.i = insnList->disp;
-        l4var1z.i = l4var1z.i & 077777;
-        l4var6z = l4var1z.i;
+        l4var1z.ii = insnList->disp;
+        l4var1z.ii = l4var1z.ii & 077777;
+        l4var6z = l4var1z.ii;
     }; /* P4613 */
 
     setAddrTo(int64_t reg) {
         l4int2z = insnList->addrmd;
         opCode = InsnTemp[VTM];
         regField = indexreg[reg];
-        l4var4z = insnList->payload.i;
-        insnList->regsused = insnList->regsused + Bits(reg);
+        l4var4z = insnList->payload.ii;
+        insnList->regsused = insnList->regsused | Bits(reg);
         if (insnList->ilm == ilCONST) {
             curVal = insnList->payload;
             if (insnList->typ.p.psize == 1)
-                curVal.i = addCurValToFCST();
-            l4var6z = curVal.i;
+                curVal.ii = addCurValToFCST();
+            l4var6z = curVal.ii;
             l4var5z = 074001;
             goto L4654;
         } else if (l4int2z == 18) {
@@ -3298,7 +3300,7 @@ L4650:      P4613();
             if (l4var4z == indexreg[1]) {
                 l4var5z = 074003;
 L4654:
-                l4var1z.i = macro * l4var5z + l4var6z;
+                l4var1z.ii = macro * l4var5z + l4var6z;
                 l4var6z = allocSymtab(l4var1z.ii & 0777777777777L);
                 addToInsnList(regField + opCode + l4var6z);
             } else if (l4var4z != 0) {
@@ -3312,7 +3314,7 @@ L4654:
             l4var4z = insnList->disp;
             l4var5z = insnList->tail->code - InsnTemp[UTC];
             if (l4var4z != 0) {
-                l4var1z.i = macro * l4var5z + l4var4z;
+                l4var1z.ii = macro * l4var5z + l4var4z;
                 l4var5z = allocSymtab(l4var1z.ii & 0777777777777L);
             }
             insnList->tail->code = regField + l4var5z + opCode;
@@ -3332,7 +3334,7 @@ L4654:
         insnList->ilm = ilLVAL;
         insnList->addrmd = reg;
         insnList->disp = 0;
-        insnList->payload.i = 0;
+        insnList->payload.ii = 0;
     } /* setAddrTo */
 };
 
@@ -3351,23 +3353,23 @@ void prepStore()
     } else {
         addToInsnList(indexreg[l4int1z] + InsnTemp[UTC]);
     }
-    l4bool4z = insnList->regsused.has(0);
+    l4bool4z = has(insnList->regsused, 0);
     l4st6z = insnList->st;
     if ((l4st6z != stWORD) or l4bool4z)
         prependToInsnList(macro + mcPUSH);
     if (l4st6z == stWORD) {
         if (l4bool4z)  {
-            addInsnAndOffset(insnList->payload.i + InsnTemp[UTC],
+            addInsnAndOffset(insnList->payload.ii + InsnTemp[UTC],
                              insnList->disp);
             addToInsnList(macro+mcPOP2ADDR);
         } else {
-            addInsnAndOffset(insnList->payload.i, insnList->disp);
+            addInsnAndOffset(insnList->payload.ii, insnList->disp);
         }
     } else {
         l4var7z = (Kind)(insnList->typ.p.pk);
         l4int1z = insnList->typ.p.bits;
         l4bool5z = (l4var7z < kindArray) or
-            ((l4var7z == kindStruct) and optSflags.m.has(S6));
+            ((l4var7z == kindStruct) and has(optSflags.ii, S6));
         if (l4st6z == stSLICE) {
             l4int2z = insnList->shift;
             l4int3z = l4int2z + insnList->width;
@@ -3378,9 +3380,9 @@ void prepStore()
                 if (l4int3z != 48)
                     prependToInsnList(ASN64 + 48 - l4int3z);
             }
-            addInsnAndOffset(InsnTemp[UTC] + insnList->payload.i,
+            addInsnAndOffset(InsnTemp[UTC] + insnList->payload.ii,
                              insnList->disp);
-            curVal.m = BitRange(0,47) - BitRange((48-l4int3z),(47 -l4int2z));
+            curVal.ii = BitRange(0,47) & ~ BitRange((48-l4int3z),(47 -l4int2z));
             addInsnAndOffset(macro+22, getFCSToffset());
         } else {
             if (not l4bool5z) {
@@ -3427,13 +3429,13 @@ int64_t insnCount()
 
 /* Rotate a 48-bit set left/right by `amt` (negative = left). Matches
    base.pas `shift`; the exp-normalization of `amt` there is a host no-op. */
-Bitset shift(Bitset val, int64_t amt)
+int64_t shift(int64_t val, int64_t amt)
 {
     int64_t i;
-    Bitset ret = Bits();
+    int64_t ret = Bits();
     for (i = 0; i <= 47; ++i)
-        if (val.has(i - amt))
-            ret = ret + Bits(i);
+        if (has(val, i - amt))
+            ret = ret | Bits(i);
     return ret;
 }
 
@@ -3454,7 +3456,7 @@ struct genFullExpr {
         insnList->ilm = ilLVAL;
         insnList->st = stWORD;
         insnList->disp = 0;
-        insnList->payload.i = 0;
+        insnList->payload.ii = 0;
         insnList->addrmd = 18;
     }; /* startLVal */
 
@@ -3467,23 +3469,23 @@ struct genFullExpr {
                 (insnList->st == stWORD) or
                 (insnList->st == stSLICE and
                  insnList->shift == 0))) {
-            l5var1z.i = insnList->addrmd;
-            l5var2z.i = insnList->disp;
-            if (l5var1z.i == 18 or l5var1z.i == 16) {
-L5220:          addInsnAndOffset((insnList->payload.i + InsnTemp[WTC]), l5var2z.i);
+            l5var1z.ii = insnList->addrmd;
+            l5var2z.ii = insnList->disp;
+            if (l5var1z.ii == 18 or l5var1z.ii == 16) {
+L5220:          addInsnAndOffset((insnList->payload.ii + InsnTemp[WTC]), l5var2z.ii);
             } else {
-                if (l5var1z.i == 17) {
-                    if (l5var2z.i == 0) {
+                if (l5var1z.ii == 17) {
+                    if (l5var2z.ii == 0) {
                         insnList->tail->code = insnList->tail->code +
                             InsnTemp[XTA];
                     } else
                         goto L5220;
-                } else if (l5var1z.i == 15) {
+                } else if (l5var1z.ii == 15) {
                     addToInsnList(macro + mcACC2ADDR);
                     goto L5220;
                 } else {
-                    addInsnAndOffset((indexreg[l5var1z.i] + InsnTemp[WTC]),
-                                     l5var2z.i);
+                    addInsnAndOffset((indexreg[l5var1z.ii] + InsnTemp[WTC]),
+                                     l5var2z.ii);
                 }
             }
         } else {
@@ -3491,7 +3493,7 @@ L5220:          addInsnAndOffset((insnList->payload.i + InsnTemp[WTC]), l5var2z.
             addToInsnList(macro + mcACC2ADDR);
         }
         insnList->disp = 0;
-        insnList->payload.i = 0;
+        insnList->payload.ii = 0;
         insnList->addrmd = 16;
         insnList->st = stWORD;
     }; /* genDeref */
@@ -3503,7 +3505,7 @@ L5220:          addInsnAndOffset((insnList->payload.i + InsnTemp[WTC]), l5var2z.
         insnList = otherIns;
         prepLoad();
         addToInsnList(getHelperProc(formOperator::super.back()->nextInsn));
-        insnList->regsused = insnList->regsused + saved->regsused + BitRange(11,14);
+        insnList->regsused = insnList->regsused | saved->regsused | BitRange(11,14);
         saved->tail->next = insnList->head;
         insnList->head = saved->head;
     }; /* genHelper */
@@ -3512,7 +3514,7 @@ L5220:          addInsnAndOffset((insnList->payload.i + InsnTemp[WTC]), l5var2z.
         bool l5var1z;
         InsnList * l5var2z;
 
-        l5var1z = otherIns->regsused.has(12);
+        l5var1z = has(otherIns->regsused, 12);
         setAddrTo(12);
         if (l5var1z) {
             addToInsnList(KITA+12);
@@ -3525,7 +3527,7 @@ L5220:          addInsnAndOffset((insnList->payload.i + InsnTemp[WTC]), l5var2z.
             addToInsnList(macro + mcPOP);
             addToInsnList(KATI+12);
         }
-        l5var2z->regsused = insnList->regsused + l5var2z->regsused;
+        l5var2z->regsused = insnList->regsused | l5var2z->regsused;
         l5var2z->tail->next = insnList->head;
         l5var2z->tail = insnList->tail;
         insnList = l5var2z;
@@ -3545,9 +3547,9 @@ L5220:          addInsnAndOffset((insnList->payload.i + InsnTemp[WTC]), l5var2z.
         InsnList * &saved = formOperator::super.back()->saved;
         int64_t &nextInsn = formOperator::super.back()->nextInsn;
 
-        if (not otherIns->regsused.has(0)) {
+        if (not has(otherIns->regsused, 0)) {
             l5var1z = 0;
-        } else if (not insnList->regsused.has(0)) {
+        } else if (not has(insnList->regsused, 0)) {
             l5var1z = commutes + 1;
         } else {
             l5var1z = 3;
@@ -3587,7 +3589,7 @@ L33:        prepLoad();
         insnList->tail->mode = 0;
         saved->tail->next = insnList->head;
         insnList->head = saved->head;
-        insnList->regsused = insnList->regsused + Bits(0L);
+        insnList->regsused = insnList->regsused | Bits(0L);
     }; /* tryFlip */
 
     void genBoolAnd() {
@@ -3603,25 +3605,25 @@ L33:        prepLoad();
             if (not arg2Val.ii)
                 insnList = otherIns;
         } else {
-            l5var1z = insnList->regsused.has(16);
-            l5var2z = otherIns->regsused.has(16);
+            l5var1z = has(insnList->regsused, 16);
+            l5var2z = has(otherIns->regsused, 16);
             l5var5z = condLabCnt;
             condLabCnt = condLabCnt + 1;
             forValue = false;
             l5var6z = l5var1z + macro;
             l5var7z = l5var2z + macro;
             if (insnList->ilm == ilCOND) {
-                l5var3z = insnList->payload.i;
+                l5var3z = insnList->payload.ii;
             } else {
                 l5var3z = 0;
                 prepLoad();
             }
             if (otherIns->ilm == ilCOND) {
-                l5var4z = otherIns->payload.i;
+                l5var4z = otherIns->payload.ii;
             } else {
                 l5var4z = 0;
             }
-            l5var9z.m = (insnList->regsused + otherIns->regsused);
+            l5var9z.ii = (insnList->regsused | otherIns->regsused);
             if (l5var3z == 0) {
                 if (l5var4z == 0) {
                     addInsnAndOffset(l5var6z, l5var5z);
@@ -3688,11 +3690,11 @@ L33:        prepLoad();
                     }
                 }
             }
-            insnList->regsused = l5var9z.m - Bits(16);
+            insnList->regsused = l5var9z.ii & ~ Bits(16);
             l5ins8z->tail->next = insnList->head;
             insnList->head = l5ins8z->head;
             insnList->ilm = ilCOND;
-            insnList->payload.i = l5var5z;
+            insnList->payload.ii = l5var5z;
             forValue = true;
         }
     } /* genBoolAnd */
@@ -3702,17 +3704,16 @@ L33:        prepLoad();
         // arithmetic shift; other divisors emit a reciprocal multiply first,
         // then the residual shift.
         Real r;
-        if (card(arg2Val.m) > 1) {
-            arg2Val.m = arg2Val.m + intZero;
-            curVal.r = 1.0 / (double)(int64_t)arg2Val.i;
-            r = (double)curVal.r * (int64_t)arg2Val.i;
-            curVal.m = curVal.m * BitRange(7, 47) + intZero;
+        if (card(arg2Val.ii) > 1) {
+            curVal.r = 1.0 / (double)(int64_t)arg2Val.ii;
+            r = (double)curVal.r * (int64_t)arg2Val.ii;
+            curVal.ii = curVal.ii & BitRange(7, 47);
             if ((double)r < 1.0)
-                curVal.i = curVal.i + 1;
-            curVal.m = curVal.m - Bits(1, 3);
+                curVal.ii = curVal.ii + 1;
+            curVal.ii = curVal.ii | Bits(0);
             addToInsnList(KMUL+I8 + getFCSToffset());
         }
-        addToInsnList(ASN64 + 47 - minel(arg2Val.m - intZero));
+        addToInsnList(ASN64 + 47 - minel(arg2Val.ii));
     }; /* genConstDiv */
 
     /* Ternary conditional CONDOP{cond, ALTERN{then, else}}: build one deferred
@@ -3731,15 +3732,15 @@ L33:        prepLoad();
         forValue = false;
         curExpr = exprToGen->expr1;
         (void) genFullExpr(curExpr);
-        if (insnList->ilm == ilCOND and insnList->payload.i != 0) {
-            if (insnList->regsused.has(16))
-                elseLab = insnList->payload.i;
+        if (insnList->ilm == ilCOND and insnList->payload.ii != 0) {
+            if (has(insnList->regsused, 16))
+                elseLab = insnList->payload.ii;
             else
                 addInsnAndOffset(macro + 2,
-                                 elseLab * 010000 + insnList->payload.i);
+                                 elseLab * 010000 + insnList->payload.ii);
         } else {
             prepLoad();
-            if (insnList->regsused.has(16))
+            if (has(insnList->regsused, 16))
                 addInsnAndOffset(macro + 1, elseLab);
             else
                 addInsnAndOffset(macro + 0, elseLab);
@@ -3759,8 +3760,8 @@ L33:        prepLoad();
         condChain->tail = thenChain->tail;
         condChain->tail->next = insnList->head;
         condChain->tail = insnList->tail;
-        condChain->regsused = condChain->regsused + thenChain->regsused
-                              + insnList->regsused + Bits(0);
+        condChain->regsused = condChain->regsused | thenChain->regsused
+                              | insnList->regsused | Bits(0);
         insnList = condChain;
         insnList->typ = exprToGen->vt.typ;
         insnList->ilm = ilRVAL;
@@ -3840,9 +3841,9 @@ void genGetElt()
     l5ins21z = insnList;
     insnCopy = *insnList;
     copyPtr = &insnCopy;
-    l5var22z.m = freeRegs;
+    l5var22z.ii = freeRegs;
     for (curDim = 1; curDim <= dimCnt; ++curDim)
-        l5var22z.m = l5var22z.m - getEltInsns[curDim]->regsused;
+        l5var22z.ii = l5var22z.ii & ~ getEltInsns[curDim]->regsused;
     for (curDim = dimCnt; curDim >= 1; curDim--) {
         l5var26z = insnCopy.typ.rep()->base;
         l5var25z = insnCopy.typ.rep()->pck;
@@ -3854,13 +3855,13 @@ void genGetElt()
         l5ilm28z = insnList->ilm;
         if (l5ilm28z == ilCONST) {
             curVal = insnList->payload;
-            if (curVal.i < l5var7z or
-                insnCopy.typ.rep()->aright < curVal.i)
+            if (curVal.ii < l5var7z or
+                insnCopy.typ.rep()->aright < curVal.ii)
                 error(29); /* errIndexOutOfBounds */
             if (l5var25z) {
-                l5var4z = curVal.i - l5var7z;
+                l5var4z = curVal.ii - l5var7z;
                 l5var5z = insnCopy.typ.rep()->perword;
-                insnCopy.regsused = insnCopy.regsused + Bits(0L);
+                insnCopy.regsused = insnCopy.regsused | Bits(0L);
                 insnCopy.disp = l5var4z / l5var5z + insnCopy.disp;
                 l5var6z = (l5var5z-1-l5var4z % l5var5z) *
                     insnCopy.typ.rep()->pcksize;
@@ -3876,7 +3877,7 @@ void genGetElt()
                 insnCopy.width = insnCopy.typ.rep()->pcksize;
                 insnCopy.st = stSLICE;
             } /* 6116 */ else {
-                insnCopy.disp = curVal.i  * l5var26z.p.psize +
+                insnCopy.disp = curVal.ii  * l5var26z.p.psize +
                     insnCopy.disp;
             }
         } else { /* 6123*/
@@ -3893,7 +3894,7 @@ void genGetElt()
                 (l5ilm28z == ilLVAL and
                  insnList->st != stWORD))
                 prepLoad();
-           l5var23z.m = insnCopy.regsused + insnList->regsused;
+           l5var23z.ii = insnCopy.regsused | insnList->regsused;
            if (not l5var25z) {
                if (insnCopy.addrmd == 18) {
                     if (insnList->ilm == ilRVAL) {
@@ -3908,27 +3909,27 @@ void genGetElt()
                     insnCopy.head = insnList->head;
                 } else { /* 6211 */
                     if (insnCopy.addrmd >= 15) {
-                        l5var1z = minel(l5var22z.m);
+                        l5var1z = minel(l5var22z.ii);
                         if (0 >= l5var1z) {
-                            l5var1z = minel(freeRegs - insnCopy.regsused);
+                            l5var1z = minel(freeRegs & ~ insnCopy.regsused);
                             if (0 >= l5var1z)
                                 l5var1z = 9;
                         }
                         saved = insnList;
                         insnList = copyPtr;
-                        l5var23z.m = l5var23z.m + Bits(l5var1z);
+                        l5var23z.ii = l5var23z.ii | Bits(l5var1z);
                         if (insnCopy.addrmd == 15) {
                             addToInsnList(InsnTemp[ATI] + l5var1z);
                         } else {
                             addToInsnList(indexreg[l5var1z] + InsnTemp[VTM]);
                         }
                         insnCopy.addrmd = l5var1z;
-                        insnCopy.regsused = insnCopy.regsused + Bits(l5var1z);
+                        insnCopy.regsused = insnCopy.regsused | Bits(l5var1z);
                         insnList = saved;
                     } else {
                             l5var1z = insnCopy.addrmd;
                     } /* 6251 */
-                    if (insnList->regsused.has(l5var1z)) {
+                    if (has(insnList->regsused, l5var1z)) {
                         P4606();
                         insnList->tail->next = insnCopy.head;
                         insnCopy.head = insnList->head;
@@ -3951,12 +3952,11 @@ void genGetElt()
                 if (insnCopy.st == stWORD) {
                     prepLoad();
                     if (l5var7z != 0) {
-                        curVal.i = 0 - l5var7z;
-                        curVal.m = curVal.m - intZero;
+                        curVal.ii = 0 - l5var7z;
                         addToInsnList(KADD+I8 + getFCSToffset());
                         insnList->tail->mode = 1;
                     }
-                    l5var24z = insnCopy.regsused.has(0);
+                    l5var24z = has(insnCopy.regsused, 0);
                     if (l5var24z)
                         addToInsnList(macro + mcPUSH);
                     saved = insnList;
@@ -3964,15 +3964,15 @@ void genGetElt()
                     setAddrTo(14);
                     if (l5var24z)
                         addToInsnList(macro + mcPOP);
-                    l5var23z.m = l5var23z.m + Bits(0, 10, 11, 13) + Bits(14);
+                    l5var23z.ii = l5var23z.ii | Bits(0, 10, 11, 13) | Bits(14);
                     insnCopy.st = stPACKED;
                     insnCopy.disp = 0;
-                    insnCopy.payload.i = 0;
+                    insnCopy.payload.ii = 0;
                     insnCopy.width = insnCopy.typ.rep()->pcksize;
-                    curVal.i = insnCopy.width;
-                    if (curVal.i == 24)
-                        curVal.i = 7;
-                    curVal.m = curVal.m << 24;
+                    curVal.ii = insnCopy.width;
+                    if (curVal.ii == 24)
+                        curVal.ii = 7;
+                    curVal.ii = shl48(curVal.ii, 24);
                     addToInsnList(allocSymtab(  /* P/00C */
                         helperNames[76] | curVal.ii)+(KVTM+I11));
                     insnCopy.addrmd = 16;
@@ -3983,7 +3983,7 @@ void genGetElt()
                     error(errUsingVarAfterIndexingPackedArray);
                 }
             } /* 6403 */
-            insnCopy.regsused = l5var23z.m;
+            insnCopy.regsused = l5var23z.ii;
         }
         insnCopy.typ = l5var26z;
     } /* 6406 */
@@ -3997,7 +3997,7 @@ struct genEntry {
     ExprPtr l5exp1z, l5exp2z;
     IdentRecPtr l5idr3z, l5idr4z, l5idr5z, l5idr6z;
     bool l5bool7z, l5bool8z, l5bool9z, l5bool10z, l5bool11z;
-    bool isAssembler; // base.pas: 26 in calleeFl.m (flags bit 26)
+    bool isAssembler; // base.pas: 26 in calleeFl.ii (flags bit 26)
     Word l5var12z, l5var13z, l5var14z;
     int64_t l5var15z, l5var16z;
     Word l5var17z, l5var18z, l5var19z;
@@ -4009,9 +4009,8 @@ struct genEntry {
 int64_t allocGlobalObject(IdentRecPtr l6arg1z)
 {
     if (l6arg1z->pos() == 0) {
-        if (l6arg1z->flags() * Bits(20, 21) != Bits()) {
-            curVal.ii = l6arg1z->id;
-            curVal.ii = makeNameWithStars(true);
+        if ((l6arg1z->flags() & Bits(20, 21)) != Bits()) {
+            curVal.ii = leftAlign(l6arg1z->id);
             l6arg1z->pos() = allocExtSymbol(extSymMask);
         } else {
             l6arg1z->pos() = symTabPos;
@@ -4029,24 +4028,24 @@ genEntry::genEntry()
     l5bool7z = (l5idr5z->typ == NULL);
     l5bool9z = (l5idr5z->list() == NULL);
     if (l5bool7z)
-        l5var13z.i = 3;
+        l5var13z.ii = 3;
     else
-        l5var13z.i = 4;
-    l5var12z.m = l5idr5z->flags();
-    l5bool10z = (l5var12z.m.has(21));   // isFortrn
-    isAssembler = (l5var12z.m.has(26)); // base.pas 3297
-    l5bool11z = (l5var12z.m.has(24));   // allByRef
+        l5var13z.ii = 4;
+    l5var12z.ii = l5idr5z->flags();
+    l5bool10z = (has(l5var12z.ii, 21));   // isFortrn
+    isAssembler = (has(l5var12z.ii, 26)); // base.pas 3297
+    l5bool11z = (has(l5var12z.ii, 24));   // allByRef
     if (l5bool9z) {
-        l5var14z.i = argCount(l5idr5z);
+        l5var14z.ii = argCount(l5idr5z);
         l5idr6z = l5idr5z->argList();
     } else {
-        l5var13z.i = l5var13z.i + 2;
+        l5var13z.ii = l5var13z.ii + 2;
     }
     insnList = new InsnList;
     insnList->head = NULL;
     insnList->tail = NULL;
     insnList->typ = l5idr5z->typ;
-    insnList->regsused = (l5idr5z->flags() + BitRange(7,15)) * (BitRange(0,8)+BitRange(10,15));
+    insnList->regsused = (l5idr5z->flags() | BitRange(7,15)) & (BitRange(0,8)|BitRange(10,15));
     insnList->ilm = ilRVAL;
     if (isAssembler) {          // base.pas 3311: assembler routine, no frame
         l5bool8z = false;
@@ -4058,17 +4057,17 @@ genEntry::genEntry()
     } else {
         l5bool8z = true;
         if (((not l5bool9z) and (l5exp1z != NULL))
-            or ((l5bool9z) and (l5var14z.i >= 2))) {
-            addToInsnList(KUTM+SP + l5var13z.i);
+            or ((l5bool9z) and (l5var14z.ii >= 2))) {
+            addToInsnList(KUTM+SP + l5var13z.ii);
         }
     }
-    l5var14z.i = 0;
+    l5var14z.ii = 0;
 // (loop)
     while (l5exp1z != NULL) { /* 6574 */
         l5exp2z = l5exp1z->expr2;
         l5exp1z = l5exp1z->expr1;
         l5op21z = l5exp2z->op;
-        l5var14z.i = l5var14z.i + 1;
+        l5var14z.ii = l5var14z.ii + 1;
         l5inl20z = insnList;
         if ((l5op21z == PCALL) or (l5op21z == FCALL)) {
             l5idr4z = l5exp2z->id2;
@@ -4076,7 +4075,7 @@ genEntry::genEntry()
             insnList->head = NULL;
             insnList->tail = NULL;
             insnList->regsused = Bits();
-            usedRegs = usedRegs + l5idr4z->flags();
+            usedRegs = usedRegs | l5idr4z->flags();
             if (l5idr4z->list() != NULL) {
                 addToInsnList(l5idr4z->offset + InsnTemp[XTA] +
                               l5idr4z->value());
@@ -4085,7 +4084,7 @@ genEntry::genEntry()
             } else
                 /*(a) */         { /* 6636 */
                 if (l5idr4z->value() == 0) {
-                    if ((l5bool10z) and (l5idr4z->flags().has(21))) {
+                    if ((l5bool10z) and (has(l5idr4z->flags(), 21))) {
                         addToInsnList(allocGlobalObject(l5idr4z) +
                                       (KVTM+I14));
                         addToInsnList(KITA+14);
@@ -4097,14 +4096,14 @@ genEntry::genEntry()
                         l5idr4z->value() = moduleOffset;
                         l5idr3z = l5idr4z->argList();
                         l5var15z = l5idr4z->typ != NULL;
-                        l5var17z.i = argCount(l5idr4z);
+                        l5var17z.ii = argCount(l5idr4z);
                         form3Insn(KVTM+I10+ 4+moduleOffset,
                                   KVTM+I9 + l5var15z,
                                   KVTM+I8 + 074001);
                         formAndAlign(getHelperProc(62)); /* "P/BP" */
-                        l5var15z = l5var17z.i + 2 + l5var15z;
+                        l5var15z = l5var17z.ii + 2 + l5var15z;
                         form1Insn(KXTA+SP + l5var15z);
-                        if ((1) < l5var17z.i)
+                        if ((1) < l5var17z.ii)
                             form1Insn(KUTM+SP + l5var15z);
                         else
                             form1Insn(0);
@@ -4129,7 +4128,7 @@ genEntry::genEntry()
                     }
                 } /* 6752 */
                 addToInsnList(KVTM+I14 + l5idr4z->value());
-                if (l5idr4z->flags().has(21))
+                if (has(l5idr4z->flags(), 21))
                     addToInsnList(KITA+14);
                 else
                     addToInsnList(getHelperProc(64)); /* "P/PB" */
@@ -4168,7 +4167,7 @@ genEntry::genEntry()
             l5inl20z->tail->next = insnList->head;
             insnList->head = l5inl20z->head;
         }
-        insnList->regsused = insnList->regsused + l5inl20z->regsused;
+        insnList->regsused = insnList->regsused | l5inl20z->regsused;
         if (not l5bool9z) {
             curVal.ii = l5idc22z;
             addToInsnList(KXTS+I8 + getFCSToffset());
@@ -4182,39 +4181,39 @@ genEntry::genEntry()
     }
     if (l5bool9z) {
         addToInsnList(allocGlobalObject(l5idr5z) + (KVJM+I13));
-        if (l5idr5z->flags().has(20)) {
-            l5var17z.i = 1;
+        if (has(l5idr5z->flags(), 20)) {
+            l5var17z.ii = 1;
         } else {
-            l5var17z.i = l5idr5z->offset / 04000000;
+            l5var17z.ii = l5idr5z->offset / 04000000;
         } /* 7102 */
     } else { /* 7103 */
         l5var15z = 0;
-        if (l5var14z.i == 0) {
-            l5var17z.i = l5var13z.i + 1;
+        if (l5var14z.ii == 0) {
+            l5var17z.ii = l5var13z.ii + 1;
         } else {
-            l5var17z.i = -(2 * l5var14z.i + l5var13z.i);
+            l5var17z.ii = -(2 * l5var14z.ii + l5var13z.ii);
             l5var15z = 1;
         } /* 7115 */
         addInsnAndOffset(macro+16 + l5var15z,
-                         getValueOrAllocSymtab(l5var17z.i));
+                         getValueOrAllocSymtab(l5var17z.ii));
         addToInsnList(l5idr5z->offset + InsnTemp[UTC] + l5idr5z->value());
         addToInsnList(macro+18);
-        l5var17z.i = 1;
+        l5var17z.ii = 1;
     } /* 7132 */
     insnList->tail->mode = 2;
-    if (not isAssembler and curProcNesting != l5var17z.i) { // base.pas 3459
+    if (not isAssembler and curProcNesting != l5var17z.ii) { // base.pas 3459
         if (not l5bool10z) {
-            if (l5var17z.i + 1 == curProcNesting) {
+            if (l5var17z.ii + 1 == curProcNesting) {
                 addToInsnList(KMTJ+I7 + curProcNesting);
             } else {
-                l5var15z = frameRestore[curProcNesting][l5var17z.i];
+                l5var15z = frameRestore[curProcNesting][l5var17z.ii];
                 if (l5var15z == (0)) {
                     curVal.ii = 04317L << 36; /* C/ */
                     l5var19z.ii = (curProcNesting + 16) << 30;
-                    l5var18z.ii = (l5var17z.i + 16) << 24;
-                    curVal.m = curVal.m + l5var19z.m + l5var18z.m;
+                    l5var18z.ii = (l5var17z.ii + 16) << 24;
+                    curVal.ii = curVal.ii | l5var19z.ii | l5var18z.ii;
                     l5var15z = allocExtSymbol(extSymMask);
-                    frameRestore[curProcNesting][l5var17z.i] = l5var15z;
+                    frameRestore[curProcNesting][l5var17z.ii] = l5var15z;
                 }
                 addToInsnList(KVJM+I13 + l5var15z);
             }
@@ -4222,10 +4221,10 @@ genEntry::genEntry()
     } /* 7176 */
     // base.pas 3481: (not isAssembler) and (not isDirect or [20,21]*calleeFl)
     if (not isAssembler
-        and (not l5bool9z or (Bits(20, 21) * l5var12z.m != Bits()))) {
+        and (not l5bool9z or ((Bits(20, 21) & l5var12z.ii) != Bits()))) {
         addToInsnList(KVTM+040074001);
     }
-    usedRegs = (usedRegs + l5var12z.m) * BitRange(1,15);
+    usedRegs = (usedRegs | l5var12z.ii) & BitRange(1,15);
     if (l5bool10z) {
         if (not checkFortran)
             addToInsnList(KNTR+7);
@@ -4237,9 +4236,9 @@ genEntry::genEntry()
     // its value in ACC, so there is no `KXTA+SP` reload of the result.
     if (not l5bool7z) {
         insnList->typ = l5idr5z->typ;
-        insnList->regsused = insnList->regsused + Bits(0L);
+        insnList->regsused = insnList->regsused | Bits(0L);
         insnList->ilm = ilRVAL;
-        liveRegs = liveRegs - l5var12z.m;
+        liveRegs = liveRegs & ~ l5var12z.ii;
     }
     /* 7237 */
 } /* genEntry */
@@ -4289,7 +4288,7 @@ void genCopy()
             rhsIns->tail->next = lhsIns->head;
         if (lhsIns->tail != NULL)
             rhsIns->tail = lhsIns->tail;
-        rhsIns->regsused = rhsIns->regsused + lhsIns->regsused + Bits(0);
+        rhsIns->regsused = rhsIns->regsused | lhsIns->regsused | Bits(0);
         rhsIns->ilm = ilRVAL;
         insnList = rhsIns;
     } else {
@@ -4301,14 +4300,14 @@ void genCopy()
         form2Insn(KUTC+I14 + size, KXTA+I13);
         form3Insn(KUTC+I12 + size, KATX+I13,
                   KVLM+I13 + work);
-        usedRegs = usedRegs + BitRange(12,14);
+        usedRegs = usedRegs | BitRange(12,14);
     }
 }
 
 void genComparison()
 {
     bool hasEq;
-    Bitset l5set2z;
+    int64_t l5set2z;
     int64_t mode, size;
 
     int64_t &l3int3z = formOperator::super.back()->l3int3z;
@@ -4328,17 +4327,17 @@ void genComparison()
     if (l3int3z == 6) {     /* IN */
         if (arg1Const) {
             if (arg2Const) {
-                insnList->payload.ii = arg2Val.m.has(arg1Val.i);
+                insnList->payload.ii = has(arg2Val.ii, arg1Val.ii);
             } else {
-                l5set2z = Bits(arg1Val.i);
+                l5set2z = Bits(arg1Val.ii);
                 if (l5set2z == Bits()) {
                     insnList->payload.ii = false;
                 } else {
                     insnList = otherIns;
                     prepLoad();
-                    curVal.m = l5set2z;
+                    curVal.ii = l5set2z;
                     addToInsnList(KAAX+I8 + getFCSToffset());
-                    insnList->payload.i = 0;
+                    insnList->payload.ii = 0;
                     insnList->ilm = ilCOND;
                 }
             } /* 7412 */
@@ -4380,7 +4379,7 @@ L7475:
                 genFullExpr::super.back()->tryFlip(true);
 L7504:
                 insnList->ilm = ilCOND;
-                insnList->payload.i = 0;
+                insnList->payload.ii = 0;
             }
         } else { /* 7510 */
             switch (work) {
@@ -4418,7 +4417,7 @@ L7530:
             } break;
             }; /* case */
         }; /* 7554 */
-        insnList->regsused = insnList->regsused - Bits(16);
+        insnList->regsused = insnList->regsused & ~ Bits(16);
         if (hasEq)
             genFullExpr::super.back()->negateCond();
     } /* 7562 */
@@ -4482,8 +4481,8 @@ L7567:
             arg2Val = otherIns->payload;
         } else
             arg2Const = false;
-        if ((Bits(NEOP) + Bits(EQOP) + Bits(LTOP) + Bits(GEOP) +
-             Bits(GTOP) + Bits(LEOP) + Bits(INOP)).has(curOP)) {
+        if (has((Bits(NEOP) | Bits(EQOP) | Bits(LTOP) | Bits(GEOP) |
+             Bits(GTOP) | Bits(LEOP) | Bits(INOP)), curOP)) {
             genComparison();
         } else { /* 7625 */
             if (arg1Const and arg2Const) {
@@ -4494,33 +4493,28 @@ L7567:
                     break;
                 case ANDOP:      arg1Val.ii = arg1Val.ii and arg2Val.ii;
                     break;
-                case IDIVOP:     arg1Val.ii = (arg1Val.i / arg2Val.i) & 0x1FFFFFFFFFFL;
-                    break;        // base.pas strips exp (`.m := .m MOD intZero`)
-                case IMODOP:     arg1Val.ii = (arg1Val.i % arg2Val.i) & 0x1FFFFFFFFFFL;
-                    break;        // -> LOG; .ii reproduces that raw exp=0 word
+                case IDIVOP:
+                case IMODOP:
+                case IMULOP:
+                case INTPLUS:
+                case INTMINUS:
+                                 arg1Val = foldRawInt2(curOP, arg1Val, arg2Val);
+                    break;
                 case PLUSOP:     arg1Val.r = arg1Val.r + arg2Val.r;
                     break;
                 case MINUSOP:    arg1Val.r = arg1Val.r - arg2Val.r;
                     break;
                 case OROP:       arg1Val.ii = arg1Val.ii or arg2Val.ii;
                     break;
-                case IMULOP:     arg1Val.ii = (arg1Val.i * arg2Val.i) & 0x1FFFFFFFFFFL;
-                    break;        // base.pas strips exp -> LOG (see IDIVOP)
-                case SETAND:     arg1Val.m = arg1Val.m * arg2Val.m;
+                case SETAND:     arg1Val.ii = arg1Val.ii & arg2Val.ii;
                     break;
-                case SETXOR:     arg1Val.m = arg1Val.m ^ arg2Val.m;
+                case SETXOR:     arg1Val.ii = arg1Val.ii ^ arg2Val.ii;
                     break;
-                case INTPLUS:    arg1Val.ii = (arg1Val.i + arg2Val.i) & 0x1FFFFFFFFFFL;
-                    break;                // .ii keeps exp=0 (LOG), matching how
-                                          // all integer literals are stored;
-                                          // Integer's operator= would force INT.
-                case INTMINUS:   arg1Val.ii = (arg1Val.i - arg2Val.i) & 0x1FFFFFFFFFFL;
+                case SETOR:      arg1Val.ii = arg1Val.ii | arg2Val.ii;
                     break;
-                case SETOR:      arg1Val.m = arg1Val.m + arg2Val.m;
+                case SHLEFT:     arg1Val.ii = shift(arg1Val.ii, -arg2Val.ii);
                     break;
-                case SHLEFT:     arg1Val.m = shift(arg1Val.m, -arg2Val.i);
-                    break;
-                case SHRIGHT:    arg1Val.m = shift(arg1Val.m, arg2Val.i);
+                case SHRIGHT:    arg1Val.ii = shift(arg1Val.ii, arg2Val.ii);
                     break;
                 case NEOP: case EQOP: case LTOP: case GEOP: case GTOP: case LEOP:
                 case INOP: case ASSIGNOP:
@@ -4536,8 +4530,8 @@ L7567:
                 nextInsn = opToInsn[curOP];
                 switch (flags) {
                 case opfCOMM:
-                    tryFlip((Bits(MUL,PLUSOP,SETOR,SETAND) +
-                             Bits(INTPLUS,IMULOP)).has(curOP));
+                    tryFlip(has((Bits(MUL,PLUSOP,SETOR,SETAND) |
+                             Bits(INTPLUS,IMULOP)), curOP));
                     break;
                 case opfHELP:
                     genHelper();
@@ -4545,7 +4539,7 @@ L7567:
                 case opfASSN:
                     genCopy();
                     insnList->typ = exprToGen->vt.typ;
-                    insnList->regsused = insnList->regsused + Bits(0);
+                    insnList->regsused = insnList->regsused | Bits(0);
                     insnList->ilm = ilRVAL;
                     insnList->st = stWORD;
                     return;
@@ -4563,17 +4557,17 @@ L7567:
                     negateCond();
                     return;
                 case opfMOD:
-                    if (arg2Const and arg2Val.i > 0) {
+                    if (arg2Const and arg2Val.ii > 0) {
                         prepLoad();
-                        if (card(arg2Val.m) == 1) {
-                            curVal.m = BitRange(minel(arg2Val.m)+1, 47);
+                        if (card(arg2Val.ii) == 1) {
+                            curVal.ii = BitRange(minel(arg2Val.ii)+1, 47);
                             addToInsnList(KAAX+I8 + getFCSToffset());
                             l3int3z = 0;
                         } else {
                             addToInsnList(macro + mcPUSH);
                             genConstDiv();
                             insnList->tail->mode = 1;
-                            curVal.m = arg2Val.m - Bits(1, 3);
+                            curVal.ii = arg2Val.ii | Bits(0);
                             addToInsnList(KMUL+I8 + getFCSToffset());
                             addToInsnList(KYTA+64);
                             addToInsnList(KRSUB+SP);
@@ -4584,7 +4578,7 @@ L7567:
                     }
                     break;
                 case opfDIV:
-                    if (arg2Const and arg2Val.i > 0) {
+                    if (arg2Const and arg2Val.ii > 0) {
                         prepLoad();
                         genConstDiv();
                         l3int3z = 1;
@@ -4593,12 +4587,12 @@ L7567:
                     break;
                 case opfMULMSK:
                     if (arg1Const) {
-                        insnList->payload.m = arg1Val.m + Bits(0) - Bits(1, 3);
+                        insnList->payload.ii = (arg1Val.ii | Bits(0)) & ~ Bits(1, 3);
                     } else if (arg2Const) {
-                        otherIns->payload.m = arg2Val.m + Bits(0) - Bits(1, 3);
+                        otherIns->payload.ii = (arg2Val.ii | Bits(0)) & ~ Bits(1, 3);
                     } else {
                         prepLoad();
-                        addToInsnList(KAEX+E48);
+                        addToInsnList(KAEX+MSB);
                     }
                     tryFlip(true);
                     insnList->tail->mode = 1;
@@ -4612,11 +4606,10 @@ L7567:
                         genHelper();
                     else {
                         prepLoad();
-                        arg2Val.m = arg2Val.m + intZero;
                         if (curOP == SHRIGHT)
-                            addToInsnList(ASN64+arg2Val.i);
+                            addToInsnList(ASN64+arg2Val.ii);
                         else
-                            addToInsnList(ASN64-arg2Val.i);
+                            addToInsnList(ASN64-arg2Val.ii);
                     }
                     break;
                 default:
@@ -4635,7 +4628,7 @@ L10122:
                 insnList->head = NULL;
                 insnList->regsused = Bits();
                 insnList->ilm = ilLVAL;
-                insnList->payload.i = curIdRec->offset;
+                insnList->payload.ii = curIdRec->offset;
                 insnList->disp = curIdRec->value();
                 insnList->st = stWORD;
                 insnList->addrmd = 18;
@@ -4643,12 +4636,12 @@ L10122:
                     genDeref();
                 } else if (curIdRec->cl == ROUTINEID) {
                     insnList->disp = 3;
-                    insnList->payload.i = (insnList->payload.i + frameRegTemplate);
+                    insnList->payload.ii = (insnList->payload.ii + frameRegTemplate);
                 } else if (insnList->disp >= 074000) {
                     addToInsnList(InsnTemp[UTC] + insnList->disp);
                     insnList->disp = 0;
                     insnList->addrmd = 17;
-                    insnList->payload.i = 0;
+                    insnList->payload.ii = 0;
                 }
             } else /* 10171 */
             if (curOP == GETFIELD) {
@@ -4662,7 +4655,7 @@ L10122:
                         break;
                     case stSLICE: {
                         insnList->shift = insnList->shift + curIdRec->shift();
-                        if (not optSflags.m.has(S6))
+                        if (not has(optSflags.ii, S6))
                             insnList->shift = insnList->shift + curIdRec->uptype().p.bits - 48;
                     } break;
                     case stPACKED:
@@ -4676,7 +4669,7 @@ L10122:
                     } /* 10235*/
                     insnList->width = curIdRec->width();
                     insnList->st = stSLICE;
-                    insnList->regsused = insnList->regsused + Bits(0L);
+                    insnList->regsused = insnList->regsused | Bits(0L);
                 }
             } else /* 10244 */
             if (curOP == GETELT)
@@ -4701,29 +4694,28 @@ L10122:
             insnList->ilm = ilLVAL;
             insnList->st = stWORD;
             insnList->addrmd = 16;
-            insnList->payload.i = 0;
+            insnList->payload.ii = 0;
             insnList->disp = 0;
             insnList->width = 0;
             insnList->shift = 0;
             addToInsnList(KWTC + SP);
         } else if (curOP == ALNUM)
             genEntry();
-        else if (BitRange(TOREAL, BITNEGOP).has(curOP)) {
+        else if (has(BitRange(TOREAL, BITNEGOP), curOP)) {
             genFullExpr(exprToGen->expr1);
             if (insnList->ilm == ilCONST) {
                 arg1Val = insnList->payload;
                 switch (curOP) {
                 case TOREAL:
-                    arg1Val.m = arg1Val.m + intZero;
-                    arg1Val.r = arg1Val.i;
+                    arg1Val.r = arg1Val.ii;
                     break;
                 case NOTOP: arg1Val.b = not arg1Val.b;
                     break;
                 case RNEGOP: arg1Val.r = -arg1Val.r;
                     break;
-                case INEGOP: arg1Val.i = -arg1Val.i;
+                case INEGOP: arg1Val = foldRawInt1(curOP, arg1Val);
                     break;
-                case BITNEGOP: arg1Val.m = BitRange(0,47) - arg1Val.m;
+                case BITNEGOP: arg1Val.ii = BitRange(0,47) & ~ arg1Val.ii;
                     break;
                 default:
                     break;
@@ -4771,24 +4763,23 @@ L10122:
                     switch (work) {
                     case fnABS:   arg1Val.r = fabs(arg1Val.r);
                         break;
-                    case fnTRUNC: arg1Val.i = int64_t(trunc(arg1Val.r));
+                    case fnTRUNC: arg1Val.ii = int64_t(trunc(arg1Val.r));
                         break;
-                    case fnPTR:   arg1Val.m = arg1Val.m * BitRange(7,47);
+                    case fnPTR:   arg1Val.ii = arg1Val.ii & BitRange(7,47);
                         break;
-                    case fnROUND: arg1Val.i = int64_t(round(arg1Val.r));
+                    case fnROUND: arg1Val.ii = int64_t(round(arg1Val.r));
                         break;
-                    case fnCARD:  arg1Val.i = card(arg1Val.m);
+                    case fnCARD:  arg1Val.ii = card(arg1Val.ii);
                         break;
-                    case fnMINEL: arg1Val.i = minel(arg1Val.m);
+                    case fnMINEL: arg1Val.ii = minel(arg1Val.ii);
                         break;
-                    case fnABSI:  arg1Val.i = labs(arg1Val.i);
+                    case fnABSI:  arg1Val.ii = labs(arg1Val.ii);
                         break;
                     case fnMALLOC:
-                        arg1Val.m = arg1Val.m + intZero;
-                        addToInsnList(KVTM+I14+getValueOrAllocSymtab(arg1Val.i));
+                        addToInsnList(KVTM+I14+getValueOrAllocSymtab(arg1Val.ii));
                         addToInsnList(getHelperProc(33)); /*"P/NW"*/
                         insnList->ilm = ilRVAL;
-                        insnList->regsused = insnList->regsused + Bits(0);
+                        insnList->regsused = insnList->regsused | Bits(0);
                         insnList->typ = exprToGen->vt.typ;
                         return;
                     case fnREF:
@@ -4802,7 +4793,7 @@ L10122:
                     setAddrTo(14);
                     addToInsnList(KITA+14);
                     insnList->ilm = ilRVAL;
-                    insnList->regsused = insnList->regsused + Bits(0);
+                    insnList->regsused = insnList->regsused | Bits(0);
                 } else {
                     prepLoad();
                     if (work == fnTRUNC) {
@@ -4824,7 +4815,7 @@ L10122:
         } else { /* 10621 */
             if (curOP == NOOP) {
                 curVal = exprToGen->lit;
-                if (liveRegs.has(curVal.i)) {
+                if (has(liveRegs, curVal.ii)) {
                     insnList = new InsnList;
                     insnList->typ = exprToGen->expr2->vt.typ;
                     insnList->tail = NULL;
@@ -4832,11 +4823,11 @@ L10122:
                     insnList->regsused = Bits();
                     insnList->ilm = ilLVAL;
                     insnList->addrmd = 18;
-                    insnList->payload.i = indexreg[curVal.i];
+                    insnList->payload.ii = indexreg[curVal.ii];
                     insnList->disp = 0;
                     insnList->st = stWORD;
                 } else {
-                    curVal.i = 14;
+                    curVal.ii = 14;
                     exprToGen->lit = curVal;
                     exprToGen = exprToGen->expr2;
                     goto L7567;
@@ -4865,7 +4856,7 @@ void formFileInit()
         formAndAlign(getHelperProc(61)); /*"FCLOSE"*/
     };
 
-    if (optSflags.m.has(S5)) {
+    if (has(optSflags.ii, S5)) {
         formAndAlign(KUJ+I13);
         return;
     }
@@ -4907,9 +4898,9 @@ formOperator::formOperator(OpGen op)
             if (l3int3z == 0)  {
                 l3int2z = 14;
             } else {
-                l3var10z.m = auxRegs * freeRegs;
-                if (l3var10z.m != Bits()) {
-                    l3int2z = minel(l3var10z.m);
+                l3var10z.ii = auxRegs & freeRegs;
+                if (l3var10z.ii != Bits()) {
+                    l3int2z = minel(l3var10z.ii);
                 } else {
                     l3int2z = 14;
                 }
@@ -4921,16 +4912,16 @@ formOperator::formOperator(OpGen op)
                     (void) setAddrTo(l3int2z);
                     genOneOp();
                 }
-                l3var11z.m = Bits(l3int2z) - Bits(14);
-                usedRegs = usedRegs - l3var11z.m;
-                freeRegs = freeRegs - l3var11z.m;
-                liveRegs = liveRegs + l3var11z.m;
+                l3var11z.ii = Bits(l3int2z) & ~ Bits(14);
+                usedRegs = usedRegs & ~ l3var11z.ii;
+                freeRegs = freeRegs & ~ l3var11z.ii;
+                liveRegs = liveRegs | l3var11z.ii;
             }
-            curVal.i = l3int2z;
+            curVal.ii = l3int2z;
             helpExpr->lit = curVal;
         } break;
         case stSLICE: {
-            curVal.i = 14;
+            curVal.ii = 14;
             helpExpr->lit = curVal;
         } break;
         case stPACKED:
@@ -4944,7 +4935,7 @@ formOperator::formOperator(OpGen op)
         genOneOp();
     } break;
     case FORMOP: {
-        curInsnTemplate = curVal.i;
+        curInsnTemplate = curVal.ii;
         (void) formOperator(LOAD);
         curInsnTemplate = InsnTemp[XTA];
     } break;
@@ -4955,10 +4946,10 @@ formOperator::formOperator(OpGen op)
         genOneOp();
     } break;
     case STOREAT9: {
-        l3int1z = curVal.i;
+        l3int1z = curVal.ii;
         (void) genFullExpr(curExpr);
         prepLoad();
-        if (insnList->regsused.has(9))
+        if (has(insnList->regsused, 9))
             error(errVarTooComplex);
         genOneOp();
         form1Insn(KATX+I9 + l3int1z);
@@ -4968,7 +4959,7 @@ formOperator::formOperator(OpGen op)
         genOneOp();
     } break;
     case DFLTWDTH: {
-        curVal.i = curVal.ii;
+        curVal.ii |= 0xDLL << 44;
         form1Insn(KXTA+I8 + getFCSToffset());
     } break;
     case FRACWIDTH: {
@@ -4981,7 +4972,7 @@ formOperator::formOperator(OpGen op)
         if (op == gen12)
             prependToInsnList(macro + mcPUSH);
         genOneOp();
-        usedRegs = usedRegs + Bits(12);
+        usedRegs = usedRegs | Bits(12);
     } break;
     case FILEACCESS: {
         setAddrTo(12);
@@ -5010,12 +5001,12 @@ formOperator::formOperator(OpGen op)
             }
         } else {
             if (curExpr->vt.typ != BooleanType and
-                not (BitRange(SHLEFT, SETOR) +
-                     BitRange(GETELT, ALNUM)).has(curExpr->op))
+                not has((BitRange(SHLEFT, SETOR) |
+                     BitRange(GETELT, ALNUM)), curExpr->op))
                 addToInsnList(KAEX);
-            direction = insnList->regsused.has(16);
+            direction = has(insnList->regsused, 16);
             if ((insnList->ilm == ilCOND) and
-                (insnList->payload.i != 0)) {
+                (insnList->payload.ii != 0)) {
                 genOneOp();
                 if (direction) {
                     if (noTarget)
@@ -5058,7 +5049,7 @@ formOperator::formOperator(OpGen op)
         curExpr = curExpr->expr1;
         (void) formOperator(gen11);
         genFullExpr(helpExpr->expr2);
-        if (insnList->regsused.has(11))
+        if (has(insnList->regsused, 11))
             error(44); /* errIncorrectUsageOfStandProcOrFunc */
         setAddrTo(12);
         genOneOp();
@@ -5088,7 +5079,7 @@ formOperator::formOperator(OpGen op)
 void markTypeSym()
 {
     if (SY == IDENT) {
-        // curVal.m := curIdent.m * hashMask.m; mapAI(curVal.a, bucket);
+        // curVal.ii := curIdent.ii * hashMask.ii; mapAI(curVal.a, bucket);
         bucket = curIdent % 65535 % 128;
         hashTravPtr = symHash[bucket];
         while (hashTravPtr != NULL and hashTravPtr->id != curIdent)
@@ -5100,7 +5091,7 @@ void markTypeSym()
 
 struct parseTypeRef {
     static std::vector<parseTypeRef*> super;
-    parseTypeRef(TPtr & newtype, Bitset skipTarget_);
+    parseTypeRef(TPtr & newtype, int64_t skipTarget_);
     ~parseTypeRef() { super.pop_back(); }
     typedef std::pair<int64_t, int64_t> pair;
     typedef pair pair7[8]; // array [1..7] of pair;
@@ -5111,7 +5102,7 @@ struct parseTypeRef {
     struct rangeRec { int64_t aleft, aright; };
     typedef rangeRec rangeList[21]; // array [1..20] of rangeRec;
 
-    Bitset skipTarget;
+    int64_t skipTarget;
     bool isPacked;
     bool cond;
     caserec cases;
@@ -5171,12 +5162,12 @@ void packFields()
     IdentRecPtr &curField = parseTypeRef::super.back()->curField;
     IdentRecPtr &l3idr31z = parseTypeRef::super.back()->l3idr31z;
     TPtr &selType = parseRecordDecl::super.back()->selType;
-    Bitset &skipTarget = parseTypeRef::super.back()->skipTarget;
+    int64_t &skipTarget = parseTypeRef::super.back()->skipTarget;
     parseTypeRef::caserec &cases = parseTypeRef::super.back()->cases;
     IdentRecPtr &curEnum = parseTypeRef::super.back()->curEnum;
     bool &isPacked = parseTypeRef::super.back()->isPacked;
 
-    parseTypeRef(selType, skipTarget + Bits(UNIONSY));
+    parseTypeRef(selType, skipTarget | Bits(UNIONSY));
     if (curType.rep()->fields == NULL) {
         curType.rep()->fields = curField;
     } else {
@@ -5194,7 +5185,7 @@ L11523:             l5var6z = &cases.pairs[pairIdx];
                     if (l5var6z->first >= l5var1z) {
                         curField->shift() = 48 - l5var6z->first;
                         curField->offset = l5var6z->second;
-                        if (not optSflags.m.has(S6))
+                        if (not has(optSflags.ii, S6))
                             curField->shift() = 48 - curField->width() - curField->shift();
                         l5var6z->first = l5var6z->first - l5var1z;
                         if (l5var6z->first == 0) {
@@ -5306,7 +5297,7 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_)
         cases1 = cases;
         cases2 = cases;
         l4typ1z.setRep(NULL);
-        l4var7z.i = 0;
+        l4var7z.ii = 0;
         while (SY == STRUCTSY) {
             lookupMode = lookField;
             inSymbol();
@@ -5336,7 +5327,7 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_)
                 cases2 = cases;
             }
             cases = cases1;
-            l4var7z.i = l4var7z.i + 1;
+            l4var7z.ii = l4var7z.ii + 1;
             if (SY == SEMICOLON) {
                 lookupMode = lookField;
                 inSymbol();
@@ -5372,21 +5363,20 @@ void parseRange(int64_t & aleft, int64_t & aright)
 {
     TPtr tempType{};
     parseLiteral(tempType, curVal, true);
-    // curVal.m := curVal.m + intZero: no-op on the host (.i reads mantissa)
     if (tempType != NULL and tempType.p.pk == kindScalar) {
         inSymbol();
         if (SY != COLON) {
             // Handle a single value N as a range 0..N-1
-            aright = curVal.i - 1;
+            aright = curVal.ii - 1;
             aleft = 0;
             return;
         }
-        aleft = curVal.i;
+        aleft = curVal.ii;
         inSymbol();
         parseLiteral(tempType, curVal, true);
         inSymbol();
         if (tempType != NULL and tempType.p.pk == kindScalar) {
-            aright = curVal.i;
+            aright = curVal.ii;
             return;
         }
     }
@@ -5427,8 +5417,8 @@ TPtr parseTypeRef::makeArrayType(rangeRec rg, TPtr elem, bool pckFlag)
             bitsVal = l3int22z;
     } else {
         sizeVal = span * elem.p.psize;
-        curVal.i = elem.p.psize;
-        curVal.m = curVal.m * BitRange(7,47) + Bits(0);
+        curVal.ii = elem.p.psize;
+        curVal.ii = (curVal.ii & BitRange(7,47)) | Bits(0);
         perwordVal = KMUL+ I8 + getFCSToffset();
     }
     arrayType.setRep(new Types);
@@ -5444,7 +5434,7 @@ TPtr parseTypeRef::makeArrayType(rangeRec rg, TPtr elem, bool pckFlag)
     return arrayType;
 } /* makeArrayType */
 
-parseTypeRef::parseTypeRef(TPtr & newtype, Bitset skipTarget_)
+parseTypeRef::parseTypeRef(TPtr & newtype, int64_t skipTarget_)
     : skipTarget(skipTarget_)
 {
     bool &inTypeDef = programme::super.back()->inTypeDef;
@@ -5534,8 +5524,7 @@ L12366:             error(errNotAType);
             if (SY != INTCONST)
                 error(errNumberTooLarge);
             else {
-                // curToken.m := curToken.m + intZero: no-op on the host
-                l3int22z = curToken.i;
+                l3int22z = curToken.ii;
                 inSymbol();
                 curType = mkIntScl(l3int22z);
             }
@@ -5586,7 +5575,7 @@ L12366:             error(errNotAType);
         isPacked = false;
 /* L13020: */
     if (errors)
-        skip(skipToSet + Bits(RPAREN, RBRACK, SEMICOLON));
+        skip(skipToSet | Bits(RPAREN, RBRACK, SEMICOLON));
     newtype = curType;
 } /* parseTypeRef */
 
@@ -5619,18 +5608,15 @@ void fopenFile(IdentRecPtr fileSym, ExtFileRec * extFileP)
     form1Insn(KITS+14);
     // The only files opened this way are *INPUT* and *OUTPUT*
     // with known characteristics (1 word, 8 bits).
-    curVal.i = fileBufSize * 010000000000L + 0100010;
-    curVal.m = curVal.m * BitRange(7,47);
+    curVal.ii = fileBufSize * 010000000000L + 0100010;
+    curVal.ii = curVal.ii & BitRange(7,47);
     form1Insn(KXTS+I8 + getFCSToffset());
     if (extFileP == NULL) {
         form1Insn(KXTS);
     } else {
-        curVal.i = extFileP->location;
-        if (curVal.i == 512)
+        curVal.ii = extFileP->location;
+        if (curVal.ii == 512)
             // offset holds a packed file name (e.g. "*OUTPUT*"), not a number.
-            // Integer::operator= would force exp=104 and corrupt the top chars
-            // ("*OUTPUT*" -> "T/UTPUT*"); copy the raw word instead (BESM-6
-            // integer-to-integer copy preserves the bits, which base.pas relies on).
             curVal.ii = extFileP->offset;
         form1Insn(KXTS+I8 + getFCSToffset());
     }
@@ -5653,7 +5639,7 @@ void parseDecls(int64_t l3arg1z)
         lookupMode = lookDef;
         inSymbol();
         if (SY != IDENT)
-            errAndSkip(3, skipToSet + Bits(IDENT));
+            errAndSkip(3, skipToSet | Bits(IDENT));
     } break;
     case 1: {
         prevErrPos = 0;
@@ -5663,44 +5649,43 @@ void parseDecls(int64_t l3arg1z)
     } break;
     case 2: {
         padToLeft();
-        l3var3z = procName->flags().has(22);
+        l3var3z = has(procName->flags(), 22);
         l3arg1z = procName->pos();
-        frame.i = moduleOffset - 040000;
+        frame.ii = moduleOffset - 040000;
         if (l3arg1z != 0)
             symTab[l3arg1z] = 041000000 + (frame.ii & halfWord);
         procName->pos() = moduleOffset;
         l3arg1z = argCount(procName);
         if (l3var3z) {
             if (41 >= entryPtCnt) {
-                curVal.ii = procName->id;
-                entryPtTable[entryPtCnt] = leftAlign();
-                // [1] + frame.m - [0, 3]
-                entryPtTable[entryPtCnt+1] = (1L << 46) | frame.i;
+                entryPtTable[entryPtCnt] = leftAlign(procName->id);
+                // [1] + frame.ii - [0, 3]
+                entryPtTable[entryPtCnt+1] = (1L << 46) | frame.ii;
                 entryPtCnt = entryPtCnt + 2;
             } else
                 error(87); /* errTooManyEntryProcs */
         }
         if (procName->typ == voidType) {
-            frame.i = 3;
+            frame.ii = 3;
         } else {
-            frame.i = 4;
+            frame.ii = 4;
         }
         if (l3var3z)
-            form2Insn((KVTM+I14) + l3arg1z + (frame.i - 3) * 01000,
+            form2Insn((KVTM+I14) + l3arg1z + (frame.ii - 3) * 01000,
                       getHelperProc(94 /*"P/NN"*/) - 010000000);
         if (1 < l3arg1z) {
-            frame.i = getValueOrAllocSymtab(-(frame.i+l3arg1z));
+            frame.ii = getValueOrAllocSymtab(-(frame.ii+l3arg1z));
         }
-        if (optSflags.m.has(S5) and
+        if (has(optSflags.ii, S5) and
             curProcNesting == 1)
             l3int1z = 59;  /* P/LV */
         else
             l3int1z = curProcNesting;
         l3int1z = getHelperProc(l3int1z) - (-04000000);
         if (l3arg1z == 1) {
-            form1Insn((KATX+SP) + frame.i);
+            form1Insn((KATX+SP) + frame.ii);
         } else if (l3arg1z != 0) {
-            form2Insn(KATX+SP, (KUTM+SP) + frame.i);
+            form2Insn(KATX+SP, (KUTM+SP) + frame.ii);
         }
         formAndAlign(l3int1z);
         savedObjIdx = objBufIdx;
@@ -5713,7 +5698,7 @@ void parseDecls(int64_t l3arg1z)
                 fopenFile(inputFile, fileForInput);
             if (outputFile != NULL)
                 fopenFile(outputFile, fileForOutput);
-            curVal.i = hasFiles;
+            curVal.ii = hasFiles;
             fixup(2, 49);
         }
         if (curProcNesting == 1) {
@@ -5765,8 +5750,8 @@ void labCheckAndDefine(bool isDef)
         if (numLabs[labIdx].offset == 0) {
             /* empty */
         } else if (numLabs[labIdx].offset >= 074000) {
-            // symTab[offset] := [24,29] + curVal.m * O77777
-            curVal.i = moduleOffset - 040000;
+            // symTab[offset] := [24,29] + curVal.ii * O77777
+            curVal.ii = moduleOffset - 040000;
             symTab[numLabs[labIdx].offset] = 041000000 + (curVal.ii & 077777);
         } else {
             fixup(0, numLabs[labIdx].offset);
@@ -5921,8 +5906,8 @@ void parseCallArgs(IdentRecPtr subroutine)
     IdClass formClass;
 
     if (subroutine->typ != voidType)
-        liveRegs = liveRegs - subroutine->flags();
-    noArgs = (subroutine->list() == NULL) and not subroutine->flags().has(24);
+        liveRegs = liveRegs & ~ subroutine->flags();
+    noArgs = (subroutine->list() == NULL) and not has(subroutine->flags(), 24);
     callExpr = new Expr;
     argList = callExpr;
     bool48z = true;
@@ -5973,7 +5958,7 @@ L13736:                 error(39); /*errIncompatibleArgumentKinds*/
                         } else
                             goto L13736;
                     } else
-                    if (lvalOpSet.has(actualOp)) {
+                    if (has(lvalOpSet, actualOp)) {
                         if (formClass != VARID and
                             formClass != FORMALID)
                             goto L13736;
@@ -6155,11 +6140,11 @@ void Factor::stdCall()
                   chkPTR  = 4, chkFILE   = 5, /* chkSET = 6, */ chkOTHER = 7;
     TPtr l5var2z{};
     Kind argKind;
-    Bitset asBitset;
+    int64_t asint64_t;
     int64_t stProcNo, checkMode, resultValue;
 
-    curVal.i = routine->low();
-    stProcNo = curVal.i;
+    curVal.ii = routine->low();
+    stProcNo = curVal.ii;
     if (SY != LPAREN) {
         requiredSymErr(LPAREN);
         throw 8888;
@@ -6234,24 +6219,24 @@ void Factor::stdCall()
     else {
         checkMode = chkOTHER;
     }
-    asBitset = Bits(stProcNo);
+    asint64_t = Bits(stProcNo);
     if (stProcNo != fnSIZEOF and
         not (((checkMode == chkREAL) and
-              (asBitset <= BitRange(fnABS,fnTRUNC) + Bits(fnREF, fnROUND)))
+              (subset(asint64_t, (BitRange(fnABS,fnTRUNC) | Bits(fnREF, fnROUND)))))
           or ((checkMode == chkINT) and
-              (asBitset <= Bits(fnABS,fnMALLOC,fnREF,fnCARD) +
-                           Bits(fnMINEL,fnPTR)))
+              (subset(asint64_t, (Bits(fnABS,fnMALLOC,fnREF,fnCARD) |
+                           Bits(fnMINEL,fnPTR)))))
           or ((checkMode == chkCHAR or checkMode == chkSCALAR or
                checkMode == chkPTR) and
-              (asBitset <= Bits(fnREF)))
+              (subset(asint64_t, Bits(fnREF))))
           or ((checkMode == chkFILE) and
-              (asBitset <= Bits(fnREF)))
+              (subset(asint64_t, Bits(fnREF))))
           or ((checkMode == chkOTHER) and
               (stProcNo == fnREF))))
         error(errNeedOtherTypesOfOperands);
-    if (not (asBitset <= Bits(fnABS, fnSIZEOF))) {
+    if (not (subset(asint64_t, Bits(fnABS, fnSIZEOF)))) {
         arg1Type = routine->typ;
-    } else if (checkMode == chkINT and asBitset <= Bits(fnABS)) {
+    } else if (checkMode == chkINT and subset(asint64_t, Bits(fnABS))) {
         stProcNo = fnABSI;
     }
     if (stProcNo == fnSIZEOF)
@@ -6351,7 +6336,7 @@ Factor::Factor()
             curExpr = new Expr;
             inSymbol();
             l4var8z = curExpr;
-            l4var1z.m = Bits();
+            l4var1z.ii = Bits();
             if (SY != RBRACK) {
                 l4var12z = true;
                 readNext = false;
@@ -6376,20 +6361,17 @@ Factor::Factor()
                             curExpr->op != GETENUM)
                             error(errNoConstant);
                         else {
-                            l4var4z.i = l4exp5z->num1;
-                            l4var3z.i = curExpr->num1;
-                            l4var4z.m = l4var4z.m - intZero;
-                            l4var3z.m = l4var3z.m - intZero;
-                            l4var1z.m = l4var1z.m +
-                                BitRange(l4var4z.i, l4var3z.i);
+                            l4var4z.ii = l4exp5z->num1;
+                            l4var3z.ii = curExpr->num1;
+                            l4var1z.ii = l4var1z.ii |
+                                BitRange(l4var4z.ii, l4var3z.ii);
                             curExpr = newExpr;
                         }
                         goto L14567;
                     } else {
                         if (l4exp5z->op == GETENUM) {
-                            l4var4z.i = l4exp5z->num1;
-                            l4var4z.m = l4var4z.m - intZero;
-                            l4var1z.m = l4var1z.m + Bits(l4var4z.i);
+                            l4var4z.ii = l4exp5z->num1;
+                            l4var1z.ii = l4var1z.ii | Bits(l4var4z.ii);
                             curExpr = newExpr;
                             goto L14567;
                         }
@@ -6417,7 +6399,7 @@ L14567:             ;
        parsePostfix is a no-op when SY is not a postfix token. */
     parsePostfix();
     if (charClass == INCROP or charClass == DECROP) {
-        if (not lvalOpSet.has(curExpr->op))
+        if (not has(lvalOpSet, curExpr->op))
             error(27);
         if (not typeCheck(curExpr->vt.typ, IntegerType))
             error(62);
@@ -6432,8 +6414,8 @@ void parseUnaryExpression()
     Operator oper;
 
     oper = NOOP;
-    if ((Bits(PLUSOP, MINUSOP, BITNEGOP, NOTOP) +
-         Bits(MUL, SETAND, INCROP, DECROP)).has(charClass)) {
+    if (has((Bits(PLUSOP, MINUSOP, BITNEGOP, NOTOP) |
+         Bits(MUL, SETAND, INCROP, DECROP)), charClass)) {
         if (charClass != PLUSOP)
             oper = charClass;
         inSymbol();
@@ -6485,7 +6467,7 @@ void parseUnaryExpression()
             }
         } break;
         case SETAND: {
-            if (not lvalOpSet.has(curExpr->op))
+            if (not has(lvalOpSet, curExpr->op))
                 error(27); /* errExpressionWhereVariableExpected */
             if (curExpr->op == GETELT and
                 curExpr->expr1->op == GETVAR and
@@ -6510,7 +6492,7 @@ void parseUnaryExpression()
             }
         } break;
         case INCROP: case DECROP: {
-            if (not lvalOpSet.has(curExpr->op)) {
+            if (not has(lvalOpSet, curExpr->op)) {
                 error(27);
                 return;
             }
@@ -6569,7 +6551,7 @@ void parsePrc(int64_t minPrec)
                don't-care slot.  Codegen for RMWASSIGN walks lhs once,
                materialising its address into a spill slot when needed, then
                synthesises the equivalent ASSIGNOP for emission. */
-            if (not lvalOpSet.has(leftExpr->op))
+            if (not has(lvalOpSet, leftExpr->op))
                 error(27); /* errExpressionWhereVariableExpected */
             parsePrc(precAssign);
             arg1Type = leftExpr->vt.typ;
@@ -6666,7 +6648,7 @@ void setStrLab()
     padToLeft();
     disableNorm();
     strLabPtr->next = strLabList;
-    strLabPtr->ident.i = curIdent;
+    strLabPtr->ident.ii = curIdent;
     strLabPtr->target = 0;
     strLabList = strLabPtr;
 } /* setStrLab */
@@ -6738,7 +6720,7 @@ void forStatement()
 void withStatement()
 {
     ExprPtr oldWith;
-    Bitset l4var2z, l4var3z;
+    int64_t l4var2z, l4var3z;
     int64_t l4var4z;
     int64_t & localSize = programme::super.back()->localSize;
 
@@ -6750,7 +6732,7 @@ void withStatement()
         expression();
         if (curExpr->vt.typ.p.pk == kindStruct) {
             (void) formOperator(SETREG);
-            l4var3z = (l4var3z + Bits(curVal.i)) * auxRegs;
+            l4var3z = (l4var3z | Bits(curVal.ii)) & auxRegs;
         } else {
             error(71); /* errWithOperatorNotOfARecord */
         }
@@ -6760,7 +6742,7 @@ void withStatement()
     withList = oldWith;
     localSize = l4var4z;
     freeRegs = l4var2z;
-    usedRegs = usedRegs + l4var3z;
+    usedRegs = usedRegs | l4var3z;
 } /* withStatement */
 
 void reportStmtType()
@@ -6777,7 +6759,7 @@ void structBranch()
 
     curLab = strLabList;
     while (curLab != NULL) {
-        if (curLab->ident.i == curIdent) {
+        if (curLab->ident.ii == curIdent) {
             formJump(curLab->target);
             return;
         }
@@ -6854,7 +6836,7 @@ void caseStatement()
                         if (itemvalue == curClause->value) {
                             error(73); /* errCaseLabelsIdentical */
                             break;
-                        } else if (itemvalue.i < curClause->value.i) {
+                        } else if (itemvalue.ii < curClause->value.ii) {
                             break;
                         } else {
                             prev = curClause;
@@ -6901,7 +6883,7 @@ void caseStatement()
                 exprtype.p.pk == kindScalar) {
                 maxValue = expected;
                 if (isIntCase) {
-                    expected.i = expected.i + 1; // integers carry the exponent
+                    expected.ii = expected.ii + 1;
                 } else {
                     expected.ii = expected.ii + 1; // raw ordinal, no exponent
                 }
@@ -6917,12 +6899,11 @@ void caseStatement()
                 } else {
                     form1Insn(KATX+SP+1);
                 }
-                minValue.i = (minValue.i - minValue.i); /* WTF? */
+                minValue.ii = (minValue.ii - minValue.ii); /* WTF? */
                 while (allClauses != NULL) {
                     if (itemsEnded) {
-                        curVal.i = (minValue.i - allClauses->value.i);
-                        curVal.m = (curVal.m + intZero);
-                        form1Insn(getValueOrAllocSymtab(curVal.i) +
+                        curVal.ii = (minValue.ii - allClauses->value.ii);
+                        form1Insn(getValueOrAllocSymtab(curVal.ii) +
                                   (KUTM+I14));
                         form1Insn(KVZM+I14 + allClauses->offset);
                         minValue = allClauses->value;
@@ -6945,18 +6926,18 @@ void caseStatement()
         }
         fixup(0, decoder);
         curVal = minValue;
-        fixup(-(InsnTemp[U1A]+otherOffset), maxValue.i);
-        curVal.m = minValue.m + intZero;
-        curVal.i = curVal.i / 2;
+        fixup(-(InsnTemp[U1A]+otherOffset), maxValue.ii);
+        curVal.ii = minValue.ii;
+        curVal.ii = curVal.ii / 2;
         form3Insn(ASN64+1, KATI+14, KYTA);
-        curVal.i = moduleOffset + 1 - curVal.i;
-        if (curVal.i < 040000) {
-            curVal.i = curVal.i - 040000;
-            curVal.i = allocSymtab(041000000 | (curVal.ii & 077777));
+        curVal.ii = moduleOffset + 1 - curVal.ii;
+        if (curVal.ii < 040000) {
+            curVal.ii = curVal.ii - 040000;
+            curVal.ii = allocSymtab(041000000 | (curVal.ii & 077777));
         }
-        form1Insn(KUJ+I14 + curVal.i);
+        form1Insn(KUJ+I14 + curVal.ii);
         padToLeft();
-        if (minValue.i & 1) {
+        if (minValue.ii & 1) {
             form1Insn(KUTC);
             decoder = (int64_t)UJ;
         } else
@@ -6991,7 +6972,7 @@ void ifWhileStatement()
 
 struct ParseData {
     struct DATAREC {
-        int64_t b;
+        int64_t b = 0;
         unsigned operator[](int i) {
             return (b >> (12*(3-i))) & 4095;
         }
@@ -7010,7 +6991,7 @@ struct ParseData {
 
     int64_t allocDataRef(int64_t l6arg1z) {
         if (l6arg1z >= 2048) {
-            curVal.i = l6arg1z;
+            curVal.ii = l6arg1z;
             return allocSymtab((curVal.ii | 040000000) & halfWord);
         } else {
             return l6arg1z;
@@ -7020,26 +7001,26 @@ struct ParseData {
     void putDataRec(int64_t l5arg1z) {
         DATAREC l5var1z;
 
-        l5var1z.assn(0, allocDataRef(l4var4z.i));
-        if (FcstCnt == l4var3z.i) {
+        l5var1z.assn(0, allocDataRef(l4var4z.ii));
+        if (FcstCnt == l4var3z.ii) {
             curVal = l4var8z;
-            curVal.i = addCurValToFCST();
+            curVal.ii = addCurValToFCST();
         } else {
             curVal = l4var3z;
         }
         l5var1z.assn(1, allocSymtab(0400100000000L | (curVal.ii & halfWord)));
         l5var1z.assn(2, allocDataRef(l5arg1z));
-        if (l4var9z.i == 0) {
-            curVal.m = l4var7z.m >> 24;
+        if (l4var9z.ii == 0) {
+            curVal.ii = shr48(l4var7z.ii, 24);
         } else {
-            curVal.i = allocSymtab(l4var7z.ii | (l4var9z.ii & halfWord));
+            curVal.ii = allocSymtab(l4var7z.ii | (l4var9z.ii & halfWord));
         }
-        l5var1z.assn(3, curVal.i);
-        l4var9z.i = l5arg1z * l4var4z.i + l4var9z.i;
+        l5var1z.assn(3, curVal.ii);
+        l4var9z.ii = l5arg1z * l4var4z.ii + l4var9z.ii;
         F.push_back(l5var1z);
         setcount = setcount + 1;
-        l4var4z.i = 0;
-        l4var3z.i = FcstCnt;
+        l4var4z.ii = 0;
+        l4var3z.ii = FcstCnt;
     } /* putDataRec */
 
     ParseData() {
@@ -7072,9 +7053,9 @@ L16545:             error(errNotDefined);
             if (objBufIdx != 1)
                 error(errVarTooComplex);
             l4var7z.ii = leftInsn & 0777700000000L;
-            l4var3z.i = FcstCnt;
-            l4var4z.i = 0;
-            l4var9z.i = 0;
+            l4var3z.ii = FcstCnt;
+            l4var4z.ii = 0;
+            l4var9z.ii = 0;
             do { /* 16574 */
                 expression();
                 (void) formOperator(LITINSN);
@@ -7084,23 +7065,23 @@ L16545:             error(errNotDefined);
                     l4var5z = curToken;
                     if (SY != INTCONST) {
                         error(62); /* errIntegerNeeded */
-                        l4var5z.i = 0;
+                        l4var5z.ii = 0;
                     } else
                         inSymbol();
                 } else
-                    l4var5z.i = 1;
-                if (l4var5z.i != 1) {
-                    if (l4var4z.i != 0)
+                    l4var5z.ii = 1;
+                if (l4var5z.ii != 1) {
+                    if (l4var4z.ii != 0)
                         putDataRec(1);
-                    l4var4z.i = 1;
-                    putDataRec(l4var5z.i);
+                    l4var4z.ii = 1;
+                    putDataRec(l4var5z.ii);
                 } else {
-                    l4var4z.i = l4var4z.i + 1;
+                    l4var4z.ii = l4var4z.ii + 1;
                     if (SY == COMMA) {
                         curVal = l4var8z;
                         toFCST();
                     } else {
-                        if (l4var4z.i != 1) {
+                        if (l4var4z.ii != 1) {
                             curVal = l4var8z;
                             toFCST();
                         }
@@ -7127,7 +7108,7 @@ void parseConstExpression()
 
     readNext = false;
     ceTyp = voidType;
-    ceVal.i = 1;
+    ceVal.ii = 1;
     expression();
     (void) formOperator(LITINSN);
     ceTyp = insnList->typ;
@@ -7189,7 +7170,7 @@ struct standProc {
     } /* parseWidthSpecifier */
 
     void callHelperWithArg() {
-        if (usedRegs.has(12) or needR12) {
+        if (has(usedRegs, 12) or needR12) {
             curExpr = workExpr;
             (void) formOperator(SETREG12);
         }
@@ -7199,7 +7180,7 @@ struct standProc {
     } /* callHelperWithArg */
 
     void checkElementForReadWrite() {
-        usedRegs = usedRegs - Bits(12);
+        usedRegs = usedRegs & ~ Bits(12);
         curVarKind = (Kind)(l4typ3z.p.pk);
         helperNo = 36;                   /* C/WI */
         if (l4typ3z == IntegerType or l4typ3z == BooleanType)
@@ -7254,12 +7235,12 @@ struct standProc {
                 }
                 noWidth = false;
                 if (firstWidth == NULL and
-                    BitRange(38,40).has(helperNo)) {  /* WC,A6,A7 */
+                    has(BitRange(38,40), helperNo)) {  /* WC,A6,A7 */
                     helperNo = helperNo + 5;       /* CW,6A,7A */
                     noWidth = true;
                 } else {
                     if (firstWidth == NULL) {
-                        curVal.i = defWidth;
+                        curVal.ii = defWidth;
                         (void) formOperator(DFLTWDTH);
                     } else {
                         curExpr = firstWidth;
@@ -7269,7 +7250,7 @@ struct standProc {
                 }
                 if (helperNo == 37) {       /* P/WR */
                     if (secondWidth == NULL) {
-                        curVal.i = 4;
+                        curVal.ii = 4 | 0xDLL << 44;
                         form1Insn(KXTS+I8 + getFCSToffset());
                     } else {
                         curExpr = secondWidth;
@@ -7291,7 +7272,7 @@ struct standProc {
                         opToForm = FRACWIDTH;
                 }
                 (void) formOperator(opToForm);
-                if (Bits(39,40,44,45).has(helperNo) or /* A6,A7,6A,7A */
+                if (has(Bits(39,40,44,45), helperNo) or /* A6,A7,6A,7A */
                     helperNo == 81)
                     form1Insn(KVTM+I10 + defWidth);
                 else {
@@ -7305,7 +7286,7 @@ struct standProc {
             helperNo = 46;                 /* P/WL */
             callHelperWithArg();
         }
-        usedRegs = usedRegs + Bits(12);
+        usedRegs = usedRegs | Bits(12);
         if (oldOffset == moduleOffset)
             error(36); /*errTooFewArguments */
     } /* writeProc */
@@ -7348,22 +7329,22 @@ struct standProc {
         bool &retSeen = programme::super.back()->retSeen;
         int64_t &ii = programme::super.back()->ii;
 
-        curVal.i = l3idr12z->low();
-        procNo = curVal.i;
+        curVal.ii = l3idr12z->low();
+        procNo = curVal.ii;
         l4bool10z = (SY == LPAREN);
         oldOffset = moduleOffset;
         if (not l4bool10z and
-            (BitRange(0,5) + Bits(10) + Bits(12) + BitRange(15,28)).has(procNo))
+            has((BitRange(0,5) | Bits(10) | Bits(12) | BitRange(15,28)), procNo))
             error(45); /* errNoOpenParenForStandProc */
-        if ((BitRange(0,5) + Bits(12,15)).has(procNo)) {
+        if (has((BitRange(0,5) | Bits(12,15)), procNo)) {
             expression();
-            if (not lvalOpSet.has(curExpr->op)) {
+            if (not has(lvalOpSet, curExpr->op)) {
                 error(27); /* errExpressionWhereVariableExpected */
             }
             arg1Type = curExpr->vt.typ;
             curVarKind = (Kind)(arg1Type.p.pk);
         }
-        if (BitRange(0,6).has(procNo))
+        if (has(BitRange(0,6), procNo))
             jumpTarget = getHelperProc(29 + procNo); /* P/PF */
         switch (procNo) {
         case 0: case 1: case 2: case 3: { /* put, get, rewrite, reset */
@@ -7391,10 +7372,9 @@ struct standProc {
             if (SY == COLON) {
                 expression();
                 if (not typeCheck(IntegerType, curExpr->vt.typ))
-                    error(14); /* errExprIsNotInteger */
+                error(14); /* errExprIsNotInteger */
                 if (curExpr->op == GETENUM) {
-                    curExpr->lit.m = curExpr->lit.m + intZero;
-                    ii = curExpr->lit.i;
+                    ii = curExpr->lit.ii;
                     goto L5_44;
                 } else {
                     (void) formOperator(LOAD);
@@ -7440,13 +7420,13 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
                 } else {
                     readNext = false;
                     expression();
-                    curVal.i = indCnt;
+                    curVal.ii = indCnt;
                     (void) formOperator(STOREAT9);
                 }
             }
         } break;
         case 14: { /* return [expr] */
-            if (not statEndSys.has(SY)) {
+            if (not has(statEndSys, SY)) {
                 /* return expr: load expr to ACC, then jump */
                 if (procName->typ == voidType)
                     error(errNeedOtherTypesOfOperands);
@@ -7475,7 +7455,7 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
         case 16: { /* besm */
             expression();
             (void) formOperator(LITINSN);
-            formAndAlign(curVal.i);
+            formAndAlign(curVal.ii);
         } break;
         case 19: case 20: { /* pck, unpck */
             inSymbol();
@@ -7507,7 +7487,7 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
             doPackUnpack();
         } break;
         }
-        if ((Bits(0,1,2,3) + Bits(5,10,11,13) + Bits(21,22)).has(procNo))
+        if (has((Bits(0,1,2,3) | Bits(5,10,11,13) | Bits(21,22)), procNo))
             arithMode = 1;
         checkSymAndRead(RPAREN);
     }
@@ -7515,20 +7495,20 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
 
 Statement::Statement()
 {
-    Bitset &ceRegs = programme::super.back()->ceRegs;
+    int64_t &ceRegs = programme::super.back()->ceRegs;
     StrLabel * &strLabList = programme::super.back()->strLabList;
 
     super.push_back(this);
-    if (freeRegs.val != ceRegs.val and SY == SEMICOLON) {
+    if (freeRegs != ceRegs and SY == SEMICOLON) {
         inSymbol();
         return; /* empty statement */
     }
     setup(boundary);
     bool110z = false;
     startLine = lineCnt;
-    if (freeRegs.val == halfWord)
+    if (freeRegs == halfWord)
         ParseData();
-    else if (freeRegs.val == ceRegs.val) {
+    else if (freeRegs == ceRegs) {
         parseConstExpression();
         return;
     } else {
@@ -7542,7 +7522,7 @@ Statement::Statement()
                 inSymbol();
                 checkSymAndRead(COLON);
             }
-            nest = Bits(BEGINSY,SWITCHSY).has(SY);
+            nest = has(Bits(BEGINSY,SWITCHSY), SY);
             if (nest)
                 lineNesting = lineNesting + 1;
 /*(ident)*/
@@ -7583,8 +7563,8 @@ Statement::Statement()
                     inSymbol();
                     throw 8888;
                 }
-            } else if ((Bits(EXPROP,LPAREN,INTCONST,REALCONST) +
-                        Bits(CHARCONST,STRINGSY,LBRACK)).has(SY)) {
+            } else if (has((Bits(EXPROP,LPAREN,INTCONST,REALCONST) |
+                        Bits(CHARCONST,STRINGSY,LBRACK)), SY)) {
                 /* Generic expression statement: '++x;', '(x = 1);', etc. */
                 readNext = false;
                 expression();
@@ -7601,7 +7581,7 @@ Statement::Statement()
                     requiredSymErr(SEMICOLON);
                     reportStmtType();
                     skip(bigSkipSet);
-                    if (statBegSys.has(SY))
+                    if (has(statBegSys, SY))
                         goto L_skip;
                     if (SY != SEMICOLON)
                         goto L_exit_begin;
@@ -7624,12 +7604,12 @@ Statement::Statement()
                     elseJump = 0;
                     formJump(elseJump);
                     fixup(0, ifWhlTarget);
-                    curOffset.i = arithMode;
+                    curOffset.ii = arithMode;
                     arithMode = 1;
                     inSymbol();
                     Statement();
                     fixup(0, elseJump);
-                    if (curOffset.i != arithMode) {
+                    if (curOffset.ii != arithMode) {
                         arithMode = 2;
                         disableNorm();
                     }
@@ -7640,10 +7620,10 @@ Statement::Statement()
                 liveRegs = Bits();
                 setBrCont();
                 strLabList->target = moduleOffset;
-                curOffset.i = moduleOffset;
+                curOffset.ii = moduleOffset;
                 ifWhileStatement();
                 disableNorm();
-                form1Insn(InsnTemp[UJ] + curOffset.i);
+                form1Insn(InsnTemp[UJ] + curOffset.ii);
                 fixup(0, ifWhlTarget);
                 strLabList = strLabList->next; /* removing continue */
                 brContTarget(); /* removing break */
@@ -7655,7 +7635,7 @@ Statement::Statement()
             } else if (SY == DOSY) {
                 liveRegs = Bits();
                 setBrCont();
-                curOffset.i = moduleOffset;
+                curOffset.ii = moduleOffset;
                 inSymbol();
                 Statement();
                 brContTarget(); /* removing continue */
@@ -7671,7 +7651,7 @@ Statement::Statement()
                     curExpr->vt.typ != IntegerType) {
                     error(errBooleanNeeded);
                 } else {
-                    jumpTarget = curOffset.i;
+                    jumpTarget = curOffset.ii;
                     whileExpr = curExpr;
                     curExpr = mkExpr(NOTOP, BooleanType, whileExpr, NULL);
                     (void) formOperator(BRANCH);
@@ -7691,7 +7671,7 @@ Statement::Statement()
           exit_ident:;
         } catch (int foo) {
             if (foo != 8888) throw;
-            skip(skipToSet + statEndSys);
+            skip(skipToSet | statEndSys);
         }
       L_cleanup:
         if (nest)
@@ -7699,7 +7679,7 @@ Statement::Statement()
         rollup(boundary);
         if (bool110z) {
             bool110z = false;
-            skip(skipToSet + statEndSys); /* goto 8888 */
+            skip(skipToSet | statEndSys); /* goto 8888 */
             goto L_cleanup;
         }
     }
@@ -7708,8 +7688,8 @@ Statement::Statement()
 
 void parseConstDeclValue(TPtr &typ, Word &value)
 {
-    Bitset savedFreeRegs;
-    Bitset &ceRegs = programme::super.back()->ceRegs;
+    int64_t savedFreeRegs;
+    int64_t &ceRegs = programme::super.back()->ceRegs;
     TPtr &ceTyp = programme::super.back()->ceTyp;
     Word &ceVal = programme::super.back()->ceVal;
 
@@ -7754,37 +7734,37 @@ void defineRoutine(bool bodyBlock = false)
     objBufIdx = 1;
     objBuffer[objBufIdx] = 0;
     curInsnTemplate = InsnTemp[XTA];
-    bool48z = procName->flags().has(22);
+    bool48z = has(procName->flags(), 22);
     if (curProcNesting == 1 and hasFiles != 0) {
         hasFiles = moduleOffset;
         (void) formOperator(FILEINIT);
     }
     lineStartOffset = moduleOffset;
-    l3var1z.i = moduleOffset;    /* l3var1z := ; (accumulator = moduleOffset) */
+    l3var1z.ii = moduleOffset;    /* l3var1z := ; (accumulator = moduleOffset) */
     lookup2 = lookWith;
     withList = NULL;
     arithMode = 1;
     liveRegs = Bits();
     freeRegs = BitRange(curProcNesting+1, 6);
-    auxRegs = freeRegs - Bits(minel(freeRegs));
-    l3var7z.m = freeRegs;
-    usedRegs = BitRange(1,15) - freeRegs;
+    auxRegs = freeRegs & ~ Bits(minel(freeRegs));
+    l3var7z.ii = freeRegs;
+    usedRegs = BitRange(1,15) & ~ freeRegs;
     if (curProcNesting != 1)
         parseDecls(2);
     l2int21z = localSize;
     if (not bodyBlock and SY != BEGINSY)
         requiredSymErr(BEGINSY);
-    if (procName->flags().has(23)) {
+    if (has(procName->flags(), 23)) {
         l3idr5z = procName->argList();
         l3int4z = 3;
         if (procName->typ != voidType)
             l3int4z = 4;
         while (l3idr5z != procName) {
             if (l3idr5z->cl == VARID) {
-                l3var2z.i = l3idr5z->typ.p.psize;
-                if (l3var2z.i != 1) {
+                l3var2z.ii = l3idr5z->typ.p.psize;
+                if (l3var2z.ii != 1) {
                     form3Insn(KVTM+I14 + l3int4z,
-                              KVTM+I12 + l3var2z.i,
+                              KVTM+I12 + l3var2z.ii,
                               KVTM+I11 + l3idr5z->value());
                     formAndAlign(getHelperProc(73)); /* "P/LNGPAR" */
                 }
@@ -7793,9 +7773,9 @@ void defineRoutine(bool bodyBlock = false)
             l3idr5z = l3idr5z->list();
         }
     } /* 21105 */
-    if (not optSflags.m.has(NoStackCheck))
+    if (not has(optSflags.ii, NoStackCheck))
         fixup(-1, 95); /* P/SC */
-    l3var2z.i = lineNesting;
+    l3var2z.ii = lineNesting;
     if (bodyBlock) {
         while (SY != ENDSY and CH != 0)
             Statement();
@@ -7809,7 +7789,7 @@ void defineRoutine(bool bodyBlock = false)
             if (curProcNesting == 1)
                 done = (SY == PERIOD) or (CH == 0);
             else
-                done = blockBegSys.has(SY) or (SY == TYPESY) or (CH == 0);
+                done = has(blockBegSys, SY) or (SY == TYPESY) or (CH == 0);
             if (not done) {
                 if (curProcNesting == 1)
                     requiredSymErr(PERIOD);
@@ -7819,25 +7799,25 @@ void defineRoutine(bool bodyBlock = false)
             }
         } while (not done);
     }
-    procName->flags() = (usedRegs * BitRange(0,15)) + (procName->flags() - l3var7z.m);
-    lineNesting = l3var2z.i - 1;
+    procName->flags() = (usedRegs & BitRange(0,15)) | (procName->flags() & ~ l3var7z.ii);
+    lineNesting = l3var2z.ii - 1;
     if (not bool48z and (l2int21z == 3) and
-        (curProcNesting != 1) and (usedRegs * BitRange(1,15) != BitRange(1,15))) {
+        (curProcNesting != 1) and ((usedRegs & BitRange(1,15)) != BitRange(1,15))) {
         objBuffer[1] = int64_t(KNTR+7) << 24 | KUTC;   /* ,NTR,7; ,UTC, */
-        procName->flags() = procName->flags() + Bits(25);
+        procName->flags() = procName->flags() | Bits(25);
         if (objBufIdx == 2) {
             objBuffer[1] = int64_t(KUJ+I13) << 24;      /* 13,UJ, */
             putLeft = true;
         } else {
-            procName->pos() = l3var1z.i;
-            if (usedRegs.has(13)) {
-                curVal.i = minel(BitRange(1,15) - usedRegs);
+            procName->pos() = l3var1z.ii;
+            if (has(usedRegs, 13)) {
+                curVal.ii = minel(BitRange(1,15) & ~ usedRegs);
                 l3var7z.ii = curVal.ii << 24;           /* besm(ASN64-24) */
                 objBuffer[2] |= int64_t(I13+KMTJ) << 24 | l3var7z.ii;
             } else {
-                curVal.i = 13;
+                curVal.ii = 13;
             }
-            form1Insn(InsnTemp[UJ] + indexreg[curVal.i]);
+            form1Insn(InsnTemp[UJ] + indexreg[curVal.ii]);
         }
     } else /* 21220 */ {
         if (hasFiles == 0)
@@ -7847,13 +7827,13 @@ void defineRoutine(bool bodyBlock = false)
         form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
         if (curProcNesting == 1) {
             parseDecls(2);
-            form1Insn(InsnTemp[UJ] + l3var1z.i);
-            curVal.i = procName->pos() - 040000;
+            form1Insn(InsnTemp[UJ] + l3var1z.ii);
+            curVal.ii = procName->pos() - 040000;
             symTab[074002] = 041000000 | (curVal.ii & halfWord);
         }
-        curVal.i = l2int21z;
+        curVal.ii = l2int21z;
         if (curProcNesting != 1) {
-            curVal.i = curVal.i - 2;
+            curVal.ii = curVal.ii - 2;
             l3var7z.ii = curVal.ii << 24;               /* besm(ASN64-24) */
             objBuffer[savedObjIdx] |= l3var7z.ii | int64_t(KUTM+SP) << 24;
         }
@@ -7911,8 +7891,7 @@ struct initScalars {
 void initScalars::defExtern()
 {
     int64_t l = 0;
-    curVal.ii = curIdent;
-    l3var1z.ii = leftAlign();
+    l3var1z.ii = leftAlign(curIdent);
     if (curIdent == inName.ii) {
         inputFile = new IdentRec;
         inputFile->id = curIdent;
@@ -8108,7 +8087,7 @@ initScalars::initScalars() :
     regSysProc(0606462L /*"     PTR"*/);
 
     l3var11z.ii = 30;
-    l3var11z.ii = (l3var11z.ii & halfWord) | Bits(24,27,28,29).val;
+    l3var11z.ii = (l3var11z.ii & halfWord) | Bits(24,27,28,29);
     programObj = new IdentRec;
     outName.ii = 01257656460656412L /*"*OUTPUT*"*/;
     inName.ii = 012515660656412L /*" *INPUT*"*/;
@@ -8117,20 +8096,20 @@ initScalars::initScalars() :
     curVal.ii = 06041634357556054L; /* PASCOMPL */
     programObj->id = curVal.ii;
     programObj->pos() = 0;
-    symTab[074000] = leftAlign();
+    symTab[074000] = leftAlign(curVal.ii);
 
     entryPtTable[1] = symTab[074000];
-    entryPtTable[3] = (Bits(0,1,6,7) + Bits(10,12) + BitRange(14,18) +
-                       BitRange(21,25) + Bits(28,30) + Bits(35,36) +
-                       Bits(38,39) + Bits(41)).val; /*"PROGRAM "*/
-    entryPtTable[2] = Bits(1).val;
-    entryPtTable[4] = Bits(1).val;
+    entryPtTable[3] = (Bits(0,1,6,7) | Bits(10,12) | BitRange(14,18) |
+                       BitRange(21,25) | Bits(28,30) | Bits(35,36) |
+                       Bits(38,39) | Bits(41)); /*"PROGRAM "*/
+    entryPtTable[2] = Bits(1);
+    entryPtTable[4] = Bits(1);
     entryPtCnt = 5;
-    CHILD.push_back((Bits(0,4,6) + BitRange(9,12) + Bits(23,28,29) +
-                     BitRange(33,36) + Bits(46)).val); /*10 24 74001 00 30 74002*/
+    CHILD.push_back((Bits(0,4,6) | BitRange(9,12) | Bits(23,28,29) |
+                     BitRange(33,36) | Bits(46))); /*10 24 74001 00 30 74002*/
     moduleOffset = 040001;
     programObj->argList() = NULL;
-    programObj->flags() = Bitset();
+    programObj->flags() = int64_t();
     programObj->sigtyp().setRep(NULL);
     objBufIdx = 1;
     lookupMode = lookDef;
@@ -8175,13 +8154,13 @@ initScalars::initScalars() :
         lookup2 = 0;
         lookupMode = 0;
     } else {
-        freeRegs.val = halfWord;
+        freeRegs = halfWord;
         dataCheck = false;
         Statement();
     }
     readToPos80();
     curVal.ii = l3var6z;
-    symTab[074003] = (helperNames[25] | Bits(24,27,28,29).val) |
+    symTab[074003] = (helperNames[25] | Bits(24,27,28,29)) |
                      (curVal.ii & halfWord);
 } /* initScalars */
 
@@ -8222,10 +8201,10 @@ void parseParameters()
     }
     if (SY == IDENT)
         markTypeSym();
-    if (not Bits(IDENT, TYPESY).has(SY))
-        errAndSkip(errBadSymbol, (skipToSet + Bits(IDENT, RPAREN)));
+    if (not has(Bits(IDENT, TYPESY), SY))
+        errAndSkip(errBadSymbol, (skipToSet | Bits(IDENT, RPAREN)));
     lookup2 = lookUse;
-    while (Bits(IDENT, TYPESY).has(SY)) {
+    while (has(Bits(IDENT, TYPESY), SY)) {
         if (SY == IDENT)
             markTypeSym();
         l3sym7z = SY;
@@ -8268,7 +8247,7 @@ void parseParameters()
                     l3var3z = l3var1z;
                 inSymbol();
             } else
-                errAndSkip(errNoIdent, skipToSet + Bits(RPAREN, COMMA, COLON));
+                errAndSkip(errNoIdent, skipToSet | Bits(RPAREN, COMMA, COLON));
             noComma = (SY != COMMA);
             if (not noComma) {
                 lookupMode = lookDef;
@@ -8277,7 +8256,7 @@ void parseParameters()
         } while (!noComma);
         if (l3sym7z != TYPESY) {
             checkSymAndRead(COLON);
-            parseTypeRef(expType, (skipToSet + Bits(IDENT, RPAREN)));
+            parseTypeRef(expType, (skipToSet | Bits(IDENT, RPAREN)));
             if (expType.p.psize != 1)
                 l3var5z = l3var6z * expType.p.psize + l3var5z;
             if (l3var3z != NULL)
@@ -8294,13 +8273,13 @@ void parseParameters()
         if (SY == SEMICOLON) {
             lookupMode = lookDef;
             inSymbol();
-            if (not (skipToSet + Bits(IDENT, TYPESY)).has(SY))
-                errAndSkip(errBadSymbol, (skipToSet + Bits(IDENT, RPAREN)));
+            if (not has((skipToSet | Bits(IDENT, TYPESY)), SY))
+                errAndSkip(errBadSymbol, (skipToSet | Bits(IDENT, RPAREN)));
         }
     }
     /* 22276 */
     if (l3var5z != 0) {
-        curIdRec->flags() = (curIdRec->flags() + Bits(23));
+        curIdRec->flags() = (curIdRec->flags() | Bits(23));
         l3var6z = l2int18z;
         l2int18z = l2int18z + l3var5z;
         l3var2z = curIdRec->argList();
@@ -8341,7 +8320,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
 {
     super.push_back(this);
     localSize = l2arg1z;
-    ceRegs.val = halfWord | Bits(23).val;   /* halfWord + [23] */
+    ceRegs = halfWord | Bits(23);   /* halfWord + [23] */
     if (localSize == 0) {
         inSymbol();
         initScalars();
@@ -8386,8 +8365,8 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 if (SY == SEMICOLON) {
                     lookupMode = lookDef;
                     inSymbol();
-                    if (!(skipToSet + Bits(IDENT)).has(SY)) {
-                        errAndSkip(errBadSymbol, skipToSet + Bits(IDENT));
+                    if (!has((skipToSet | Bits(IDENT)), SY)) {
+                        errAndSkip(errBadSymbol, skipToSet | Bits(IDENT));
                     }
                 } else {
                     requiredSymErr(SEMICOLON);
@@ -8411,7 +8390,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     error(errBadSymbol);    // typedef is a single `=` (ASSIGNOP);
                 else                        // `==` (EQOP) is the equality op.
                     inSymbol();
-                parseTypeRef(l2typ13z, skipToSet + Bits(SEMICOLON));
+                parseTypeRef(l2typ13z, skipToSet | Bits(SEMICOLON));
                 curIdent = l2var12z;
                 if (knownInType(curIdRec)) {
                     l2typ14z = curIdRec->typ;
@@ -8482,16 +8461,16 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 if (SY == LBRACK) {
                     inSymbol();
                     if (SY != INTCONST ||
-                        curToken.i < 0 ||
-                        curToken.i > 77777)
+                        curToken.ii < 0 ||
+                        curToken.ii > 77777)
                         error(errNumberTooLarge);
-                    curIdRec->value() = curToken.i;
+                    curIdRec->value() = curToken.ii;
                     curIdRec->offset = 0;
                     inSymbol();
                     checkSymAndRead(RBRACK);
                 } else curIdRec->value() = -1;
                 if (SY != COMMA && SY != COLON)
-                    errAndSkip(1, skipToSet + Bits(IDENT, COMMA));
+                    errAndSkip(1, skipToSet | Bits(IDENT, COMMA));
                 l2bool8z = SY != COMMA;
                 if (not l2bool8z) {
                     lookupMode = 0;
@@ -8499,7 +8478,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 };
             } while (!l2bool8z);
             checkSymAndRead(COLON);
-            parseTypeRef(l2typ13z, skipToSet + Bits(IDENT, SEMICOLON));
+            parseTypeRef(l2typ13z, skipToSet | Bits(IDENT, SEMICOLON));
             jj = l2typ13z.p.psize;
             while (workidr != NULL) /* do with workidr@ do */ {
                 curIdRec = workidr->list();
@@ -8509,14 +8488,14 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 if (curProcNesting == 1) {
                     curExternFile = externFileList;
                     l2var12z = workidr->id;
-                    curVal.i = jj;
-                    toAlloc.val = (curVal.ii & halfWord) | 047000000;
+                    curVal.ii = jj;
+                    toAlloc = (curVal.ii & halfWord) | 047000000;
                     while (l2bool8z and curExternFile != NULL) {
                         if (curExternFile->id == l2var12z) {
                             l2bool8z = false;
                             if (curExternFile->line == 0) {
                                 curVal.ii = curExternFile->offset;
-                                workidr->value() = allocExtSymbol(toAlloc.val);
+                                workidr->value() = allocExtSymbol(toAlloc);
                                 curExternFile->line = lineCnt;
                             }
                         } else {
@@ -8541,9 +8520,9 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             } /* 22771 */
             lookupMode = 0;
             checkSymAndRead(SEMICOLON);
-            if (SY != IDENT and not skipToSet.has(SY)
-                and not (bodyBlock_ and statBegSys.has(SY)))
-                errAndSkip(errBadSymbol, skipToSet + Bits(IDENT));
+            if (SY != IDENT and not has(skipToSet, SY)
+                and not (bodyBlock_ and has(statBegSys, SY)))
+                errAndSkip(errBadSymbol, skipToSet | Bits(IDENT));
             /* base.pas 8079: a leading type-IDENT after ';' starts a new
                C-style routine decl, not another variable; markTypeSym re-
                resolves it (scope-agnostic bucket walk, hence the reset) so
@@ -8627,7 +8606,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             curIdRec->preDefLink() = NULL;
             curIdRec->sigtyp() = voidType;
             if (declEntry)
-                curIdRec->flags() = BitRange(0,15) + Bits(22);
+                curIdRec->flags() = BitRange(0,15) | Bits(22);
             else
                 curIdRec->flags() = BitRange(0,15);
             curIdRec->pos() = 0;
@@ -8640,8 +8619,8 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             inSymbol();
             if (6 < curProcNesting)
                 error(81); /* errProcNestingTooDeep */
-            if (not Bits(LPAREN, SEMICOLON, COLON).has(SY))
-                errAndSkip(errBadSymbol, skipToSet + Bits(LPAREN, SEMICOLON, COLON));
+            if (not has(Bits(LPAREN, SEMICOLON, COLON), SY))
+                errAndSkip(errBadSymbol, skipToSet | Bits(LPAREN, SEMICOLON, COLON));
             hadParens = SY == LPAREN;
             if (hadParens)
                 parseParameters();
@@ -8653,10 +8632,10 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     if (curIdRec->typ.p.psize != 1)
                         error(errTypeMustNotBeFile);
                 } else if (SY != COLON)
-                    errAndSkip(106 /*:*/, skipToSet + Bits(SEMICOLON));
+                    errAndSkip(106 /*:*/, skipToSet | Bits(SEMICOLON));
                 else {
                     inSymbol();
-                    parseTypeRef(curIdRec->typ, skipToSet + Bits(SEMICOLON));
+                    parseTypeRef(curIdRec->typ, skipToSet | Bits(SEMICOLON));
                     if (curIdRec->typ.p.psize != 1)
                         error(errTypeMustNotBeFile);
                 }
@@ -8715,16 +8694,16 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                    curIdent == litFortran or
                    curIdent == litAssembler) {
             if (SY == EXTERNSY) {
-                curVal.m = Bits(20);
+                curVal.ii = Bits(20);
             } else if (curIdent == litAssembler) {
-                curVal.m = Bits(20,26);
+                curVal.ii = Bits(20,26);
             } else if (checkFortran) {
-                curVal.m = Bits(21,24);
+                curVal.ii = Bits(21,24);
                 checkFortran = false;
             } else {
-                curVal.m = Bits(21);
+                curVal.ii = Bits(21);
             }
-            curIdRec->flags() = curIdRec->flags() + curVal.m;
+            curIdRec->flags() = curIdRec->flags() | curVal.ii;
         } else /* 23257 */ {
             error(errBadSymbol);
         } /* 23277 */
@@ -8751,15 +8730,15 @@ L23301:
     markTypeSym();
     if (CH == 0) return;
     if (bodyBlock_) {
-        if (not (bodyStatSys + blockBegSys).has(SY) and
-            not Bits(TYPESY, ENDSY).has(SY))
+        if (not has((bodyStatSys | blockBegSys), SY) and
+            not has(Bits(TYPESY, ENDSY), SY))
             errAndSkip(84 /* errErrorInDeclarations */,
-                       skipToSet + bodyStatSys + blockBegSys + Bits(ENDSY));
-    } else if (not blockBegSys.has(SY) and (SY != TYPESY))
+                       skipToSet | bodyStatSys | blockBegSys | Bits(ENDSY));
+    } else if (not has(blockBegSys, SY) and (SY != TYPESY))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
-    } while (not ((bodyBlock_ and (bodyStatSys.has(SY) or
-                                  Bits(TYPESY, ENDSY).has(SY))) or
-                  (not bodyBlock_ and (statBegSys.has(SY) or
+    } while (not ((bodyBlock_ and (has(bodyStatSys, SY) or
+                                  has(Bits(TYPESY, ENDSY), SY))) or
+                  (not bodyBlock_ and (has(statBegSys, SY) or
                                       (SY == TYPESY)))));
     if (preDefHead != ptr(0))  {
         error(85); /* errNotFullyDefinedProcedures */
@@ -8780,7 +8759,7 @@ L23301:
     done = true;
     while (numLabTop > labFence) {
         if (not numLabs[numLabTop].defined) {
-            printf(" %ld:", int64_t(numLabs[numLabTop].id.i));
+            printf(" %ld:", int64_t(numLabs[numLabTop].id.ii));
             done = false;
         }
         numLabTop = numLabTop - 1;
@@ -8814,11 +8793,11 @@ struct initTables {
         for (l3var2z = MUL; l3var2z<=ASSIGNOP; succ(l3var2z)) {
             opFlags[l3var2z] = opfCOMM;
             opToInsn[l3var2z] = 0;
-            if (Bits(MUL, RDIVOP, PLUSOP, MINUSOP).has(l3var2z)) {
+            if (has(Bits(MUL, RDIVOP, PLUSOP, MINUSOP), l3var2z)) {
                 opToMode[l3var2z] = 3;
-            } else if (Bits(IDIVOP, IMODOP).has(l3var2z)) {
+            } else if (has(Bits(IDIVOP, IMODOP), l3var2z)) {
                 opToMode[l3var2z] = 2;
-            } else if (Bits(IMULOP, INTPLUS, INTMINUS).has(l3var2z)) {
+            } else if (has(Bits(IMULOP, INTPLUS, INTMINUS), l3var2z)) {
                 opToMode[l3var2z] = 1;
             } else {
                 opToMode[l3var2z] = 0;
@@ -8852,14 +8831,14 @@ struct initTables {
         KeyWord * kw;
         Word l4var2z;
         curVal.ii = l4arg1z;
-        curVal.i = (curVal.m.val % 65535) % 128;
+        curVal.ii = (curVal.ii % 65535) % 128;
         l4var2z.ii = l4arg1z;
         kw = new KeyWord;
         kw->w = l4var2z;
         kw->sym = SY;
         kw->op = charClass;
-        kw->next = KeyWordHashTabBase[curVal.i];
-        KeyWordHashTabBase[curVal.i] = kw;
+        kw->next = KeyWordHashTabBase[curVal.ii];
+        KeyWordHashTabBase[curVal.ii] = kw;
     } /* regResWord */
 
     void regKeyWords() {
@@ -8890,8 +8869,8 @@ struct initTables {
     } /* initArrays */
 
     void initSets() {
-        skipToSet = blockBegSys + statBegSys - Bits(CASESY);
-        bigSkipSet = skipToSet + statEndSys;
+        skipToSet = (blockBegSys | statBegSys) & ~ Bits(CASESY);
+        bigSkipSet = skipToSet | statEndSys;
     } /* initSets */
 
     initTables () {
@@ -8944,7 +8923,7 @@ struct initTables {
 void finalize()
 {
     int64_t idx, cnt;
-    int64_t sizes[11]; // array [1..10] of @Integer;
+    int64_t sizes[11];
 
     sizes[1] = 1;
     sizes[2] = symTabPos - 074000 - 1;
@@ -8956,8 +8935,8 @@ void finalize()
     sizes[7] = 0;
     sizes[9] = lookup2;
     sizes[10] = lookupMode;
-    curVal.i = moduleOffset - 040000;
-    symTab[074001] = 041000000 | curVal.i;
+    curVal.ii = moduleOffset - 040000;
+    symTab[074001] = 041000000 | curVal.ii;
     // Forming the compact form of the module header.
     CHILD[7] = sizes[1] | (sizes[2] << 12);
     CHILD[8] = sizes[5] << 30 | sizes[9] << 15 | sizes[10];
@@ -8970,11 +8949,11 @@ void finalize()
     };
     */
     CHILD.insert(CHILD.end(), FCST.begin(), FCST.end());
-    curVal.i = (symTabPos - 070000L) * 0100000000L;
+    curVal.ii = (symTabPos - 070000L) * 0100000000L;
     for (cnt = 1; cnt <= longSymCnt; ++cnt) {
         idx = longSymTabBase[cnt];
         symTab[idx] |= curVal.ii & leftAddr;
-        curVal.i = (curVal.i + 0100000000L);
+        curVal.ii = (curVal.ii + 0100000000L);
     }
     symTabPos = symTabPos - 1;
     for (cnt = 074000; cnt <= symTabPos; ++cnt)
@@ -9059,17 +9038,16 @@ void initOptions(int argc, char **argv)
     heapSize = 100;
     forValue = true;
     atEOL = false;
-    doPMD = true; // not (42 in curVal.m);
+    doPMD = true; // not (42 in curVal.ii);
     checkTypes = true;
     fixMult = true;
-    checkBounds = true; // not (44 in curVal.m);
+    checkBounds = true; // not (44 in curVal.ii);
     declEntry = false;
     errors = false;
     allowCompat = false;
     fileBufSize = 1;
     charEncoding = 2;
     longSymCnt = 0;
-    extSymAdornment = 0;
     symTabCnt = 0;
 
     // Get base name of the program.
@@ -9098,12 +9076,12 @@ void initOptions(int argc, char **argv)
             checkTypes = (optarg[0] == '+');
             continue;
         case 'd':
-            curVal.i = strtoul(optarg, 0, 0);
-            if (curVal.i > 15) {
+            curVal.ii = strtoul(optarg, 0, 0);
+            if (curVal.ii > 15) {
                 fprintf(stderr, "%s: Bad option -d\n", progname);
                 exit(-1);
             }
-            optSflags.m = optSflags.m * BitRange(0, 40) + curVal.m * BitRange(41, 47);
+            optSflags.ii = (optSflags.ii & BitRange(0, 40)) | (curVal.ii & BitRange(41, 47));
             continue;
         case 'e':
             declEntry = (optarg[0] == '+');
@@ -9135,17 +9113,15 @@ void initOptions(int argc, char **argv)
             // Fuzzy real comparison was removed from base.pas; option is a no-op.
             continue;
         case 's':
-            curVal.i = strtoul(optarg, 0, 0);
-            if (curVal.i > 9) {
+            curVal.ii = strtoul(optarg, 0, 0);
+            if (curVal.ii > 9) {
                 fprintf(stderr, "%s: Bad option -s\n", progname);
                 exit(-1);
             }
-            if (curVal.i == 3) {
+            if (curVal.ii == 3) {
                 lineCnt = 1;
-            } else if (4 <= curVal.i && curVal.i <= 9) {
-                optSflags.m = optSflags.m + Bits(curVal.i - 3);
-            } else {
-                extSymAdornment = curVal.i;
+            } else if (4 <= curVal.ii && curVal.ii <= 9) {
+                optSflags.ii = optSflags.ii | Bits(curVal.ii - 3);
             }
             continue;
         case 't':
@@ -9193,14 +9169,14 @@ void initOptions(int argc, char **argv)
 int main(int argc, char **argv)
 {
     // Data Initializations moved here
-    blockBegSys = Bits(CONSTSY, TYPEDEFSY, VARSY, TYPESY) + Bits(BEGINSY);
+    blockBegSys = Bits(CONSTSY, TYPEDEFSY, VARSY, TYPESY) | Bits(BEGINSY);
     statBegSys = Bits(IDENT, EXPROP, LPAREN, INTCONST)
-        + Bits(REALCONST, CHARCONST, STRINGSY, LBRACK)
-        + Bits(BEGINSY, IFSY, SWITCHSY, DOSY)
-        + Bits(WHILESY, FORSY, WITHSY, GOTOSY)
-        + Bits(BREAKSY, CONTSY, SEMICOLON);
+        | Bits(REALCONST, CHARCONST, STRINGSY, LBRACK)
+        | Bits(BEGINSY, IFSY, SWITCHSY, DOSY)
+        | Bits(WHILESY, FORSY, WITHSY, GOTOSY)
+        | Bits(BREAKSY, CONTSY, SEMICOLON);
     statEndSys = Bits(SEMICOLON, ENDSY, ELSESY, WHILESY);
-    lvalOpSet = Bits(GETELT, GETVAR, op37, GETFIELD) + Bits(DEREF);
+    lvalOpSet = Bits(GETELT, GETVAR, op37, GETFIELD) | Bits(DEREF);
 
     funcInsn[fnABS] = KAMX;
     funcInsn[fnTRUNC] = KADD+ZERO;
