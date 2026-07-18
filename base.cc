@@ -2528,9 +2528,12 @@ Word foldRawInt2(Operator op, const Word &lhs, const Word &rhs)
     switch (op) {
     case IDIVOP:
         r = a / b;
+        // We're not yet ANSI C, % is modulo
+        if (a % b < 0) --r;
         break;
     case IMODOP:
         r = a % b;
+        if (r < 0) r += b > 0 ? b : - b;
         break;
     case IMULOP:
         r = a * b;
@@ -3952,7 +3955,7 @@ void genGetElt()
                 if (insnCopy.st == stWORD) {
                     prepLoad();
                     if (l5var7z != 0) {
-                        curVal.ii = 0 - l5var7z;
+                        curVal.ii = (0 - l5var7z) & INT41_MASK;
                         addToInsnList(KADD+I8 + getFCSToffset());
                         insnList->tail->mode = 1;
                     }
@@ -4301,6 +4304,12 @@ void genCopy()
         form3Insn(KUTC+I12 + size, KATX+I13,
                   KVLM+I13 + work);
         usedRegs = usedRegs | BitRange(12,14);
+        /* work.p2c does not rebuild insnList here before the caller's
+           opfASSN metadata write; keep a placeholder in the host port. */
+        insnList = new InsnList;
+        insnList->head = NULL;
+        insnList->tail = NULL;
+        insnList->regsused = Bits();
     }
 }
 
