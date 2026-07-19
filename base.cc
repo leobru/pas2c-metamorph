@@ -32,8 +32,8 @@ const char *outFileName = "output.obj";
 const char * boilerplate = " PASCAL METAMORPH HELPER (2025) ";
 
 const int MAXLIT = 500;
-const int SYMTAB_LIMIT = 077777; // initially 075500
-const int SYMTAB_MAX = 1000; // initially 80
+const int SYMTAB_LIMIT = 075500;
+const int SYMTAB_MAX = 80;
 const int OBJBUF_SIZE = 8192;    // initially 1024
 
 const int64_t
@@ -207,7 +207,7 @@ enum Operator {
     IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
     RMWASSIGN,  op37,       GETENUM,    GETFIELD,   DEREF,
-    STKLVAL,    ALNUM,      PCALL,      FCALL,
+    FILEPTR,    STKLVAL,    ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
     STANDPROC,  NOOP
 };
@@ -960,7 +960,7 @@ std::string Expr::p()
         "IDIVOP","IMODOP","PLUSOP","MINUSOP","OROP","NEOP","EQOP","LTOP",
         "GEOP","GTOP","LEOP","INOP","IMULOP","INTPLUS","INTMINUS","CONDOP",
         "ALTERN","INCROP","DECROP","ASSIGNOP","GETELT","GETVAR","RMWASSIGN",
-        "op37","GETENUM","GETFIELD","DEREF","STKLVAL","ALNUM","PCALL","FCALL",
+        "op37","GETENUM","GETFIELD","DEREF","FILEPTR","STKLVAL","ALNUM","PCALL","FCALL",
         "TOREAL","NOTOP","INEGOP","RNEGOP","BITNEGOP","STANDPROC","NOOP"
     };
     char buf[256];
@@ -1310,7 +1310,7 @@ void form1Insn(int64_t arg)
     prevOpcode = opcode.ii;
     prevInsn = Insn;
     if (putLeft) {
-        leftInsn = Insn.ii << 24;
+        leftInsn = (Insn.ii & halfWord) << 24;
         putLeft = false;
     } else {
         putLeft = true;
@@ -1377,7 +1377,6 @@ void formAndAlign(int64_t arg)
 void putToSymTab(int64_t arg)
 {
     symTab[symTabPos] = arg;
-    fprintf(stderr, "SYMTAB idx %05lo = %016lo %s\n", (long)symTabPos, (long)arg, toAscii(arg).c_str());
     if (symTabPos == SYMTAB_LIMIT) {
         error(50); /* errSymbolTableOverflow */
         symTabPos = 074000;
@@ -1508,9 +1507,7 @@ int64_t allocSymtab(int64_t newSym)
                 low = mid + 1;
         } while (high >= low);
 
-        if (symTabCnt >= SYMTAB_MAX) {
-            error(50); /* errSymbolTableOverflow */
-        } else {
+        if (symTabCnt != SYMTAB_MAX) {
             if (newSym < symTabArray[mid])
                 high = mid;
             else
@@ -1996,11 +1993,10 @@ unsigned char koi8_to_koi7(unsigned char ch)
         return (ch & 0177) | 040;
     if (ch >= 0200)
         return ' ';
-    // The BESM-6 charset has no ASCII vertical bar; the emulator's input
-    // conversion folds '|' (0174) onto the OR/caret glyph 0136 (dtran shows
-    // it as '^').  The generic 0140..0177 case-fold (ch ^= 040) would instead
-    // yield 0134 ('\'), so handle '|' first.  base.pas stores CH raw, relying
-    // on the native code already being 0136.
+    // work.p2c/base.pas KOI-7 literal mode distinguishes ASCII '^' and '|':
+    // '^' becomes 0134, while '|' becomes the OR/caret glyph 0136.
+    if (ch == '^')
+        return 0134;
     if (ch == '|')
         return 0136;
     if (ch >= 0140)
@@ -2140,18 +2136,21 @@ L2:                 hashTravPtr = symHash[bucket];
                 } while (charSymTabBase[CH] == INTCONST);
                 { /* octdec */
                     if ((numstr[1] == 0) and (CH != '.')) {
-                        if ((tokenLen == 1) and (CH == 'X')) {
+                        if ((tokenLen == 1) and (CH == 'X' || CH == 'x')) {
                             // Hex literal: 0Xhhh[U]
                             numFormat = hex;
                             nextCH();
                             curToken.ii = 0;
                             while ((charSymTabBase[CH] == INTCONST)
-                                   or (('A' <= CH) and (CH <= 'F'))) {
+                                   or (('A' <= CH) and (CH <= 'F'))
+                                   or (('a' <= CH) and (CH <= 'f'))) {
                                 curToken.ii = shl48(curToken.ii, 4);
                                 if (charSymTabBase[CH] == INTCONST)
-                                    curVal.ii = CH;
-                                else
+                                    curVal.ii = CH - '0';
+                                else if ('A' <= CH and CH <= 'F')
                                     curVal.ii = CH - 55;
+                                else
+                                    curVal.ii = CH - 87;
                                 curToken.ii = curToken.ii | (curVal.ii & BitRange(44, 47));
                                 nextCH();
                             }
@@ -2266,10 +2265,7 @@ L2:                 hashTravPtr = symHash[bucket];
                         nextCH();
                         if (charSymTabBase[CH] == CHARCONST) {
                             nextCH();
-                            if (charSymTabBase[CH] != CHARCONST)
-                                goto exitLoop;
-                            else
-                                goto L2233;
+                            goto exitLoop;
                         }
                         if (atEOL) {
 L2175:                      error(59); /* errEOLNInStringLiteral */
@@ -2341,7 +2337,6 @@ L2233:                      switch (charEncoding) {
                                 break;
                             case 2:
                             default:
-                                // KOI-8 to KOI-7.
                                 localBuf[tokenIdx] = koi8_to_koi7(CH);
                                 break;
                             }
@@ -3094,19 +3089,23 @@ L3556:
                 } else {
                   l4var213z = false;
                 }
-                if (curInsn.ii == 0)
-                    form1Insn(InsnTemp[UZA] + moduleOffset + 2);
-                P3363();
-                form1Insn(InsnTemp[UJ] + 2 + moduleOffset);
-                padToLeft();
+                curVal.ii = l4var213z;
+                l4var2z = addCurValToFCST();
+                curVal.ii = l4var213z ^ 1;
+                tempInsn.ii = addCurValToFCST() - l4var2z;
+                if (curInsn.ii == 0) {
+                    padToLeft();
+                    form1Insn(InsnTemp[UZA] + moduleOffset + 1);
+                } else if (putLeft) {
+                    form1Insn(InsnTemp[UTC]);
+                }
+                form1Insn(InsnTemp[UTC] + getValueOrAllocSymtab(tempInsn.ii));
                 if (curInsn.ii != 0) {
                     if (not F3413())
                         error(211);
                     fixup(0, l4inl7z->code);
-                };
-                l4var213z = not l4var213z;
-                P3363();
-                padToLeft();
+                }
+                form1Insn(KXTA+I8 + l4var2z);
                 continue;
             }; /* 4230 */
             if (curInsn.ii >= 2*macro) {
@@ -4521,9 +4520,9 @@ L7567:
                     break;
                 case SETOR:      arg1Val.ii = arg1Val.ii | arg2Val.ii;
                     break;
-                case SHLEFT:     arg1Val.ii = shift(arg1Val.ii, -arg2Val.ii);
+                case SHLEFT:     arg1Val.ii = shl48(arg1Val.ii, arg2Val.ii);
                     break;
-                case SHRIGHT:    arg1Val.ii = shift(arg1Val.ii, arg2Val.ii);
+                case SHRIGHT:    arg1Val.ii = (arg1Val.ii & BitRange(0, 47)) >> arg2Val.ii;
                     break;
                 case NEOP: case EQOP: case LTOP: case GEOP: case GTOP: case LEOP:
                 case INOP: case ASSIGNOP:
@@ -4629,7 +4628,7 @@ L10122:
             }
         }
     } else { /* 10125 */
-        if (curOP <= DEREF) {
+        if (curOP <= FILEPTR) {
             if (curOP == GETVAR) {
                 insnList = new InsnList;
                 curIdRec = exprToGen->id1;
@@ -4683,7 +4682,7 @@ L10122:
             } else /* 10244 */
             if (curOP == GETELT)
                 genGetElt();
-            else if (curOP == DEREF) {
+            else if (curOP == DEREF || curOP == FILEPTR) {
                 genFullExpr(exprToGen->expr1);
                 genDeref();
             } else if (curOP == op37) {
@@ -4823,7 +4822,7 @@ L10122:
             }
         } else { /* 10621 */
             if (curOP == NOOP) {
-                curVal = exprToGen->lit;
+                curVal = exprToGen->vt;
                 if (has(liveRegs, curVal.ii)) {
                     insnList = new InsnList;
                     insnList->typ = exprToGen->expr2->vt.typ;
@@ -4837,7 +4836,7 @@ L10122:
                     insnList->st = stWORD;
                 } else {
                     curVal.ii = 14;
-                    exprToGen->lit = curVal;
+                    exprToGen->vt = curVal;
                     exprToGen = exprToGen->expr2;
                     goto L7567;
                 };
@@ -4927,11 +4926,11 @@ formOperator::formOperator(OpGen op)
                 liveRegs = liveRegs | l3var11z.ii;
             }
             curVal.ii = l3int2z;
-            helpExpr->lit = curVal;
+            helpExpr->vt = curVal;
         } break;
         case stSLICE: {
             curVal.ii = 14;
-            helpExpr->lit = curVal;
+            helpExpr->vt = curVal;
         } break;
         case stPACKED:
             error(errVarTooComplex);
@@ -5618,7 +5617,6 @@ void fopenFile(IdentRecPtr fileSym, ExtFileRec * extFileP)
     // The only files opened this way are *INPUT* and *OUTPUT*
     // with known characteristics (1 word, 8 bits).
     curVal.ii = fileBufSize * 010000000000L + 0100010;
-    curVal.ii = curVal.ii & BitRange(7,47);
     form1Insn(KXTS+I8 + getFCSToffset());
     if (extFileP == NULL) {
         form1Insn(KXTS);
@@ -8159,9 +8157,9 @@ initScalars::initScalars() :
     do {
         programme(l3var6z, programObj, false);
     } while (!(SY == PERIOD || CH == 0));
-    if (CH != 'D') {
+    if (CH != 'D' && CH != 'd') {
         lookup2 = 0;
-        lookupMode = 0;
+        lookupMode = lookDef;
     } else {
         freeRegs = halfWord;
         dataCheck = false;
@@ -8282,7 +8280,7 @@ void parseParameters()
         if (SY == SEMICOLON) {
             lookupMode = lookDef;
             inSymbol();
-            if (not has((skipToSet | Bits(IDENT, TYPESY)), SY))
+            if (not has((skipToSet | Bits(IDENT, VARSY, TYPESY)), SY))
                 errAndSkip(errBadSymbol, (skipToSet | Bits(IDENT, RPAREN)));
         }
     }
@@ -8426,8 +8424,12 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 } /* 22574 */
                 curIdRec->next = symHash[ii];
                 symHash[ii] = curIdRec;
-                lookupMode = 0;
+                lookupMode = lookDef;
                 checkSymAndRead(SEMICOLON);
+                hashTravPtr = NULL;
+                markTypeSym();
+                if (SY == TYPESY)
+                    break;
             } /* 22602 */
             while (typelist != NULL) {
                 l2var12z = typelist->id;
@@ -8482,7 +8484,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     errAndSkip(1, skipToSet | Bits(IDENT, COMMA));
                 l2bool8z = SY != COMMA;
                 if (not l2bool8z) {
-                    lookupMode = 0;
+                    lookupMode = lookDef;
                     inSymbol();
                 };
             } while (!l2bool8z);
@@ -8527,7 +8529,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     makeExtFile();
                 workidr = curIdRec;
             } /* 22771 */
-            lookupMode = 0;
+            lookupMode = lookDef;
             checkSymAndRead(SEMICOLON);
             if (SY != IDENT and not has(skipToSet, SY)
                 and not (bodyBlock_ and has(statBegSys, SY)))
@@ -9185,7 +9187,7 @@ int main(int argc, char **argv)
         | Bits(WHILESY, FORSY, WITHSY, GOTOSY)
         | Bits(BREAKSY, CONTSY, SEMICOLON);
     statEndSys = Bits(SEMICOLON, ENDSY, ELSESY, WHILESY);
-    lvalOpSet = Bits(GETELT, GETVAR, op37, GETFIELD) | Bits(DEREF);
+    lvalOpSet = Bits(GETELT, GETVAR, op37, GETFIELD) | Bits(DEREF, FILEPTR);
 
     funcInsn[fnABS] = KAMX;
     funcInsn[fnTRUNC] = KADD+ZERO;

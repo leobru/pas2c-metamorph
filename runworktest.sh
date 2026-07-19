@@ -1,4 +1,5 @@
 #!/bin/sh
+work_module=${WORK_MODULE:-work}
 rm -f tmpsrc.bin tmpsrc.txt
 sed 's/{/<:/g;s/}/:>/g' < $1 > tmpsrc.utxt
 echo '                                                                                 ' >> tmpsrc.utxt
@@ -7,12 +8,12 @@ cat << EOF > tmp$$
 *disc:1/local
 *file:pascom,42
 *file:libc,43
-*file:work,41
+*file:$work_module,41
 *file:tmpsrc,44
 *     *pascom and pasmitxt
 *libra:42
 *perso:43,cont
-*     taking the work compiler module
+*     taking the $work_module compiler module
 *libra:41
 *libra:22
 *call pashelp
