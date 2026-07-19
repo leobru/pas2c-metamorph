@@ -4324,11 +4324,9 @@ void definePtrType(toType: tptr) {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseRecordDecl(rectype: *tptr; isOuterDecl: int) { /* parseRecordDecl */
 var
-    l4typ1z, selType, l4var3z, l4typ4z, l4var5z: tptr;
-    l4var6z: irptr;
-    l4int7z: int;
-    l4var8z: int;
-    l4var9z: int;
+    prevVariant, selType, newVariant: tptr;
+    prevField: irptr;
+    variantIdx: int;
     cases1, cases2: caserec;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4341,8 +4339,8 @@ void addFieldToHash() {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void packFields() {
 var
-    l5var1z, pairIdx, l5var3z, l5var4z, l5var5z: int;
-    l5var6z: *pair;
+    fieldWidth, pairIdx, minFirst, scanIdx, curFirst: int;
+    curSlot: *pair;
     selType = parseTypeRef(skipTarget | [UNIONSY]);
     if (curType.rep->fields == NIL) {
         curType.rep->fields  =  curField;
@@ -4353,20 +4351,20 @@ var
     do {
         curField->typ  =  selType;
         if (isPacked) {
-            l5var1z  =  typeBits(selType);
-            curField->width  =  l5var1z;
-            if (l5var1z != 48) {
+            fieldWidth  =  typeBits(selType);
+            curField->width  =  fieldWidth;
+            if (fieldWidth != 48) {
                 for (pairIdx = 1; pairIdx <= cases.count; ++pairIdx)
 11523:          {
-                    l5var6z  =  &cases.pairs[pairIdx];
-                    if (l5var6z->first >= l5var1z) {
-                        curField->shift  =  48 - l5var6z->first;
-                        curField->offset  =  l5var6z->second;
+                    curSlot  =  &cases.pairs[pairIdx];
+                    if (curSlot->first >= fieldWidth) {
+                        curField->shift  =  48 - curSlot->first;
+                        curField->offset  =  curSlot->second;
                         if (! (S6 IN optSflags))
                             curField->shift  =  48 - curField->width -
                                                   curField->shift;
-                        l5var6z->first  =  l5var6z->first - l5var1z;
-                        if (l5var6z->first == 0) {
+                        curSlot->first  =  curSlot->first - fieldWidth;
+                        if (curSlot->first == 0) {
                             cases.pairs[pairIdx]  =
                                 cases.pairs[cases.count];
                             --cases.count;
@@ -4378,12 +4376,12 @@ var
                     ++cases.count;
                     pairIdx  =  cases.count;
                 } else {
-                    l5var3z  =  48;
-                    for (l5var4z = 1; l5var4z <= 7; ++l5var4z) {
-                        l5var5z  =  cases.pairs[l5var4z].first;
-                        if (l5var5z < l5var3z) {
-                            l5var3z  =  l5var5z;
-                            pairIdx  =  l5var4z;
+                    minFirst  =  48;
+                    for (scanIdx = 1; scanIdx <= 7; ++scanIdx) {
+                        curFirst  =  cases.pairs[scanIdx].first;
+                        if (curFirst < minFirst) {
+                            minFirst  =  curFirst;
+                            pairIdx  =  scanIdx;
                         }
                     } /* for */
                 }
@@ -4422,7 +4420,7 @@ var
     lookupMode  =  3;
     inSymbol();
     while (SY == IDENT) {
-        l4var6z  =  NIL;
+        prevField  =  NIL;
         do {
             if (SY != IDENT) {
                 error(errNoIdent);
@@ -4431,12 +4429,12 @@ var
                     error(errIdentAlreadyDefined);
                 curEnum = malloc(offsetof(identrec, szField));
                 addFieldToHash();
-                if (l4var6z == NIL) {
+                if (prevField == NIL) {
                     curField  =  curEnum;
                 } else {
-                    l4var6z->list  =  curEnum;
+                    prevField->list  =  curEnum;
                 }
-                l4var6z  =  curEnum;
+                prevField  =  curEnum;
                 lookupMode  =  3;
                 inSymbol();
             }
@@ -4462,31 +4460,31 @@ var
         inSymbol();
         cases1  =  cases;
         cases2  =  cases;
-        l4typ1z.rep = NIL;
-        l4int7z  =  0;
+        prevVariant.rep = NIL;
+        variantIdx  =  0;
         while (SY == STRUCTSY) {
             lookupMode  =  3;
             inSymbol();
-            l4var5z.rep = malloc(offsetof(types, szCases));
-            with *(l4var5z.rep) do {
-                first.rep  =  typptr(l4int7z);
+            newVariant.rep = malloc(offsetof(types, szCases));
+            with *(newVariant.rep) do {
+                first.rep  =  typptr(variantIdx);
                 next.rep  =  NIL;
                 alt.rep  =  NIL;
             }
-            l4var5z.p.psize  =  cases.size;
-            l4var5z.p.bits  =  48;
-            l4var5z.p.pk  =  kindCases;
-            if (l4typ1z.rep == NIL) {
+            newVariant.p.psize  =  cases.size;
+            newVariant.p.bits  =  48;
+            newVariant.p.pk  =  kindCases;
+            if (prevVariant.rep == NIL) {
                 if (curType.rep->variants.rep == NIL) {
-                    curType.rep->variants  =  l4var5z;
+                    curType.rep->variants  =  newVariant;
                 } else {
-                    rectype->rep->first  =  l4var5z;
+                    rectype->rep->first  =  newVariant;
                 }
             } else {
-                l4typ1z.rep->next  =  l4var5z;
+                prevVariant.rep->next  =  newVariant;
             }
-            l4typ1z  =  l4var5z;
-            tempType  =  l4var5z;
+            prevVariant  =  newVariant;
+            tempType  =  newVariant;
             parseRecordDecl(&tempType, false);
             if ((cases2.size < cases.size) ||
                isPacked && (cases.size == 1) && (cases2.size == 1) &&
@@ -4495,7 +4493,7 @@ var
                 cases2  =  cases;
             }
             cases  =  cases1;
-            ++l4int7z;
+            ++variantIdx;
             if (SY == SEMICOLON) {
                 lookupMode  =  3;
                 inSymbol();
@@ -4518,10 +4516,10 @@ var
         rectype->p.bits  =  48;
     }
     if (rectype->p.pk == kindStruct) {
-        l4var6z  =  rectype->rep->fields;
-        while (l4var6z != NIL) {
-            l4var6z->uptype  =  *rectype;
-            l4var6z  =  l4var6z->list;
+        prevField  =  rectype->rep->fields;
+        while (prevField != NIL) {
+            prevField->uptype  =  *rectype;
+            prevField  =  prevField->list;
         }
     }
     checkSymAndRead(ENDSY);
@@ -4925,7 +4923,7 @@ var
     boundary: eptr;
     strLabPtr: *strLabel;
     nest: int;
-    l3bool5z: int;
+    flag: int;
     l3var6z: idclass;
     curOffset: int;
     startLine: int;
@@ -5273,7 +5271,7 @@ var
     l4var1z, wasInCall, l4var3z, l4var4z: int;
     l4exp5z, newExpr, l4var7z, l4var8z: eptr;
     routine: irptr;
-    l4op10z: operator;
+    newOp: operator;
     l4typ11z: tptr;
     l4var12z: int;
 //
@@ -5415,7 +5413,7 @@ var
                     error(44); /* errIncorrectUsageOfStandProcOrFunc */
                 } else if (routine->typ == voidType) {
                     if (wasInCall) {
-                        l4op10z  =  PCALL;
+                        newOp  =  PCALL;
                     } else {
                         error(68); /* errUsingVoidInExpression */
                     }
@@ -5425,7 +5423,7 @@ var
                         break;
                     }
                     if (wasInCall) {
-                        l4op10z  =  FCALL;
+                        newOp  =  FCALL;
                     } else {
                         parseCallArgs(routine);
                         break;
@@ -5435,7 +5433,7 @@ var
                     error(errNoCommaOrParenOrTooFewArgs);
                     longjmp(jb8888, 1);
                 }
-                curExpr  =  mkExpr(l4op10z, routine->typ, NIL, eptr(routine));
+                curExpr  =  mkExpr(newOp, routine->typ, NIL, eptr(routine));
                 break;
             case VARID: case FORMALID: case FIELDID:
                 parseLval();
@@ -6232,12 +6230,12 @@ var
     l4exp6z: eptr;
     l4exp7z, l4exp8z, workExpr: eptr;
     l4bool10z,
-    noWidth, needR12, l4var14z: int;
+    noWidth, needR12, oldOffset: int;
     defWidth: int;
     procNo: int;
     helperNo: int;
     indCnt: int;
-    l4var18z: opgen;
+    opToForm: opgen;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void verifyType(t: tptr) {
@@ -6377,17 +6375,17 @@ void writeProc() {
                 curExpr  =  l4exp7z;
                 if (noWidth) {
                     if (helperNo == 45)      /* P/7A */
-                        l4var18z  =  gen11;
+                        opToForm  =  gen11;
                     else
-                        l4var18z  =  LOAD;
+                        opToForm  =  LOAD;
                 } else {
                     if (helperNo == 40 ||       /* P/A7 */
                         helperNo == 81)      /* P/WA */
-                        l4var18z  =  gen12;
+                        opToForm  =  gen12;
                     else
-                        l4var18z  =  FRACWIDTH;
+                        opToForm  =  FRACWIDTH;
                 }
-                formOperator(l4var18z);
+                formOperator(opToForm);
                 if (helperNo IN [39,40,44,45] || /* A6,A7,6A,7A */
                     helperNo == 81)
                     form1Insn(KVTM+I10 + defWidth);
@@ -6403,7 +6401,7 @@ void writeProc() {
         callHelperWithArg();
     }
     usedRegs |= [12];
-    if (l4var14z == moduleOffset)
+    if (oldOffset == moduleOffset)
         error(36); /*errTooFewArguments */
 } /* writeProc */
 //
@@ -6443,7 +6441,7 @@ var
     curVal.i  =  l3idr12z->low;
     procNo  =  curVal.i;
     l4bool10z  =  (SY == LPAREN);
-    l4var14z  =  moduleOffset;
+    oldOffset  =  moduleOffset;
     if (! l4bool10z &&
        (procNo IN [0:5,10,12,15:28]))
         error(45); /* errNoOpenParenForStandProc */
