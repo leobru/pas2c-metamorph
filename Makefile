@@ -1,49 +1,36 @@
-.PHONY: check check-host hocheck test worktest howorktest clean
+.PHONY: check test worktest clean
 
-check-host: hocheck
-
+# Self-host fixpoint: the host-built work compiler (work.o/work.bin)
+# recompiles work.p2c under the emulator (self.o); the two objects must be
+# byte-identical.
 check: self.o work.o
 	./check.sh $^
 
-hocheck: howork.o hoself.o
-	./check.sh howork.o hoself.o
-
-howork.o howork.bin: base work.p2c reconstruct-bin-header.py howork.sh
-	./howork.sh
-
-hoself.o: howork.bin pascom.bin libc.bin work.p2c reconstruct-bin-header.py hoself.sh
-	./hoself.sh
-
-self.o: work.o pascom.bin libc.bin
-	./self.sh
-
-work.o: base.o work.p2c pascom.bin
+# work.p2c compiled by the host-native compiler (base.cc). This is the
+# canonical build; the emulator base-module path (base.pas) is retired.
+work.o work.bin: base work.p2c preprocess.py reconstruct-bin-header.py work.sh
 	./work.sh
+
+self.o: work.bin pascom.bin libc.bin work.p2c self.sh
+	./self.sh
 
 libc.bin: $(wildcard libc/*.madlen)
 	./libc.sh
 
-base.o: base.pas
-	./base.sh
-
-# Host-native base compiler (port in progress, see port/NOTES.md)
+# Host-native compiler, the root of the bootstrap.
 base: base.cc
 	g++ -O3 -Wall -std=c++17 -o base base.cc
 
 pascom.bin: build-pascom.dub
 	dubna build-pascom.dub
 
-test: base.o libc.bin pascom.bin
-	./runtests.sh
-
-hotest: base libc.bin
+# Tests compiled by the host compiler directly.
+test: base libc.bin
 	./runhotests.sh
 
+# Tests compiled by the emulator-hosted work compiler.
 worktest: work.o libc.bin pascom.bin
 	./runtests.sh -work
 
-howorktest: howork.o libc.bin pascom.bin
-	./runtests.sh -howork
-
 clean:
-	rm -rf *.o tmp* *.lst *.asm *.bin *.utxt test_results
+	rm -rf *.o tmp* *.lst *.asm *.bin *.utxt test_results test_results_hot

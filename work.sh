@@ -1,40 +1,20 @@
 #!/bin/sh
+# Compile work.p2c with the host-native compiler (base, from base.cc) into
+# the raw object work.o and the emulator-loadable library module work.bin.
+# This replaces the retired emulator base-module path (base.pas is dead).
 rm -f wrksrc.bin
 sed 's/{/<:/g;s/}/:>/g' < work.p2c | ./preprocess.py > wrksrc.utxt
 echo '                                                                                ' >> wrksrc.utxt
-cat << EOF > tmp$$
-*NAME work
-*disc:1/local
-*file:pascom,42
-*file:base,41
-*file:wrksrc,44
-*file:work,67,w
-*     *pascom and pasmitxt
-*libra:42
-*     taking the base compiler module
-*libra:41
-*libra:22
-*call pashelp
-P 2 0 1000440000B .
-*call *pascom
-*copy:20,270000,670000
-*table:exclude(pascontr)
-*exclude
-*to perso:670000
-*end file
-EOF
-ulimit -t 5
-rm -f work.o
-if [ "$1" = "-d" ]; then ln -f tmp$$ work.dub ; fi
-length=`dubna tmp$$ | sed '1,/METAMORPH/d' | tee work.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
-length=$(($length-2))
+rm -f work.raw.o work.o work.bin
+./base wrksrc.utxt work.tmp.o > work.lst
 grep -q 'LINES STRUCTURE 1' work.lst
 if [ $? -ne 0 ]; then
-echo '[1;31mFAILURE[22;39m'
+printf '\033[1;31mFAILURE\033[22;39m\n'
 grep -A 2 '\*\*\*[1-9]' work.lst
 exit 1
 fi
-echo Module length is $length zones
-dd bs=6k skip=2 count=$length < work.bin > work.o
+tail -c +7 work.tmp.o > work.raw.o
+cp work.raw.o work.o
+./reconstruct-bin-header.py wrap --zones 16 work.raw.o work.bin || exit 1
 dtran -d work.o > work.asm
-rm -f tmp$$
+rm -f work.tmp.o

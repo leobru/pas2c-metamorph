@@ -11,6 +11,10 @@ tmp*
 *.utxt
 *.bin
 test_results/
+test_results_hot/
+
+# Host-native compiler binary
+base
 
 # Listings
 *.lst

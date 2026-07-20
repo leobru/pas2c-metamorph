@@ -37,6 +37,8 @@ echo '[1;31mFAILURE[22;39m'
 exit 1
 fi
 echo Module length is $length zones
-dd bs=6k skip=2 count=$length < self.bin > self.o
+# Extract the exact-length object (matches the host-built work.o; a plain
+# zone-granular dd would leave trailing padding and break the fixpoint cmp).
+./reconstruct-bin-header.py extract self.bin self.o
 dtran -d self.o > self.asm
 rm -f tmp$$

@@ -836,9 +836,51 @@ int isCharArray(arg: tptr) {
 } /* isCharArray */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int isCompactP(t: tptr) {
+/* An ordinary pointer type encoded wholly in the tptr word: rep, psize
+ * and bits carry the ultimate non-pointer base, pad packs depth*8 plus
+ * the base kind.  Base kind 0 is never encoded (pointer-to-void is the
+ * voidPtr singleton), so textType (pk=kindPtr, pad=8) is not mistaken
+ * for a compact pointer. */
+    return t.p.pk == kindPtr && (t.p.pad & 7) != 0;
+} /* isCompactP */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int typeBits(typtr: tptr) {
+    if (isCompactP(typtr))
+        return 15;
+    return typtr.p.bits;
+} /* typeBits */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int typeSize(typtr: tptr) {
+    if (isCompactP(typtr))
+        return 1;
+    return typtr.p.psize;
+} /* typeSize */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+tptr ptrBase(t: tptr) {
+/* Pointee of a pointer type: compact words reconstruct it in place,
+ * legacy allocated descriptors read the heap record. */
+var
+    b: tptr;
+    if (!isCompactP(t))
+        return t.rep->base;
+    b = t;
+    if (t.p.pad >= 020) {
+        b.p.pad = t.p.pad - 010;
+    } else {
+        b.p.pk = kind(t.p.pad & 7);
+        b.p.pad = 0;
+    }
+    return b;
+} /* ptrBase */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int isCharPtr(arg: tptr) {
-    return arg.p.pk == kindPtr && arg.p.psize == 1 &&
-           arg.rep->base == charType;
+    return arg.p.pk == kindPtr && typeSize(arg) == 1 &&
+           ptrBase(arg) == charType;
 } /* isCharPtr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1689,11 +1731,6 @@ var
 } /* hash */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int typeBits(typtr: tptr) {
-    return typtr.p.bits;
-} /* typeBits */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void checkSymAndRead(sym: symbol) {
     if (SY != sym)
         requiredSymErr(sym);
@@ -1876,7 +1913,7 @@ var
                     break;
                 case kindPtr:
                     if (type1 == voidPtr || type2 == voidPtr ||
-                        typeCheck(type1.rep->base, type2.rep->base))
+                        typeCheck(ptrBase(type1), ptrBase(type2)))
                         goto 1;
                     break;
                 case kindArray:
@@ -1972,7 +2009,10 @@ eptr cpDsExpr(e: eptr) {
 } /* cpDsExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr getPtrType(toType: tptr) {
+tptr allocPtr(toType: tptr) {
+/* Heap-allocated pointer descriptor: needed for typedef forward
+ * placeholders (patched in place) and for bases the compact form
+ * cannot carry (nonzero pad, e.g. textType; depth overflow). */
 var
     t: tptr;
     t.rep = malloc(offsetof(types, szPtr));
@@ -1981,6 +2021,27 @@ var
     t.p.bits = 15;
     t.p.pk = kindPtr;
     return t;
+} /* allocPtr */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+tptr getPtrType(toType: tptr) {
+var
+    t: tptr;
+    if (toType == voidType)
+        return voidPtr;
+    if (isCompactP(toType)) {
+        t = toType;
+        if (t.p.pad < 0370) {
+            t.p.pad = t.p.pad + 010;
+            return t;
+        }
+    } else if (toType.p.pad == 0) {
+        t = toType;
+        t.p.pad = 010 + int(toType.p.pk);
+        t.p.pk = kindPtr;
+        return t;
+    }
+    return allocPtr(toType);
 } /* getPtrType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2393,7 +2454,7 @@ var
         switch (ilm) {
         case ilCONST:
             curVal.i  =  payload;
-            if (valueType.p.psize == 1)
+            if (typeSize(valueType) == 1)
                 curVal.i  =  getFCSToffset();
             addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
             break;
@@ -2506,7 +2567,7 @@ void getOffset() {
         regsused |= E48 >> reg;
         if (ilm == ilCONST) {
             curVal.i  =  payload;
-            if (typ.p.psize == 1)
+            if (typeSize(typ) == 1)
                 curVal.i  =  addCurValToFCST();
             l4var6z  =  curVal.i;
             l4var5z  =  074001;
@@ -2944,7 +3005,7 @@ var
         l5var26z  =  insnCopy.typ.rep->base;
         l5var25z  =  insnCopy.typ.rep->pck;
         l5var7z  =  insnCopy.typ.rep->aleft;
-        l5var8z  =  l5var26z.p.psize;
+        l5var8z  =  typeSize(l5var26z);
         if (! l5var25z)
             insnCopy.disp  =  insnCopy.disp - l5var8z * l5var7z;
         insnList  =  getEltInsns[curDim];
@@ -2970,7 +3031,7 @@ var
                 insnCopy.width  =  insnCopy.typ.rep->pcksize;
                 insnCopy.st  =  stSLICE;
             }  else {
-                insnCopy.disp  =  curVal.i  * l5var26z.p.psize +
+                insnCopy.disp  =  curVal.i  * typeSize(l5var26z) +
                                   insnCopy.disp;
             }
         } else {
@@ -3229,7 +3290,7 @@ void formThunk() {
             setAddrTo(14);
             addToInsnList(KITA+14);
         } else if (paramClass == VARID) {
-            if (insnList->typ.p.psize != 1) {
+            if (typeSize(insnList->typ) != 1) {
                 paramClass  =  FORMALID;
                 goto 1
             } else {
@@ -3337,7 +3398,7 @@ void genCopy() {
 var
     size: int;
     lhsIns, rhsIns: *insnltyp;
-    size  =  insnList->typ.p.psize;
+    size  =  typeSize(insnList->typ);
     if (size == 1) {
         lhsIns  =  insnList;
         insnList  =  otherIns;
@@ -3422,7 +3483,7 @@ var
             --l3int3z;
         l2typ13z  =  insnList->typ;
         curVarKind  =  l2typ13z.p.pk;
-        size  =  l2typ13z.p.psize;
+        size  =  typeSize(l2typ13z);
         if (l2typ13z == realType) {
             work  =  1;
         } else if (curVarKind == kindScalar)
@@ -4267,7 +4328,7 @@ void fcloseFile(fileSym: irptr) {
         with *insnList do {
             if (ilm != ilCONST)
                 error(errNoConstant);
-            if (insnList->typ.p.psize != 1)
+            if (typeSize(insnList->typ) != 1)
                 error(errConstOfOtherTypeNeeded);
             curVal.i  =  insnList->payload;
         }
@@ -4315,7 +4376,7 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void definePtrType(toType: tptr) {
-    curType = getPtrType(toType);
+    curType = allocPtr(toType);
     curEnum = malloc(offsetof(identrec, szIdent));
     CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
     typelist  =  curEnum;
@@ -4392,7 +4453,7 @@ var
         }
         curField->pckfield  =  false;
         curField->offset  =  cases.size;
-        cases.size += selType.p.psize;
+        cases.size += typeSize(selType);
 11622:
         if (PASINFOR.listMode == 3) {
             write(' ':16);
@@ -4405,7 +4466,7 @@ var
                 write('.<<=SHIFT=', curField->shift:2,
                       '. WIDTH=', curField->width:2, ' BITS');
             } else {
-                write('.WORDS=', selType.p.psize:0);
+                write('.WORDS=', typeSize(selType):0);
             }
             writeLN;
         }
@@ -4573,8 +4634,8 @@ var
         if (sizeVal == 1)
             bitsVal  =  l3int22z;
     } else {
-        sizeVal  =  span * elementType.p.psize;
-        curVal.i  =  elementType.p.psize;
+        sizeVal  =  span * typeSize(elementType);
+        curVal.i  =  typeSize(elementType);
         curVal.i  =  curVal.i & [7:47] | E48;
         perwordVal  =  KMUL+ I8 + getFCSToffset();
     }
@@ -4944,28 +5005,31 @@ void expression; forward;
 void parsePostfix() {
 var
     l4exp1z, l4exp2z: eptr;
-    l4typ3z: tptr;
+    l4typ3z, l4typ5z: tptr;
     l4var4z: kind;
 13462:
     l4typ3z  =  curExpr->typ;
     l4var4z  =  l4typ3z.p.pk;
     if (SY == ARROW) {
         /* '->' is deref + struct field selection; build DEREF here,
-           then jump to label 55 to consume the field IDENT. */
-        if ((l4var4z == kindPtr) &&
-            (l4typ3z.rep->base.p.pk == kindStruct)) {
-            curExpr  =  mkExpr(DEREF, l4typ3z.rep->base, curExpr, NIL);
-            l4typ3z  =  l4typ3z.rep->base;
-            goto 55;
-        } else {
-            stmtName  =  '  ->  ';
-            error(errWrongVarTypeBefore);
-            l4exp1z = malloc(sizeof(expr));
-            l4exp1z->expr1  =  curExpr;
-            l4exp1z->typ  =  l4typ3z;
-            curExpr  =  l4exp1z;
-            inSymbol();
+           then jump to label 55 to consume the field IDENT.  The pointee
+           goes through l4typ5z: field selection on a function result is
+           not supported by the language. */
+        if (l4var4z == kindPtr) {
+            l4typ5z  =  ptrBase(l4typ3z);
+            if (l4typ5z.p.pk == kindStruct) {
+                curExpr  =  mkExpr(DEREF, l4typ5z, curExpr, NIL);
+                l4typ3z  =  l4typ5z;
+                goto 55;
+            }
         }
+        stmtName  =  '  ->  ';
+        error(errWrongVarTypeBefore);
+        l4exp1z = malloc(sizeof(expr));
+        l4exp1z->expr1  =  curExpr;
+        l4exp1z->typ  =  l4typ3z;
+        curExpr  =  l4exp1z;
+        inSymbol();
     } else if (SY == PERIOD) {
         if (l4var4z == kindStruct) {
 55:
@@ -5208,7 +5272,7 @@ void bldRelOp(oper: operator; ex2: eptr) {
 var
     resOp: operator;
     if (typeCheck(arg1Type, arg2Type)) {
-        if ((arg1Type.p.psize != 1) &&
+        if ((typeSize(arg1Type) != 1) &&
             (oper >= LTOP) &&
             !isCharArray(arg1Type)) {
 1:          error(errNeedOtherTypesOfOperands);
@@ -5257,7 +5321,7 @@ var
         return;
     }
     resType = arg1Type;
-    if (resType.p.psize != 1) {
+    if (typeSize(resType) != 1) {
         error(errNeedOtherTypesOfOperands);
         return;
     }
@@ -5329,7 +5393,7 @@ var
                 inSymbol();
             }
         } else {
-            resultValue = l5var2z.p.psize;
+            resultValue = typeSize(l5var2z);
         }
         curExpr = mkIntLit(resultValue);
         checkSymAndRead(RPAREN);
@@ -5349,7 +5413,7 @@ var
         checkMode  =  [fnABS, fnMALLOC, fnCARD, fnMINEL];
     else if ((arg1Type == charType) || (argKind == kindScalar) || (argKind == kindPtr))
         checkMode  =  0U;
-    else if (arg1Type.p.psize == 30)
+    else if (typeSize(arg1Type) == 30)
         checkMode  =  [fnEOF, fnEOLN];
     else {
         checkMode  =  0U;
@@ -5363,7 +5427,7 @@ var
         stProcNo  =  fnABSI;
     }
     if (stProcNo == fnSIZEOF)
-      curExpr  =  mkIntLit(arg1Type.p.psize);
+      curExpr  =  mkIntLit(typeSize(arg1Type));
    else
       curExpr  =  mkExpr(STANDPROC, arg1Type, curExpr, eptr(stProcNo));
     checkSymAndRead(RPAREN);
@@ -5379,7 +5443,7 @@ var
         if (SY != LPAREN)
             error(88 + LPAREN);
         expression();
-        if (curExpr->typ.p.psize != l4typ11z.p.psize)
+        if (typeSize(curExpr->typ) != typeSize(l4typ11z))
             error(errNeedOtherTypesOfOperands);
         checkSymAndRead(RPAREN);
         curExpr->typ = l4typ11z;
@@ -5576,7 +5640,7 @@ var
             if (isCharPtr(arg1Type))
                 curExpr = flatMemAt(curExpr);
             else if (arg1Type.p.pk == kindPtr) {
-                curExpr = mkExpr(DEREF, arg1Type.rep->base,
+                curExpr = mkExpr(DEREF, ptrBase(arg1Type),
                                  curExpr, NIL);
             } else {
                 stmtName = 'unary*';
@@ -6254,7 +6318,7 @@ void startWrite() {
     l4typ3z  =  curExpr->typ;
     l4exp7z  =  curExpr;
     if (workExpr == NIL) {
-        if (l4typ3z.p.psize == 30) {
+        if (typeSize(l4typ3z) == 30) {
             workExpr  =  curExpr;
         } else {
             workExpr = malloc(sizeof(expr));
@@ -6264,7 +6328,7 @@ void startWrite() {
         }
         arg2Type  =  workExpr->typ;
         needR12  =  true;
-        l4exp8z = mkExpr(DEREF, arg2Type.rep->base, workExpr, NIL);
+        l4exp8z = mkExpr(DEREF, ptrBase(arg2Type), workExpr, NIL);
         l4exp6z = mkExpr(ASSIGNOP, l4exp8z->typ, l4exp8z, NIL);
     }
 } /* startWrite */
@@ -6315,7 +6379,7 @@ void checkElement() {
             helperNo  =  39;            /* P/A6 */
         else
             helperNo  =  40;           /* P/A7 */
-    } else if (l4typ3z.p.psize == 1) {
+    } else if (typeSize(l4typ3z) == 1) {
         helperNo  =  42;               /* P/WO */
         defWidth  =  (typeBits(l4typ3z) + 5) / 3;
     } else {
@@ -6342,7 +6406,7 @@ void writeProc() {
                     if (curToken.i == litOct) {
                         helperNo  =  42; /* P/WO */
                         defWidth  =  17;
-                        if (l4typ3z.p.psize != 1)
+                        if (typeSize(l4typ3z) != 1)
                             error(34); /* errTypeIsNotAFileElementType */
                         inSymbol();
                     }
@@ -6456,7 +6520,7 @@ var
         jumpTarget  =  getHelperProc(29 + procNo); /* P/PF */
     switch (procNo) {
     case 0: case 1: case 2: case 3: /* put, get, rewrite, reset */
-        if (arg1Type.p.psize != 30)
+        if (typeSize(arg1Type) != 30)
             error(47); /* errNoVarOfFileType */
         if (procNo == 3 && SY == COMMA) { // reset with file location
             formOperator(SETREG12);
@@ -6475,8 +6539,8 @@ var
         ++heapCallsCnt;
         workExpr  =  curExpr;
         formOperator(SETREG9);
-        l2typ13z  =  arg1Type.rep->base;
-        ii  =  l2typ13z.p.psize;
+        l2typ13z  =  ptrBase(arg1Type);
+        ii  =  typeSize(l2typ13z);
         if (SY == COLON) {
             expression();
             if (! typeCheck(intType, curExpr->typ))
@@ -6845,7 +6909,7 @@ var
         l3int4z  =  4;
         while (l3idr5z != procName) {
             if (l3idr5z->cl == VARID) {
-                l3var2z  =  l3idr5z->typ.p.psize;
+                l3var2z  =  typeSize(l3idr5z->typ);
                 if (l3var2z != 1) {
                     form3Insn(KVTM+I14 + l3int4z,
                               KVTM+I12 + l3var2z,
@@ -7312,8 +7376,8 @@ var
         if (l3sym7z != TYPESY) {
             checkSymAndRead(COLON);
             expType = parseTypeRef(skipToSet | [IDENT,RPAREN]);
-            if (expType.p.psize != 1)
-                l3var5z  =  l3var6z * expType.p.psize + l3var5z;
+            if (typeSize(expType) != 1)
+                l3var5z  =  l3var6z * typeSize(expType) + l3var5z;
             if (l3var3z != NIL)
                 while (l3var3z != curIdRec) with *l3var3z do {
                     typ  =  expType;
@@ -7338,7 +7402,7 @@ var
         l3var2z  =  curIdRec->argList;
         while (l3var2z != curIdRec) {
             if (l3var2z->cl == VARID) {
-                l3var5z  =  l3var2z->typ.p.psize;
+                l3var5z  =  typeSize(l3var2z->typ);
                 if (l3var5z != 1) {
                     l3var2z->value  =  l3var6z;
                     l3var6z += l3var5z;
@@ -7516,7 +7580,7 @@ void exitScope(a: int) {
             } while (! l2bool8z);
             checkSymAndRead(COLON);
             l2typ13z = parseTypeRef(skipToSet | [IDENT,SEMICOLON]);
-            jj  =  l2typ13z.p.psize;
+            jj  =  typeSize(l2typ13z);
             while (workidr != NIL) with *workidr do {
                 curIdRec  =  list;
                 typ  =  l2typ13z;
@@ -7659,14 +7723,14 @@ void exitScope(a: int) {
                     /* New C-style: return type was stashed at the loop
                        head; no ':TYPE' suffix expected. */
                     curIdRec->typ = typedRetType;
-                    if (curIdRec->typ.p.psize != 1)
+                    if (typeSize(curIdRec->typ) != 1)
                         error(errTypeMustNotBeFile);
                 } else if (SY != COLON)
                     errAndSkip(106 /*:*/, skipToSet | [SEMICOLON]);
                 else {
                     inSymbol();
                     curIdRec->typ = parseTypeRef(skipToSet | [SEMICOLON]);
-                    if (curIdRec->typ.p.psize != 1)
+                    if (typeSize(curIdRec->typ) != 1)
                         error(errTypeMustNotBeFile);
                 }
             }

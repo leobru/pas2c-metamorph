@@ -15,17 +15,12 @@ TESTS_DIR="tests"
 RESULTS_DIR="test_results"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Default to base compiler; -work selects work compiler; -howork selects
-# the host-built work compiler image howork.bin.
-RUNNER="runtest.sh"
+# Default (and -work) run tests through the emulator-hosted work compiler
+# module work.bin, which is host-built from work.p2c by base.cc.  The
+# emulator base-module mode is retired along with base.pas.
+RUNNER="runworktest.sh"
 case "$1" in
     -work)
-        RUNNER="runworktest.sh"
-        shift
-        ;;
-    -howork)
-        RUNNER="runworktest.sh"
-        export WORK_MODULE=howork
         shift
         ;;
 esac
