@@ -261,11 +261,17 @@ oneinsn  = struct {
     mode, code, offset: int;
 };
 //
+/* Interned derived-type descriptors (arrays, int:N scalars): a chain of
+ * nodes so identical types share one heap record.  Nodes above a rolled-up
+ * arena mark are dropped by internScope. */
+inptr = *internrec;
+internrec = struct {
+    ityp: tptr;
+    inext: inptr
+};
+//
 ilmode = enum {ilCONST, ilLVAL, ilRVAL, ilCOND};
 state = enum {stWORD, stSLICE, stPACKED};
-assoc = enum {
-    leftAs,     rightAs
-};
 //
 insnltyp  = struct {
     tail, head: oiptr;
@@ -471,6 +477,7 @@ var
     uVarPtr: eptr;
     curExpr: eptr;
     insnList: *insnltyp;
+    internHead: inptr;
     fileForOutput, fileForInput: *extfilerec;
     maxSmallString: int;
     smallStringType: tptr[2..6];
@@ -498,7 +505,6 @@ var
     helperMap: int[1..99];
     helperNames: int[1..99];
     opPrec: int[SHLEFT..ALTERN];
-    opAssoc: assoc[SHLEFT..ALTERN];
 //
     symTab: int[074000 .. 075500];
     systemProcNames: int[23];
@@ -988,9 +994,17 @@ int nrOfBits(value: int) {
 tptr mkIntScl(bitWid: int) {
 var
     res: tptr;
+    icand: inptr;
     if (bitWid < 1 || 40 < bitWid) {
         error(errNumberTooLarge);
         return intType;
+    }
+    icand = internHead;
+    while (icand != NIL) {
+        res = icand->ityp;
+        if (res.p.pk == kindScalar && res.p.bits == bitWid)
+            return res;
+        icand = icand->inext;
     }
     res.rep = malloc(offsetof(types, szScalar));
     with *(res.rep) do {
@@ -1001,6 +1015,10 @@ var
     res.p.psize  =  1;
     res.p.bits  =  bitWid;
     res.p.pk  =  kindScalar;
+    icand = malloc(sizeof(internrec));
+    icand->ityp = res;
+    icand->inext = internHead;
+    internHead = icand;
     return res;
 } /* mkIntScl */
 //
@@ -1841,6 +1859,13 @@ var top : int;
         maxHeap = top;
     rollup(addr);
 }
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void internScope(bound: int) {
+/* Forget interned types allocated above the arena mark being rolled up. */
+    while (internHead != NIL && int(internHead) >= bound)
+        internHead  =  internHead->inext;
+} /* internScope */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int knownInType(rec: *irptr) {
@@ -4611,11 +4636,23 @@ tptr makeArrayType(rangeInfo: rangeRec; elementType: tptr; packedFlag: int) {
 var
     makePacked: int;
     sizeVal, bitsVal, perwordVal, pcksizeVal: int;
+    icand: inptr;
     makePacked  =  packedFlag;
     span  =  rangeInfo.aright - rangeInfo.aleft + 1;
     l3int22z  =  typeBits(elementType);
     if (24 < l3int22z)
         makePacked  =  false;
+    icand  =  internHead;
+    while (icand != NIL) {
+        arrayType  =  icand->ityp;
+        if (arrayType.p.pk == kindArray &&
+            arrayType.rep->base == elementType &&
+            arrayType.rep->aleft == rangeInfo.aleft &&
+            arrayType.rep->aright == rangeInfo.aright &&
+            arrayType.rep->pck == makePacked)
+            return arrayType;
+        icand  =  icand->inext;
+    }
     bitsVal  =  48;
     perwordVal  =  0;
     pcksizeVal  =  0;
@@ -4651,6 +4688,10 @@ var
     arrayType.p.psize  =  sizeVal;
     arrayType.p.bits  =  bitsVal;
     arrayType.p.pk  =  kindArray;
+    icand  =  malloc(sizeof(internrec));
+    icand->ityp  =  arrayType;
+    icand->inext  =  internHead;
+    internHead  =  icand;
     return arrayType;
 } /* makeArrayType */
 //
@@ -7775,6 +7816,7 @@ void exitScope(a: int) {
             inSymbol();
             programme(&l2int18z, curIdRec, true);
             curIdRec->sigtyp  =  makeRoutineType(curIdRec);
+            internScope(int(scopeBound));
             myrollup(int(scopeBound));
             exitScope(0);
             exitScope(1);
@@ -7950,6 +7992,7 @@ void regKeywords() { /*=A3 regKeywords */
     for (jdx = 1; jdx <= 10; ++jdx)
         put(_CHILD_);
     regKeywords();
+    internHead  =  NIL;
     numLabTop  =  0;
     totalErrors  =  0;
     heapCallsCnt  =  0;
@@ -8163,11 +8206,9 @@ void main() {
 
     /* Initialize operator precedence table */
     opPrec = precNone:48;
-    opAssoc = leftAs:48;
 
     /* Conditional ternary operator - precedence 1 (lowest), right-assoc */
     opPrec[CONDOP] = precCond;
-    opAssoc[CONDOP] = rightAs;
 
     /* Logical OR operators - precedence 2 */
     opPrec[OROP] = precOr;

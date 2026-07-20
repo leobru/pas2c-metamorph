@@ -174,8 +174,6 @@ const int64_t
     lookField = 3,
     BACKSLASH = 035;            // char '\035' in the internal 6-bit code
 
-enum Assoc { leftAs, rightAs };
-
 enum Symbol {
 /*0B*/  IDENT,      INTCONST,   REALCONST,  CHARCONST,
         STRINGSY,   LPAREN,     LBRACK,     EXPROP,
@@ -499,6 +497,14 @@ typedef struct OneInsn * OneInsnPtr;
 struct OneInsn : public BESM6Obj {
     OneInsnPtr next;
     int64_t mode, code, offset;
+};
+
+/* Interned derived-type descriptors (arrays, int:N scalars): a chain of
+ * nodes so identical types share one heap record.  Nodes above a rolled-up
+ * arena mark are dropped by internScope. */
+struct InternRec : public BESM6Obj {
+    TPtr ityp;
+    InternRec * inext;
 };
 
 enum ilmode { ilCONST, ilLVAL, ilRVAL, ilCOND };
@@ -904,6 +910,7 @@ Word optSflags;
 int64_t litOct, litForward, litFortran, litAssembler;
 ExprPtr uVarPtr, curExpr;
 InsnList *  insnList;
+InternRec * internHead;
 ExtFileRec * fileForOutput, * fileForInput;
 int64_t maxSmallString;
 
@@ -1214,6 +1221,13 @@ bool isCharPtr(TPtr arg)
     return arg.p.pk == kindPtr and typeSize(arg) == 1 and
            ptrBase(arg) == CharType;
 } /* isCharPtr */
+
+void internScope(int64_t bound)
+{
+/* Forget interned types allocated above the arena mark being rolled up. */
+    while (internHead != NULL and ord(internHead) >= bound)
+        internHead = internHead->inext;
+} /* internScope */
 
 ExprPtr mkExpr(Operator oper, TPtr resTyp, ExprPtr e1, ExprPtr e2)
 {
@@ -1682,9 +1696,17 @@ int64_t nrOfBits(int64_t value)
 TPtr mkIntScl(int64_t bitWid)
 {
     TPtr res{};
+    InternRec * icand;
     if (bitWid < 1 or 40 < bitWid) {
         error(errNumberTooLarge);
         return IntegerType;
+    }
+    icand = internHead;
+    while (icand != NULL) {
+        res = icand->ityp;
+        if (res.p.pk == kindScalar and res.p.bits == (uint64_t)bitWid)
+            return res;
+        icand = icand->inext;
     }
     res.setRep(new Types);
     res.rep()->start = -1;
@@ -1693,6 +1715,10 @@ TPtr mkIntScl(int64_t bitWid)
     res.p.psize = 1;
     res.p.bits = bitWid;
     res.p.pk = kindScalar;
+    icand = new InternRec;
+    icand->ityp = res;
+    icand->inext = internHead;
+    internHead = icand;
     return res;
 } /* mkIntScl */
 
@@ -5459,6 +5485,17 @@ TPtr parseTypeRef::makeArrayType(rangeRec rg, TPtr elem, bool pckFlag)
     l3int22z = typeBits(elem);
     if (24 < l3int22z)
         makePacked = false;
+    InternRec * icand = internHead;
+    while (icand != NULL) {
+        arrayType = icand->ityp;
+        if (arrayType.p.pk == kindArray and
+            arrayType.rep()->base == elem and
+            arrayType.rep()->aleft == rg.aleft and
+            arrayType.rep()->aright == rg.aright and
+            arrayType.rep()->pck == makePacked)
+            return arrayType;
+        icand = icand->inext;
+    }
     bitsVal = 48;
     perwordVal = 0;
     pcksizeVal = 0;
@@ -5495,6 +5532,10 @@ TPtr parseTypeRef::makeArrayType(rangeRec rg, TPtr elem, bool pckFlag)
     arrayType.p.psize = sizeVal;
     arrayType.p.bits = bitsVal;
     arrayType.p.pk = kindArray;
+    icand = new InternRec;
+    icand->ityp = arrayType;
+    icand->inext = internHead;
+    internHead = icand;
     return arrayType;
 } /* makeArrayType */
 
@@ -8748,6 +8789,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             setup(scopeBound);
             inSymbol();
             programme(l2int18z, curIdRec, true);
+            internScope(ord(scopeBound));
             rollup(scopeBound);
             exitScope(symHash);
             exitScope(fieldHash);
@@ -8980,6 +9022,7 @@ struct initTables {
             KeyWordHashTabBase[idx] = NULL;
         }
         regKeyWords();
+        internHead = NULL;
         numLabTop = 0;
         totalErrors = 0;
         heapCallsCnt = 0;
