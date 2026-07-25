@@ -1,0 +1,10 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+int a, b;
+{
+    a = ~0U;
+    for (b = 0; b < 10; b = b + 1)
+        writeln(' ~0u >> ', b+1:0, ' = ', a >> (b+1) oct);
+}
+.

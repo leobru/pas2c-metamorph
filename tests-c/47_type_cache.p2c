@@ -1,0 +1,34 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+typedef int *intptr1;
+typedef int *intptr2;
+typedef int arr1[1..4];
+typedef int arr2[1..4];
+typedef __packed char pch1[1..6];
+typedef __packed char pch2[1..6];
+typedef int mat1[1..2][1..3];
+typedef int mat2[1..2][1..3];
+intptr1 p;
+intptr2 q;
+arr1 a;
+arr2 b;
+pch1 c;
+pch2 d;
+mat1 m;
+mat2 n;
+{
+    p = malloc(1);
+    q = malloc(1);
+    *p = 7;
+    *q = 9;
+    a[2] = *p;
+    b[2] = *q;
+    c[3] = 'A';
+    d[3] = 'B';
+    m[1][3] = 13;
+    n[2][1] = 21;
+    writeln('cache ', a[2]:0, ' ', b[2]:0, ' ', c[3], ' ', d[3]);
+    writeln('nest ', m[1][3]:0, ' ', n[2][1]:0);
+}
+.

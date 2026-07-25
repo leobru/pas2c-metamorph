@@ -1,0 +1,11 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+//
+char c;
+{
+    c = 'A';
+    writeln('Character: ', c);
+    c = c + 1;
+    writeln('Next character: ', c);
+}
+.

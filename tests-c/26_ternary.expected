@@ -1,0 +1,7 @@
+ MIN(5,10) = 5
+ MAX(5,10) = 10
+ Z = 100
+ SUM = 15
+ NESTED Z = 1
+ RSUB = 95
+ MUL = 21

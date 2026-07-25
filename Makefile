@@ -1,4 +1,4 @@
-.PHONY: check test worktest clean
+.PHONY: check test hotest worktest clean
 
 # Self-host fixpoint: the host-built work compiler (work.o/work.bin)
 # recompiles work.p2c under the emulator (self.o); the two objects must be
@@ -21,12 +21,22 @@ libc.bin: $(wildcard libc/*.madlen)
 base: base.cc
 	g++ -O3 -Wall -std=c++17 -o base base.cc
 
+# Experimental C-declarator-only fork of base.cc (see the-idea-is-to-
+# kind-naur plan). Not part of the work.p2c bootstrap; validated against
+# tests-c/ before its design is ported back into base.cc/work.p2c.
+base-c: base-c.cc
+	g++ -O3 -Wall -std=c++17 -o base-c base-c.cc
+
 pascom.bin: build-pascom.dub
 	dubna build-pascom.dub
 
 # Tests compiled by the host compiler directly.
-test: base libc.bin
+test hotest: base libc.bin
 	./runhotests.sh
+
+# tests-c/ compiled by base-c directly.
+basectest: base-c
+	./run-base-c-tests.sh
 
 # Tests compiled by the emulator-hosted work compiler.
 worktest: work.o libc.bin pascom.bin

@@ -1,0 +1,8 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+
+int words[1..8];
+
+{
+    writeln('RESULT ', sizeof(words):0);
+}

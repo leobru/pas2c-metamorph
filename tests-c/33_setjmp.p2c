@@ -1,0 +1,32 @@
+/*=p-,t-,s8,y+,k9,l0*/
+extern _output_;
+void longjmp(int jmpbuf, int val); assembler;
+int setjmp(int *jmpbuf); assembler;
+//
+int jb;
+int n;
+//
+void inner() {
+    writeln(' inner: about to longjmp');
+    longjmp(jb, 1);
+    writeln(' inner: unreachable');
+}
+//
+void middle() {
+    writeln(' middle: calling inner');
+    inner();
+    writeln(' middle: unreachable');
+}
+//
+{
+    n = setjmp(&jb);
+    writeln(' setjmp returned ', n:0);
+    if (n == 0) {
+        middle();
+        writeln(' main: unreachable');
+    } else {
+        writeln(' main: resumed via longjmp');
+    }
+    writeln(' done');
+}
+.

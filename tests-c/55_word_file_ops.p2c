@@ -1,0 +1,41 @@
+/*=p-,t-,s8,y+,l0*/
+extern _output_;
+//
+typedef struct {
+    int *data;
+    int w1, w2, w3, w4, w5, w6, w7, w8, w9, w10,
+    w11, w12, w13, w14, w15, w16, w17, w18, w19, w20,
+    w21, w22, w23, w24, w25, w26, w27, w28, w29;
+} fileblk;
+//
+void fopen(fileblk *fcb, int sizes, int name); assembler;
+void fclose(fileblk *fcb); assembler;
+//
+fileblk f;
+//
+{
+    fopen(&f, 010000100060, 0);
+    writeln('open ', f.w4:0, ' ', f.w18:0, ' ', f.w27:0, ' ', f.w2:0);
+
+    rewrite(f);
+    writeln('rewrite ', f.w4:0, ' ', f.w14:0, ' ', f.w2:0, ' ', f.w16:0);
+
+    *f.data = 1234;
+    put(f);
+    *f.data = 2345;
+    put(f);
+    *f.data = 3456;
+    put(f);
+    writeln('put ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
+
+    reset(f);
+    writeln('reset ', *f.data:0, ' ', f.w4:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
+    get(f);
+    writeln('get1 ', *f.data:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
+    get(f);
+    writeln('get2 ', *f.data:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
+
+    fclose(&f);
+    writeln('close ', f.w4:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
+}
+.
