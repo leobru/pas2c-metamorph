@@ -1,4 +1,4 @@
-/*=p-,t-,s8,y+,l0*/
+/*=s8,y+,l0*/
 extern _output_;
 int setup(); assembler;
 void rollup(int mark); assembler;

@@ -313,16 +313,30 @@ std::string Real::print() const
 int64_t heap[32768];
 int64_t avail = 100, maxHeap;
 
-void * besm6_alloc(size_t s)
+void * besm6_alloc_words(size_t words)
 {
-    s = (s + 7) & ~7;
-    s /= sizeof(int64_t);
-    if (avail + s > 074000) {
-        fprintf(stderr, "Out of memory: avail = %ld, wants %lu words\n", avail, s);
+    if (avail + words > 074000) {
+        fprintf(stderr, "Out of memory: avail = %ld, wants %lu words\n",
+                avail, words);
         throw std::bad_alloc();
     }
-    avail += s;
-    return heap + avail - s;
+    int64_t * result = heap + avail;
+    avail += words;
+    return result;
+}
+
+void * besm6_alloc(size_t bytes)
+{
+    return besm6_alloc_words((bytes + sizeof(int64_t) - 1) /
+                             sizeof(int64_t));
+}
+
+template<class T> T * besm6_alloc_record(size_t bytes)
+{
+    assert(bytes % sizeof(int64_t) == 0);
+    void * result = besm6_alloc(bytes);
+    memset(result, 0, bytes);
+    return reinterpret_cast<T*>(result);
 }
 
 // Dynamic allocation in the compiler expects that the pointer can be represented as
@@ -531,41 +545,47 @@ typedef InsnList * InsnListPtr;
 // bits, and kind live in the compact TPtr word that references this record
 // (base.pas `types` variant record after the compact-pointer redesign).
 struct Types : public BESM6Obj {
+    void * operator new(size_t) = delete;
+
     union {
+        struct { int64_t szReal; };
         struct {                       // kindArray
             TPtr base;
             int64_t pck;               // boolean
             int64_t perword, pcksize, aleft, aright;
+            int64_t szArray;
         };
         struct {                       // kindScalar
             IdentRecPtr enums;
             int64_t numen, start;
+            int64_t szScalar;
         };
         struct {                       // kindPtr
             TPtr sbase;
+            int64_t szPtr;
+        };
+        struct {                       // file-like kindPtr
+            TPtr fbase;
+            int64_t szFile;
         };
         struct {                       // kindStruct
             TPtr variants;
             IdentRecPtr fields;
             int64_t flag, pckrec;      // booleans
+            int64_t szStruct;
         };
         struct {                       // kindCases
             TPtr first, next, alt;
+            int64_t szCases;
         };
         struct {                       // kindRoutine
             TPtr rresult;
             SigPtr rparams;
             int64_t rargc;
             int64_t rflags;
+            int64_t szRtype;
         };
     };
-    // Zero the largest arm: the arena recycles memory that held raw host
-    // pointers (see IdentRec::zeroUnions), and BESM-6 heap garbage has no
-    // host counterpart.
-    Types() {
-        base = TPtr(); pck = 0;
-        perword = 0; pcksize = 0; aleft = 0; aright = 0;
-    }
 
     std::string p() const { return "type"; } // details live in TPtr now
 };
@@ -659,36 +679,39 @@ std::string toAscii(int64_t val)
 }
 
 struct IdentRec : public BESM6Obj {
+    void * operator new(size_t) = delete;
+
+    IdentRecPtr next;
     int64_t id;
     int64_t offset;
-    IdentRecPtr next;
     TPtr typ;
     IdClass cl;
     // TYPEID, VARID classes end here
     union {
-        IdentRecPtr list_;      // ENUMID, FORMALID
-        int64_t low_;           // ROUTINEID
-        int64_t maybeUnused_;   // FIELDID
-        int64_t procno_;        // legacy alias of low_ (standard procs)
-    };
-    union {
-        int64_t value_;         // ENUMID, FORMALID
-        Word high_;             // ROUTINEID (same storage as value)
-        TPtr uptype_;           // FIELDID
-    };
-    union {
-        // FIELDID
-        struct {
+        struct {                // ENUMID, FORMALID
+            IdentRecPtr list_;
+            int64_t value_;
+            int64_t szIdent;
+        };
+        struct {                // FIELDID
+            int64_t maybeUnused_;
+            TPtr uptype_;
             bool pckfield_;
             int64_t shift_, width_;
+            int64_t szField;
         };
-
-        // ROUTINEID
-        struct {
+        struct {                // ROUTINEID
+            int64_t low_;
+            int64_t high_;
             IdentRecPtr argList_, preDefLink_;
             int64_t level_, pos_;
             int64_t flags_;
             TPtr sigtyp_;
+            int64_t szRoutine;
+        };
+        struct {                // predefined system routine
+            int64_t sysnum_;
+            int64_t szSys;
         };
     };
     IdentRecPtr & list() {
@@ -704,12 +727,11 @@ struct IdentRec : public BESM6Obj {
         return low_;
     }
     Word & high() {
-        assert(cl == ROUTINEID);
-        return high_;
+        return *reinterpret_cast<Word*>(&high_);
     }
     int64_t & procno() {
         assert(cl == ROUTINEID);
-        return procno_;
+        return low_;
     }
     TPtr & sigtyp() {
         assert(cl == ROUTINEID);
@@ -762,7 +784,7 @@ struct IdentRec : public BESM6Obj {
             ret = toAscii(id);
             if (verbose) {
                 if (0 <= asprintf(&strp, "(routine) procno: %ld value: %ld argl: %ld predef: %ld level: %ld pos: %ld flags: %lx",
-                                  procno_, value_, ord(argList_), ord(preDefLink_), level_, pos_, flags_)) {
+                                  low_, value_, ord(argList_), ord(preDefLink_), level_, pos_, flags_)) {
                     ret += strp;
                     free(strp);
                 } else perror("asprintf");
@@ -770,28 +792,8 @@ struct IdentRec : public BESM6Obj {
         }
         return ret;
     }
-    IdentRec(int64_t id_, int64_t o_, IdentRecPtr n_, TPtr t_, IdClass cl_) :
-        id(id_), offset(o_), next(n_), typ(t_), cl(cl_) { zeroUnions(); }
-    IdentRec(int64_t id_, int64_t o_, IdentRecPtr n_, TPtr t_, IdClass cl_, IdentRecPtr l_, int64_t v_) :
-        id(id_), offset(o_), next(n_), typ(t_), cl(cl_) { zeroUnions(); list_ = l_; value_ = v_; }
-    IdentRec() : cl(IdClass(6)) { typ = TPtr(); zeroUnions(); }
-
-    // The arena recycles memory that previously held raw host pointers, so
-    // fields never assigned (e.g. flags_ of a formal routine parameter, read
-    // by genEntry via has(flags(), 24)) would otherwise contain PIE-base-
-    // dependent garbage, making generated code differ from run to run.
-    // BESM-6 heap garbage has no host counterpart; zero deterministically.
-    void zeroUnions() {
-        list_ = nullptr;
-        value_ = 0;
-        argList_ = nullptr;
-        preDefLink_ = nullptr;
-        level_ = 0;
-        pos_ = 0;
-        flags_ = int64_t();
-        sigtyp_ = TPtr();
-    }
 };
+
 typedef IdentRecPtr HashArray[128];
 
 struct ExtFileRec : public BESM6Obj {
@@ -865,8 +867,6 @@ bool atEOL,
     errors,
     declEntry,
     rangeMismatch,
-    doPMD,
-    checkBounds,
     fixMult,
     bool110z,
     allowCompat,
@@ -1160,7 +1160,7 @@ TPtr makeStringType()
     if (maxSmallString >= strLen)
         return smallStringType[strLen];
     else {
-        res.setRep(new Types);
+        res.setRep(besm6_alloc_record<Types>(offsetof(Types, szArray)));
         size = (strLen + 5) / 6;
         res.p.bits = 0;
         res.p.psize = size;
@@ -1316,7 +1316,7 @@ TPtr getPtrType(TPtr toType)
     }
     /* Fallback: heap-allocated pointer descriptor, for bases the compact
        form cannot carry (nonzero pad, e.g. textType; depth overflow). */
-    t.setRep(new Types);
+    t.setRep(besm6_alloc_record<Types>(offsetof(Types, szPtr)));
     t.rep()->base = toType;
     t.p.psize = 1;
     t.p.bits = 15;
@@ -1690,7 +1690,7 @@ TPtr mkIntScl(int64_t bitWid)
             return res;
         icand = icand->inext;
     }
-    res.setRep(new Types);
+    res.setRep(besm6_alloc_record<Types>(offsetof(Types, szScalar)));
     res.rep()->start = -1;
     res.rep()->enums = NULL;
     res.rep()->numen = 1L << bitWid;
@@ -2026,12 +2026,6 @@ parseComment::parseComment()
                 break;
             case 'L': case 'l':
                 PASINFOR.listMode = readOptVal(3);
-                break;
-            case 'P': case 'p':
-                readOptFlag(doPMD);
-                break;
-            case 'T': case 't':
-                readOptFlag(checkBounds);
                 break;
             case 'A': case 'a':
                 charEncoding = readOptVal(3);
@@ -2867,6 +2861,40 @@ int64_t argCount(IdentRecPtr l3arg1z)
         }
     return l3var1z;
 } /* argCount */
+
+TPtr makeRoutineType(IdentRecPtr routine)
+{
+    TPtr resultTyp{};
+    IdentRecPtr srcParam;
+    SigPtr newParam, lastParam;
+
+    resultTyp.setRep(besm6_alloc_record<Types>(offsetof(Types, szRtype)));
+    resultTyp.rep()->rresult = routine->typ;
+    resultTyp.rep()->rparams = NULL;
+    resultTyp.rep()->rargc = 0;
+    resultTyp.rep()->rflags = routine->flags();
+    resultTyp.p.psize = 1;
+    resultTyp.p.bits = 15;
+    resultTyp.p.pk = kindRoutine;
+    lastParam = NULL;
+    srcParam = routine->argList();
+    if (srcParam != NULL) {
+        while (srcParam != routine) {
+            newParam = new SigRec;
+            newParam->pclass = srcParam->cl;
+            newParam->ptyp = srcParam->typ;
+            newParam->next = NULL;
+            if (lastParam == NULL)
+                resultTyp.rep()->rparams = newParam;
+            else
+                lastParam->next = newParam;
+            resultTyp.rep()->rargc = resultTyp.rep()->rargc + 1;
+            lastParam = newParam;
+            srcParam = srcParam->list();
+        }
+    }
+    return resultTyp;
+}
 
 struct formOperator {
     static std::vector<formOperator*> super;
@@ -5223,7 +5251,7 @@ TPtr makeArrayType(rangeRec rg, TPtr elem, bool pckFlag)
         curVal.ii = (curVal.ii & BitRange(7,47)) | Bits(0);
         perwordVal = KMUL+ I8 + getFCSToffset();
     }
-    arrayType.setRep(new Types);
+    arrayType.setRep(besm6_alloc_record<Types>(offsetof(Types, szArray)));
     arrayType.rep()->aleft = rg.aleft;
     arrayType.rep()->aright = rg.aright;
     arrayType.rep()->base = elem;
@@ -5275,12 +5303,17 @@ struct parseTypeRef {
         IdentRecPtr & typelist = programme::super.back()->typelist;
         /* Heap-allocated pointer descriptor (forward-placeholder, patched in
            place when the real pointee type is later defined). */
-        curType.setRep(new Types);
+        curType.setRep(besm6_alloc_record<Types>(offsetof(Types, szPtr)));
         curType.rep()->base = toType;
         curType.p.psize = 1;
         curType.p.bits = 15;
         curType.p.pk = kindPtr;
-        curEnum = new IdentRec(curIdent, lineCnt, typelist, curType, TYPEID);
+        curEnum = besm6_alloc_record<IdentRec>(offsetof(IdentRec, szIdent));
+        curEnum->next = typelist;
+        curEnum->id = curIdent;
+        curEnum->offset = lineCnt;
+        curEnum->typ = curType;
+        curEnum->cl = TYPEID;
         typelist = curEnum;
     } /* definePtrType */
 };
@@ -5560,7 +5593,8 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_)
                 // record" signal here.
                 if (d.foundRec != NULL)
                     error(errIdentAlreadyDefined);
-                curEnum = new IdentRec;
+                curEnum = besm6_alloc_record<IdentRec>(
+                    offsetof(IdentRec, szField));
                 curEnum->id = d.name;
                 curEnum->next = fieldHash[d.bucket];
                 curEnum->cl = FIELDID;
@@ -5590,7 +5624,8 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_)
         while (SY == STRUCTSY) {
             lookupMode = lookField;
             inSymbol();
-            newVariant.setRep(new Types);
+            newVariant.setRep(
+                besm6_alloc_record<Types>(offsetof(Types, szCases)));
             newVariant.rep()->first = variantIdx.typ;
             newVariant.rep()->next.setRep(NULL);
             newVariant.rep()->alt.setRep(NULL);
@@ -5694,13 +5729,20 @@ L12247:
         span = 0;
         lookupMode = lookDef;
         curField = NULL;
-        curType.setRep(new Types);
+        curType.setRep(
+            besm6_alloc_record<Types>(offsetof(Types, szScalar)));
         while (SY == IDENT) {
             if (isDefined)
                 error(errIdentAlreadyDefined);
-            curEnum = new IdentRec(curIdent, curFrameRegTemplate,
-                                   symHash[bucket], curType,
-                                   ENUMID, NULL, span);
+            curEnum = besm6_alloc_record<IdentRec>(
+                offsetof(IdentRec, szIdent));
+            curEnum->next = symHash[bucket];
+            curEnum->id = curIdent;
+            curEnum->offset = curFrameRegTemplate;
+            curEnum->typ = curType;
+            curEnum->cl = ENUMID;
+            curEnum->list() = NULL;
+            curEnum->value() = span;
             symHash[bucket] = curEnum;
             span = span + 1;
             if (curField == NULL) {
@@ -5794,7 +5836,8 @@ L12366:             error(errNotAType);
             goto L12247;
         }
         if (SY == STRUCTSY) {
-            curType.setRep(new Types);
+            curType.setRep(
+                besm6_alloc_record<Types>(offsetof(Types, szStruct)));
             curType.rep()->variants.setRep(NULL);
             curType.rep()->fields = NULL;
             curType.rep()->flag = false;
@@ -8131,7 +8174,8 @@ struct initScalars {
     IdentRecPtr &curIdRec;
 
     void regSysType(int64_t l4arg1z, TPtr l4arg2z) {
-        curIdRec = new IdentRec;
+        curIdRec = besm6_alloc_record<IdentRec>(
+            offsetof(IdentRec, szIdent));
         // curIdRec@ := [l4arg1z, 0, , l4arg2z, TYPEID];
         curIdRec->id = l4arg1z;
         curIdRec->offset = 0;
@@ -8141,7 +8185,8 @@ struct initScalars {
     } /* regSysType */
 
     void regSysEnum(int64_t l4arg1z, int64_t l4arg2z) {
-        curIdRec = new IdentRec;
+        curIdRec = besm6_alloc_record<IdentRec>(
+            offsetof(IdentRec, szIdent));
         // curIdRec@ := [l4arg1z, 48, , temptype, ENUMID, NIL, l4arg2z];
         curIdRec->id = l4arg1z;
         curIdRec->offset = 48;
@@ -8158,7 +8203,8 @@ struct initScalars {
         // by number via fn* constants -- but nothing looks it up by name, so
         // skip its (dead) identrec allocation.
         if (l4arg1z != 0) {
-            curIdRec = new IdentRec;
+            curIdRec = besm6_alloc_record<IdentRec>(
+                offsetof(IdentRec, szSys));
             // curIdRec@ := [l4arg1z, 0, , temptype, ROUTINEID, sysProcNum];
             curIdRec->id = l4arg1z;
             curIdRec->offset = 0;
@@ -8179,7 +8225,8 @@ void initScalars::defExtern()
     int64_t l = 0;
     l3var1z.ii = leftAlign(curIdent);
     if (curIdent == inName.ii) {
-        inputFile = new IdentRec;
+        inputFile = besm6_alloc_record<IdentRec>(
+            offsetof(IdentRec, szIdent));
         inputFile->id = curIdent;
         inputFile->offset = 0;
         inputFile->typ = textType;
@@ -8223,7 +8270,8 @@ void initScalars::defExtern()
 initScalars::initScalars() :
     curIdRec(programme::super.back()->curIdRec)
 {
-    BooleanType.setRep(new Types);
+    BooleanType.setRep(
+        besm6_alloc_record<Types>(offsetof(Types, szScalar)));
     BooleanType.rep()->numen = 2;
     BooleanType.rep()->start = 0;
     BooleanType.rep()->enums = NULL;
@@ -8231,7 +8279,8 @@ initScalars::initScalars() :
     BooleanType.p.bits = 1;
     BooleanType.p.pk = kindScalar;
 
-    IntegerType.setRep(new Types);
+    IntegerType.setRep(
+        besm6_alloc_record<Types>(offsetof(Types, szScalar)));
     IntegerType.rep()->numen = 100000;
     IntegerType.rep()->start = -1;
     IntegerType.rep()->enums = NULL;
@@ -8239,7 +8288,8 @@ initScalars::initScalars() :
     IntegerType.p.bits = 48;
     IntegerType.p.pk = kindScalar;
 
-    CharType.setRep(new Types);
+    CharType.setRep(
+        besm6_alloc_record<Types>(offsetof(Types, szScalar)));
     CharType.rep()->numen = 256;
     CharType.rep()->start = -1;
     CharType.rep()->enums = NULL;
@@ -8257,20 +8307,20 @@ initScalars::initScalars() :
     voidType.p.bits = 48;
     voidType.p.pk = kindVoid;
 
-    voidPtr.setRep(new Types);
+    voidPtr.setRep(besm6_alloc_record<Types>(offsetof(Types, szPtr)));
     voidPtr.rep()->base = voidType;
     voidPtr.p.psize = 1;
     voidPtr.p.bits = 15;
     voidPtr.p.pk = kindPtr;
 
-    textType.setRep(new Types);
+    textType.setRep(besm6_alloc_record<Types>(offsetof(Types, szFile)));
     textType.rep()->base = CharType;
     textType.p.pad = 8;
     textType.p.psize = 30;
     textType.p.bits = 48;
     textType.p.pk = kindPtr;
 
-    AlfaType.setRep(new Types);
+    AlfaType.setRep(besm6_alloc_record<Types>(offsetof(Types, szArray)));
     AlfaType.rep()->base = CharType;
     AlfaType.rep()->pck = true;
     AlfaType.rep()->perword = 6;
@@ -8283,7 +8333,8 @@ initScalars::initScalars() :
 
     charPtrType = getPtrType(CharType);
 
-    flatMemType.setRep(new Types);
+    flatMemType.setRep(
+        besm6_alloc_record<Types>(offsetof(Types, szArray)));
     flatMemType.rep()->base = CharType;
     flatMemType.rep()->pck = true;
     flatMemType.rep()->perword = 6;
@@ -8294,7 +8345,8 @@ initScalars::initScalars() :
     flatMemType.p.bits = 48;
     flatMemType.p.pk = kindArray;
 
-    flatMemVar = new IdentRec;
+    flatMemVar = besm6_alloc_record<IdentRec>(
+        offsetof(IdentRec, szIdent));
     flatMemVar->id = 0;
     flatMemVar->offset = 0;
     flatMemVar->typ = flatMemType;
@@ -8315,19 +8367,22 @@ initScalars::initScalars() :
         smallStringType[strLen] = makeStringType();
     maxSmallString = 6;
 
-    curIdRec = new IdentRec;
+    curIdRec = besm6_alloc_record<IdentRec>(
+        offsetof(IdentRec, szIdent));
     curIdRec->offset = 0;
     curIdRec->typ = IntegerType;
     curIdRec->cl = VARID;
     curIdRec->list() = NULL;
     curIdRec->value() = 7;
 
-    uVarPtr = new Expr;
+    uVarPtr = reinterpret_cast<ExprPtr>(
+        besm6_alloc_record<IdentRec>(sizeof(IdentRec)));
     uVarPtr->vt.typ = IntegerType;
     uVarPtr->op = GETVAR;
     uVarPtr->id1 = curIdRec;
 
-    uProcPtr = new IdentRec;
+    uProcPtr = besm6_alloc_record<IdentRec>(
+        offsetof(IdentRec, szRoutine));
     uProcPtr->cl = ROUTINEID; // cl left as heap garbage in base.pas
     uProcPtr->typ.setRep(NULL);
     uProcPtr->list() = NULL;
@@ -8374,7 +8429,8 @@ initScalars::initScalars() :
 
     l3var11z.ii = 30;
     l3var11z.ii = (l3var11z.ii & halfWord) | Bits(24,27,28,29);
-    programObj = new IdentRec;
+    programObj = besm6_alloc_record<IdentRec>(
+        offsetof(IdentRec, szRoutine));
     outName.ii = 01257656460656412L /*"*OUTPUT*"*/;
     inName.ii = 012515660656412L /*" *INPUT*"*/;
     symTabPos = 074004;
@@ -8404,7 +8460,8 @@ initScalars::initScalars() :
     inputFile = NULL;
     externFileList = NULL;
 
-    l3var7z = new IdentRec;
+    l3var7z = besm6_alloc_record<IdentRec>(
+        offsetof(IdentRec, szIdent));
     lineStartOffset = moduleOffset;
     l3var7z->id = outName.ii;
     l3var7z->offset = 0;
@@ -8504,7 +8561,8 @@ void parseParameters()
         if (d.name != 0) {
             if (d.wasDefined)
                 error(errIdentAlreadyDefined);
-            IdentRecPtr np = new IdentRec;
+            IdentRecPtr np = besm6_alloc_record<IdentRec>(
+                offsetof(IdentRec, szIdent));
             np->id = d.name;
             np->offset = curFrameRegTemplate;
             np->cl = VARID;
@@ -8603,7 +8661,8 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     error(errIdentAlreadyDefined);
                 /* workidr@ := [curIdent, curFrameRegTemplate, symHash[bucket],
                    , ENUMID, NIL]; */
-                workidr = new IdentRec;
+                workidr = besm6_alloc_record<IdentRec>(
+                    offsetof(IdentRec, szIdent));
                 workidr->id = curIdent;
                 workidr->offset = curFrameRegTemplate;
                 workidr->next = symHash[bucket];
@@ -8615,7 +8674,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     error(errBadSymbol);
                 else
                     inSymbol();
-                parseConstDeclValue(workidr->typ, workidr->high_); // actually value() but need a Word here
+                parseConstDeclValue(workidr->typ, workidr->high());
                 if (workidr->typ == voidType) {
                     error(errNoConstant);
                     workidr->typ = IntegerType;
@@ -8684,7 +8743,8 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                         hash(typelist, pending);
                         curIdRec = pending;
                     } else {
-                        curIdRec = new IdentRec;
+                        curIdRec = besm6_alloc_record<IdentRec>(
+                            offsetof(IdentRec, szIdent));
                         curIdRec->id = d.name;
                         curIdRec->offset = curFrameRegTemplate;
                         curIdRec->typ = d.type;
@@ -8777,7 +8837,8 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             lookupMode = lookUse;
             bool moreDecls = true;
             while (moreDecls) {
-                curIdRec = new IdentRec;
+                curIdRec = besm6_alloc_record<IdentRec>(
+                    offsetof(IdentRec, szIdent));
                 curIdRec->id = d.name;
                 curIdRec->offset = curFrameRegTemplate;
                 curIdRec->next = symHash[d.bucket];
@@ -8838,7 +8899,8 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 if (curFrameRegTemplate == 7) {
                     error(81); /* errProcNestingTooDeep */
                 }
-                curIdRec = new IdentRec;
+                curIdRec = besm6_alloc_record<IdentRec>(
+                    offsetof(IdentRec, szRoutine));
                 curIdRec->id = curIdent;
                 curIdRec->offset = curFrameRegTemplate;
                 curIdRec->next = symHash[bucket];
@@ -8919,6 +8981,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 setup(scopeBound);
                 inSymbol();
                 programme(l2int18z, curIdRec, true);
+                curIdRec->sigtyp() = makeRoutineType(curIdRec);
                 internScope(ord(scopeBound));
                 rollup(scopeBound);
                 exitScope(symHash);
@@ -8933,6 +8996,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 curIdRec->level() = l2int18z;
                 curIdRec->preDefLink() = preDefHead;
                 preDefHead = curIdRec;
+                curIdRec->sigtyp() = makeRoutineType(curIdRec);
             } else if (SY == EXTERNSY or
                        fwdIdent == litFortran or
                        fwdIdent == litAssembler) {
@@ -8947,6 +9011,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     curVal.ii = Bits(21);
                 }
                 curIdRec->flags() = curIdRec->flags() | curVal.ii;
+                curIdRec->sigtyp() = makeRoutineType(curIdRec);
             } else /* 23257 */ {
                 error(errBadSymbol);
             } /* 23277 */
@@ -9264,7 +9329,6 @@ void usage ()
     printf("                        -l2: Also print generated object code\n");
     printf("                        -l3: Also print offsets for variables and fields\n");
     printf("    -m+ -m-             Optimize integer multiplication (positives only)\n");
-    printf("    -p+ -p-             Enable/disable debug information and crash dump\n");
     printf("    -r+ -r-             Compare reals with predefined tolerance\n");
     printf("    -s0                 Use stars for commons (like *foobar*)\n");
     printf("    -s1                 Append one star for external names (like foobar*)\n");
@@ -9276,7 +9340,6 @@ void usage ()
     printf("    -s7                 Disable pointer checking\n");
     printf("    -s8                 Disable checking for stack overflow\n");
     printf("    -s9                 Unknown\n");
-    printf("    -t+ -t-             Enable/disable range checks\n");
     printf("    -u- -u+             Set length of source lines: 120 or 72 columns\n");
     printf("    -y- -y+             Disable/enable non-standard syntax\n");
     printf("    -v                  Output version information and exit\n");
@@ -9306,10 +9369,8 @@ void initOptions(int argc, char **argv)
     heapSize = 100;
     forValue = true;
     atEOL = false;
-    doPMD = true; // not (42 in curVal.ii);
     checkTypes = true;
     fixMult = true;
-    checkBounds = true; // not (44 in curVal.ii);
     declEntry = false;
     errors = false;
     allowCompat = false;
@@ -9323,7 +9384,7 @@ void initOptions(int argc, char **argv)
     progname = progname ? progname+1 : argv[0];
 
     for (;;) {
-        switch (getopt(argc, argv, "vVhe:p:t:c:r:m:y:u:f:a:d:k:b:s:l:")) {
+        switch (getopt(argc, argv, "vVhe:c:r:m:y:u:f:a:d:k:b:s:l:")) {
         case EOF:
             break;
         case 'a':
@@ -9374,9 +9435,6 @@ void initOptions(int argc, char **argv)
         case 'm':
             fixMult = (optarg[0] == '+');
             continue;
-        case 'p':
-            doPMD = (optarg[0] == '+');
-            continue;
         case 'r':
             // Fuzzy real comparison was removed from base.pas; option is a no-op.
             continue;
@@ -9391,9 +9449,6 @@ void initOptions(int argc, char **argv)
             } else if (4 <= curVal.ii && curVal.ii <= 9) {
                 optSflags.ii = optSflags.ii | Bits(curVal.ii - 3);
             }
-            continue;
-        case 't':
-            checkBounds = (optarg[0] == '+');
             continue;
         case 'u':
             // Source line length is a compile-time constant (maxLineLen);

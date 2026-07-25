@@ -1,4 +1,4 @@
-/*=l1,p-,t-,s8,y+,k9,l1*/
+/*=l1,s8,y+,k9,l1*/
 extern _output_, _child_, pasinput, pasinfor, paseofcd;
 //
 const
@@ -433,9 +433,6 @@ int prevInsn,
     isDefined, putLeft, readNext,
     errors,
     declEntry,
-    rangeMismatch,
-    doPMD,
-    checkBounds,
     fixMult,
     abort,
     allowCompat,
@@ -528,6 +525,7 @@ struct {
    /*18*/ int flags;
 } pasinfor;
 alfa paseofcd;
+int dummy[3];
 //
 // %%%%%%%%%%%% Libc functions %%%%%%%%%%%
 //
@@ -1151,8 +1149,6 @@ void readOptFlag(int *res) {
             break;
         case 'F': readOptFlag(&checkFortran); break;
         case 'L': PASINFOR.listMode = readOptVal(3); break;
-        case 'P': readOptFlag(&doPMD); break; // ignored
-        case 'T': readOptFlag(&checkBounds); break; // ignored
         case 'A': charEncoding = readOptVal(3); break;
         case 'C': readOptFlag(&checkTypes); break;
         case 'M': readOptFlag(&fixMult); break;
@@ -1906,7 +1902,6 @@ sigptr p1, p2;
 } /* sameRoutineType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    rangeMismatch  =  false;
     if (!checkTypes || type1 == type2)
 1:      return true;
         with *(type1.rep) do {
@@ -1934,8 +1929,7 @@ sigptr p1, p2;
                     span2  =  type2.rep->aright - type2.rep->aleft;
                     if (typeCheck(type1.rep->base, type2.rep->base) &&
                        (span1 == span2) &&
-                       (type1.rep->pck == type2.rep->pck) &&
-                       !rangeMismatch) {
+                       (type1.rep->pck == type2.rep->pck)) {
                         if (type1.rep->pck) {
                             if (type1.rep->pcksize == type2.rep->pcksize)
                                 goto 1;
@@ -8192,7 +8186,6 @@ void initOptions() {
     optSflags  =  pasinfor.flags << 39 >> 45;
     checkTypes  =  true;
     fixMult  =  true;
-    checkBounds  =  ! (44 in curVal.i);
     declEntry  =
     errors  =
     allowCompat  =  false;

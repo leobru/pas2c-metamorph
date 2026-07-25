@@ -1,4 +1,4 @@
-/*=a3,p-,t-,s8,y+,l0*/
+/*=a3,s8,y+,l0*/
 extern _output_, _child_;
 //
 typedef struct {
