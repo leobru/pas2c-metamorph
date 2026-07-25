@@ -310,7 +310,7 @@ std::string Real::print() const
 }
 
 int64_t heap[32768];
-int64_t avail = 100;
+int64_t avail = 100, maxHeap;
 
 void * besm6_alloc(size_t s)
 {
@@ -354,6 +354,8 @@ void rollup(void * p)
         fprintf(stderr, "Cannot rollup from %p to %p\n", (void*)(heap + avail), p);
         exit(1);
     }
+    if (maxHeap < avail)
+        maxHeap = avail;
     avail = reinterpret_cast<int64_t*>(p) - heap;
     if (heap + avail != p) {
         fprintf(stderr, "Cannot rollup to unaligned pointer %p\n", p);
@@ -9403,6 +9405,7 @@ int main(int argc, char **argv)
     initOptions(argc, argv);
     if (PASINFOR.listMode != 0)
         printf("%s\n", boilerplate);
+    printf(" INITHEAP = %05lo\n", avail);
     curInsnTemplate = 0;
     initTables();
     litAssembler = toText("ASSEMBLE");
@@ -9420,6 +9423,7 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
         exit(1);
     } else {
         finalize();
+        printf(" MAXHEAP = %05lo\n", maxHeap);
         // Dump CHILD here
         FILE *f = fopen(outFileName, "w");
         if (f == NULL) {

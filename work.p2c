@@ -7981,6 +7981,7 @@ void regKeywords() { /*=A3 regKeywords */
 } /*=A2 regKeywords */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    writeln(' st=', &idx :5 oct);
     FcstCnt  =  0;
     FcstCount  =  0;
     initInsnTemplates();

@@ -1,6 +1,6 @@
 .PHONY: check test hotest worktest basectest workctest clean
 
-selfc: workc.bin pascom.bin libc.bin work-c.p2c self-c.sh
+selfc.o: workc.bin pascom.bin libc.bin work-c.p2c self-c.sh
 	./self-c.sh
 	grep -B 2 -A 1 'LINES STRUCTURE 1' selfc.lst
 
@@ -8,6 +8,9 @@ selfc: workc.bin pascom.bin libc.bin work-c.p2c self-c.sh
 # recompiles work.p2c under the emulator (self.o); the two objects must be
 # byte-identical.
 check: self.o work.o
+	./check.sh $^
+
+checkc: selfc.o workc.o
 	./check.sh $^
 
 # work.p2c compiled by the host-native compiler (base.cc). This is the

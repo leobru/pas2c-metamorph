@@ -1,8 +1,8 @@
-/*=l1,p-,t-,s8,y+,k10,l1*/
+/*=l1,p-,t-,s8,y+,k9,l1*/
 extern _output_, _child_, pasinput, pasinfor, paseofcd;
 //
 const
-    boilerplate = ' PASCAL 2 C METAMORPHOSIS (2025)';
+    boilerplate = ' PASCAL 2 C METAMORPHOSIS (2026)';
 //
     // slots 0-6 were SQRT, SIN, COS, ARCTAN, ARCSIN, LN, EXP
     fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
@@ -348,9 +348,9 @@ typedef struct {
 } numLabel;
 //
 typedef struct {
+    irptr next;
     int id;
     int offset;
-    irptr next;
     tptr typ;
     idclass cl;
     union {
@@ -370,9 +370,9 @@ typedef struct {
 } identrec;
 typedef extfilerec *pextf;
 typedef struct {
+    pextf next;
     int id;
     int offset;
-    pextf next;
     int location,
     line;
 } extfilerec;
@@ -1845,17 +1845,12 @@ int isForwardRef;
 void myrollup(int addr) {
 int top;
     top = setup();
-    if (top > maxHeap)
+    if (top > maxHeap) {
         maxHeap = top;
+//        writeln(' maxHeap incr line ', lineCnt);
+    }
     rollup(addr);
 }
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void internScope(int bound) {
-/* Forget interned types allocated above the arena mark being rolled up. */
-    while (internHead != NIL && int(internHead) >= bound)
-        internHead  =  internHead->inext;
-} /* internScope */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // name: the Pascal '^Name' call sites (still in parseTypeRef's MUL
@@ -2006,23 +2001,6 @@ eptr ret;
     ret->num2 = fnREF;
     return ret;
 } /* mkRef */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr cpDsLval(eptr e) {
-    if ((e != NIL) && (e->op == DEREF) &&
-        isCharPtr(e->expr1->typ))
-        return flatMemAt(e->expr1);
-    return e;
-} /* cpDsLval */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr cpDsExpr(eptr e) {
-    if (e == NIL)
-        return NIL;
-    if ((e->op == DEREF) && isCharPtr(e->expr1->typ))
-        return flatMemAt(e->expr1);
-    return e;
-} /* cpDsExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3724,7 +3702,8 @@ int needsMater;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if (exprToGen == NIL)
         return;
-    exprToGen = cpDsExpr(exprToGen);
+    if (exprToGen->op == DEREF && isCharPtr(exprToGen->expr1->typ))
+        exprToGen = flatMemAt(exprToGen->expr1);
 7567:
     curOP  =  exprToGen->op;
     if (curOP == CONDOP) {
@@ -4581,7 +4560,7 @@ void definePtrType(tptr toType) {
     curType.p.bits = 15;
     curType.p.pk = kindPtr;
     curEnum = malloc(offsetof(identrec, szIdent));
-    CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
+    CTOR(*curEnum, typelist, curIdent, lineCnt, curType, TYPEID);
     typelist  =  curEnum;
 } /* definePtrType */
 //
@@ -4864,8 +4843,8 @@ pair *curSlot;
             if (isDefined)
                 error(errIdentAlreadyDefined);
             curEnum = malloc(offsetof(identrec, szIdent));
-            CTOR(*curEnum, curIdent, curFrameRegTemplate,
-                           symHash[bucket], curType,
+            CTOR(*curEnum, symHash[bucket], curIdent,
+                           curFrameRegTemplate, curType,
                            ENUMID, NIL, span);
             symHash[bucket]  =  curEnum;
             ++span;
@@ -5411,16 +5390,6 @@ idclass formClass;
 } /* parseCallArgs */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int getPrec(symbol sym, operator cls) {
-    if (sym == EXPROP)
-        return opPrec[cls];
-    else if (sym == BECOMES)
-        return precAssign;
-    else
-        return precNone;
-} /* getPrec */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void bldBitOp(operator oper, eptr leftArg) {
     if (arg1Type.p.pk != kindScalar || arg2Type.p.pk != kindScalar) {
         error(errNeedOtherTypesOfOperands);
@@ -5899,7 +5868,12 @@ int match;
 
     /* Climb through operators at this precedence level and higher */
     while (true) {
-        curPrec = getPrec(SY, charClass);
+        if (SY == EXPROP)
+            curPrec = opPrec[charClass];
+        else if (SY == BECOMES)
+            curPrec = precAssign;
+        else
+            curPrec = precNone;
 
         /* Stop if operator has lower precedence than minimum */
         if (curPrec < minPrec)
@@ -5962,7 +5936,9 @@ int match;
                 curExpr->expr2 = NIL;
                 arg2Type = curExpr->typ;
             }
-            leftExpr = cpDsLval(leftExpr);
+            if (leftExpr != NIL && leftExpr->op == DEREF &&
+                isCharPtr(leftExpr->expr1->typ))
+                leftExpr = flatMemAt(leftExpr->expr1);
             if (! typeCheck(arg1Type, arg2Type)) {
                 if (arg1Type == realType
                     && typeCheck(intType, arg2Type))
@@ -6467,18 +6443,6 @@ int rec;
 } /* parseData */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseConstExpression() {
-    readNext  =  false;
-    ceTyp  =  voidType;
-    ceVal  =  1;
-    expression();
-    formOperator(LITINSN);
-    ceTyp  =  insnList->typ;
-    ceVal  =  curVal.i;
-    myrollup(int(boundary));
-} /* parseConstExpression */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void standProc() { /* standProc */
 tptr l4typ1z, l4typ2z, l4typ3z;
 eptr firstWidth, secondWidth;
@@ -6550,19 +6514,27 @@ void checkElement() {
     usedRegs &= ~[12];
     curVarKind  =  l4typ3z.p.pk;
     helperNo  =  36;              /* C/WI */
-    if (l4typ3z == intType || l4typ3z == boolType)
+    if (l4typ3z == intType || l4typ3z == boolType) {
         defWidth  =  10;
-    else if (l4typ3z == realType) {
+        return;
+    }
+    if (l4typ3z == realType) {
         helperNo  =  37;               /* P/WR */
         defWidth  =  14;
-    } else if (l4typ3z == charType) {
+        return;
+    }
+    if (l4typ3z == charType) {
         helperNo  =  38;               /* P/WC */
         defWidth  =  1;
-    } else if (curVarKind == kindScalar && l4typ3z.rep->start != -1) {
+        return;
+    }
+    if (curVarKind == kindScalar && l4typ3z.rep->start != -1) {
         helperNo  =  41;               /* P/WX */
         dumpEnumNames(l4typ3z);
         defWidth  =  8;
-    } else if (isCharArray(l4typ3z)) {
+        return;
+    }
+    if (isCharArray(l4typ3z)) {
         defWidth  =  l4typ3z.rep->aright - l4typ3z.rep->aleft + 1;
         if (! l4typ3z.rep->pck)
             helperNo  =  81;            /* P/WA */
@@ -6570,7 +6542,9 @@ void checkElement() {
             helperNo  =  39;            /* P/A6 */
         else
             helperNo  =  40;           /* P/A7 */
-    } else if (typeSize(l4typ3z) == 1) {
+        return;
+    } 
+    if (typeSize(l4typ3z) == 1) {
         helperNo  =  42;               /* P/WO */
         defWidth  =  (typeBits(l4typ3z) + 5) / 3;
     } else {
@@ -6692,6 +6666,34 @@ tptr t;
 } /* doPackUnpack */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void returnOp() {
+    if (SY != SEMICOLON) {
+        /* return expr: load expr to ACC, then jump */
+        if (procName->typ == voidType)
+            errAndSkip(errNeedOtherTypesOfOperands, statEndSys);
+        else {
+            if (hasFiles) {
+                writeln(' functions must not use files');
+                error(200);
+            }
+            retSeen  =  true;
+            readNext = false;
+            expression();
+            if (typeCheck(procName->typ, curExpr->typ)) {
+                /* OK */
+            } else if (procName->typ == realType &&
+                    typeCheck(intType, curExpr->typ))
+                castToReal(&curExpr);
+            else
+                error(33); /* errIllegalTypesForAssignment */
+            formOperator(LOAD);
+        }
+    } else if (procName->typ != voidType)
+        error(errNeedOtherTypesOfOperands);
+    form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
+} /* returnOp */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     curVal.i  =  l3idr12z->low;
     procNo  =  curVal.i;
     l4bool10z  =  (SY == LPAREN);
@@ -6787,30 +6789,7 @@ tptr t;
         }
         break;
     case 14: /* return */
-        if (SY != SEMICOLON) {
-            /* return expr: load expr to ACC, then jump */
-            if (procName->typ == voidType)
-                errAndSkip(errNeedOtherTypesOfOperands, statEndSys);
-            else {
-                if (hasFiles) {
-                    writeln(' functions must not use files');
-                    error(200);
-                }
-                retSeen  =  true;
-                readNext = false;
-                expression();
-                if (typeCheck(procName->typ, curExpr->typ)) {
-                    /* OK */
-                } else if (procName->typ == realType &&
-                        typeCheck(intType, curExpr->typ))
-                    castToReal(&curExpr);
-                else
-                    error(33); /* errIllegalTypesForAssignment */
-                formOperator(LOAD);
-            }
-        } else if (procName->typ != voidType)
-            error(errNeedOtherTypesOfOperands);
-        form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
+        returnOp();
         return;
     case 16: /* besm */
         expression();
@@ -6866,7 +6845,14 @@ tptr t;
         return;
     }
     if (freeRegs == ceRegs) {
-        parseConstExpression();
+        readNext  =  false;
+        ceTyp  =  voidType;
+        ceVal  =  1;
+        expression();
+        formOperator(LITINSN);
+        ceTyp  =  insnList->typ;
+        ceVal  =  curVal.i;
+        myrollup(int(boundary));
         return;
     }
     if (SY == INTCONST) {
@@ -7195,16 +7181,9 @@ int l3var11z;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysType(int l4arg1z, tptr l4arg2z) {
     curIdRec = malloc(offsetof(identrec, szIdent));
-    CTOR(*curIdRec, l4arg1z, 0, , l4arg2z, TYPEID);
+    CTOR(*curIdRec, NIL, l4arg1z, 0, l4arg2z, TYPEID);
     addToHashTab(curIdRec);
 } /* regSysType */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regSysEnum(int l4arg1z, int l4arg2z) {
-    curIdRec = malloc(offsetof(identrec, szIdent));
-    CTOR(*curIdRec, l4arg1z, 48, , temptype, ENUMID, NIL, l4arg2z);
-    addToHashTab(curIdRec);
-} /* regSysEnum */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysProc(int l4arg1z) {
@@ -7214,7 +7193,7 @@ void regSysProc(int l4arg1z) {
        skip its (dead) identrec allocation to save heap. */
     if (l4arg1z != 0) {
         curIdRec = malloc(offsetof(identrec, szSys));
-        CTOR(*curIdRec, l4arg1z, 0, , temptype, ROUTINEID, sysProcNum);
+        CTOR(*curIdRec, NIL, l4arg1z, 0, temptype, ROUTINEID, sysProcNum);
         addToHashTab(curIdRec);
     }
     ++sysProcNum;
@@ -7361,8 +7340,10 @@ void defExtern() {
     regSysType('    REAL', realType);
     regSysType('    ALFA', alfaType);
     regSysType('    VOID', voidType);
-    tempType = voidPtr;
-    regSysEnum('     NIL', 074000U);
+    temptype = voidPtr;
+    curIdRec = malloc(offsetof(identrec, szIdent));
+    CTOR(*curIdRec, NIL, '     NIL', 48, temptype, ENUMID, NIL, 074000U);
+    addToHashTab(curIdRec);
     maxSmallString  =  0;
     for (strLen = 2; strLen <= 5; ++strLen)
         smallStringType[strlen] = makeStringType();
@@ -7410,7 +7391,7 @@ void defExtern() {
     regSysProc('OFFSETOF');
     regSysProc(0);          /* was SUCC (dead name; number kept) */
     regSysProc(0);          /* was PRED */
-    tempType  =  voidPtr;
+    temptype  =  voidPtr;
     regSysProc('  MALLOC');
     regSysProc(0);          /* was EOF (feof is a helper, not this sysproc) */
     regSysProc(0);          /* was REF, fnREF still uses this number */
@@ -7618,8 +7599,8 @@ void exitScope(int a) {
             if (isDefined)
                 error(errIdentAlreadyDefined);
             workidr = malloc(offsetof(identrec, szIdent));
-            CTOR(*workidr, curIdent, curFrameRegTemplate,
-                           symHash[bucket], , ENUMID, NIL);
+            CTOR(*workidr, symHash[bucket], curIdent,
+                           curFrameRegTemplate, , ENUMID, NIL);
             symHash[bucket]  =  workidr;
             inSymbol();
             if (charClass != ASSIGNOP)
@@ -7934,7 +7915,9 @@ void exitScope(int a) {
                 inSymbol();
                 programme(&l2int18z, curIdRec, true);
                 curIdRec->sigtyp  =  makeRoutineType(curIdRec);
-                internScope(int(scopeBound));
+                /* Forget interned types allocated above the arena mark being rolled up. */
+                while (internHead != NIL && int(internHead) >= int(scopeBound))
+                    internHead  =  internHead->inext;
                 myrollup(int(scopeBound));
                 exitScope(0);
                 exitScope(1);

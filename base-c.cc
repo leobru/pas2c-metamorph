@@ -311,7 +311,7 @@ std::string Real::print() const
 }
 
 int64_t heap[32768];
-int64_t avail = 100;
+int64_t avail = 100, maxHeap;
 
 void * besm6_alloc(size_t s)
 {
@@ -355,6 +355,8 @@ void rollup(void * p)
         fprintf(stderr, "Cannot rollup from %p to %p\n", (void*)(heap + avail), p);
         exit(1);
     }
+    if (maxHeap < avail)
+        maxHeap = avail;
     avail = reinterpret_cast<int64_t*>(p) - heap;
     if (heap + avail != p) {
         fprintf(stderr, "Cannot rollup to unaligned pointer %p\n", p);
@@ -7585,12 +7587,40 @@ struct standProc {
         (void) formOperator(PCKUNPCK);
     } /* doPackUnpack */
 
-    standProc() { /* standProc */
-        IdentRecPtr &l3idr12z = Statement::super.back()->l3idr12z;
-        TPtr &l2typ13z = programme::super.back()->l2typ13z;
+    void returnOp() {
         IdentRecPtr &procName = programme::super.back()->procName;
         int64_t &hasFiles = programme::super.back()->hasFiles;
         bool &retSeen = programme::super.back()->retSeen;
+
+        if (not has(statEndSys, SY)) {
+            /* return expr: load expr to ACC, then jump */
+            if (procName->typ == voidType)
+                error(errNeedOtherTypesOfOperands);
+            else {
+                if (hasFiles != 0) {
+                    printf(" functions must not use files\n");
+                    error(200);
+                }
+                retSeen = true;
+                readNext = false;
+                expression();
+                if (typeCheck(procName->typ, curExpr->vt.typ)) {
+                    /* OK */
+                } else if (procName->typ == RealType and
+                           typeCheck(IntegerType, curExpr->vt.typ)) {
+                    castToReal(curExpr);
+                } else
+                    error(33); /* errIllegalTypesForAssignment */
+                (void) formOperator(LOAD);
+            }
+        } else if (procName->typ != voidType)
+            error(errNeedOtherTypesOfOperands);
+        form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
+    } /* returnOp */
+
+    standProc() { /* standProc */
+        IdentRecPtr &l3idr12z = Statement::super.back()->l3idr12z;
+        TPtr &l2typ13z = programme::super.back()->l2typ13z;
         int64_t &ii = programme::super.back()->ii;
 
         curVal.ii = l3idr12z->low();
@@ -7690,30 +7720,7 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
             }
         } break;
         case 14: { /* return [expr] */
-            if (not has(statEndSys, SY)) {
-                /* return expr: load expr to ACC, then jump */
-                if (procName->typ == voidType)
-                    error(errNeedOtherTypesOfOperands);
-                else {
-                    if (hasFiles != 0) {
-                        printf(" functions must not use files\n");
-                        error(200);
-                    }
-                    retSeen = true;
-                    readNext = false;
-                    expression();
-                    if (typeCheck(procName->typ, curExpr->vt.typ)) {
-                        /* OK */
-                    } else if (procName->typ == RealType and
-                               typeCheck(IntegerType, curExpr->vt.typ)) {
-                        castToReal(curExpr);
-                    } else
-                        error(33); /* errIllegalTypesForAssignment */
-                    (void) formOperator(LOAD);
-                }
-            } else if (procName->typ != voidType)
-                error(errNeedOtherTypesOfOperands);
-            form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
+            returnOp();
             return;
         } break;
         case 16: { /* besm */
@@ -9554,6 +9561,7 @@ int main(int argc, char **argv)
     initOptions(argc, argv);
     if (PASINFOR.listMode != 0)
         printf("%s\n", boilerplate);
+    printf(" INITHEAP = %05lo\n", avail);
     curInsnTemplate = 0;
     initTables();
     litAssembler = toText("ASSEMBLE");
@@ -9571,6 +9579,7 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
         exit(1);
     } else {
         finalize();
+        printf(" MAXHEAP = %05lo\n", maxHeap);
         // Dump CHILD here
         FILE *f = fopen(outFileName, "w");
         if (f == NULL) {
