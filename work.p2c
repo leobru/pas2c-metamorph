@@ -5035,7 +5035,7 @@ var
     jb8888: int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void expression; forward;
+void expression(); forward;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 /* parsePostfix: consume any chain of postfix operators (->field,

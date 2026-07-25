@@ -354,7 +354,6 @@ typedef struct {
     tptr typ;
     idclass cl;
     union {
-        struct { };
         struct { irptr list; int value; int szIdent; };
         struct { int maybeUnused;
                 tptr uptype;
@@ -973,11 +972,6 @@ int offset;
         return allocSymtab(offset | 040000000U) - 070000;
     }
 } /* getFCSToffset */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int nrOfBits(int value) {
-    return 48 - minel(value & [7..47]);
-} /* nrOfBits */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 tptr mkIntScl(int bitWid) {
@@ -2031,19 +2025,6 @@ eptr cpDsExpr(eptr e) {
 } /* cpDsExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr allocPtr(tptr toType) {
-/* Heap-allocated pointer descriptor: needed for typedef forward
- * placeholders (patched in place) and for bases the compact form
- * cannot carry (nonzero pad, e.g. textType; depth overflow). */
-tptr t;
-    t.rep = malloc(offsetof(types, szPtr));
-    t.rep->base = toType;
-    t.p.psize = 1;
-    t.p.bits = 15;
-    t.p.pk = kindPtr;
-    return t;
-} /* allocPtr */
-//
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 tptr getPtrType(tptr toType) {
 tptr t;
@@ -2061,7 +2042,14 @@ tptr t;
         t.p.pk = kindPtr;
         return t;
     }
-    return allocPtr(toType);
+    /* Fallback: heap-allocated pointer descriptor, for bases the compact
+       form cannot carry (nonzero pad, e.g. textType; depth overflow). */
+    t.rep = malloc(offsetof(types, szPtr));
+    t.rep->base = toType;
+    t.p.psize = 1;
+    t.p.bits = 15;
+    t.p.pk = kindPtr;
+    return t;
 } /* getPtrType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4468,7 +4456,6 @@ typedef struct {
             int name;
             int bucket;
             int wasDefined;
-            int foundInHash;
             irptr foundRec;
             tptr typ;
 } declarator;
@@ -4492,8 +4479,6 @@ int moreDecls;
 // do-while-body-can't-have-its-own-var-section reasoning as above.
 int declBareName;
 int declIsRoutine;
-int declSemiPeeked;
-int declPeekedIdent;
 int declFwdIdent;
 
 // '*'* ('(' declarator ')' | IDENT) ('[' range ']')*
@@ -4518,7 +4503,6 @@ rangeRec r;
         d->name  =  curIdent;
         d->bucket  =  bucket;
         d->wasDefined  =  isDefined;
-        d->foundInHash  =  (hashTravPtr != NIL);
         d->foundRec  =  hashTravPtr;
         inSymbol();
     } else {
@@ -4589,7 +4573,13 @@ irptr l3idr31z;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void definePtrType(tptr toType) {
-    curType = allocPtr(toType);
+    /* Heap-allocated pointer descriptor (forward-placeholder, patched in
+       place when the real pointee type is later defined). */
+    curType.rep = malloc(offsetof(types, szPtr));
+    curType.rep->base = toType;
+    curType.p.psize = 1;
+    curType.p.bits = 15;
+    curType.p.pk = kindPtr;
     curEnum = malloc(offsetof(identrec, szIdent));
     CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
     typelist  =  curEnum;
@@ -4692,26 +4682,6 @@ pair *curSlot;
     }
 } /* packOneField */
 //
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// Called once per C-style field-group ('TYPE a, b;'), after the whole
-// group has been linked into the curField..curEnum chain (via .list),
-// each already carrying its own resolved .typ (a, b may differ once
-// pointer/array declarator ops are applied). Mirrors the original
-// Pascal-derived (and still-current ctypes-branch) packFields(): one
-// call per comma-group, looping internally over that group's own
-// fields -- not one call per individual declarator. That per-declarator
-// shape (each field triggering its own separate call into a nested
-// procedure) was tried first and hung self-hosted under DUBNA on the
-// 5th such call in a row, for reasons not fully root-caused despite
-// extensive tracing (every intermediate value checked out correct);
-// this restores the proven, previously-working shape instead.
-void packFieldChain() {
-    do {
-        packOneField();
-        cond  =  (curField == curEnum);
-        curField  =  curField->list;
-    } while (!cond);
-} /* packFieldChain */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if (SY != BEGINSY)
@@ -4751,9 +4721,9 @@ void packFieldChain() {
             parseOneDeclarator(&curDeclarator, selType, fieldPackedFlag, isForwardRef);
             if (curDeclarator.name != 0) {
                 // lookField never sets isDefined (see declarator);
-                // foundInHash is the correct "already a field of this
+                // foundRec != NIL is the correct "already a field of this
                 // record" signal here.
-                if (curDeclarator.foundInHash)
+                if (curDeclarator.foundRec != NIL)
                     error(errIdentAlreadyDefined);
                 curEnum = malloc(offsetof(identrec, szField));
                 with *curEnum do {
@@ -4788,7 +4758,17 @@ void packFieldChain() {
                 l3idr31z->list  =  curField;
             }
             l3idr31z  =  curEnum;
-            packFieldChain();
+            // Pack the whole comma-group (curField..curEnum chain) as one
+            // unit -- per-group, looping over that group's own fields, NOT
+            // one call per individual declarator. That per-declarator shape
+            // was tried first and hung self-hosted under DUBNA on the 5th
+            // such call in a row (never fully root-caused despite extensive
+            // tracing); this is the proven, previously-working shape.
+            do {
+                packOneField();
+                cond  =  (curField == curEnum);
+                curField  =  curField->list;
+            } while (!cond);
         }
         checkSymAndRead(SEMICOLON);
         lookupMode  =  lookField;
@@ -4914,7 +4894,7 @@ void packFieldChain() {
                 start  =  0;
             }
             curType.p.psize  =  1;
-            curType.p.bits  =  nrOfBits(span - 1);
+            curType.p.bits  =  48 - minel(span - 1);
             curType.p.pk  =  kindScalar;
             curEnum  =  curType.rep->enums;
             while (curEnum != NIL) {
@@ -5222,7 +5202,7 @@ irptr l3idr12z;
 int jb8888;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void expression; forward;
+void expression(); forward;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 /* parsePostfix: consume any chain of postfix operators (->field,
@@ -7802,25 +7782,12 @@ void exitScope(int a) {
             error(errIdentAlreadyDefined);
             printErrMsg(82); /* errPrevDeclWasNotForward */
         }
-        // A bare name (no '*'/'[]', not predefined) immediately followed
-        // by ';' is ambiguous: could be a plain variable ('int x;') or
-        // the old parenthesis-free parameterless forward/extern routine
-        // form ('void later; forward;' -- still used, e.g. right below
-        // by 'void expression; forward;'). Peek past the ';' -- if
-        // 'forward'/'extern'/'fortran'/'assembler' follows, it's that
-        // routine form after all, and the ';' is already consumed at
-        // exactly the point the original routine code expects it to be.
+        // A bare name (no '*'/'[]') is a routine only when followed by '(' or
+        // ':', or when it completes a predefined forward routine; otherwise
+        // it is a plain variable. The parenthesis-free 'RETTYPE name; forward;'
+        // routine form is retired -- every routine now carries explicit parens
+        // -- so no lookahead past ';' is needed to disambiguate.
         declIsRoutine  =  declBareName && ((SY == LPAREN) || (SY == COLON) || isPredefined);
-        declSemiPeeked  =  false;
-        if ((! declIsRoutine) && declBareName && (! isPredefined) && (SY == SEMICOLON)) {
-            inSymbol();
-            declSemiPeeked  =  true;
-            declPeekedIdent  =  curIdent;
-            if ((declPeekedIdent == litForward) || (SY == EXTERNSY) ||
-                (declPeekedIdent == litFortran) || (declPeekedIdent == litAssembler)) {
-                declIsRoutine  =  true;
-            }
-        }
         if (! declIsRoutine) {
             /* ---- variable declarator list ---- */
             lookupMode  =  lookUse;
@@ -7870,14 +7837,13 @@ void exitScope(int a) {
                     localSize += jj;
                     curExternFile  =  NIL;
                 }
-                moreDecls  =  (! declSemiPeeked) && (SY == COMMA);
+                moreDecls  =  (SY == COMMA);
                 if (moreDecls) {
                     inSymbol();
                     parseOneDeclarator(&curDeclarator, l2typ13z, isPacked, isForwardRef);
                 }
             }
-            if (! declSemiPeeked)
-                checkSymAndRead(SEMICOLON);
+            checkSymAndRead(SEMICOLON);
         } else {
             /* ---- routine ---- */
             curIdent  =  curDeclarator.name;
@@ -7909,11 +7875,7 @@ void exitScope(int a) {
                 ++curProcNesting;
                 if (6 < curProcNesting)
                     error(81); /* errProcNestingTooDeep */
-                // If declSemiPeeked, there were no parens at all (the old
-                // 'RETTYPE name; forward;' form) -- SY is already sitting
-                // on 'forward'/'extern'/etc., not '(', so skip straight
-                // past the parameter-list question entirely.
-                hadParens  =  (! declSemiPeeked) && (SY == LPAREN);
+                hadParens  =  (SY == LPAREN);
                 if (hadParens)
                     parseParameters();
                 if (! l2bool8z) {
@@ -7978,15 +7940,8 @@ void exitScope(int a) {
                 exitScope(1);
                 goto 23301;
             }
-            // If declSemiPeeked, this routine's terminating ';' was
-            // already consumed while peeking ahead for
-            // 'forward'/'extern'; SY already reflects the token right
-            // after it, but curIdent was since overwritten (curIdent :=
-            // curDeclarator.name, above) -- use declPeekedIdent instead
-            // of curIdent in that case.
-            if (! declSemiPeeked)
-                checkSymAndRead(SEMICOLON);
-            declFwdIdent  =  declSemiPeeked ? declPeekedIdent : curIdent;
+            checkSymAndRead(SEMICOLON);
+            declFwdIdent  =  curIdent;
             with *curIdRec do if (declFwdIdent == litForward) {
                 if (isPredefined)
                     error(83); /* errRepeatedPredefinition */

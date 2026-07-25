@@ -1295,20 +1295,6 @@ ExprPtr cpDsExpr(ExprPtr e)
         return e;
 } /* cpDsExpr */
 
-TPtr allocPtr(TPtr toType)
-{
-    /* Heap-allocated pointer descriptor: needed for typedef forward
-     * placeholders (patched in place) and for bases the compact form
-     * cannot carry (nonzero pad, e.g. textType; depth overflow). */
-    TPtr t{};
-    t.setRep(new Types);
-    t.rep()->base = toType;
-    t.p.psize = 1;
-    t.p.bits = 15;
-    t.p.pk = kindPtr;
-    return t;
-}
-
 TPtr getPtrType(TPtr toType)
 {
     TPtr t{};
@@ -1326,7 +1312,14 @@ TPtr getPtrType(TPtr toType)
         t.p.pk = kindPtr;
         return t;
     }
-    return allocPtr(toType);
+    /* Fallback: heap-allocated pointer descriptor, for bases the compact
+       form cannot carry (nonzero pad, e.g. textType; depth overflow). */
+    t.setRep(new Types);
+    t.rep()->base = toType;
+    t.p.psize = 1;
+    t.p.bits = 15;
+    t.p.pk = kindPtr;
+    return t;
 }
 
 ExprPtr bldIncDec(ExprPtr lval, bool isInc, bool isPost)
@@ -1678,20 +1671,6 @@ std::string bset(int64_t t)
     }
     ostr << ']';
     return ostr.str();
-}
-
-int64_t nrOfBits(Integer value)
-{
-    curVal.ii = value;
-    curVal.ii = curVal.ii & BitRange(7, 47);
-    return 48-minel(curVal.ii);
-}
-
-int64_t nrOfBits(int64_t value)
-{
-    int64_t b;
-    b = value & ((1L<<48)-1);
-    return 48-minel(b);
 }
 
 TPtr mkIntScl(int64_t bitWid)
@@ -5292,7 +5271,13 @@ struct parseTypeRef {
 
     void definePtrType(TPtr toType) {
         IdentRecPtr & typelist = programme::super.back()->typelist;
-        curType = allocPtr(toType);
+        /* Heap-allocated pointer descriptor (forward-placeholder, patched in
+           place when the real pointee type is later defined). */
+        curType.setRep(new Types);
+        curType.rep()->base = toType;
+        curType.p.psize = 1;
+        curType.p.bits = 15;
+        curType.p.pk = kindPtr;
         curEnum = new IdentRec(curIdent, lineCnt, typelist, curType, TYPEID);
         typelist = curEnum;
     } /* definePtrType */
@@ -5320,15 +5305,14 @@ struct Declarator {
     // typedef/param namespaces): inSymbol's case 0 sets isDefined when an
     // entry already exists at the current scope. lookField (struct
     // fields) never sets isDefined at all -- its own match check instead
-    // leaves hashTravPtr pointing at the match (or NULL), hence
-    // foundInHash, captured unconditionally alongside it.
-    bool wasDefined = false;
-    bool foundInHash = false;
-    // The matched symbol-table entry itself (NULL if foundInHash is
-    // false), so a caller merging routine/variable dispatch (see the
-    // 'no VARSY' unified TYPESY loop in programme's constructor) can
-    // check cl/preDefLink/typ to recognize a forward-declared routine
-    // being redefined, without a second hash lookup.
+    // leaves hashTravPtr pointing at the match (or NULL), captured below
+    // as foundRec (foundRec != NULL is the field "already defined" signal).
+     bool wasDefined = false;
+    // The matched symbol-table entry itself (NULL if none), so a caller
+    // merging routine/variable dispatch (see the 'no VARSY' unified TYPESY
+    // loop in programme's constructor) can check cl/preDefLink/typ to
+    // recognize a forward-declared routine being redefined, without a
+    // second hash lookup.
     IdentRecPtr foundRec = NULL;
     TPtr type{};
 };
@@ -5359,7 +5343,6 @@ void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
         d.name = curIdent;
         d.bucket = bucket;
         d.wasDefined = isDefined;
-        d.foundInHash = (hashTravPtr != NULL);
         d.foundRec = hashTravPtr;
         inSymbol();
     } else {
@@ -5571,9 +5554,9 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_)
         parseGroupedDecls(skipTarget | Bits(UNIONSY, ENDSY),
             [&](Declarator & d) {
                 // lookField never sets isDefined (see Declarator);
-                // foundInHash is the correct "already a field of this
+                // foundRec != NULL is the correct "already a field of this
                 // record" signal here.
-                if (d.foundInHash)
+                if (d.foundRec != NULL)
                     error(errIdentAlreadyDefined);
                 curEnum = new IdentRec;
                 curEnum->id = d.name;
@@ -5741,7 +5724,7 @@ L12247:
             curType.rep()->numen = span;
             curType.rep()->start = 0;
             curType.p.psize = 1;
-            curType.p.bits = nrOfBits(span - 1);
+            curType.p.bits = 48 - minel((span - 1) & ((1L << 48) - 1));
             curType.p.pk = kindScalar;
             curEnum = curType.rep()->enums;
             while (curEnum != NULL) {
@@ -8772,36 +8755,16 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             error(errIdentAlreadyDefined);
             printErrMsg(82); /* errPrevDeclWasNotForward */
         }
+        // A bare name (no '*'/'[]') is a routine only when followed by '(' or
+        // ':', or when it completes a predefined forward routine; otherwise
+        // it is a plain variable. The parenthesis-free 'RETTYPE name; forward;'
+        // routine form is retired -- every routine now carries explicit parens
+        // -- so no lookahead past ';' is needed to disambiguate.
         bool isRoutine = bareName and (SY == LPAREN or SY == COLON or isPredefined);
-        // A bare name (no '*'/'[]', not predefined) immediately followed
-        // by ';' is ambiguous: could be a plain variable ('int x;') or
-        // the old parenthesis-free parameterless forward/extern routine
-        // form ('void later; forward;' -- still used, e.g. by work.p2c's
-        // own 'void expression; forward;'). Peek past the ';' -- if
-        // 'forward'/'extern'/'fortran'/'assembler' follows, it's that
-        // routine form after all, and the ';' is already consumed at
-        // exactly the point the original (pre-merge) routine code
-        // expected it to be.
-        bool semiPeeked = false;
-        // Saved separately from curIdent: the routine branch below
-        // reassigns curIdent := d.name (the routine's own name, needed
-        // to allocate its IdentRec) before this peeked keyword is
-        // checked against litForward/litFortran/litAssembler, which
-        // would otherwise clobber it.
-        int64_t peekedIdent = 0;
         // Declared here, not at first use below: a 'goto L23301' (the
         // immediate-body routine case) jumps past that point, and C++
         // forbids a goto crossing a variable's initialization.
         int64_t fwdIdent = 0;
-        if (not isRoutine and bareName and not isPredefined and SY == SEMICOLON) {
-            inSymbol();
-            semiPeeked = true;
-            peekedIdent = curIdent;
-            if (peekedIdent == litForward or SY == EXTERNSY or
-                peekedIdent == litFortran or peekedIdent == litAssembler) {
-                isRoutine = true;
-            }
-        }
         if (not isRoutine) {
             /* ---- variable declarator list ---- */
             lookupMode = lookUse;
@@ -8850,18 +8813,13 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     workidr = curIdRec;
                     makeExtFile();
                 }
-                moreDecls = (not semiPeeked) and (SY == COMMA);
+                moreDecls = (SY == COMMA);
                 if (moreDecls) {
                     inSymbol();
                     d = parseOneDeclarator(baseTy, packedFlag, forwardRef);
                 }
             }
-            // If semiPeeked, the ';' terminating this (single, comma-less)
-            // declarator was already consumed above while checking for a
-            // trailing forward/extern keyword that turned out not to be
-            // there -- nothing left to read here.
-            if (not semiPeeked)
-                checkSymAndRead(SEMICOLON);
+            checkSymAndRead(SEMICOLON);
         } else {
             /* ---- routine ---- */
             curIdent = d.name;
@@ -8898,11 +8856,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 curProcNesting = curProcNesting + 1;
                 if (6 < curProcNesting)
                     error(81); /* errProcNestingTooDeep */
-                // If semiPeeked, there were no parens at all (the old
-                // 'RETTYPE name; forward;' form) -- SY is already sitting
-                // on 'forward'/'extern'/etc., not '(', so skip straight
-                // past the parameter-list question entirely.
-                hadParens = (not semiPeeked) and SY == LPAREN;
+                hadParens = (SY == LPAREN);
                 if (hadParens)
                     parseParameters();
                 if (not done) {
@@ -8964,14 +8918,8 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 exitScope(fieldHash);
                 goto L23301;
             }
-            // If semiPeeked, this routine's terminating ';' was already
-            // consumed while peeking ahead for 'forward'/'extern'; SY
-            // already reflects the token right after it, but curIdent was
-            // since overwritten (curIdent := d.name, above) -- use the
-            // saved peekedIdent instead of curIdent in that case.
-            if (not semiPeeked)
-                checkSymAndRead(SEMICOLON);
-            fwdIdent = semiPeeked ? peekedIdent : curIdent;
+            checkSymAndRead(SEMICOLON);
+            fwdIdent = curIdent;
             if (fwdIdent == litForward) {
                 if (isPredefined)
                     error(83); /* errRepeatedPredefinition */
