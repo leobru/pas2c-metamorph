@@ -37,7 +37,7 @@ length=`dubna tmp$$ | tee selfc.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))
 grep -q 'LINES STRUCTURE 1' selfc.lst
 if [ $? -ne 0 ]; then
-echo '[1;31mFAILURE[22;39m'
+echo '[1;31mFAILURE[22;39m'
 exit 1
 fi
 echo Module length is $length zones

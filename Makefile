@@ -1,4 +1,4 @@
-.PHONY: check test hotest worktest clean
+.PHONY: check test hotest worktest basectest workctest clean
 
 # Self-host fixpoint: the host-built work compiler (work.o/work.bin)
 # recompiles work.p2c under the emulator (self.o); the two objects must be
@@ -30,6 +30,11 @@ base-c: base-c.cc
 pascom.bin: build-pascom.dub
 	dubna build-pascom.dub
 
+# work-c.p2c compiled by the host-native base-c compiler. Mirrors work.o/
+# work.bin's own rule above, for the experimental C-declarator fork.
+workc.o workc.bin: base-c work-c.p2c preprocess.py reconstruct-bin-header.py work-c.sh
+	./work-c.sh
+
 # Tests compiled by the host compiler directly.
 test hotest: base libc.bin
 	./runhotests.sh
@@ -42,5 +47,10 @@ basectest: base-c
 worktest: work.o libc.bin pascom.bin
 	./runtests.sh -work
 
+# tests-c/ compiled by the emulator-hosted, self-hosted work-c compiler.
+workctest: workc.bin libc.bin pascom.bin
+	./run-workc-tests.sh
+
 clean:
-	rm -rf *.o tmp* *.lst *.asm *.bin *.utxt test_results test_results_hot
+	rm -rf *.o tmp* *.lst *.asm *.bin *.utxt test_results test_results_hot \
+		test_results_basec test_results_workc

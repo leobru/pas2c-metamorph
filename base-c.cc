@@ -180,8 +180,8 @@ enum Symbol {
         STRINGSY,   LPAREN,     LBRACK,     EXPROP,
 /*10B*/ RPAREN,     RBRACK,     COMMA,      SEMICOLON,
         PERIOD,     ARROW,      COLON,      BECOMES,
-/*20B*/ BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
-        VARSY,      TYPESY,     ENUMSY,
+/*20B*/ BEGINSY,    ENDSY,      TYPESY,     CONSTSY,
+        TYPEDEFSY,  ENUMSY,
 /*30B*/ PACKEDSY,   STRUCTSY,   IFSY,       SWITCHSY,
         WHILESY,    FORSY,      WITHSY,     GOTOSY,
 /*40B*/ ELSESY,     DOSY,
@@ -945,7 +945,7 @@ extern int64_t helperNames[100]; // array [1..99] of int64_t;
 
 int64_t symTab[SYMTAB_LIMIT + 1]; // array [74000B..75500B] of int64_t;
 extern int64_t systemProcNames[30];
-extern int64_t resWordNameBase[21];
+extern int64_t resWordNameBase[19];
 int64_t longSymCnt;
 int64_t longSymTabBase[91];
 int64_t longSyms[91]; // array [1..90] of int64_t;
@@ -8163,15 +8163,21 @@ struct initScalars {
     } /* regSysEnum */
 
     void regSysProc(int64_t l4arg1z) {
-        curIdRec = new IdentRec;
-        // curIdRec@ := [l4arg1z, 0, , temptype, ROUTINEID, sysProcNum];
-        curIdRec->id = l4arg1z;
-        curIdRec->offset = 0;
-        curIdRec->typ = temptype;
-        curIdRec->cl = ROUTINEID;
-        curIdRec->procno() = sysProcNum;
+        // A zero name is a retired/reserved slot (e.g. the removed SQRT..EXP
+        // maths procs): it still consumes a sysProcNum -- some are referenced
+        // by number via fn* constants -- but nothing looks it up by name, so
+        // skip its (dead) identrec allocation.
+        if (l4arg1z != 0) {
+            curIdRec = new IdentRec;
+            // curIdRec@ := [l4arg1z, 0, , temptype, ROUTINEID, sysProcNum];
+            curIdRec->id = l4arg1z;
+            curIdRec->offset = 0;
+            curIdRec->typ = temptype;
+            curIdRec->cl = ROUTINEID;
+            curIdRec->procno() = sysProcNum;
+            addToHashTab(curIdRec);
+        }
         sysProcNum = sysProcNum + 1;
-        addToHashTab(curIdRec);
     } /* registerSysProc */
 
     void defExtern();
@@ -9150,9 +9156,12 @@ struct initTables {
         regResWord(toText("IN"));
         SY = CONSTSY;
         charClass = NOOP;
-        for (idx = 0; idx <= 20; ++idx) {
-            if (SY != TYPESY)
-                regResWord(resWordNameBase[idx]);
+        // CONSTSY..UNIONSY are 19 consecutive reserved words. TYPESY (a runtime
+        // marker set by markTypeSym/lookup on a type-name IDENT, not a keyword)
+        // sits just before CONSTSY, outside this range -- no skip needed;
+        // 'var'/'function' are gone entirely (free identifiers now).
+        for (idx = 0; idx <= 18; ++idx) {
+            regResWord(resWordNameBase[idx]);
             succ(SY);
         }
     } /* regKeyWords */
@@ -9631,11 +9640,9 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
     }
 }
 
-int64_t resWordNameBase[21] = {
+int64_t resWordNameBase[19] = {
         04357566364L             /*"   CONST"*/,
         064716045444546L         /*" TYPEDEF"*/,
-        0664162L                 /*"     VAR"*/,
-        0L                       /*"was FUNCTION"*/,
         045566555L               /*"    ENUM"*/,
         01212604143534544L       /*"**PACKED"*/,
         0636462654364L           /*"  STRUCT"*/,

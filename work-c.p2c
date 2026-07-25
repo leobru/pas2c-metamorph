@@ -1,4 +1,4 @@
-/*=l1,p-,t-,s8,y+,k9,l1*/
+/*=l1,p-,t-,s8,y+,k10,l1*/
 extern _output_, _child_, pasinput, pasinfor, paseofcd;
 //
 const
@@ -159,8 +159,8 @@ typedef enum {
         STRINGSY,   LPAREN,     LBRACK,     EXPROP,
 /*10B*/ RPAREN,     RBRACK,     COMMA,      SEMICOLON,
         PERIOD,     ARROW,      COLON,      BECOMES,
-/*20B*/ BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
-        VARSY,      TYPESY,     ENUMSY,
+/*20B*/ BEGINSY,    ENDSY,      TYPESY,     CONSTSY,
+        TYPEDEFSY,  ENUMSY,
 /*30B*/ PACKEDSY,   STRUCTSY,   IFSY,       SWITCHSY,
         WHILESY,    FORSY,      WITHSY,     GOTOSY,
 /*40B*/ ELSESY,     DOSY,
@@ -506,7 +506,7 @@ int opPrec[SHLEFT..ALTERN];
 //
 int symTab[074000 .. 075500];
 int systemProcNames[23];
-int resWordName[21];
+int resWordName[19];
 int longSymCnt;
 int longSym[1..90];
 int longSyms[1..90];
@@ -4481,7 +4481,7 @@ typedef dclOp dclOpList[1..20];
 
 dclOpList declOps;
 int declOpCount;
-// Shared scratch for TYPEDEFSY/VARSY's grouped-declarator loops: each
+// Shared scratch for the TYPEDEFSY/type-name grouped-declarator loops: each
 // iteration fills this in via parseOneDeclarator before registering it,
 // same do-while-body-can't-have-its-own-var-section reasoning as
 // declOps/declOpCount above.
@@ -7228,10 +7228,16 @@ void regSysEnum(int l4arg1z, int l4arg2z) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysProc(int l4arg1z) {
-    curIdRec = malloc(offsetof(identrec, szSys));
-    CTOR(*curIdRec, l4arg1z, 0, , temptype, ROUTINEID, sysProcNum);
+    /* A zero name is a retired/reserved slot (e.g. the removed SQRT..EXP
+       maths procs): it still consumes a sysProcNum -- some are referenced by
+       number via fn* constants -- but nothing ever looks it up by name, so
+       skip its (dead) identrec allocation to save heap. */
+    if (l4arg1z != 0) {
+        curIdRec = malloc(offsetof(identrec, szSys));
+        CTOR(*curIdRec, l4arg1z, 0, , temptype, ROUTINEID, sysProcNum);
+        addToHashTab(curIdRec);
+    }
     ++sysProcNum;
-    addToHashTab(curIdRec);
 } /* registerSysProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7422,16 +7428,15 @@ void defExtern() {
     regSysProc('   TRUNC');
     regSysProc('  SIZEOF');
     regSysProc('OFFSETOF');
-    regSysProc('was SUCC');
-    regSysProc('was PRED');
+    regSysProc(0);          /* was SUCC (dead name; number kept) */
+    regSysProc(0);          /* was PRED */
     tempType  =  voidPtr;
     regSysProc('  MALLOC');
-    temptype  =  boolType;
-    regSysProc('was  EOF');
-    regSysProc('resrv   '); /* was REF, fnREF still used */
-    regSysProc('was EOLN');
+    regSysProc(0);          /* was EOF (feof is a helper, not this sysproc) */
+    regSysProc(0);          /* was REF, fnREF still uses this number */
+    regSysProc(0);          /* was EOLN */
     temptype  =  intType;
-    regSysProc('rsrv    '); /* was SETJMP, fn17 */
+    regSysProc(0);          /* was SETJMP, fn17 still uses this number */
     regSysProc('   ROUND');
     regSysProc('    CARD');
     regSysProc('   MINEL');
@@ -8150,11 +8155,12 @@ void regKeywords() { /*=A3 regKeywords */
     regResWord('      IN');
     SY  =  CONSTSY;
     charClass  =  NOOP;
-    for (idx = 0; idx <= 20; ++idx) {
-        /* 'function' keyword is retired: C-style "RetType name();"
-           is the only accepted routine-declaration form. */
-        if (SY != TYPESY)
-            regResWord(resWordName[idx]);
+    /* CONSTSY..UNIONSY are 19 consecutive reserved words. TYPESY (a runtime
+       marker set by markTypeSym/lookup on a type-name IDENT, not a keyword)
+       sits just before CONSTSY so it is outside this range -- no skip needed;
+       'var'/'function' are gone entirely (free identifiers now). */
+    for (idx = 0; idx <= 18; ++idx) {
+        regResWord(resWordName[idx]);
         ++SY;
     }
 } /*=A2 regKeywords */
@@ -8306,8 +8312,6 @@ void main() {
     resWordName  =
         '   CONST',
         ' TYPEDEF',
-        '     VAR',
-        '        ',                      // was FUNCTION
         '    ENUM',
         '**PACKED',
         '  STRUCT',
