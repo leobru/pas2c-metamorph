@@ -311,11 +311,12 @@ std::string Real::print() const
 }
 
 int64_t heap[32768];
+int64_t heapBase = 100, heapLimit = 074000;
 int64_t avail = 100, maxHeap;
 
 void * besm6_alloc_words(size_t words)
 {
-    if (avail + words > 074000) {
+    if (words > size_t(heapLimit - avail)) {
         fprintf(stderr, "Out of memory: avail = %ld, wants %lu words\n",
                 avail, words);
         throw std::bad_alloc();
@@ -365,7 +366,7 @@ template<typename T> void succ(T & v)
 
 void rollup(void * p)
 {
-    if (p < heap || p > heap + avail) {
+    if (p < heap + heapBase || p > heap + avail) {
         fprintf(stderr, "Cannot rollup from %p to %p\n", (void*)(heap + avail), p);
         exit(1);
     }
@@ -1084,16 +1085,23 @@ const char * pasmitxt(int64_t errNo)
     case 86: return "Required token not found: ";
     case 88: return "Different types of case labels and expression";
     case 89: return "integer";
-    case 95: return "LPAREN";
-    case 96: return "LBRACK";
-    case 100: return "RPAREN";
-    case 101: return "RBRACK";
-    case 102: return "COMMA";
-    case 103: return "SEMICOLON";
-    case 104: return "PERIOD";
-    case 105: return "ARROW";
-    case 106: return "COLON";
-    case 107: return "ASSIGN";
+    /* Token names for "Required token not found" errors.  requiredSymErr(sym)
+       reports error(sym + 88), so these labels must track the Symbol enum.
+       They were previously hard-coded to the pre-compaction enum values and had
+       drifted -- e.g. SEMICOLON (now 11 -> 99) hit no case and printed "Dunno",
+       and the others printed a neighbour's name. */
+    case LPAREN + 88:    return "LPAREN";
+    case LBRACK + 88:    return "LBRACK";
+    case RPAREN + 88:    return "RPAREN";
+    case RBRACK + 88:    return "RBRACK";
+    case COMMA + 88:     return "COMMA";
+    case SEMICOLON + 88: return "SEMICOLON";
+    case PERIOD + 88:    return "PERIOD";
+    case ARROW + 88:     return "ARROW";
+    case COLON + 88:     return "COLON";
+    case BECOMES + 88:   return "ASSIGN";
+    case BEGINSY + 88:   return "BEGINSY";
+    case ENDSY + 88:     return "ENDSY";
     case 136: return "PROGRAM";
     }
     return "Dunno";
@@ -2536,11 +2544,13 @@ void skipToEnd()
     Symbol sym;
     sym = SY;
     while ((sym != ENDSY) or (SY != PERIOD)) {
+        if (CH == 0)          /* EOF: stop before inSymbol() reads past the */
+            break;            /* end of a truncated / badly-recovered file */
         sym = SY;
         inSymbol();
     }
     if (CH == 'D' || CH == 'd')
-        while (SY != ENDSY)
+        while (SY != ENDSY and CH != 0)
             inSymbol();
     throw 9999;
 }
@@ -7888,7 +7898,7 @@ Statement::Statement()
               L_rep:
                 inSymbol();
               L_skip:
-                while (SY != ENDSY)
+                while (SY != ENDSY and CH != 0)
                     Statement();
                 if (SY != ENDSY) {
                     stmtName = " BEGIN";
@@ -7981,6 +7991,18 @@ Statement::Statement()
                 brContTarget(); /* removing break */
             } else if (SY == WITHSY) {
                 withStatement();
+            } else if (has(Bits(TYPEDEFSY, TYPESY, CONSTSY) |
+                           Bits(ENUMSY, STRUCTSY, UNIONSY) | Bits(PACKEDSY), SY)) {
+                /* A declaration keyword reached statement context -- it leaked
+                   here from a malformed routine header (see bad.p2c).  Report
+                   and consume it so the enclosing 'while (SY != ENDSY)
+                   Statement()' loops make progress instead of spinning.  Only
+                   these keywords are caught: other stray tokens (the SEMICOLON
+                   of a labelled empty statement, CASESY/DEFAULTSY between switch
+                   arms) keep the original silent-return behaviour, so valid
+                   code is unaffected. */
+                error(errBadSymbol);
+                inSymbol();
             }
           exit_ident:;
         } catch (int foo) {
@@ -9322,6 +9344,7 @@ void usage ()
     printf("                        -d8: Invoke Pascal Debugger\n");
     printf("    -e- -e+             Make procedures external (-e+) or local (-e-)\n");
     printf("    -f- -f+             Compile procedures as Pascal (-f-) or Fortran (-f+)\n");
+    printf("    -Hooooo             Set first host heap address in octal (9 zones)\n");
     printf("    -k0 -k1 ... -k23    Heap size in 1024-word chunks (default -k4)\n");
     printf("    -l0 -l1 -l2 -l3     Listing mode:\n");
     printf("                        -l0: No listing, only error messages\n");
@@ -9384,7 +9407,7 @@ void initOptions(int argc, char **argv)
     progname = progname ? progname+1 : argv[0];
 
     for (;;) {
-        switch (getopt(argc, argv, "vVhe:c:r:m:y:u:f:a:d:k:b:s:l:")) {
+        switch (getopt(argc, argv, "vVhH:e:c:r:m:y:u:f:a:d:k:b:s:l:")) {
         case EOF:
             break;
         case 'a':
@@ -9418,6 +9441,23 @@ void initOptions(int argc, char **argv)
         case 'f':
             checkFortran = (optarg[0] == '+');
             continue;
+        case 'H': {
+            const char *end = optarg;
+            while ('0' <= *end && *end <= '7')
+                ++end;
+            unsigned long base = strtoul(optarg, NULL, 8);
+            if (end == optarg || *end != '\0' ||
+                base == 0 || base > 074000 - 9 * 1024) {
+                fprintf(stderr,
+                        "%s: Bad option -H: expected an octal address from 1 through 052000\n",
+                        progname);
+                exit(-1);
+            }
+            heapBase = base;
+            avail = heapBase;
+            heapLimit = heapBase + 9 * 1024;
+            continue;
+        }
         case 'k':
             heapSize = strtoul(optarg, 0, 0);
             if (heapSize > 23) {

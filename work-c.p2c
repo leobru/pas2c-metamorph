@@ -6902,7 +6902,7 @@ void returnOp() {
         break;
     case BEGINSY:
         inSymbol();
-        while (SY != ENDSY) {
+        while ((SY != ENDSY) && (CH != '\0')) {
             statement();
         }
         inSymbol();
@@ -7004,6 +7004,18 @@ void returnOp() {
         expression();
         formOperator(DOIT);
         checkSymAndRead(SEMICOLON);
+        break;
+    default:
+        /* A declaration keyword reached statement context -- it leaked here
+           from a malformed routine header (see bad.p2c).  Report and consume it
+           so the enclosing 'while (SY != ENDSY) statement()' loops make progress
+           instead of spinning.  Only these keywords are caught; other stray
+           tokens (the SEMICOLON of a labelled empty statement, CASESY/DEFAULTSY
+           between switch arms) keep the original silent behaviour. */
+        if (SY IN [TYPEDEFSY, TYPESY, CONSTSY, ENUMSY, STRUCTSY, UNIONSY, PACKEDSY]) {
+            error(errBadSymbol);
+            inSymbol();
+        }
     }
     if (nest)
         --lineNesting;
@@ -8220,7 +8232,7 @@ void main() {
         writeln(' MAXHEAP = ', maxHeap:5 oct);
     }
 }
-{ main(); }
+{ besm(02400000); main(); besm(02400000); }
 .data
     frameRegTemplate  =  04000000;
     constRegTemplate  =  I8;
