@@ -2,7 +2,6 @@
 extern _output_;
 //
 void later();
-FORWARD;
 //
 void ping() {
     writeln('PING');

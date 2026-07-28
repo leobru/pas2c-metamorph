@@ -8,8 +8,8 @@ typedef struct {
     w21, w22, w23, w24, w25, w26, w27, w28, w29;
 } fileblk;
 //
-void fopen(fileblk *fcb, int sizes, int name); assembler;
-void fclose(fileblk *fcb); assembler;
+void fopen(fileblk *fcb, int sizes, int name) assembler;
+void fclose(fileblk *fcb) assembler;
 //
 fileblk f, a, b, c;
 //

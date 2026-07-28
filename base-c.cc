@@ -808,7 +808,6 @@ enum numberFormat { decimal, octal, fullword, hex };
 
 // Globals
 
-int64_t curTimes;
 numberFormat numFormat;
 SetOfSYs   bigSkipSet, statEndSys, blockBegSys, statBegSys,
            skipToSet, lvalOpSet;
@@ -853,8 +852,7 @@ char commentModeCH;
 unsigned char CH, prevCH;
 Word prevInsn;
 
-int64_t debugLine,
-        lineNesting,
+int64_t lineNesting,
         FcstTotal,       // FcstCountTo500 in base.pas
         objBufIdx,
         lookup2, lookupMode, condLabCnt,
@@ -883,7 +881,7 @@ IdentRecPtr outputFile,
 
 ExtFileRec * externFileList;
 
-TPtr baseType, typ121z;
+TPtr typ121z;
 TPtr voidType, voidPtr;
 // Expression-operator tables, filled in the initialize section
 // (base.pas: intOpMap[MUL] := IMULOP,IDIVOP... ; opPrec := precNone:48 ...).
@@ -911,7 +909,7 @@ int64_t leftInsn;
 int64_t curIdent;
 int64_t toAlloc, usedRegs, liveRegs, freeRegs, auxRegs;
 Word optSflags;
-int64_t litOct, litForward, litFortran, litAssembler;
+int64_t litOct, litFortran, litAssembler;
 ExprPtr uVarPtr, curExpr;
 InsnList *  insnList;
 InternRec * internHead;
@@ -1079,7 +1077,7 @@ const char * pasmitxt(int64_t errNo)
     case 77: return "Missing OUTPUT file in program header";
     case 79: return "Unknown identifier in type definition";
     case 81: return "Procedure nesting is too deep";
-    case 82: return "Previous declaration was not FORWARD";
+    case 82: return "Previous declaration was not a forward declaration";
     case 84: return "Error in declarations";
     case 85: return "Routines left undefined";
     case 86: return "Required token not found: ";
@@ -1131,7 +1129,8 @@ void printErrMsg(int64_t errNo)
 
 void printTextWord(int64_t val)
 {
-    const char *s = toAscii(val).c_str();
+    auto str = toAscii(val);
+    const char *s = str.c_str();
     while (*s == ' ')
         s++;
     fputs(s, stdout);
@@ -4427,12 +4426,6 @@ void genCopy()
         form3Insn(KUTC+I12 + size, KATX+I13,
                   KVLM+I13 + work);
         usedRegs = usedRegs | BitRange(12,14);
-        /* work.p2c does not rebuild insnList here before the caller's
-           opfASSN metadata write; keep a placeholder in the host port. */
-        insnList = new InsnList;
-        insnList->head = NULL;
-        insnList->tail = NULL;
-        insnList->regsused = Bits();
     }
 }
 
@@ -4654,6 +4647,8 @@ L7567:
                     break;
                 case opfASSN:
                     genCopy();
+                    if (insnList == NULL)
+                        return;
                     insnList->typ = exprToGen->vt.typ;
                     insnList->regsused = insnList->regsused | Bits(0);
                     insnList->ilm = ilRVAL;
@@ -8800,13 +8795,13 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
     markTypeSym();
     // C-style: no separate 'var' keyword -- a leading type-spec starts
     // either a plain variable declarator-list ('TYPE decl, decl;') or a
-    // routine ('TYPE name(params) {...}' / '...; forward;' / '...;
-    // extern;'), exactly as real C distinguishes 'int x;' from 'int
+    // routine ('TYPE name(params) {...}' / 'TYPE name(params);' /
+    // 'TYPE name(params) extern;'), exactly as real C distinguishes 'int x;' from 'int
     // f(...);'. Disambiguated right after reading the first declarator:
     // a bare name immediately followed by '(' or ':' is a routine, as is
     // a bare name matching an existing forward-declared routine of
     // matching voidness (redefinition -- e.g. 'void error { ... }'
-    // completing an earlier 'void error(int errno); forward;', which
+    // completing an earlier 'void error(int errno);', which
     // needs no parens at all). Everything else -- a '*'/'[]' on the
     // declarator, a ',', or a bare ';' that doesn't match a pending
     // forward routine -- is a variable.
@@ -8846,14 +8841,10 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         }
         // A bare name (no '*'/'[]') is a routine only when followed by '(' or
         // ':', or when it completes a predefined forward routine; otherwise
-        // it is a plain variable. The parenthesis-free 'RETTYPE name; forward;'
+        // it is a plain variable. The parenthesis-free 'RETTYPE name;'
         // routine form is retired -- every routine now carries explicit parens
         // -- so no lookahead past ';' is needed to disambiguate.
         bool isRoutine = bareName and (SY == LPAREN or SY == COLON or isPredefined);
-        // Declared here, not at first use below: a 'goto L23301' (the
-        // immediate-body routine case) jumps past that point, and C++
-        // forbids a goto crossing a variable's initialization.
-        int64_t fwdIdent = 0;
         if (not isRoutine) {
             /* ---- variable declarator list ---- */
             lookupMode = lookUse;
@@ -9010,21 +9001,12 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 exitScope(fieldHash);
                 goto L23301;
             }
-            checkSymAndRead(SEMICOLON);
-            fwdIdent = curIdent;
-            if (fwdIdent == litForward) {
-                if (isPredefined)
-                    error(83); /* errRepeatedPredefinition */
-                curIdRec->level() = l2int18z;
-                curIdRec->preDefLink() = preDefHead;
-                preDefHead = curIdRec;
-                curIdRec->sigtyp() = makeRoutineType(curIdRec);
-            } else if (SY == EXTERNSY or
-                       fwdIdent == litFortran or
-                       fwdIdent == litAssembler) {
+            if (SY == EXTERNSY or
+                (SY == IDENT and
+                 (curIdent == litFortran or curIdent == litAssembler))) {
                 if (SY == EXTERNSY) {
                     curVal.ii = Bits(20);
-                } else if (fwdIdent == litAssembler) {
+                } else if (curIdent == litAssembler) {
                     curVal.ii = Bits(20,26);
                 } else if (checkFortran) {
                     curVal.ii = Bits(21,24);
@@ -9034,11 +9016,17 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 }
                 curIdRec->flags() = curIdRec->flags() | curVal.ii;
                 curIdRec->sigtyp() = makeRoutineType(curIdRec);
-            } else /* 23257 */ {
-                error(errBadSymbol);
-            } /* 23277 */
-            inSymbol();
-            checkSymAndRead(SEMICOLON);
+                inSymbol();
+                checkSymAndRead(SEMICOLON);
+            } else {
+                checkSymAndRead(SEMICOLON);
+                if (isPredefined)
+                    error(83); /* errRepeatedPredefinition */
+                curIdRec->level() = l2int18z;
+                curIdRec->preDefLink() = preDefHead;
+                preDefHead = curIdRec;
+                curIdRec->sigtyp() = makeRoutineType(curIdRec);
+            }
 L23301:
             workidr = curIdRec->argList();
             if (workidr != NULL) {
@@ -9660,7 +9648,6 @@ int main(int argc, char **argv)
     curInsnTemplate = 0;
     initTables();
     litAssembler = toText("ASSEMBLE");
-    litForward = toText("FORWARD");
     litFortran = toText("FORTRAN");
     litOct = toText("OCT");
     PASINPUT = ugetc(pasinput);

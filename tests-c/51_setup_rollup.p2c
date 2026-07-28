@@ -1,7 +1,7 @@
 /*=s8,y+,l0*/
 extern _output_;
-int setup(); assembler;
-void rollup(int mark); assembler;
+int setup() assembler;
+void rollup(int mark) assembler;
 //
 typedef int *intptr;
 int mark;

@@ -132,7 +132,6 @@ const
     extSymMask  =  043000000U;
     maxLineLen = 130;
     /*=A3*/
-    litForward  =  ' FORWARD';
     litFortran  =  ' FORTRAN';
     litAssembler = 'ASSEMBLE';
     litOct  =  '     OCT';
@@ -382,7 +381,7 @@ typedef int:15 tok;
 typedef struct { int *data; int rest[29]; } ifcb;
 //
 NumberFormat numFormat;
-setofsys bigSkipSet, statEndSys, blockBegSys, statBegSys,
+setofsys statEndSys, blockBegSys, statBegSys,
     skipToSet, lvalOpSet;
 int inCallArgs, bool48z, forValue;
 int dataCheck;
@@ -418,7 +417,6 @@ pextf curExternFile;
 char commentModeCH;
 char CH, prevCH;
 int prevInsn,
-    debugLine,
     lineNesting,
     FcstCountTo500,
     objBufIdx,
@@ -443,7 +441,7 @@ irptr outputFile,
     hashTravPtr,
     uProcPtr;
 extfilerec *externFileList;
-tptr baseType, typ121z,
+tptr typ121z,
     voidType, voidPtr,
     boolType;
 tptr textType;
@@ -510,7 +508,6 @@ alfa constVals[1..500];
 int constNums[1..500];
 int objBuffer[1..1024];
 char iso2text['\052'..'\177'];
-__packed char text2iso['\0'..'\77'];
 int maxHeap;
 ifcb fcst, pasinput, _child_;
 //
@@ -525,20 +522,19 @@ struct {
    /*18*/ int flags;
 } pasinfor;
 alfa paseofcd;
-int dummy[3];
 //
 // %%%%%%%%%%%% Libc functions %%%%%%%%%%%
 //
-int mapai(alfa a); assembler;
-void longjmp(int jmpbuf, int val); assembler;
-int setjmp(int *jmpbuf); assembler;
-int setup(); assembler;
-void rollup(int addr); assembler;
+int mapai(alfa a) assembler;
+void longjmp(int jmpbuf, int val) assembler;
+int setjmp(int *jmpbuf) assembler;
+int setup() assembler;
+void rollup(int addr) assembler;
 typedef ifcb *pfcb;
-void fopen(pfcb fcb, int sizes, int name); assembler;
-void fclose(pfcb fcb); assembler;
-int feof(pfcb fcb); assembler;
-int feoln(pfcb fcb); assembler;
+void fopen(pfcb fcb, int sizes, int name) assembler;
+void fclose(pfcb fcb) assembler;
+int feof(pfcb fcb) assembler;
+int feoln(pfcb fcb) assembler;
 void putw(pfcb f, int i) {
     *f->data = i;
     put(*f);
@@ -555,11 +551,9 @@ textchar errtext[101];
 int i;
 char c;
 //
-    perrtxt pasmitxt(int errno);
-        fortran;
+    perrtxt pasmitxt(int errno) fortran;
 //
-    char pasisoxt(textchar txtchar);
-        fortran;
+    char pasisoxt(textchar txtchar) fortran;
 //
     write(' ');
     if (errno >= 200)
@@ -597,8 +591,7 @@ char c;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void printTextWord(int val) { /* printTextWord */
 //
-    void PASTPR(int val);
-        extern;
+    void PASTPR(int val) extern;
 //
     write(' ');
     PASTPR(val);
@@ -678,7 +671,7 @@ int low, high, mid;
     return FcstCnt - 1;
 } /* addCurValToFCST */
 //
-void error(int errno);  forward;
+void error(int errno);
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void endOfLine() {
@@ -3764,6 +3757,8 @@ int needsMater;
                     break;
                 case opfASSN:
                     genCopy();
+                    if (insnList == NIL)
+                        return;
                     with *insnList do {
                         typ  =  exprToGen->typ;
                         regsused  =  regsused | E48;
@@ -4423,7 +4418,7 @@ tptr rangeType;
 // to factor a callback through) and function parameters (individual:
 // each comma-separated item carries its own type-spec). No Pascal
 // 'name: type' fallback anywhere.
-tptr parseTypeRef(setofsys skipTarget); forward;
+tptr parseTypeRef(setofsys skipTarget);
 
 typedef struct {
             int name;
@@ -4452,7 +4447,6 @@ int moreDecls;
 // do-while-body-can't-have-its-own-var-section reasoning as above.
 int declBareName;
 int declIsRoutine;
-int declFwdIdent;
 
 // '*'* ('(' declarator ')' | IDENT) ('[' range ']')*
 // Collects pointer/array operators into the shared declOps/declOpCount
@@ -5175,7 +5169,7 @@ irptr l3idr12z;
 int jb8888;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void expression(); forward;
+void expression();
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 /* parsePostfix: consume any chain of postfix operators (->field,
@@ -7732,13 +7726,13 @@ void exitScope(int a) {
     markTypeSym();
     // C-style: no separate 'var' keyword -- a leading type-spec starts
     // either a plain variable declarator-list ('TYPE decl, decl;') or a
-    // routine ('TYPE name(params) {...}' / '...; forward;' / '...;
-    // extern;'), exactly as real C distinguishes 'int x;' from 'int
+    // routine ('TYPE name(params) {...}' / 'TYPE name(params);' /
+    // 'TYPE name(params) extern;'), exactly as real C distinguishes 'int x;' from 'int
     // f(...);'. Disambiguated right after reading the first declarator:
     // a bare name immediately followed by '(' or ':' is a routine, as is
     // a bare name matching an existing forward-declared routine of
     // matching voidness (redefinition -- e.g. 'void error { ... }'
-    // completing an earlier 'void error(int errno); forward;', which
+    // completing an earlier 'void error(int errno);', which
     // needs no parens at all). Everything else -- a '*'/'[]' on the
     // declarator, a ',', or a bare ';' that doesn't match a pending
     // forward routine -- is a variable.
@@ -7771,7 +7765,7 @@ void exitScope(int a) {
         }
         // A bare name (no '*'/'[]') is a routine only when followed by '(' or
         // ':', or when it completes a predefined forward routine; otherwise
-        // it is a plain variable. The parenthesis-free 'RETTYPE name; forward;'
+        // it is a plain variable. The parenthesis-free 'RETTYPE name;'
         // routine form is retired -- every routine now carries explicit parens
         // -- so no lookahead past ';' is needed to disambiguate.
         declIsRoutine  =  declBareName && ((SY == LPAREN) || (SY == COLON) || isPredefined);
@@ -7929,21 +7923,12 @@ void exitScope(int a) {
                 exitScope(1);
                 goto 23301;
             }
-            checkSymAndRead(SEMICOLON);
-            declFwdIdent  =  curIdent;
-            with *curIdRec do if (declFwdIdent == litForward) {
-                if (isPredefined)
-                    error(83); /* errRepeatedPredefinition */
-                level  =  l2int18z;
-                preDefLink  =  preDefHead;
-                preDefHead  =  curIdRec;
-                sigtyp  =  makeRoutineType(curIdRec);
-            } else if ((SY == EXTERNSY) ||
-                (declFwdIdent == litFortran) ||
-                (declFwdIdent == litAssembler)) {
+            if ((SY == EXTERNSY) ||
+                ((SY == IDENT) &&
+                 ((curIdent == litFortran) || (curIdent == litAssembler)))) {
                 if (SY == EXTERNSY) {
                     curVal.i  =  [20];
-                } else if (declFwdIdent == litAssembler) {
+                } else if (curIdent == litAssembler) {
                     curVal.i  =  [20,26];
                 } else if (checkFortran) {
                     curVal.i  =  [21,24];
@@ -7953,11 +7938,19 @@ void exitScope(int a) {
                 }
                 curIdRec->flags  =  curIdRec->flags | curVal.i;
                 curIdRec->sigtyp  =  makeRoutineType(curIdRec);
+                inSymbol();
+                checkSymAndRead(SEMICOLON);
             } else {
-                error(errBadSymbol);
+                checkSymAndRead(SEMICOLON);
+                with *curIdRec do {
+                    if (isPredefined)
+                        error(83); /* errRepeatedPredefinition */
+                    level  =  l2int18z;
+                    preDefLink  =  preDefHead;
+                    preDefHead  =  curIdRec;
+                    sigtyp  =  makeRoutineType(curIdRec);
+                }
             }
-            inSymbol();
-            checkSymAndRead(SEMICOLON);
 23301:      workidr  =  curIdRec->argList;
             if (workidr != NIL) {
                 while (workidr != curIdRec) {
@@ -8114,7 +8107,6 @@ void regKeywords() { /*=A3 regKeywords */
     FcstCount  =  0;
     initInsnTemplates();
     skipToSet  =  blockBegSys | statBegSys & (~[SWITCHSY]);
-    bigSkipSet  =  skipToSet | statEndSys;
     unpack(*pasinfor.a3, iso2text, '\052'); /* '*' */
     iso2text['_'] = iso2text['*'];
     rewrite(_CHILD_);

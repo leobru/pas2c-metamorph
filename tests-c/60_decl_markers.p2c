@@ -1,0 +1,18 @@
+/*=s8,y+,k9,l0*/
+extern _output_;
+//
+void later();
+void extdecl() extern;
+void fortdecl() fortran;
+void asmdecl() assembler;
+int forward;
+//
+void later() {
+    forward = 42;
+}
+//
+{
+    later();
+    writeln('FORWARD=', forward:0);
+}
+.
