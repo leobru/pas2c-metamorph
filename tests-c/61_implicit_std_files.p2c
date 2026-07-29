@@ -1,0 +1,5 @@
+/*=s8,y+,k9,l0*/
+{
+    writeln('SIZES=', sizeof(_input_):0, ' ', sizeof(_output_):0);
+}
+.

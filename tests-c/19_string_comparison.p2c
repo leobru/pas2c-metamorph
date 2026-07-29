@@ -1,5 +1,4 @@
 /*=s8,y+,k9,l0*/
-extern _output_;
 //
 __packed char s1[1..6], s2[1..6];
 {

@@ -1,5 +1,4 @@
 /*=s8,y+,k9*/
-extern _OUTPUT_;
 typedef int:10 tenbit;
 tenbit c1, c2;
 {

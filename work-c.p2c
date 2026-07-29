@@ -1,5 +1,5 @@
 /*=l1,s8,y+,k9,l1*/
-extern _output_, _child_, pasinput, pasinfor, paseofcd;
+extern _child_, pasinput, pasinfor, paseofcd;
 //
 const
     boilerplate = ' PASCAL 2 C METAMORPHOSIS (2026)';
@@ -4469,7 +4469,9 @@ rangeRec r;
     } else if (SY == IDENT) {
         d->name  =  curIdent;
         d->bucket  =  bucket;
-        d->wasDefined  =  isDefined;
+        d->wasDefined  =  isDefined ||
+            ((lookupMode == lookDef) &&
+             ((curIdent == litInput) || (curIdent == litOutput)));
         d->foundRec  =  hashTravPtr;
         inSymbol();
     } else {
@@ -4828,7 +4830,7 @@ pair *curSlot;
         curField  =  NIL;
         curType.rep = malloc(offsetof(types, szScalar));
         while (SY == IDENT) {
-            if (isDefined)
+            if (isDefined || (curIdent == litInput) || (curIdent == litOutput))
                 error(errIdentAlreadyDefined);
             curEnum = malloc(offsetof(identrec, szIdent));
             CTOR(*curEnum, symHash[bucket], curIdent,
@@ -7204,9 +7206,9 @@ void defExtern() {
     l3var8z  =  0;
     l3var11z  =  30U | [24,27,28,29];
     l3var1z  =  leftAlign(curIdent);
-    if (curIdent == litInput) {
-        inputFile = malloc(offsetof(identrec, szIdent));
-        with *inputFile do {
+    if ((curIdent == litInput) || (curIdent == litOutput)) {
+        l3var7z = malloc(offsetof(identrec, szIdent));
+        with *l3var7z do {
             id  =  curIdent;
             offset  =  0;
             typ  =  textType;
@@ -7214,11 +7216,12 @@ void defExtern() {
             list  =  NIL;
         }
         curVal.i  =  l3var1z;
-        inputFile->value  =  allocExtSymbol(l3var11z);
-        addToHashTab(inputFile);
-        l3var8z  =  lineCnt;
-    } else if (curIdent == litOutput) {
-        outputFile  =  l3var7z;
+        l3var7z->value  =  allocExtSymbol(l3var11z);
+        addToHashTab(l3var7z);
+        if (curIdent == litInput)
+            inputFile  =  l3var7z;
+        else
+            outputFile  =  l3var7z;
         l3var8z  =  lineCnt;
     }
     curExternFile  =  externFileList;
@@ -7427,34 +7430,28 @@ void defExtern() {
     outputFile  =  NIL;
     inputFile  =  NIL;
     externFileList  =  NIL;
-    l3var7z = malloc(offsetof(identrec, szIdent));
     lineStartOffset  =  moduleOffset;
-    with *l3var7z do {
-        id  =  litOutput;
-        offset  =  0;
-        typ  =  textType;
-        cl  =  VARID;
-        list  =  NIL;
-    }
-    curVal.i  =  litOutput;
-    l3var7z->value  =  allocExtSymbol(l3var11z);
-    addToHashTab(l3var7z);
     l3var5z  =  1;
+    savedIdent  =  curIdent;
+    curIdent  =  litOutput;
+    defExtern();
+    curIdent  =  litInput;
+    defExtern();
+    inputFile  =  NIL;
+    fileForInput  =  NIL;
+    curIdent  =  savedIdent;
     while (SY == EXTERNSY) {
         inSymbol();
         while (SY == IDENT) {
-            defExtern();
+            if ((curIdent == litInput) || (curIdent == litOutput))
+                error(errIdentAlreadyDefined);
+            else
+                defExtern();
             inSymbol();
             if (SY == COMMA)
                 inSymbol();
         }
         checkSymAndRead(SEMICOLON);
-    }
-    if (outputFile == NIL) {
-        savedIdent  =  curIdent;
-        curIdent  =  litOutput;
-        defExtern();
-        curIdent  =  savedIdent;
     }
     lookupMode  =  lookUse;
     l3var6z  =  40;

@@ -1,5 +1,4 @@
 /*=s8,y+,k9,l0*/
-extern _output_;
 //
 // Test P/LDARIN via pointer dereference
 typedef int *intptr;

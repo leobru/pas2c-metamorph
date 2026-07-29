@@ -904,6 +904,8 @@ Word curToken, curVal;
 const int64_t extSymMask = 043000000L;
 const int64_t halfWord = 077777777L;
 const int64_t leftAddr = 077777L << 24;
+const int64_t litOutput = 01257656460656412L; /* "*OUTPUT*" */
+const int64_t litInput = 012515660656412L;    /* " *INPUT*" */
 
 int64_t leftInsn;
 int64_t curIdent;
@@ -5382,7 +5384,9 @@ void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
     } else if (SY == IDENT) {
         d.name = curIdent;
         d.bucket = bucket;
-        d.wasDefined = isDefined;
+        d.wasDefined = isDefined /* ||
+            (lookupMode == lookDef &&
+             (curIdent == litInput || curIdent == litOutput)) */;
         d.foundRec = hashTravPtr;
         inSymbol();
     } else {
@@ -5737,7 +5741,7 @@ L12247:
         curType.setRep(
             besm6_alloc_record<Types>(offsetof(Types, szScalar)));
         while (SY == IDENT) {
-            if (isDefined)
+            if (isDefined || curIdent == litInput || curIdent == litOutput)
                 error(errIdentAlreadyDefined);
             curEnum = besm6_alloc_record<IdentRec>(
                 offsetof(IdentRec, szIdent));
@@ -8182,7 +8186,7 @@ void defineRoutine(bool bodyBlock = false)
 } /* defineRoutine */
 
 struct initScalars {
-    Word l3var1z, outName, inName, savedIdent;
+    Word l3var1z, savedIdent;
     int64_t l3var5z, l3var6z;
     IdentRecPtr l3var7z;
     int64_t l3var8z, sysProcNum;
@@ -8241,20 +8245,21 @@ void initScalars::defExtern()
 {
     int64_t l = 0;
     l3var1z.ii = leftAlign(curIdent);
-    if (curIdent == inName.ii) {
-        inputFile = besm6_alloc_record<IdentRec>(
+    if (curIdent == litInput || curIdent == litOutput) {
+        l3var7z = besm6_alloc_record<IdentRec>(
             offsetof(IdentRec, szIdent));
-        inputFile->id = curIdent;
-        inputFile->offset = 0;
-        inputFile->typ = textType;
-        inputFile->cl = VARID;
-        inputFile->list() = NULL;
+        l3var7z->id = curIdent;
+        l3var7z->offset = 0;
+        l3var7z->typ = textType;
+        l3var7z->cl = VARID;
+        l3var7z->list() = NULL;
         curVal = l3var1z;
-        inputFile->value() = allocExtSymbol(l3var11z.ii);
-        addToHashTab(inputFile);
-        l = lineCnt;
-    } else if (curIdent == outName.ii) {
-        outputFile = l3var7z;
+        l3var7z->value() = allocExtSymbol(l3var11z.ii);
+        addToHashTab(l3var7z);
+        if (curIdent == litInput)
+            inputFile = l3var7z;
+        else
+            outputFile = l3var7z;
         l = lineCnt;
     }
     curExternFile = externFileList;
@@ -8272,7 +8277,7 @@ void initScalars::defExtern()
     curExternFile->line = l;
     curExternFile->offset = l3var1z.ii;
     if (l != 0) {
-        if (curIdent == outName.ii) {
+        if (curIdent == litOutput) {
             fileForOutput = curExternFile;
         } else {
             fileForInput = curExternFile;
@@ -8448,8 +8453,6 @@ initScalars::initScalars() :
     l3var11z.ii = (l3var11z.ii & halfWord) | Bits(24,27,28,29);
     programObj = besm6_alloc_record<IdentRec>(
         offsetof(IdentRec, szRoutine));
-    outName.ii = 01257656460656412L /*"*OUTPUT*"*/;
-    inName.ii = 012515660656412L /*" *INPUT*"*/;
     symTabPos = 074004;
     programObj->cl = ROUTINEID; // cl left as heap garbage in base.pas
     curVal.ii = 06041634357556054L; /* PASCOMPL */
@@ -8477,34 +8480,29 @@ initScalars::initScalars() :
     inputFile = NULL;
     externFileList = NULL;
 
-    l3var7z = besm6_alloc_record<IdentRec>(
-        offsetof(IdentRec, szIdent));
     lineStartOffset = moduleOffset;
-    l3var7z->id = outName.ii;
-    l3var7z->offset = 0;
-    l3var7z->typ = textType;
-    l3var7z->cl = VARID;
-    l3var7z->list() = NULL;
-    curVal.ii = 01257656460656412L /*"*OUTPUT*"*/;
-    l3var7z->value() = allocExtSymbol(l3var11z.ii);
-    addToHashTab(l3var7z);
     l3var5z = 1;
+    savedIdent.ii = curIdent;
+    curIdent = litOutput;
+    defExtern();
+    curIdent = litInput;
+    defExtern();
+    inputFile = NULL;
+    fileForInput = NULL;
+    curIdent = savedIdent.ii;
     while (SY == EXTERNSY) {
         inSymbol();
         while (SY == IDENT) {
-            defExtern();
+            if (curIdent == litInput || curIdent == litOutput)
+                error(errIdentAlreadyDefined);
+            else
+                defExtern();
             inSymbol();
             if (SY == COMMA)
                 inSymbol();
         }
         checkSymAndRead(SEMICOLON);
     } /* while SY = EXTERNSY */
-    if (outputFile == NULL) {
-        savedIdent.ii = curIdent;
-        curIdent = outName.ii;
-        defExtern();
-        curIdent = savedIdent.ii;
-    }
     lookupMode = lookUse;
     l3var6z = 40;
     do {

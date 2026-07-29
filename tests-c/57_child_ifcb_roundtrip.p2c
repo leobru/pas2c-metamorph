@@ -1,5 +1,5 @@
 /*=a3,s8,y+,l0*/
-extern _output_, _child_;
+extern _child_;
 //
 typedef struct {
     int *data;

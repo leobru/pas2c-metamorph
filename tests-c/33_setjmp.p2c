@@ -1,5 +1,4 @@
 /*=s8,y+,k9,l0*/
-extern _output_;
 void longjmp(int jmpbuf, int val) assembler;
 int setjmp(int *jmpbuf) assembler;
 //

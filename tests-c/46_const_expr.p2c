@@ -1,5 +1,4 @@
 /*=s8,y+,k9,l0*/
-extern _output_;
 //
 const A = 1 + 2 * 3;
       B = A + 5;

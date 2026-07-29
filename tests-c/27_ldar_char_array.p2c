@@ -1,5 +1,4 @@
 /*=s8,y+,k9,l0*/
-extern _output_;
 //
 // Test P/LDAR helper: char array with variable index
 char chars[1..5];
