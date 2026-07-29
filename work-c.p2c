@@ -192,7 +192,7 @@ typedef enum {
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
     SETREG9,  STOREAT9,  DOIT,  SETREG12,  DFLTWDTH,
     FRACWIDTH, gen11, gen12, FILEACCESS, FILEINIT,
-    BRANCH, PCKUNPCK, LITINSN
+    BRANCH, PCKUNPCK
 } opgen;
 //
 // Flags for ops that can potentially be optimized if one operand is a constant
@@ -1966,6 +1966,70 @@ eptr mkIntLit(int val) {
 } /* mkIntLit */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* Construct a binary op-node, but if both operands are already constants
+   (GETENUM), fold at construction and reuse the left operand's node in place
+   as the result — no new allocation.  Construction is now the only place
+   folding happens (genFullExpr no longer re-folds); the payoff is that
+   constant expressions collapse to a literal for downstream sites that
+   require op == GETENUM.  Divide/modulo by a zero constant is left as an
+   op-node so codegen keeps its behaviour. */
+eptr mkExprFold(operator op, tptr resTyp, eptr e1, eptr e2) {
+    word v, r;
+    if ((e1->op == GETENUM) && (e2->op == GETENUM) &&
+        ! (((op == IDIVOP) || (op == IMODOP) || (op == RDIVOP)) &&
+           (e2->num1 == 0))) {
+        v.i = e1->num1;
+        r.i = e2->num1;
+        switch (op) {
+        case MUL:      v.r = v.r * r.r; break;
+        case RDIVOP:   v.r = v.r / r.r; break;
+        case ANDOP:    v.i = v.i && r.i; break;
+        case IDIVOP:   v.i = v.i / r.i; break;
+        case IMODOP:   v.i = v.i % r.i; break;
+        case PLUSOP:   v.r = v.r + r.r; break;
+        case MINUSOP:  v.r = v.r - r.r; break;
+        case OROP:     v.i = v.i || r.i; break;
+        case IMULOP:   v.i = v.i * r.i; break;
+        case SETAND:   v.i = v.i & r.i; break;
+        case SETXOR:   v.i = v.i ^ r.i; break;
+        case INTPLUS:  v.i = v.i + r.i; break;
+        case INTMINUS: v.i = v.i - r.i; break;
+        case SETOR:    v.i = v.i | r.i; break;
+        case SHLEFT:   v.i = v.i << r.i; break;
+        case SHRIGHT:  v.i = v.i >> r.i; break;
+        default:
+            return mkExpr(op, resTyp, e1, e2);   /* not a foldable op */
+        }
+        e1->num1 = v.i;    /* e1 is already GETENUM; reuse it in place */
+        e1->typ = resTyp;
+        return e1;
+    }
+    return mkExpr(op, resTyp, e1, e2);
+} /* mkExprFold */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* Unary counterpart of mkExprFold.  Only ever called with a foldable unary
+   operator, so a GETENUM operand is always folded — mutated in place and
+   reused. */
+eptr mkUnaryFold(operator op, tptr resTyp, eptr e) {
+    word v;
+    if (e->op == GETENUM) {
+        v.i = e->num1;
+        switch (op) {
+        case TOREAL:   v.r = v.i; break;
+        case NOTOP:    v.i = ! v.i; break;
+        case RNEGOP:   v.r = -v.r; break;
+        case INEGOP:   v.i = -v.i; break;
+        case BITNEGOP: v.i = ~v.i; break;
+        } /* switch */
+        e->num1 = v.i;
+        e->typ = resTyp;
+        return e;
+    }
+    return mkExpr(op, resTyp, e, NIL);
+} /* mkUnaryFold */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 eptr flatMemAt(eptr idx) {
     idx->typ = intType;
     return mkExpr(GETELT, charType,
@@ -3722,30 +3786,9 @@ int needsMater;
         if (curOP IN [NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP]) {
             genComparison();
         } else {
-            if (arg1Const && arg2Const) {
-                switch (curOP) {
-                case MUL:      arg1Val.r  =  arg1Val.r * arg2Val.r; break;
-                case RDIVOP:   arg1Val.r  =  arg1Val.r / arg2Val.r; break;
-                case ANDOP:    arg1Val.i  =  arg1Val.i && arg2Val.i; break;
-                case IDIVOP:   arg1Val.i  =  arg1Val.i / arg2Val.i; break;
-                case IMODOP:   arg1Val.i  =  arg1Val.i % arg2Val.i; break;
-                case PLUSOP:   arg1Val.r  =  arg1Val.r + arg2Val.r; break;
-                case MINUSOP:  arg1Val.r  =  arg1Val.r - arg2Val.r; break;
-                case OROP:     arg1Val.i  =  arg1Val.i || arg2Val.i; break;
-                case IMULOP:   arg1Val.i  =  arg1Val.i * arg2Val.i; break;
-                case SETAND:   arg1Val.i  =  arg1Val.i & arg2Val.i; break;
-                case SETXOR:   arg1Val.i  =  arg1Val.i ^ arg2Val.i; break;
-                case INTPLUS:  arg1Val.i  =  arg1Val.i + arg2Val.i; break;
-                case INTMINUS: arg1Val.i  =  arg1Val.i - arg2Val.i; break;
-                case SETOR:    arg1Val.i  =  arg1Val.i | arg2Val.i; break;
-                case SHLEFT:   arg1Val.i  =  arg1Val.i << arg2Val.i; break;
-                case SHRIGHT:  arg1Val.i  =  arg1Val.i >> arg2Val.i; break;
-                case NEOP: case EQOP: case LTOP: case GEOP: case GTOP: case LEOP: case INOP:
-                case ASSIGNOP:
-                    error(200);
-                } /* switch 7750 */
-                insnList->payload  =  arg1Val.i;
-            } else {
+            /* a foldable op with two constant operands is already folded to
+               GETENUM at construction (mkExprFold), so only the non-constant
+               codegen path remains here. */
                 l3int3z  =  opToMode[curOP];
                 nextInsn  =  opToInsn[curOP];
                 switch (opFlags[curOP]) {
@@ -3834,7 +3877,6 @@ int needsMater;
                     break;
                 } /* switch 10122 */
 10122:          insnList->tail->mode  =  l3int3z;
-            }
         }
     } else if (FILEPTR >= curOP) {
         if (curOP == GETVAR) {
@@ -3934,17 +3976,9 @@ int needsMater;
         genEntry();
     else if (curOP IN [TOREAL..BITNEGOP]) {
         genFullExpr(exprToGen->expr1);
-        if (insnList->ilm == ilCONST) {
-            arg1Val.i  =  insnList->payload;
-            switch (curOP) {
-            case TOREAL: arg1Val.r  =  arg1Val.i; break;
-            case NOTOP:  arg1Val.i  =  ! arg1Val.i; break;
-            case RNEGOP: arg1Val.r  =  -arg1Val.r; break;
-            case INEGOP: arg1Val.i  =  -arg1Val.i; break;
-            case BITNEGOP: arg1Val.i = ~arg1Val.i;
-            } /* switch 10345 */
-            insnList->payload  =  arg1Val.i;
-        } else if (curOP == NOTOP) {
+        /* a unary op with a constant operand is already folded at construction
+           (mkUnaryFold/castToReal), so there is no ilCONST case here. */
+        if (curOP == NOTOP) {
             negateCond();
         } else {
             prepLoad();
@@ -4282,16 +4316,24 @@ void fcloseFile(irptr fileSym) {
         form1Insn(l3int1z);
         formAndAlign(getHelperProc(l3int3z));
         break;
-   case LITINSN:
-        with *insnList do {
-            if (ilm != ilCONST)
-                error(errNoConstant);
-            if (typeSize(insnList->typ) != 1)
-                error(errConstOfOtherTypeNeeded);
-            curVal.i  =  insnList->payload;
-        }
     } /* switch */
 } /* formOperator */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* Extract the value of a constant expression into curVal.  With folding at
+   construction a constant expression is already a GETENUM node, so we read it
+   directly rather than lowering it through genFullExpr — the former
+   formOperator(LITINSN).  Avoids an insnList allocation per constant. */
+void takeConstFromExpr() {
+    if (errors || curExpr == NIL)
+        return;
+    if (curExpr->op != GETENUM)
+        error(errNoConstant);
+    else if (typeSize(curExpr->typ) != 1)
+        error(errConstOfOtherTypeNeeded);
+    else
+        curVal.i  =  curExpr->num1;
+} /* takeConstFromExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void markTypeSym() {
@@ -5262,7 +5304,10 @@ void parseLval() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void castToReal(eptr *value) {
-    *value = mkExpr(TOREAL, realType, *value, NIL);
+    /* Fold at construction when the operand is already constant, so a mixed
+       int/real constant expression collapses to a single GETENUM node (the
+       one case bldArithOp routes through here). */
+    *value = mkUnaryFold(TOREAL, realType, *value);
 } /* castToReal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5386,7 +5431,7 @@ void bldBitOp(operator oper, eptr leftArg) {
         curExpr = uVarPtr;
         return;
     }
-    curExpr = mkExpr(oper, arg1Type, leftArg, curExpr);
+    curExpr = mkExprFold(oper, arg1Type, leftArg, curExpr);
 } /* bldBitOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5428,7 +5473,7 @@ tptr resTyp;
         resOp = intOpMap[oper];
         resTyp = intType;
     }
-    curExpr = mkExpr(resOp, resTyp, leftExpr, curExpr);
+    curExpr = mkExprFold(resOp, resTyp, leftExpr, curExpr);
 } /* bldArithOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5464,7 +5509,7 @@ void bldLogOp(operator oper, eptr leftExpr, int match) {
         error(errNeedOtherTypesOfOperands);
         curExpr = uVarPtr;
     } else {
-        curExpr = mkExpr(oper, boolType, leftExpr, curExpr);
+        curExpr = mkExprFold(oper, boolType, leftExpr, curExpr);
     }
 } /* bldLogOp */
 //
@@ -5769,9 +5814,9 @@ eptr leftExpr;
         switch (oper) {
         case MINUSOP:
             if (arg1Type == realType) {
-                curExpr = mkExpr(RNEGOP, realType, curExpr, NIL);
+                curExpr = mkUnaryFold(RNEGOP, realType, curExpr);
             } else if (typeCheck(arg1Type, intType)) {
-                curExpr = mkExpr(INEGOP, intType, curExpr, NIL);
+                curExpr = mkUnaryFold(INEGOP, intType, curExpr);
             } else {
                 error(69); /* errUnaryMinusNeedRealOrInteger */
                 return;
@@ -5779,7 +5824,7 @@ eptr leftExpr;
             break;
         case BITNEGOP:
             if (typeCheck(arg1Type, intType)) {
-                curExpr = mkExpr(BITNEGOP, intType, curExpr, NIL);
+                curExpr = mkUnaryFold(BITNEGOP, intType, curExpr);
             } else {
                 error(62); /* errIntegerNeeded */
                 return;
@@ -5787,7 +5832,7 @@ eptr leftExpr;
             break;
         case NOTOP:
             if (arg1Type == boolType) {
-                curExpr = mkExpr(NOTOP, boolType, curExpr, NIL);
+                curExpr = mkUnaryFold(NOTOP, boolType, curExpr);
             } else if (arg1Type == intType) {
                 curExpr = mkExpr(EQOP, boolType, curExpr, mkIntLit(0));
             } else {
@@ -6163,9 +6208,9 @@ word minValue, maxValue;
                 if (SY != CASESY)
                     requiredSymErr(CASESY);
                 expression();
-                formOperator(LITINSN);
+                takeConstFromExpr();
                 itemvalue = curVal.i;
-                itemType = insnList->typ;
+                itemType = curExpr->typ;
                 if (itemtype.rep != NIL) {
                     if (firstType.rep == NIL) {
                         firstType  =  itemtype;
@@ -6387,7 +6432,7 @@ int rec;
         dataSegLen  =  0;
         do {
             expression();
-            formOperator(LITINSN);
+            takeConstFromExpr();
             savedVal  =  curVal;
             if (SY == COLON) {
                 inSymbol();
@@ -6783,7 +6828,7 @@ void returnOp() {
         return;
     case 16: /* besm */
         expression();
-        formOperator(LITINSN);
+        takeConstFromExpr();
         formAndAlign(curVal.i);
         break;
     case 19: case 20: /* pck, unpck */
@@ -6839,8 +6884,8 @@ void returnOp() {
         ceTyp  =  voidType;
         ceVal  =  1;
         expression();
-        formOperator(LITINSN);
-        ceTyp  =  insnList->typ;
+        takeConstFromExpr();
+        ceTyp  =  curExpr->typ;
         ceVal  =  curVal.i;
         myrollup(int(boundary));
         return;
