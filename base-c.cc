@@ -682,11 +682,13 @@ std::string toAscii(int64_t val)
 struct IdentRec : public BESM6Obj {
     void * operator new(size_t) = delete;
 
-    IdentRecPtr next;
+    struct {
+        IdentRecPtr next;
+        int64_t offset;
+        IdClass cl;
+    } pck;
     int64_t id;
-    int64_t offset;
     TPtr typ;
-    IdClass cl;
     // TYPEID, VARID classes end here
     union {
         struct {                // ENUMID, FORMALID
@@ -716,69 +718,69 @@ struct IdentRec : public BESM6Obj {
         };
     };
     IdentRecPtr & list() {
-        assert(cl != TYPEID);
+        assert(pck.cl != TYPEID);
         return list_;
     }
     int64_t & value() {
-        assert (cl != TYPEID);
+        assert(pck.cl != TYPEID);
         return value_;
     }
     int64_t & low() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return low_;
     }
     Word & high() {
         return *reinterpret_cast<Word*>(&high_);
     }
     int64_t & procno() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return low_;
     }
     TPtr & sigtyp() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return sigtyp_;
     }
     TPtr & uptype() {
-        assert (cl == FIELDID);
+        assert(pck.cl == FIELDID);
         return uptype_;
     }
     bool & pckfield() {
-        assert(cl == FIELDID);
+        assert(pck.cl == FIELDID);
         return pckfield_;
     }
     int64_t & shift() {
-        assert(cl == FIELDID);
+        assert(pck.cl == FIELDID);
         return shift_;
     }
     int64_t & width() {
-        assert(cl == FIELDID);
+        assert(pck.cl == FIELDID);
         return width_;
     }
     IdentRecPtr & argList() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return argList_;
     }
     IdentRecPtr & preDefLink() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return preDefLink_;
     }
     int64_t & level() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return level_;
     }
     int64_t & pos() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return pos_;
     }
     int64_t & flags() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return flags_;
     }
     
     std::string p(bool verbose = false) const {
         std::string ret;
         char * strp;
-        switch (cl) {
+        switch (pck.cl) {
         default: ret = toAscii(id);
             return ret.substr(ret.find_last_of(' ')+1, std::string::npos);
         case ROUTINEID:
@@ -993,7 +995,7 @@ std::string Expr::p()
     }
     if (op == GETVAR) {
         snprintf(buf, sizeof buf, "GETVAR[id=%ld off=%ld val=%ld]",
-                 id1 ? id1->id : -1, id1 ? id1->offset : -1,
+                 id1 ? id1->id : -1, id1 ? id1->pck.offset : -1,
                  id1 ? id1->value_ : -1);
         return buf;
     }
@@ -1352,7 +1354,7 @@ ExprPtr bldIncDec(ExprPtr lval, bool isInc, bool isPost)
 void addToHashTab(IdentRecPtr arg)
 {
     int bucket = (arg->id % 65535) % 128;
-    arg->next = symHash[bucket];
+    arg->pck.next = symHash[bucket];
     symHash[bucket] = arg;
 }
 
@@ -2150,10 +2152,10 @@ L1473:
                 case 0: {
                     hashTravPtr = symHash[bucket];
                     while (hashTravPtr != NULL) {
-                        if (hashTravPtr->offset == curFrameRegTemplate)
+                        if (hashTravPtr->pck.offset == curFrameRegTemplate)
                         {
                             if (hashTravPtr->id != curIdent)
-                                hashTravPtr = hashTravPtr->next;
+                                hashTravPtr = hashTravPtr->pck.next;
                             else {
                                 isDefined = true;
                                 goto exitLexer;
@@ -2166,9 +2168,9 @@ L1473:
 L2:                 hashTravPtr = symHash[bucket];
                     while (hashTravPtr != NULL) {
                         if (hashTravPtr->id != curIdent)
-                            hashTravPtr = hashTravPtr->next;
+                            hashTravPtr = hashTravPtr->pck.next;
                         else {
-                            if (hashTravPtr->cl == TYPEID)
+                            if (hashTravPtr->pck.cl == TYPEID)
                                 SY = TYPESY;
                             goto exitLexer;
                         }
@@ -2186,7 +2188,7 @@ L2:                 hashTravPtr = symHash[bucket];
                                 if ((hashTravPtr->id == curIdent)
                                     and (hashTravPtr->uptype() == withIter->expr2->vt.typ))
                                     goto exitLexer;
-                                hashTravPtr = hashTravPtr->next;
+                                hashTravPtr = hashTravPtr->pck.next;
                             }
                             withIter = withIter->expr1;
                         }
@@ -2199,7 +2201,7 @@ L2:                 hashTravPtr = symHash[bucket];
                         if ((hashTravPtr->id == curIdent) and
                             (typ121z == hashTravPtr->uptype()))
                             goto exitLexer;
-                        hashTravPtr = hashTravPtr->next;
+                        hashTravPtr = hashTravPtr->pck.next;
                     }
                     break;
                 }
@@ -2745,7 +2747,7 @@ L99:        litType.setRep(NULL);
         switch (SY) {
         case IDENT: {
             if ((hashTravPtr == NULL) or
-                (hashTravPtr->cl != ENUMID))
+                (hashTravPtr->pck.cl != ENUMID))
                 goto L99;
             litType = hashTravPtr->typ;
             litValue.ii = hashTravPtr->value();
@@ -2781,21 +2783,21 @@ void hash(IdentRecPtr & l3arg1z, IdentRecPtr l3arg2z)
     if (l3arg1z == l3arg2z) {
         if (l3var1z) {
             symHash[l3var2z] =
-                symHash[l3var2z]->next;
+                symHash[l3var2z]->pck.next;
         } else {
-            l3arg1z = l3arg2z->next;
+            l3arg1z = l3arg2z->pck.next;
         };
     } else {
         l3var3z = l3arg1z;
         while (l3var3z != l3arg2z) {
             l3var4z = l3var3z;
             if (l3var3z != NULL) {
-                l3var3z = l3var3z->next;
+                l3var3z = l3var3z->pck.next;
             } else {
                 return;
             }
         };
-        l3var4z->next = l3arg2z->next;
+        l3var4z->pck.next = l3arg2z->pck.next;
     }
 } /* hash */
 
@@ -2820,7 +2822,7 @@ bool knownInType(IdentRecPtr & rec, int64_t name = curIdent)
             if (rec->id == name) {
                 return true;
             }
-            rec = rec->next;
+            rec = rec->pck.next;
         }
     }
     return false;
@@ -2954,7 +2956,7 @@ TPtr makeRoutineType(IdentRecPtr routine)
     if (srcParam != NULL) {
         while (srcParam != routine) {
             newParam = new SigRec;
-            newParam->pclass = srcParam->cl;
+            newParam->pclass = srcParam->pck.cl;
             newParam->ptyp = srcParam->typ;
             newParam->next = NULL;
             if (lastParam == NULL)
@@ -4266,7 +4268,7 @@ genEntry::genEntry()
             insnList->regsused = Bits();
             usedRegs = usedRegs | l5idr4z->flags();
             if (l5idr4z->list() != NULL) {
-                addToInsnList(l5idr4z->offset + InsnTemp[XTA] +
+                addToInsnList(l5idr4z->pck.offset + InsnTemp[XTA] +
                               l5idr4z->value());
                 if (l5bool10z)
                     addToInsnList(getHelperProc(19)); /* "P/EA" */
@@ -4304,7 +4306,7 @@ genEntry::genEntry()
                         // against calls to formal parameters at runtime.
                         if (l5idr3z != NULL) {
                             do {
-                                l5idc22z = l5idr3z->cl;
+                                l5idc22z = l5idr3z->pck.cl;
                                 if ((l5idc22z == ROUTINEID) and
                                     (l5idr3z->typ != NULL))
                                     l5idc22z = ENUMID;
@@ -4335,7 +4337,7 @@ genEntry::genEntry()
                 l5idc22z = VARID;
         } /* 7001 */
         if (not (not l5bool9z or (l5idc22z != FORMALID) or
-                 (l5idr6z->cl != VARID)))
+                 (l5idr6z->pck.cl != VARID)))
             l5idc22z = VARID;
           loop:
         if ((l5idc22z == FORMALID) or (l5bool11z)) {
@@ -4373,7 +4375,7 @@ genEntry::genEntry()
         if (has(l5idr5z->flags(), 20)) {
             l5var17z.ii = 1;
         } else {
-            l5var17z.ii = l5idr5z->offset / 04000000;
+            l5var17z.ii = l5idr5z->pck.offset / 04000000;
         } /* 7102 */
     } else { /* 7103 */
         l5var15z = 0;
@@ -4385,7 +4387,7 @@ genEntry::genEntry()
         } /* 7115 */
         addInsnAndOffset(macro+16 + l5var15z,
                          getValueOrAllocSymtab(l5var17z.ii));
-        addToInsnList(l5idr5z->offset + InsnTemp[UTC] + l5idr5z->value());
+        addToInsnList(l5idr5z->pck.offset + InsnTemp[UTC] + l5idr5z->value());
         addToInsnList(macro+18);
         l5var17z.ii = 1;
     } /* 7132 */
@@ -4764,13 +4766,13 @@ L10122:
                 insnList->head = NULL;
                 insnList->regsused = Bits();
                 insnList->ilm = ilLVAL;
-                insnList->payload.ii = curIdRec->offset;
+                insnList->payload.ii = curIdRec->pck.offset;
                 insnList->disp = curIdRec->value();
                 insnList->st = stWORD;
                 insnList->addrmd = 18;
-                if (curIdRec->cl == FORMALID) {
+                if (curIdRec->pck.cl == FORMALID) {
                     genDeref();
-                } else if (curIdRec->cl == ROUTINEID) {
+                } else if (curIdRec->pck.cl == ROUTINEID) {
                     insnList->disp = 3;
                     insnList->payload.ii = (insnList->payload.ii + frameRegTemplate);
                 } else if (insnList->disp >= 074000) {
@@ -4783,7 +4785,7 @@ L10122:
             if (curOP == GETFIELD) {
                 genFullExpr(exprToGen->expr1);
                 curIdRec = exprToGen->id2;
-                insnList->disp = insnList->disp + curIdRec->offset;
+                insnList->disp = insnList->disp + curIdRec->pck.offset;
                 if (curIdRec->pckfield()) {
                     switch (insnList->st) {
                     case stWORD:
@@ -5214,8 +5216,8 @@ void markTypeSym()
         bucket = curIdent % 65535 % 128;
         hashTravPtr = symHash[bucket];
         while (hashTravPtr != NULL and hashTravPtr->id != curIdent)
-            hashTravPtr = hashTravPtr->next;
-        if (hashTravPtr != NULL and hashTravPtr->cl == TYPEID)
+            hashTravPtr = hashTravPtr->pck.next;
+        if (hashTravPtr != NULL and hashTravPtr->pck.cl == TYPEID)
             SY = TYPESY;
     }
 } /* markTypeSym */
@@ -5334,11 +5336,11 @@ struct parseTypeRef {
         curType.p.bits = 15;
         curType.p.pk = kindPtr;
         curEnum = besm6_alloc_record<IdentRec>(offsetof(IdentRec, szIdent));
-        curEnum->next = typelist;
+        curEnum->pck.next = typelist;
         curEnum->id = curIdent;
-        curEnum->offset = lineCnt;
+        curEnum->pck.offset = lineCnt;
         curEnum->typ = curType;
-        curEnum->cl = TYPEID;
+        curEnum->pck.cl = TYPEID;
         typelist = curEnum;
     } /* definePtrType */
 };
@@ -5527,7 +5529,7 @@ void packOneField(IdentRecPtr fld, TPtr fldType)
 L11523:         curSlot = &cases.pairs[pairIdx];
                 if (curSlot->first >= fieldWidth) {
                     fld->shift() = 48 - curSlot->first;
-                    fld->offset = curSlot->second;
+                    fld->pck.offset = curSlot->second;
                     if (not has(optSflags.ii, S6))
                         fld->shift() = 48 - fld->width() - fld->shift();
                     curSlot->first = curSlot->first - fieldWidth;
@@ -5557,7 +5559,7 @@ L11523:         curSlot = &cases.pairs[pairIdx];
         }
     }
     fld->pckfield() = false;
-    fld->offset = cases.size;
+    fld->pck.offset = cases.size;
     cases.size = cases.size + typeSize(fldType);
 L11622:
     if (PASINFOR.listMode == 3) {
@@ -5566,7 +5568,7 @@ L11622:
             printf("PACKED");
         printf(" FIELD ");
         printTextWord(fld->id);
-        printf(".OFFSET=%05loB", fld->offset);
+        printf(".OFFSET=%05loB", fld->pck.offset);
         if (fld->pckfield()) {
             printf(".<<=SHIFT=%2ld. WIDTH=%2ld BITS", fld->shift(),
                    fld->width());
@@ -5623,8 +5625,8 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_)
                 curEnum = besm6_alloc_record<IdentRec>(
                     offsetof(IdentRec, szField));
                 curEnum->id = d.name;
-                curEnum->next = fieldHash[d.bucket];
-                curEnum->cl = FIELDID;
+                curEnum->pck.next = fieldHash[d.bucket];
+                curEnum->pck.cl = FIELDID;
                 curEnum->uptype() = curType;
                 curEnum->pckfield() = isPacked;
                 fieldHash[d.bucket] = curEnum;
@@ -5763,11 +5765,11 @@ L12247:
                 error(errIdentAlreadyDefined);
             curEnum = besm6_alloc_record<IdentRec>(
                 offsetof(IdentRec, szIdent));
-            curEnum->next = symHash[bucket];
+            curEnum->pck.next = symHash[bucket];
             curEnum->id = curIdent;
-            curEnum->offset = curFrameRegTemplate;
+            curEnum->pck.offset = curFrameRegTemplate;
             curEnum->typ = curType;
-            curEnum->cl = ENUMID;
+            curEnum->pck.cl = ENUMID;
             curEnum->list() = NULL;
             curEnum->value() = span;
             symHash[bucket] = curEnum;
@@ -5978,7 +5980,7 @@ void parseDecls(int64_t l3arg1z)
         prevErrPos = 0;
         printf("IDENT ");
         printTextWord(l2var12z);
-        printf(" IN LINE %ld", curIdRec->offset);
+        printf(" IN LINE %ld", curIdRec->pck.offset);
     } break;
     case 2: {
         padToLeft();
@@ -6200,7 +6202,7 @@ L55:        lookupMode = lookField;
 
 void parseLval()
 {
-    if (hashTravPtr->cl == FIELDID) {
+    if (hashTravPtr->pck.cl == FIELDID) {
         /* Implicit field of the `with` variable: build GETFIELD on
            withIter directly, then continue with any further postfix. */
         curExpr = mkExpr(GETFIELD, hashTravPtr->typ,
@@ -6277,7 +6279,7 @@ void parseCallArgs(IdentRecPtr subroutine)
             expression();
             actualOp = curExpr->op;
             if (noArgs) { /*(a)*/
-                formClass = curFormal->cl;
+                formClass = curFormal->pck.cl;
                 if (actualOp == PCALL) {
                     if (formClass != ROUTINEID or
                         curFormal->typ != voidType) {
@@ -6524,7 +6526,7 @@ void Factor::stdCall()
                     error(errNotDefined);
                     resultValue = 0;
                 } else {
-                    resultValue = hashTravPtr->offset;
+                    resultValue = hashTravPtr->pck.offset;
                 }
                 inSymbol();
             }
@@ -6609,7 +6611,7 @@ Factor::Factor()
                 curExpr = uVarPtr;
                 inSymbol();
             } else
-                switch (hashTravPtr->cl) {
+                switch (hashTravPtr->pck.cl) {
                 case ENUMID: {
                     curExpr = new Expr;
                     curExpr->vt.typ = hashTravPtr->typ;
@@ -6621,7 +6623,7 @@ Factor::Factor()
                 case ROUTINEID: { /*(rout)*/
                     routine = hashTravPtr;
                     inSymbol();
-                    if (routine->offset == 0) {
+                    if (routine->pck.offset == 0) {
                         if (routine->typ != voidType and
                             SY == LPAREN) {
                             stdCall();
@@ -7381,7 +7383,7 @@ L16545:             error(errNotDefined);
                     curExpr = uVarPtr;
                     inSymbol();
                 } else {
-                    if (hashTravPtr->cl == VARID) {
+                    if (hashTravPtr->pck.cl == VARID) {
                         parseLval();
                     } else goto L16545;
                 }
@@ -7872,10 +7874,10 @@ Statement::Statement()
 /*(ident)*/
             if (SY == IDENT) {
                 if (hashTravPtr != NULL) {
-                    l3var6z = hashTravPtr->cl;
+                    l3var6z = hashTravPtr->pck.cl;
                     if (l3var6z == ROUTINEID) {
                         l3idr12z = hashTravPtr;
-                        if (l3idr12z->offset == 0) {
+                        if (l3idr12z->pck.offset == 0) {
                             /* System procedure (WRITE, PUT, GET, NEW, ...):
                                special syntax, handled directly. */
                             inSymbol();
@@ -8116,7 +8118,7 @@ void defineRoutine(bool bodyBlock = false)
         if (procName->typ != voidType)
             l3int4z = 4;
         while (l3idr5z != procName) {
-            if (l3idr5z->cl == VARID) {
+            if (l3idr5z->pck.cl == VARID) {
                 l3var2z.ii = typeSize(l3idr5z->typ);
                 if (l3var2z.ii != 1) {
                     form3Insn(KVTM+I14 + l3int4z,
@@ -8220,9 +8222,9 @@ struct initScalars {
             offsetof(IdentRec, szIdent));
         // curIdRec@ := [l4arg1z, 0, , l4arg2z, TYPEID];
         curIdRec->id = l4arg1z;
-        curIdRec->offset = 0;
+        curIdRec->pck.offset = 0;
         curIdRec->typ = l4arg2z;
-        curIdRec->cl = TYPEID;
+        curIdRec->pck.cl = TYPEID;
         addToHashTab(curIdRec);
     } /* regSysType */
 
@@ -8231,9 +8233,9 @@ struct initScalars {
             offsetof(IdentRec, szIdent));
         // curIdRec@ := [l4arg1z, 48, , temptype, ENUMID, NIL, l4arg2z];
         curIdRec->id = l4arg1z;
-        curIdRec->offset = 48;
+        curIdRec->pck.offset = 48;
         curIdRec->typ = temptype;
-        curIdRec->cl = ENUMID;
+        curIdRec->pck.cl = ENUMID;
         curIdRec->list() = NULL;
         curIdRec->value() = l4arg2z;
         addToHashTab(curIdRec);
@@ -8249,9 +8251,9 @@ struct initScalars {
                 offsetof(IdentRec, szSys));
             // curIdRec@ := [l4arg1z, 0, , temptype, ROUTINEID, sysProcNum];
             curIdRec->id = l4arg1z;
-            curIdRec->offset = 0;
+            curIdRec->pck.offset = 0;
             curIdRec->typ = temptype;
-            curIdRec->cl = ROUTINEID;
+            curIdRec->pck.cl = ROUTINEID;
             curIdRec->procno() = sysProcNum;
             addToHashTab(curIdRec);
         }
@@ -8270,9 +8272,9 @@ void initScalars::defExtern()
         l3var7z = besm6_alloc_record<IdentRec>(
             offsetof(IdentRec, szIdent));
         l3var7z->id = curIdent;
-        l3var7z->offset = 0;
+        l3var7z->pck.offset = 0;
         l3var7z->typ = textType;
-        l3var7z->cl = VARID;
+        l3var7z->pck.cl = VARID;
         l3var7z->list() = NULL;
         curVal = l3var1z;
         l3var7z->value() = allocExtSymbol(l3var11z.ii);
@@ -8391,9 +8393,9 @@ initScalars::initScalars() :
     flatMemVar = besm6_alloc_record<IdentRec>(
         offsetof(IdentRec, szIdent));
     flatMemVar->id = 0;
-    flatMemVar->offset = 0;
+    flatMemVar->pck.offset = 0;
     flatMemVar->typ = flatMemType;
-    flatMemVar->cl = VARID;
+    flatMemVar->pck.cl = VARID;
     flatMemVar->list() = NULL;
     flatMemVar->value() = 0;
 
@@ -8412,9 +8414,9 @@ initScalars::initScalars() :
 
     curIdRec = besm6_alloc_record<IdentRec>(
         offsetof(IdentRec, szIdent));
-    curIdRec->offset = 0;
+    curIdRec->pck.offset = 0;
     curIdRec->typ = IntegerType;
-    curIdRec->cl = VARID;
+    curIdRec->pck.cl = VARID;
     curIdRec->list() = NULL;
     curIdRec->value() = 7;
 
@@ -8426,7 +8428,7 @@ initScalars::initScalars() :
 
     uProcPtr = besm6_alloc_record<IdentRec>(
         offsetof(IdentRec, szRoutine));
-    uProcPtr->cl = ROUTINEID; // cl left as heap garbage in base.pas
+    uProcPtr->pck.cl = ROUTINEID; // cl left as heap garbage in base.pas
     uProcPtr->typ.setRep(NULL);
     uProcPtr->list() = NULL;
     uProcPtr->argList() = NULL;
@@ -8475,7 +8477,7 @@ initScalars::initScalars() :
     programObj = besm6_alloc_record<IdentRec>(
         offsetof(IdentRec, szRoutine));
     symTabPos = 074004;
-    programObj->cl = ROUTINEID; // cl left as heap garbage in base.pas
+    programObj->pck.cl = ROUTINEID; // cl left as heap garbage in base.pas
     curVal.ii = 06041634357556054L; /* PASCOMPL */
     programObj->id = curVal.ii;
     programObj->pos() = 0;
@@ -8602,9 +8604,9 @@ void parseParameters()
             IdentRecPtr np = besm6_alloc_record<IdentRec>(
                 offsetof(IdentRec, szIdent));
             np->id = d.name;
-            np->offset = curFrameRegTemplate;
-            np->cl = VARID;
-            np->next = symHash[d.bucket];
+            np->pck.offset = curFrameRegTemplate;
+            np->pck.cl = VARID;
+            np->pck.next = symHash[d.bucket];
             np->typ = d.type;
             np->list() = curIdRec;
             np->value() = l2int18z;
@@ -8632,7 +8634,7 @@ void parseParameters()
         l3var2z = curIdRec->argList();
         /* 22306 */
         while (l3var2z != curIdRec) {
-            if (l3var2z->cl == VARID) {
+            if (l3var2z->pck.cl == VARID) {
                 int64_t sz = typeSize(l3var2z->typ);
                 if (sz != 1) {
                     l3var2z->value() = base;
@@ -8657,7 +8659,7 @@ void exitScope(IdentRecPtr arg[128])
         workidr = arg[ii];
         while (workidr != NULL and
               workidr >= scopeBound)
-            workidr = workidr->next;
+            workidr = workidr->pck.next;
         arg[ii] = workidr;
     }
 } /* exitScope */
@@ -8702,9 +8704,9 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 workidr = besm6_alloc_record<IdentRec>(
                     offsetof(IdentRec, szIdent));
                 workidr->id = curIdent;
-                workidr->offset = curFrameRegTemplate;
-                workidr->next = symHash[bucket];
-                workidr->cl = ENUMID;
+                workidr->pck.offset = curFrameRegTemplate;
+                workidr->pck.next = symHash[bucket];
+                workidr->pck.cl = ENUMID;
                 workidr->list() = NULL;
                 symHash[bucket] = workidr;
                 inSymbol();
@@ -8784,11 +8786,11 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                         curIdRec = besm6_alloc_record<IdentRec>(
                             offsetof(IdentRec, szIdent));
                         curIdRec->id = d.name;
-                        curIdRec->offset = curFrameRegTemplate;
+                        curIdRec->pck.offset = curFrameRegTemplate;
                         curIdRec->typ = d.type;
-                        curIdRec->cl = TYPEID;
+                        curIdRec->pck.cl = TYPEID;
                     }
-                    curIdRec->next = symHash[d.bucket];
+                    curIdRec->pck.next = symHash[d.bucket];
                     symHash[d.bucket] = curIdRec;
                 });
             lookup2 = lookUse;
@@ -8851,7 +8853,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         bool bareName = (d.type == baseTy);
         isPredefined = false;
         if (bareName and d.foundRec != NULL and
-            d.foundRec->cl == ROUTINEID and
+            d.foundRec->pck.cl == ROUTINEID and
             d.foundRec->list() == NULL and
             d.foundRec->preDefLink() != NULL and
             ((d.foundRec->typ == voidType) == done)) {
@@ -8874,9 +8876,9 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 curIdRec = besm6_alloc_record<IdentRec>(
                     offsetof(IdentRec, szIdent));
                 curIdRec->id = d.name;
-                curIdRec->offset = curFrameRegTemplate;
-                curIdRec->next = symHash[d.bucket];
-                curIdRec->cl = VARID;
+                curIdRec->pck.offset = curFrameRegTemplate;
+                curIdRec->pck.next = symHash[d.bucket];
+                curIdRec->pck.cl = VARID;
                 curIdRec->list() = NULL;
                 curIdRec->typ = d.type;
                 if (d.wasDefined)
@@ -8936,11 +8938,11 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 curIdRec = besm6_alloc_record<IdentRec>(
                     offsetof(IdentRec, szRoutine));
                 curIdRec->id = curIdent;
-                curIdRec->offset = curFrameRegTemplate;
-                curIdRec->next = symHash[bucket];
+                curIdRec->pck.offset = curFrameRegTemplate;
+                curIdRec->pck.next = symHash[bucket];
                 curIdRec->typ = voidType;
                 symHash[bucket] = curIdRec;
-                curIdRec->cl = ROUTINEID;
+                curIdRec->pck.cl = ROUTINEID;
                 curIdRec->list() = NULL;
                 curIdRec->value() = 0;
                 curIdRec->argList() = NULL;
