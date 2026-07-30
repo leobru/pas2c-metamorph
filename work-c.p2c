@@ -217,11 +217,12 @@ typedef __packed struct {
     int:8 pad;
     kind pk;
 } pckrep;
-typedef struct {
-    union {
-        struct { typptr rep; };
-        struct { pckrep p; };
-    };
+typedef union {
+    /* The whole-word arm initializes/clears all descriptor metadata at once.
+       With s6, p.rep occupies the address LSBs, so decorated words can still
+       be dereferenced directly by BESM-6 indirect addressing. */
+    typptr rep;
+    pckrep p;
 } tptr;
 typedef identrec *irptr;
 typedef sigrec *sigptr;
@@ -239,17 +240,15 @@ typedef __packed struct {
 } strhash;
 
 typedef int:6 textchar;
-typedef struct {
-    union {
-        struct { int i; };
-        struct { real r; };
-        struct { alfa a; };
-        struct { __packed textchar t[8]; };
-        struct { char c; };
-        struct { idclass cl; };
-        struct { tptr tp; };
-        struct { strhash s; };
-    };
+typedef union {
+    int i;
+    real r;
+    alfa a;
+    __packed textchar t[8];
+    char c;
+    idclass cl;
+    tptr tp;
+    strhash s;
 } word;
 //
 typedef oneinsn *oiptr;
@@ -283,30 +282,28 @@ typedef struct {
     int width, shift;
 } insnltyp;
 //
-typedef struct {
-    union {
-        struct { int szReal; };
-        struct { tptr abase;
-                int pck;
-                int perword,
-                pcksize, aleft, aright; int szArray; };
-        struct { irptr enums;
-                int numen,
-                start; int szScalar; };
-        struct { tptr base; int szPtr; };
-        struct { tptr fbase; int szFile; };
-        struct { tptr variants;
-                irptr fields;
-                int flag,
-                pckrec; int szStruct; };
-        struct { tptr first,
-                next;
-                tptr alt; int szCases; };
-        struct { tptr rresult;
-                sigptr rparams;
-                int rargc;
-                int rflags; int szRtype; };
-    };
+typedef union {
+    int szReal;
+    struct { tptr abase;
+            int pck;
+            int perword,
+            pcksize, aleft, aright; int szArray; };
+    struct { irptr enums;
+            int numen,
+            start; int szScalar; };
+    struct { tptr base; int szPtr; };
+    struct { tptr fbase; int szFile; };
+    struct { tptr variants;
+            irptr fields;
+            int flag,
+            pckrec; int szStruct; };
+    struct { tptr first,
+            next;
+            tptr alt; int szCases; };
+    struct { tptr rresult;
+            sigptr rparams;
+            int rargc;
+            int rflags; int szRtype; };
 } types;
 //
 typedef __packed char charmap['\0'..'\176'];
@@ -347,11 +344,12 @@ typedef struct {
 } numLabel;
 /*=l3*/
 typedef struct {
-    struct {
-        irptr next;
-        int offset;
-        idclass cl;
-    } pck;
+    irptr next;
+    int offset;
+    idclass cl;
+} idpck;
+typedef struct {
+    idpck pck;
     int id;
     tptr typ;
     union {
@@ -4577,6 +4575,7 @@ typedef struct {
             pair7 pairs;
 } caserec;
 int cond;
+int typeIsUnion;
 caserec cases;
 int numBits, l3int22z, span, rangeCnt, curDim;
 irptr curEnum, curField;
@@ -4600,10 +4599,10 @@ void definePtrType(tptr toType) {
 } /* definePtrType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseRecordDecl(tptr *rectype, int isOuterDecl) { /* parseRecordDecl */
-tptr prevVariant, selType, newVariant;
+void parseRecordDecl(tptr *rectype, int isOuterDecl, int isUnion) { /* parseRecordDecl */
+tptr selType;
 irptr prevField;
-int variantIdx;
+int nestedIsUnion;
 caserec cases1, cases2;
 // isPacked is a single shared global here (unlike base-c.cc's
 // per-parseTypeRef-instance member), so parsing each field's own
@@ -4713,145 +4712,109 @@ pair *curSlot;
     lookup2  =  lookField;
     lookupMode  =  lookField;
     inSymbol();
-    // C-style: 'TYPE a, b;' per field-group -- each declarator (a, b,
-    // possibly with its own pointer/array ops) is registered and packed
-    // individually as soon as its type is known, then linked onto the
-    // record's flat field chain (curType.rep->fields / l3idr31z), which
-    // also spans any union-variant branches recursed into below.
-    while (SY IN [IDENT, TYPESY, ENUMSY, STRUCTSY, PACKEDSY]) {
-        selType = parseTypeRef(skipTarget | [UNIONSY, ENDSY]);
-        // parseTypeRef just reset the shared isPacked to this field's OWN
-        // packedness (fieldPackedFlag, for parseOneDeclarator's array
-        // suffix below) -- restore the ENCLOSING record's own for
-        // packFieldChain/pckfield just below.
-        fieldPackedFlag  =  isPacked;
-        isPacked  =  recIsPacked;
-        // Collect the whole comma-group into the curField..curEnum chain
-        // first (each carrying its own resolved .typ from its own
-        // declarator), then link and pack the group as a single unit
-        // below -- see packFieldChain's comment for why.
-        prevField  =  NIL;
-        do {
-            parseOneDeclarator(&curDeclarator, selType, fieldPackedFlag, isForwardRef);
-            if (curDeclarator.name != 0) {
-                // lookField never sets isDefined (see declarator);
-                // foundRec != NIL is the correct "already a field of this
-                // record" signal here.
-                if (curDeclarator.foundRec != NIL)
-                    error(errIdentAlreadyDefined);
-                curEnum = malloc(offsetof(identrec, szField));
-                with *curEnum do {
-                    id  =  curDeclarator.name;
-                    pck.next  =  fieldHash[curDeclarator.bucket];
-                    pck.cl  =  FIELDID;
-                    // NIL-terminate: this may be the chain's last node, and
-                    // list/maybeUnused (a union alias) is not zeroed by
-                    // malloc, so an unset tail here reads as garbage, not
-                    // NIL, for the uptype-fixup walk below.
-                    list  =  NIL;
-                    uptype  =  curType;
-                    pckfield  =  recIsPacked;
-                    typ  =  curDeclarator.typ;
-                }
-                fieldHash[curDeclarator.bucket]  =  curEnum;
-                if (prevField == NIL) {
-                    curField  =  curEnum;
-                } else {
-                    prevField->list  =  curEnum;
-                }
-                prevField  =  curEnum;
-            }
-            moreDecls  =  SY == COMMA;
-            if (moreDecls)
+    // A record body is a member list terminated by ENDSY. In a struct the
+    // members are laid out sequentially; in a union they overlap at the base
+    // (cases1) and the record spans the largest of them (cases2). A member is
+    // either a C field group ('TYPE a, b;' -- one FIELDID per declarator,
+    // packed onto the shared flat field chain; TYPE may be a named nested
+    // record) or an inline anonymous nested struct/union, whose fields are
+    // parsed straight into curType (promoted -- true-C anonymous members).
+    // Inline 'struct {'/'union {' in a body is always anonymous; a named
+    // nested record uses a typedef'd type name.
+    cases1  =  cases;
+    cases2  =  cases;
+    while (SY IN [IDENT, TYPESY, ENUMSY, STRUCTSY, UNIONSY, PACKEDSY]) {
+        if (SY IN [STRUCTSY, UNIONSY]) {
+            nestedIsUnion  =  SY == UNIONSY;
+            if (isUnion)
+                cases  =  cases1;
+            lookupMode  =  lookField;
+            inSymbol();
+            parseRecordDecl(&curType, false, nestedIsUnion);
+            if (isUnion && ((cases2.size < cases.size) ||
+                isPacked && (cases.size == 1) && (cases2.size == 1) &&
+                (cases.count == 1) && (cases2.count == 1) &&
+                (cases.pairs[1].first < cases2.pairs[1].first)))
+                cases2  =  cases;
+            if (SY == SEMICOLON) {
+                lookupMode  =  lookField;
                 inSymbol();
-        } while (moreDecls);
-        if (prevField != NIL) {
-            if (curType.rep->fields == NIL) {
-                curType.rep->fields  =  curField;
-            } else {
-                l3idr31z->list  =  curField;
             }
-            l3idr31z  =  curEnum;
-            // Pack the whole comma-group (curField..curEnum chain) as one
-            // unit -- per-group, looping over that group's own fields, NOT
-            // one call per individual declarator. That per-declarator shape
-            // was tried first and hung self-hosted under DUBNA on the 5th
-            // such call in a row (never fully root-caused despite extensive
-            // tracing); this is the proven, previously-working shape.
+        } else {
+            selType = parseTypeRef(skipTarget | [UNIONSY, STRUCTSY, ENDSY]);
+            // parseTypeRef just reset the shared isPacked to this field's OWN
+            // packedness (fieldPackedFlag, for parseOneDeclarator's array
+            // suffix below) -- restore the ENCLOSING record's own for
+            // packFieldChain/pckfield just below.
+            fieldPackedFlag  =  isPacked;
+            isPacked  =  recIsPacked;
+            prevField  =  NIL;
             do {
-                packOneField();
-                cond  =  (curField == curEnum);
-                curField  =  curField->list;
-            } while (!cond);
+                parseOneDeclarator(&curDeclarator, selType, fieldPackedFlag, isForwardRef);
+                if (curDeclarator.name != 0) {
+                    if (curDeclarator.foundRec != NIL)
+                        error(errIdentAlreadyDefined);
+                    curEnum = malloc(offsetof(identrec, szField));
+                    with *curEnum do {
+                        id  =  curDeclarator.name;
+                        pck.next  =  fieldHash[curDeclarator.bucket];
+                        pck.cl  =  FIELDID;
+                        list  =  NIL;
+                        uptype  =  curType;
+                        pckfield  =  recIsPacked;
+                        typ  =  curDeclarator.typ;
+                    }
+                    fieldHash[curDeclarator.bucket]  =  curEnum;
+                    if (prevField == NIL) {
+                        curField  =  curEnum;
+                    } else {
+                        prevField->list  =  curEnum;
+                    }
+                    prevField  =  curEnum;
+                }
+                moreDecls  =  SY == COMMA;
+                if (moreDecls)
+                    inSymbol();
+            } while (moreDecls);
+            if (prevField != NIL) {
+                if (curType.rep->fields == NIL) {
+                    curType.rep->fields  =  curField;
+                } else {
+                    l3idr31z->list  =  curField;
+                }
+                l3idr31z  =  curEnum;
+                // Pack the group; in a union each declarator overlaps at the
+                // base (reset cases before each), tracking the max extent.
+                do {
+                    if (isUnion)
+                        cases  =  cases1;
+                    packOneField();
+                    if (isUnion && ((cases2.size < cases.size) ||
+                        isPacked && (cases.size == 1) && (cases2.size == 1) &&
+                        (cases.count == 1) && (cases2.count == 1) &&
+                        (cases.pairs[1].first < cases2.pairs[1].first)))
+                        cases2  =  cases;
+                    cond  =  (curField == curEnum);
+                    curField  =  curField->list;
+                } while (!cond);
+            }
+            checkSymAndRead(SEMICOLON);
         }
-        checkSymAndRead(SEMICOLON);
         lookupMode  =  lookField;
     }
-    if (SY == UNIONSY) {
-        lookupMode  =  3;
-        inSymbol();
-        if (SY != BEGINSY)
-            requiredSymErr(BEGINSY);
-        lookupMode  =  3;
-        inSymbol();
-        cases1  =  cases;
-        cases2  =  cases;
-        prevVariant.rep = NIL;
-        variantIdx  =  0;
-        while (SY == STRUCTSY) {
-            lookupMode  =  3;
-            inSymbol();
-            newVariant.rep = malloc(offsetof(types, szCases));
-            with *(newVariant.rep) do {
-                first.rep  =  typptr(variantIdx);
-                next.rep  =  NIL;
-                alt.rep  =  NIL;
-            }
-            newVariant.p.psize  =  cases.size;
-            newVariant.p.bits  =  48;
-            newVariant.p.pk  =  kindCases;
-            if (prevVariant.rep == NIL) {
-                if (curType.rep->variants.rep == NIL) {
-                    curType.rep->variants  =  newVariant;
-                } else {
-                    rectype->p.rep->first  =  newVariant;
-                }
-            } else {
-                prevVariant.rep->next  =  newVariant;
-            }
-            prevVariant  =  newVariant;
-            tempType  =  newVariant;
-            parseRecordDecl(&tempType, false);
-            if ((cases2.size < cases.size) ||
-               isPacked && (cases.size == 1) && (cases2.size == 1) &&
-                (cases.count == 1) && (cases2.count == 1) &&
-                (cases.pairs[1].first < cases2.pairs[1].first)) {
-                cases2  =  cases;
-            }
-            cases  =  cases1;
-            ++variantIdx;
-            if (SY == SEMICOLON) {
-                lookupMode  =  3;
-                inSymbol();
-            }
-        }
+    if (isUnion)
         cases  =  cases2;
-        if (SY != ENDSY)
-            requiredSymErr(ENDSY);
-        lookupMode  =  3;
-        inSymbol();
-        if (SY == SEMICOLON) {
-            lookupMode  =  3;
-            inSymbol();
+
+    // psize/bits belong to the type being defined; an inline anonymous member
+    // (isOuterDecl == false) has no type of its own -- its extent is already
+    // reflected in the shared `cases` its caller reads.
+    if (isOuterDecl) {
+        rectype->p.psize  =  cases.size;
+        if (isPacked && (cases.size == 1) && (cases.count == 1)) {
+            rectype->p.bits  =  48 - cases.pairs[1].first;
+        } else {
+            rectype->p.bits  =  48;
         }
-    }
-    rectype->p.psize  =  cases.size;
-    if (isPacked && (cases.size == 1) && (cases.count == 1)) {
-        rectype->p.bits  =  48 - cases.pairs[1].first;
-    } else {
-        rectype->p.bits  =  48;
-    }
-    if (rectype->p.pk == kindStruct) {
         prevField  =  rectype->p.rep->fields;
         while (prevField != NIL) {
             prevField->uptype  =  *rectype;
@@ -4974,7 +4937,11 @@ pair *curSlot;
             inSymbol();
             goto 12247;
         }
-        if (SY == STRUCTSY) {
+        if (SY IN [STRUCTSY, UNIONSY]) {
+            // A union is a kindStruct whose members overlap (same base offset,
+            // size = max member); the only difference from a struct is the
+            // layout mode passed to parseRecordDecl.
+            typeIsUnion  =  SY == UNIONSY;
             curType.rep = malloc(offsetof(types, szStruct));
             with *(curType.rep) do {
                 variants.rep  =  NIL;
@@ -4994,7 +4961,7 @@ pair *curSlot;
             cases.size  =  0;
             cases.count  =  0;
             inSymbol();
-            parseRecordDecl(&curType, true);
+            parseRecordDecl(&curType, true, typeIsUnion);
         } else {
             error(errNotAType);
         }

@@ -432,6 +432,8 @@ struct PckRep {
 struct TPtr {
     // Aggregate (no user ctor: it must live in anonymous union arms).
     // TPtr() as an expression still value-initializes to all-zero.
+    // The whole-word view gives exact initialization/copy/comparison, while
+    // the LSB rep field matches the address bits used by BESM-6 indirection.
     union {
         int64_t word;      // whole-word view; only the low 48 bits matter
         PckRep p;
@@ -5496,16 +5498,27 @@ void parseGroupedDecls(int64_t skipTarget,
 
 struct parseRecordDecl {
     static std::vector<parseRecordDecl*> super;
-    parseRecordDecl(TPtr & rectype, bool isOuterDecl_);
+    parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion_);
     ~parseRecordDecl() { super.pop_back(); }
 
     bool isOuterDecl;
-    TPtr prevVariant{}, newVariant{};
+    bool isUnion;
     IdentRecPtr prevField;
-    Word variantIdx;
     parseTypeRef::caserec cases1, cases2;
 };
 std::vector<parseRecordDecl*> parseRecordDecl::super;
+
+// True if union member `c` extends the union past the running maximum `mx`.
+// Bigger by word size, or (for a single packed word) using more bits --
+// preserving the exact overlap rule of the former variant-tail loop.
+static bool unionMemberBigger(const parseTypeRef::caserec & mx,
+                              const parseTypeRef::caserec & c, bool packed)
+{
+    return (mx.size < c.size) or
+           (packed and (c.size == 1) and (mx.size == 1) and
+            (c.count == 1) and (mx.count == 1) and
+            (c.pairs[1].first < mx.pairs[1].first));
+}
 
 // Assigns fld's offset (and, in a __packed struct, its bit shift/width)
 // within the enclosing record's shared bit-packing state (cases), then
@@ -5579,11 +5592,10 @@ L11622:
     }
 } /* packOneField */
 
-parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_)
-    : isOuterDecl(isOuterDecl_)
+parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion_)
+    : isOuterDecl(isOuterDecl_), isUnion(isUnion_)
 {
     TPtr &curType = parseTypeRef::super.back()->curType;
-    TPtr &tempType = parseTypeRef::super.back()->tempType;
     IdentRecPtr &curEnum = parseTypeRef::super.back()->curEnum;
     IdentRecPtr &l3idr31z = parseTypeRef::super.back()->l3idr31z;
     bool &isPacked = parseTypeRef::super.back()->isPacked;
@@ -5599,119 +5611,88 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_)
     // parseTypeRef's own internal inSymbol() calls -- every inSymbol()
     // resets lookupMode := lookup2 on exit, so a field's declarator name
     // a few tokens into its type-spec is classified under whatever
-    // lookup2 holds, not this line's lookupMode. lookField also checks
-    // fieldHash against typ121z (this record's type, set by our caller)
-    // instead of symHash, matching addFieldToHash's old duplicate check.
-    // Restored to the caller's value below (this ctor recurses into
-    // itself for union variants, and is itself called while some outer
-    // context's own lookup2 -- e.g. a typedef's -- is still live).
+    // lookup2 holds, not this line's lookupMode. Restored to the caller's
+    // value below (this ctor recurses into itself for anonymous nested
+    // members, and runs while an outer context's own lookup2 is still live).
     lookup2 = lookField;
     lookupMode = lookField;
     inSymbol();
 
-    // C-style: 'TYPE a, b;' per field-group -- each declarator (a, b,
-    // possibly with its own pointer/array ops) is registered and packed
-    // individually as soon as its type is known, then linked onto the
-    // record's flat field chain (curType.rep()->fields / l3idr31z),
-    // which also spans any union-variant branches recursed into below.
-    while (has(Bits(IDENT, TYPESY, ENUMSY, STRUCTSY) | Bits(PACKEDSY), SY)) {
-        parseGroupedDecls(skipTarget | Bits(UNIONSY, ENDSY),
-            [&](Declarator & d) {
-                // lookField never sets isDefined (see Declarator);
-                // foundRec != NULL is the correct "already a field of this
-                // record" signal here.
-                if (d.foundRec != NULL)
-                    error(errIdentAlreadyDefined);
-                curEnum = besm6_alloc_record<IdentRec>(
-                    offsetof(IdentRec, szField));
-                curEnum->id = d.name;
-                curEnum->pck.next = fieldHash[d.bucket];
-                curEnum->pck.cl = FIELDID;
-                curEnum->uptype() = curType;
-                curEnum->pckfield() = isPacked;
-                fieldHash[d.bucket] = curEnum;
-                if (curType.rep()->fields == NULL)
-                    curType.rep()->fields = curEnum;
-                else
-                    l3idr31z->list() = curEnum;
-                l3idr31z = curEnum;
-                packOneField(curEnum, d.type);
-            });
-        lookupMode = lookField;
-    }
-    if (SY == UNIONSY) {
-        lookupMode = lookField;
-        inSymbol();
-        if (SY != BEGINSY)
-            requiredSymErr(BEGINSY);
-        lookupMode = lookField;
-        inSymbol();
-        cases1 = cases;
-        cases2 = cases;
-        prevVariant.setRep(NULL);
-        variantIdx.ii = 0;
-        while (SY == STRUCTSY) {
+    // A record body is a member list terminated by ENDSY. In a struct the
+    // members are laid out sequentially; in a union they overlap at the base
+    // (cases1) and the record spans the largest of them (cases2). A member is
+    // either a C field group ('TYPE a, b;' -- one FIELDID per declarator,
+    // packed onto the shared flat field chain; TYPE may be a named nested
+    // record) or an inline anonymous nested struct/union, whose fields are
+    // parsed straight into curType (promoted -- true-C anonymous members).
+    // Inline 'struct {'/'union {' in a body is always anonymous; a named
+    // nested record uses a typedef'd type name.
+    cases1 = cases;                     // union base: offset + packing state
+    cases2 = cases;                     // running max extent (union only)
+    while (has(Bits(IDENT, TYPESY, ENUMSY, STRUCTSY) | Bits(UNIONSY, PACKEDSY), SY)) {
+        if (SY == STRUCTSY or SY == UNIONSY) {
+            bool nestedIsUnion = (SY == UNIONSY);
+            if (isUnion)
+                cases = cases1;
             lookupMode = lookField;
-            inSymbol();
-            newVariant.setRep(
-                besm6_alloc_record<Types>(offsetof(Types, szCases)));
-            newVariant.rep()->first = variantIdx.typ;
-            newVariant.rep()->next.setRep(NULL);
-            newVariant.rep()->alt.setRep(NULL);
-            newVariant.p.psize = cases.size;
-            newVariant.p.bits = 48;
-            newVariant.p.pk = kindCases;
-            if (prevVariant == NULL) {
-                if (curType.rep()->variants == NULL) {
-                    curType.rep()->variants = newVariant;
-                } else {
-                    rectype.rep()->first = newVariant;
-                }
-            } else {
-                prevVariant.rep()->next = newVariant;
-            }
-            prevVariant = newVariant;
-            tempType = newVariant;
-            parseRecordDecl(tempType, false);
-            if ((cases2.size < cases.size) or
-                (isPacked and (cases.size == 1) and (cases2.size == 1) and
-                 (cases.count == 1) and (cases2.count == 1) and
-                 (cases.pairs[1].first < cases2.pairs[1].first))) {
+            inSymbol();                 // consume 'struct'/'union'
+            parseRecordDecl(curType, false, nestedIsUnion);   // consumes { ... }
+            if (isUnion and unionMemberBigger(cases2, cases, isPacked))
                 cases2 = cases;
-            }
-            cases = cases1;
-            variantIdx.ii = variantIdx.ii + 1;
             if (SY == SEMICOLON) {
                 lookupMode = lookField;
                 inSymbol();
             }
+        } else {
+            parseGroupedDecls(skipTarget | Bits(UNIONSY, STRUCTSY, ENDSY),
+                [&](Declarator & d) {
+                    // In a union each declarator is a separate member starting
+                    // at the union base.
+                    if (isUnion)
+                        cases = cases1;
+                    // lookField never sets isDefined (see Declarator);
+                    // foundRec != NULL is the correct "already a field of this
+                    // record" signal here.
+                    if (d.foundRec != NULL)
+                        error(errIdentAlreadyDefined);
+                    curEnum = besm6_alloc_record<IdentRec>(
+                        offsetof(IdentRec, szField));
+                    curEnum->id = d.name;
+                    curEnum->pck.next = fieldHash[d.bucket];
+                    curEnum->pck.cl = FIELDID;
+                    curEnum->uptype() = curType;
+                    curEnum->pckfield() = isPacked;
+                    fieldHash[d.bucket] = curEnum;
+                    if (curType.rep()->fields == NULL)
+                        curType.rep()->fields = curEnum;
+                    else
+                        l3idr31z->list() = curEnum;
+                    l3idr31z = curEnum;
+                    packOneField(curEnum, d.type);
+                    if (isUnion and unionMemberBigger(cases2, cases, isPacked))
+                        cases2 = cases;
+                });
         }
-        cases = cases2;
-        if (SY != ENDSY)
-            requiredSymErr(ENDSY);
         lookupMode = lookField;
-        inSymbol();
-        if (SY == SEMICOLON) {
-            lookupMode = lookField;
-            inSymbol();
-        }
     }
-    rectype.p.psize = cases.size;
-    if (isPacked and (cases.size == 1) and (cases.count == 1)) {
-        rectype.p.bits = 48 - cases.pairs[1].first;
-    } else {
-        rectype.p.bits = 48;
-    }
-    if (rectype.p.pk == kindStruct) {
+    if (isUnion)
+        cases = cases2;
+
+    // psize/bits belong to the *type* being defined; an inline anonymous
+    // member (isOuterDecl_ == false) has no type of its own -- its extent is
+    // already reflected in the shared `cases` that its caller reads.
+    if (isOuterDecl_) {
+        rectype.p.psize = cases.size;
+        if (isPacked and (cases.size == 1) and (cases.count == 1))
+            rectype.p.bits = 48 - cases.pairs[1].first;
+        else
+            rectype.p.bits = 48;
         prevField = rectype.rep()->fields;
         while (prevField != NULL) {
             prevField->uptype() = rectype;
             prevField = prevField->list();
         }
     }
-    // Restore before consuming ENDSY: the token right after 'end' (e.g.
-    // the struct's own trailing declarator name in 'struct {...} name;')
-    // must be classified under the caller's mode, not lookField.
     lookup2 = savedLookup2;
     checkSymAndRead(ENDSY);
 } /* parseRecordDecl */
@@ -5864,7 +5845,11 @@ L12366:             error(errNotAType);
             inSymbol();
             goto L12247;
         }
-        if (SY == STRUCTSY) {
+        if (SY == STRUCTSY or SY == UNIONSY) {
+            // A union is a kindStruct whose members overlap (same base offset,
+            // size = max member); the only difference from a struct is the
+            // layout mode passed to parseRecordDecl.
+            bool typeIsUnion = (SY == UNIONSY);
             curType.setRep(
                 besm6_alloc_record<Types>(offsetof(Types, szStruct)));
             curType.rep()->variants.setRep(NULL);
@@ -5884,7 +5869,7 @@ L12366:             error(errNotAType);
             cases.size = 0;
             cases.count = 0;
             inSymbol();
-            parseRecordDecl(curType, true);
+            parseRecordDecl(curType, true, typeIsUnion);
         } else {
             error(errNotAType);
         }
