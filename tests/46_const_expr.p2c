@@ -1,12 +1,11 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
 const A = 1 + 2 * 3;
       B = A + 5;
       C = -(B - 20);
       D = (1 << 4) | 3;
       S = 'HELLO ';
-var x: int;
+int x;
 {
     x = B;
     writeln(' A=', A:0);

@@ -1,16 +1,14 @@
-/*=p-,t-,s8,y+,l0*/
-extern _output_;
-typedef fchar = file of char;
-typedef nested = file of fchar;
-typedef holder = struct {
-    f: fchar;
-    x: int;
-};
-var
-    a, b: fchar;
-    ff: nested;
-    h: holder;
-    arr: fchar[2];
+/*=s8,y+,l0*/
+typedef file of char fchar;
+typedef file of fchar nested;
+typedef struct {
+    file of char f;
+    int x;
+} holder;
+fchar a, b;
+nested ff;
+holder h;
+fchar arr[2];
 {
     b = a;
     h.x = 52;

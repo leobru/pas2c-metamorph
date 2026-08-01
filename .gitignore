@@ -12,12 +12,9 @@ tmp*
 *.bin
 test_results/
 test_results_hot/
-test_results_basec/
-test_results_workc/
 
 # Host-native compiler binary
 base
-base-c
 
 # Listings
 *.lst
@@ -41,12 +38,7 @@ base-c
 
 # But not the main ones
 !work.p2c
-!base.pas
 !lexer.p2c
 !lexer.pas
 !build_pascom.dub
 !tests/*.p2c
-
-# Experimental C-declarator-only fork (see the-idea-is-to-kind-naur plan)
-!work-c.p2c
-!tests-c/*.p2c

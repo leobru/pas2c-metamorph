@@ -1,7 +1,6 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-var c: char;
+char c;
 {
     c = 'A';
     writeln('Character: ', c);

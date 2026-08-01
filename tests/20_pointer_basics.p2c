@@ -1,9 +1,8 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-typedef intptr = *int;
-var p: intptr;
-    x: int;
+typedef int *intptr;
+intptr p;
+int x;
 {
     x = 42;
     p = &x;

@@ -1,13 +1,12 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-int outer(base: int) {
+int outer(int base) {
     const bias = 3;
-    typedef pint = *int;
-    var total: int;
-        slot: pint;
-    int addbias(x: int) {
-    var f: int[30];
+    typedef int *pint;
+    int total;
+    pint slot;
+    int addbias(int x) {
+    int f[30];
         return x + bias;
     }
     *slot = 0;

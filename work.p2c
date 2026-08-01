@@ -1,8 +1,8 @@
-/*=l1,p-,t-,s8,y+,k9,l1*/
-extern _output_, _child_, pasinput, pasinfor, paseofcd;
+/*=l1,s8,y+,k9,l1*/
+extern _child_, pasinput, pasinfor, paseofcd;
 //
 const
-    boilerplate = ' PASCAL 2 C METAMORPHOSIS (2025)';
+    boilerplate = ' PASCAL 2 C METAMORPHOSIS (2026)';
 //
     // slots 0-6 were SQRT, SIN, COS, ARCTAN, ARCSIN, LN, EXP
     fnABS =  7;  fnTRUNC = 8;  fnSIZEOF = 9;
@@ -132,7 +132,6 @@ const
     extSymMask  =  043000000U;
     maxLineLen = 130;
     /*=A3*/
-    litForward  =  ' FORWARD';
     litFortran  =  ' FORTRAN';
     litAssembler = 'ASSEMBLE';
     litOct  =  '     OCT';
@@ -154,29 +153,28 @@ const
     lookField = 3;
 //
     BACKSLASH = '\35'; // deliberately not \\
-typedef
-    symbol = enum {
+typedef enum {
 /*0B*/  IDENT,      INTCONST,   REALCONST,  CHARCONST,
         STRINGSY,   LPAREN,     LBRACK,     EXPROP,
 /*10B*/ RPAREN,     RBRACK,     COMMA,      SEMICOLON,
         PERIOD,     ARROW,      COLON,      BECOMES,
-/*20B*/ BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
-        VARSY,      TYPESY,     ENUMSY,
+/*20B*/ BEGINSY,    ENDSY,      TYPESY,     CONSTSY,
+        TYPEDEFSY,  ENUMSY,
 /*30B*/ PACKEDSY,   STRUCTSY,   IFSY,       SWITCHSY,
         WHILESY,    FORSY,      WITHSY,     GOTOSY,
 /*40B*/ ELSESY,     DOSY,
         EXTERNSY,   BREAKSY,    CONTSY,     CASESY,
 /*50B*/ DEFAULTSY,  UNIONSY,    NOSY
-};
+} symbol;
 //
-idclass = enum {
+typedef enum {
         TYPEID,     ENUMID,     ROUTINEID,  VARID,
         FORMALID,   FIELDID,    SYSID
-};
+} idclass;
 //
-setofsys = int; // set of symbol
+typedef int setofsys; // set of symbol
 //
-operator = enum {
+typedef enum {
     SHLEFT,     SHRIGHT,
     SETAND,     SETXOR,     SETOR,
     MUL,        RDIVOP,     ANDOP,     IDIVOP,     IMODOP,
@@ -188,240 +186,248 @@ operator = enum {
     FILEPTR,    STKLVAL,    ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
     STANDPROC,  NOOP
-};
+} operator;
 //
-opgen = enum {
+typedef enum {
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
     SETREG9,  STOREAT9,  DOIT,  SETREG12,  DFLTWDTH,
     FRACWIDTH, gen11, gen12, FILEACCESS, FILEINIT,
-    BRANCH, PCKUNPCK, LITINSN
-};
+    BRANCH, PCKUNPCK
+} opgen;
 //
 // Flags for ops that can potentially be optimized if one operand is a constant
-opflg = enum {
+typedef enum {
     opfCOMM, opfHELP, opfAND, opfOR, opfDIV, opfMOD, opfSHIFT,
     opfMULMSK, opfASSN
-};
+} opflg;
 //
-kind = enum {
+typedef enum {
     kindVoid, kindReal, kindScalar, kindPtr,
     kindArray, kindStruct,
     kindCases, kindRoutine
-};
+} kind;
 //
-eptr = *expr;
-typptr = *types;
+typedef expr *eptr;
+typedef types *typptr;
 /*=s6*/
-pckrep = __packed struct {
-    rep:  typptr;
-    bits: int:6;
-    psize: int:15;
-    pad:  int:8;
-    pk:   kind;
-};
-tptr = struct {
-    union {
-        struct {rep: typptr};
-        struct {p: pckrep};
-    };
-};
-irptr = *identrec;
-sigptr = *sigrec;
-sigrec = struct {
-    pclass: idclass;
-    ptyp: tptr;
-    next: sigptr
-};
+typedef __packed struct {
+    typptr rep;
+    int:6 bits;
+    int:15 psize;
+    int:8 pad;
+    kind pk;
+} pckrep;
+typedef union {
+    /* The whole-word arm initializes/clears all descriptor metadata at once.
+       With s6, p.rep occupies the address LSBs, so decorated words can still
+       be dereferenced directly by BESM-6 indirect addressing. */
+    typptr rep;
+    pckrep p;
+} tptr;
+typedef identrec *irptr;
+typedef sigrec *sigptr;
+typedef struct {
+    idclass pclass;
+    tptr ptyp;
+    sigptr next;
+} sigrec;
 //
-strhash = __packed struct {
-        k   : int:6;
-        hhh : int:18;
-        ppp : *types;
-        pad : int:6;
-};
+typedef __packed struct {
+        int:6 k;
+        int:18 hhh;
+        types *ppp;
+        int:6 pad;
+} strhash;
 
-textchar = int:6;
-word = struct {
-    union {
-        struct {i: int};
-        struct {r: real};
-        struct {a: alfa};
-        struct {t: __packed textchar[8]};
-        struct {c: char};
-        struct {cl: idclass};
-        struct {tp: tptr};
-        struct {s: strhash};
-    };
-};
+typedef int:6 textchar;
+typedef union {
+    int i;
+    real r;
+    alfa a;
+    __packed textchar t[8];
+    char c;
+    idclass cl;
+    tptr tp;
+    strhash s;
+} word;
 //
-oiptr = *oneinsn;
+typedef oneinsn *oiptr;
 //
-oneinsn  = struct {
-    next: oiptr;
-    mode, code, offset: int;
-};
+typedef struct {
+    oiptr next;
+    int mode, code, offset;
+} oneinsn;
 //
 /* Interned derived-type descriptors (arrays, int:N scalars): a chain of
  * nodes so identical types share one heap record.  Nodes above a rolled-up
  * arena mark are dropped by internScope. */
-inptr = *internrec;
-internrec = struct {
-    ityp: tptr;
-    inext: inptr
-};
+typedef internrec *inptr;
+typedef struct {
+    tptr ityp;
+    inptr inext;
+} internrec;
 //
-ilmode = enum {ilCONST, ilLVAL, ilRVAL, ilCOND};
-state = enum {stWORD, stSLICE, stPACKED};
+typedef enum {ilCONST, ilLVAL, ilRVAL, ilCOND} ilmode;
+typedef enum {stWORD, stSLICE, stPACKED} state;
 //
-insnltyp  = struct {
-    tail, head: oiptr;
-    typ: tptr;
-    regsused: int;
-    ilm: ilmode;
-    payload: int;
-    disp: int;
-    addrmd: int;
-    st: state;
-    width, shift: int
-};
+typedef struct {
+    oiptr tail, head;
+    tptr typ;
+    int regsused;
+    ilmode ilm;
+    int payload;
+    int disp;
+    int addrmd;
+    state st;
+    int width, shift;
+} insnltyp;
 //
-types = struct {
+typedef union {
+    int szReal;
+    struct { tptr abase;
+            int pck;
+            int perword,
+            pcksize, aleft, aright; int szArray; };
+    struct { irptr enums;
+            int numen,
+            start; int szScalar; };
+    struct { tptr base; int szPtr; };
+    struct { tptr fbase; int szFile; };
+    struct { tptr variants;
+            irptr fields;
+            int flag,
+            pckrec; int szStruct; };
+    struct { tptr first,
+            next;
+            tptr alt; int szCases; };
+    struct { tptr rresult;
+            sigptr rparams;
+            int rargc;
+            int rflags; int szRtype; };
+} types;
+//
+typedef __packed char charmap['\0'..'\176'];
+typedef __packed int:6 textmap['\52'..'\177'];
+//
+typedef int four[1..4];
+typedef int entries[42];
+//
+typedef struct {
+    tptr typ;
+    operator op;
     union {
-        struct {szReal: int};
-        struct {abase:     tptr;
-                pck:       int;
-                perword,
-                pcksize, aleft, aright: int; szArray: int};
-        struct {enums:     irptr;
-                numen,
-                start:     int; szScalar: int};
-        struct {base:      tptr; szPtr: int};
-        struct {fbase:     tptr; szFile: int};
-        struct {variants: tptr;
-                fields:    irptr;
-                flag,
-                pckrec:    int; szStruct: int};
-        struct {first,
-                next:      tptr;
-                alt:       tptr; szCases: int};
-        struct {rresult:   tptr;
-                rparams:   sigptr;
-                rargc:     int;
-                rflags:    int; szRtype: int};
+        struct { eptr expr1, expr2; };
+        struct { tptr typ1, typ2; };
+        struct { irptr id1, id2; };
+        struct { int num1, num2; };
     };
-};
+} expr;
 //
-charmap   = __packed char['\0'..'\176'];
-textmap   = __packed int:6['\52'..'\177'];
+typedef struct {
+    int w;
+    symbol sym;
+    operator op;
+    kword *next;
+} kword;
 //
-four = int[1..4];
-entries   = int[42];
+typedef struct {
+    strLabel *next;
+    int ident;
+    int target;
+} strLabel;
 //
-expr = struct {
-    typ:       tptr;
-    op:        operator;
+typedef struct {
+    int id;
+    int line;
+    int offset;
+    int defined;
+} numLabel;
+/*=l3*/
+typedef __packed struct {
+    irptr   next;
+    int:24  offset;
+    idclass cl;
+} idpckp;
+typedef union {
+    /* One word: the whole-word arm reads/writes next as a plain pointer
+       (its 15 address bits are the LSBs, so it stays directly dereferenceable
+       and a whole-word store clears offset/cl); the packed arm carries
+       next(15)/offset(24)/cl in that same word.  Mirrors tptr/pckrep.  Chain
+       traversal reads pck.p.next (masked) so a terminator's offset/cl don't
+       spoil the NIL test. */
+    irptr  next;
+    idpckp p;
+} idpck;
+typedef struct {
+    idpck pck;
+    int id;
+    tptr typ;
     union {
-        struct {expr1, expr2: eptr};
-        struct {typ1, typ2: tptr};
-        struct {id1, id2: irptr};
-        struct {num1, num2: int};
+        struct { irptr list; int value; int szIdent; };
+        struct { int maybeUnused;
+                tptr uptype;
+                int pckfield;
+                int shift;
+                int width; int szField; };
+        struct { int low, high;
+                irptr argList, preDefLink;
+                int level, pos;
+                int flags;
+                tptr sigtyp; int szRoutine; };
+        struct { int sysnum; int szSys; };
     };
-};
+} identrec;
+/*=l1*/
+typedef extfilerec *pextf;
+typedef struct {
+    pextf next;
+    int id;
+    int offset;
+    int location,
+    line;
+} extfilerec;
+typedef enum {DECIMAL, OCTAL, FULLWORD, HEX} NumberFormat;
+typedef irptr hashArray[128];
+typedef int:15 tok;
+typedef struct { int *data; int rest[29]; } ifcb;
 //
-kword = struct {
-    w:      int;
-    sym:    symbol;
-    op:     operator;
-    next:   *kword;
-};
-//
-strLabel = struct {
-    next:       *strLabel;
-    ident:      int;
-    target: int;
-};
-//
-numLabel = struct {
-    id:         int;
-    line:       int;
-    offset:     int;
-    defined:    int;
-};
-//
-identrec = struct {
-    id:     int;
-    offset: int;
-    next:   irptr;
-    typ: tptr;
-    cl: idclass;
-    union {
-        struct {};
-        struct {list: irptr; value: int; szIdent: int};
-        struct {maybeUnused: int;
-                uptype: tptr;
-                pckfield:  int;
-                shift:     int;
-                width:     int; szField: int};
-        struct {low, high: int;
-                argList, preDefLink: irptr;
-                level, pos: int;
-                flags: int;
-                sigtyp: tptr; szRoutine: int};
-        struct {sysnum: int; szSys: int};
-    };
-};
-pextf = *extfilerec;
-extfilerec = struct {
-    id:     int;
-    offset: int;
-    next:   pextf;
-    location,
-    line: int
-};
-NumberFormat = enum {DECIMAL, OCTAL, FULLWORD, HEX};
-hashArray = irptr[128];
-tok = int:15;
-ifcb = struct { data:*int; rest: int[29]; };
-//
-var
-    numFormat: NumberFormat;
-    bigSkipSet, statEndSys, blockBegSys, statBegSys,
-    skipToSet, lvalOpSet: setofsys;
-    inCallArgs, bool48z, forValue: int;
-    dataCheck: int;
-    jumpType: int;
-    jumpTarget: int;
-    charClass: operator;
-    SY, prevSY: symbol;
-    savedObjIdx: int;
-    FcstCnt: int;
-    symTabPos: int;
-    entryPtCnt: int;
-    fileBufSize: int;
-    withIter, withList: eptr;
-    curInsnTemplate: int;
-    linePos: int;
-    prevErrPos: int;
-    errsInLine: int;
-    moduleOffset: int;
-    lineStartOffset: int;
-    curFrameRegTemplate: int;
-    curProcNesting: int;
-    totalErrors: int;
-    lineCnt: int;
-    bucket: int;
-    strLen: int;
-    heapCallsCnt: int;
-    heapSize: int;
-    arithMode: int;
-    stmtName: alfa;
-    keywordHashPtr: *kword;
-    curVarKind: kind;
-    curExternFile: pextf;
-    commentModeCH: char;
-    CH, prevCH: char;
-    prevInsn,
-    debugLine,
+NumberFormat numFormat;
+setofsys statEndSys, blockBegSys, statBegSys,
+    skipToSet, lvalOpSet;
+int inCallArgs, bool48z, forValue;
+int dataCheck;
+int jumpType;
+int jumpTarget;
+operator charClass;
+symbol SY, prevSY;
+int savedObjIdx;
+int FcstCnt;
+int symTabPos;
+int entryPtCnt;
+int fileBufSize;
+eptr withIter, withList;
+int curInsnTemplate;
+int linePos;
+int prevErrPos;
+int errsInLine;
+int moduleOffset;
+int lineStartOffset;
+int curFrameRegTemplate;
+int curProcNesting;
+int totalErrors;
+int lineCnt;
+int bucket;
+int strLen;
+int heapCallsCnt;
+int heapSize;
+int arithMode;
+alfa stmtName;
+kword *keywordHashPtr;
+kind curVarKind;
+pextf curExternFile;
+char commentModeCH;
+char CH, prevCH;
+int prevInsn,
     lineNesting,
     FcstCountTo500,
     objBufIdx,
@@ -436,115 +442,111 @@ var
     isDefined, putLeft, readNext,
     errors,
     declEntry,
-    rangeMismatch,
-    doPMD,
-    checkBounds,
     fixMult,
     abort,
     allowCompat,
-    checkFortran: int;
-    outputFile,
+    checkFortran;
+irptr outputFile,
     inputFile,
     programObj,
     hashTravPtr,
-    uProcPtr: irptr;
-    externFileList: *extfilerec;
-    baseType, typ121z,
+    uProcPtr;
+extfilerec *externFileList;
+tptr typ121z,
     voidType, voidPtr,
-    boolType: tptr;
-    textType: tptr;
-    intType: tptr;
-    realType: tptr;
-    charType: tptr;
-    charPtrType, flatMemType: tptr;
-    flatMemVar: irptr;
-    alfaType: tptr;
-    arg1Type: tptr;
-    arg2Type: tptr;
-    numLabs: numLabel[1..20];
-    numLabTop: int;
-    curToken: word;
-    curVal: word;
-    leftInsn: int;
-    hashMask: int;
-    curIdent: int;
-    toAlloc: int;
-    usedRegs: int;
-    liveRegs:int;
-    freeRegs:int;
-    auxRegs: int;
-    optSflags: int;
-    uVarPtr: eptr;
-    curExpr: eptr;
-    insnList: *insnltyp;
-    internHead: inptr;
-    fileForOutput, fileForInput: *extfilerec;
-    maxSmallString: int;
-    smallStringType: tptr[2..6];
-    symTabCnt: int;
-    symtabarray: word[80];
-    symtbidx: int[80];
-    intOpMap: operator[MUL..MINUSOP];
-    entryPtTable: entries;
-    frameRestore: four[3..6];
-    indexreg: int[1..15];
-    opToInsn: int[SHLEFT..STKLVAL];
-    opToMode: int[SHLEFT..STKLVAL];
-    opFlags: opflg[SHLEFT..STKLVAL];
-    funcInsn: int[24];
-    frameRegTemplate: int;
-    constRegTemplate: int;
-    disNormTemplate: int;
-    jb9999: int;
-    lineBuf: char[130];
-    errMap: int[10];
-    chrClass: operator['\200'];
-    kwordHash: *kword[128];
-    charSym: symbol['\200'];
-    symHash, fieldHash: hashArray;
-    helperMap: int[1..99];
-    helperNames: int[1..99];
-    opPrec: int[SHLEFT..ALTERN];
+    boolType;
+tptr textType;
+tptr intType;
+tptr realType;
+tptr charType;
+tptr charPtrType, flatMemType;
+irptr flatMemVar;
+tptr alfaType;
+tptr arg1Type;
+tptr arg2Type;
+numLabel numLabs[1..20];
+int numLabTop;
+word curToken;
+word curVal;
+int leftInsn;
+int hashMask;
+int curIdent;
+int toAlloc;
+int usedRegs;
+int liveRegs;
+int freeRegs;
+int auxRegs;
+int optSflags;
+eptr uVarPtr;
+eptr curExpr;
+insnltyp *insnList;
+inptr internHead;
+extfilerec *fileForOutput, *fileForInput;
+int maxSmallString;
+tptr smallStringType[2..6];
+int symTabCnt;
+word symtabarray[80];
+int symtbidx[80];
+operator intOpMap[MUL..MINUSOP];
+entries entryPtTable;
+four frameRestore[3..6];
+int indexreg[1..15];
+int opToInsn[SHLEFT..STKLVAL];
+int opToMode[SHLEFT..STKLVAL];
+opflg opFlags[SHLEFT..STKLVAL];
+int funcInsn[24];
+int frameRegTemplate;
+int constRegTemplate;
+int disNormTemplate;
+int jb9999;
+char lineBuf[130];
+int errMap[10];
+operator chrClass['\200'];
+kword *kwordHash[128];
+symbol charSym['\200'];
+hashArray symHash, fieldHash;
+int helperMap[1..99];
+int helperNames[1..99];
+int opPrec[SHLEFT..ALTERN];
 //
-    symTab: int[074000 .. 075500];
-    systemProcNames: int[23];
-    resWordName: int[21];
-    longSymCnt: int;
-    longSym: int[1..90];
-    longSyms: int[1..90];
-    constVals: alfa[1..500];
-    constNums: int[1..500];
-    objBuffer: int[1..1024];
-    iso2text: char['\052'..'\177'];
-    text2iso: __packed char['\0'..'\77'];
-    maxHeap: int;
-    fcst, pasinput, _child_: ifcb;
+int symTab[074000 .. 075500];
+int systemProcNames[23];
+int resWordName[19];
+int longSymCnt;
+int longSym[1..90];
+int longSyms[1..90];
+alfa constVals[1..500];
+int constNums[1..500];
+int objBuffer[1..1024];
+char iso2text['\052'..'\177'];
+int maxHeap;
+ifcb fcst, pasinput, _child_;
 //
-    pasinfor: struct {
-        /*0*/ listMode:     int;
-        /*1*/ errors:       *int;
-        /*2*/ entryptr:     *entries;
-        /*3*/ startOffset:  int;
-      /*4-6*/ a0, a1, a4:   *charmap;
-        /*7*/ a3:           *textmap;
-     /*8-17*/ sizes:        int[10];
-       /*18*/ flags:        int;
-};
-    paseofcd:alfa;
+struct {
+    /*0*/ int listMode;
+    /*1*/ int *errors;
+    /*2*/ entries *entryptr;
+    /*3*/ int startOffset;
+  /*4-6*/ charmap *a0, *a1, *a4;
+    /*7*/ textmap *a3;
+ /*8-17*/ int sizes[10];
+   /*18*/ int flags;
+} pasinfor;
+alfa paseofcd;
 //
 // %%%%%%%%%%%% Libc functions %%%%%%%%%%%
 //
-int mapai(a:alfa); assembler;
-void longjmp(jmpbuf, val: int); assembler;
-int setjmp(jmpbuf: *int); assembler;
-int setup(); assembler;
-void rollup(addr: int); assembler;
-typedef pfcb = *ifcb;
-void fopen(fcb: pfcb; sizes, name: int); assembler;
-void fclose(fcb: pfcb); assembler;
-int feof(fcb: pfcb); assembler;
-int feoln(fcb: pfcb); assembler;
-void putw(f: pfcb; i: int) {
+int mapai(alfa a) assembler;
+void longjmp(int jmpbuf, int val) assembler;
+int setjmp(int *jmpbuf) assembler;
+int setup() assembler;
+void rollup(int addr) assembler;
+typedef ifcb *pfcb;
+void fopen(pfcb fcb, int sizes, int name) assembler;
+void fclose(pfcb fcb) assembler;
+int feof(pfcb fcb) assembler;
+int feoln(pfcb fcb) assembler;
+void putw(pfcb f, int i) {
     *f->data = i;
     put(*f);
 }
@@ -552,21 +554,17 @@ void putw(f: pfcb; i: int) {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void printErrMsg(errno: int) { /* PrintErrMsg */
-typedef
-    errtxt = __packed textchar[101];
-    perrtxt = *errtxt;
-var
-    errptr: perrtxt;
-    errtext: textchar[101];
-    i: int;
-    c: char;
+void printErrMsg(int errno) { /* PrintErrMsg */
+typedef __packed textchar errtxt[101];
+typedef errtxt *perrtxt;
+perrtxt errptr;
+textchar errtext[101];
+int i;
+char c;
 //
-    perrtxt pasmitxt(errno: int);
-        fortran;
+    perrtxt pasmitxt(int errno) fortran;
 //
-    char pasisoxt(txtchar: textchar);
-        fortran;
+    char pasisoxt(textchar txtchar) fortran;
 //
     write(' ');
     if (errno >= 200)
@@ -602,10 +600,9 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              printTextWord             %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void printTextWord(val: int) { /* printTextWord */
+void printTextWord(int val) { /* printTextWord */
 //
-    void PASTPR(val: int);
-        extern;
+    void PASTPR(int val) extern;
 //
     write(' ');
     PASTPR(val);
@@ -615,7 +612,7 @@ void printTextWord(val: int) { /* printTextWord */
 //              makeStringType                %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 tptr makeStringType() {
-var res: tptr;
+tptr res;
     if (maxSmallString >= strLen)
         return smallStringType[strLen];
     res.rep = malloc(offsetof(types, szArray));
@@ -636,10 +633,10 @@ var res: tptr;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              addToHashTab              %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void addToHashTab(arg: irptr) {
+void addToHashTab(irptr arg) {
     curVal.i  =  arg->id & hashMask;
     curVal.i = mapai(curVal.a);
-    arg->next  =  symHash[curval.i];
+    arg->pck.p.next  =  symHash[curval.i];
     symHash[curval.i]  =  arg;
 } /* addToHashTab */
 //
@@ -651,8 +648,7 @@ void toFCST() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int addCurValToFCST() {
-var
-    low, high, mid: int;
+int low, high, mid;
     low  =  1;
     if (FcstCountTo500 == 0) {
         FcstCountTo500  =  1;
@@ -686,13 +682,12 @@ var
     return FcstCnt - 1;
 } /* addCurValToFCST */
 //
-void error(errno: int);  forward;
+void error(int errno);
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void endOfLine() {
-var
-    err, errPos, prevPos, listMode,
-    startPos, lastErr: int;
+int err, errPos, prevPos, listMode,
+    startPos, lastErr;
     listMode  =  pasinfor.listMode;
     if (listMode || errsInLine) {
         write(' ', (lineStartOffset + PASINFOR.startOffset):5 oct,
@@ -735,7 +730,7 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              storeObjWord              %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void storeObjWord(insn: int) {
+void storeObjWord(int insn) {
     objBuffer[objBufIdx]  =  insn;
     ++moduleOffset;
     if (objBufIdx == 1024) {
@@ -748,11 +743,10 @@ void storeObjWord(insn: int) {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              form1Insn                 %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void form1Insn(arg: int) {
-var
-    insn, opcode: int;
-    half1, half2: int;
-    pos: int;
+void form1Insn(int arg) {
+int insn, opcode;
+int half1, half2;
+int pos;
     insn  =  arg;
     opcode = insn & 077700000;
     if (opcode == KUJ) {
@@ -788,13 +782,13 @@ var
 } /* form1Insn */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void form2Insn(i1, i2: int) {
+void form2Insn(int i1, int i2) {
     form1Insn(i1);
     form1Insn(i2);
 } /* form2Insn */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void form3Insn(i1, i2, i3: int) {
+void form3Insn(int i1, int i2, int i3) {
     form2Insn(i1, i2);
     form1Insn(i3);
 } /* form3Insn */
@@ -808,10 +802,9 @@ void disableNorm() {
 } /* disableNorm */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formJump(arg: *int) {
-var
-    pos: int;
-    isLeft: int;
+void formJump(int *arg) {
+int pos;
+int isLeft;
     if (prevOpcode != KUJ) {
         pos  =  putLeft ? objBufIdx + 4096 : objBufIdx;
         isLeft  =  putLeft;
@@ -830,19 +823,19 @@ void padToLeft() {
 } /* padToLeft */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formAndAlign(arg: int) {
+void formAndAlign(int arg) {
     form1Insn(arg);
     padToLeft();
     prevOpcode  =  1;
 } /* formAndAlign */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int isCharArray(arg: tptr) {
+int isCharArray(tptr arg) {
     with *(arg.rep) do return arg.p.pk == kindArray && base == charType;
 } /* isCharArray */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int isCompactP(t: tptr) {
+int isCompactP(tptr t) {
 /* An ordinary pointer type encoded wholly in the tptr word: rep, psize
  * and bits carry the ultimate non-pointer base, pad packs depth*8 plus
  * the base kind.  Base kind 0 is never encoded (pointer-to-void is the
@@ -852,25 +845,24 @@ int isCompactP(t: tptr) {
 } /* isCompactP */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int typeBits(typtr: tptr) {
+int typeBits(tptr typtr) {
     if (isCompactP(typtr))
         return 15;
     return typtr.p.bits;
 } /* typeBits */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int typeSize(typtr: tptr) {
+int typeSize(tptr typtr) {
     if (isCompactP(typtr))
         return 1;
     return typtr.p.psize;
 } /* typeSize */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr ptrBase(t: tptr) {
+tptr ptrBase(tptr t) {
 /* Pointee of a pointer type: compact words reconstruct it in place,
  * legacy allocated descriptors read the heap record. */
-var
-    b: tptr;
+tptr b;
     if (!isCompactP(t))
         return t.rep->base;
     b = t;
@@ -884,13 +876,13 @@ var
 } /* ptrBase */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int isCharPtr(arg: tptr) {
+int isCharPtr(tptr arg) {
     return arg.p.pk == kindPtr && typeSize(arg) == 1 &&
            ptrBase(arg) == charType;
 } /* isCharPtr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void putToSymTab(arg: int) {
+void putToSymTab(int arg) {
     symTab[symTabPos]  =  arg;
     if (symTabPos == 075500) {
         error(50); /* errSymbolTableOverflow */
@@ -900,8 +892,8 @@ void putToSymTab(arg: int) {
 } /* putToSymTab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int allocExtSymbol(sym: int) {
-var i: int;
+int allocExtSymbol(int sym) {
+int i;
     if (curVal.i & halfWord) {
         for (i = 1; i <= longSymCnt; ++i)
             if (curVal.i == longSyms[i]) {
@@ -922,7 +914,7 @@ var i: int;
 } /* allocExtSymbol */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int getHelperProc(l3arg1z: int) {
+int getHelperProc(int l3arg1z) {
     if (helperMap[l3arg1z] == 0) {
         curVal.i  =  helperNames[l3arg1z];
         helperMap[l3arg1z]  =  allocExtSymbol(extSymMask);
@@ -931,10 +923,9 @@ int getHelperProc(l3arg1z: int) {
 } /*getHelperProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int allocSymtab(arg: int) {
-var
-    low, high, mid, ret: int;
-    value: word;
+int allocSymtab(int arg) {
+int low, high, mid, ret;
+word value;
     low  =  0;
     value.i  =  arg;
     if (symTabCnt == 0) {
@@ -973,8 +964,7 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int getFCSToffset() {
-var
-    offset: int;
+int offset;
     offset  =  addCurValToFCST();
     if (offset < 2048) {
         return offset;
@@ -986,15 +976,9 @@ var
 } /* getFCSToffset */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int nrOfBits(value: int) {
-    return 48 - minel(value & [7..47]);
-} /* nrOfBits */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr mkIntScl(bitWid: int) {
-var
-    res: tptr;
-    icand: inptr;
+tptr mkIntScl(int bitWid) {
+tptr res;
+inptr icand;
     if (bitWid < 1 || 40 < bitWid) {
         error(errNumberTooLarge);
         return intType;
@@ -1023,7 +1007,7 @@ var
 } /* mkIntScl */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int getValueOrAllocSymtab(value: int) {
+int getValueOrAllocSymtab(int value) {
     curVal.i  =  value & 077777;
     return (040000 >= curVal.i) ? curVal.i
         : allocSymtab((curVal.i | 040000000U) & halfWord);
@@ -1031,11 +1015,10 @@ int getValueOrAllocSymtab(value: int) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // fixup -- address-fixup helper; see base.pas for full mode docs.
-void fixup(mode, arg: int) {
-var
-    addr, insn, leftHalf: int;
-    isLarge: int;
-    work, offset: int;
+void fixup(int mode, int arg) {
+int addr, insn, leftHalf;
+int isLarge;
+int work, offset;
     if (mode == 0) {
         padToLeft();
         curVal.i  =  moduleOffset;
@@ -1084,7 +1067,7 @@ var
 } /* fixup */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void requiredSymErr(sym: symbol) {
+void requiredSymErr(symbol sym) {
     if (linePos != prevErrPos) {
         error(sym + 88);
     }
@@ -1092,7 +1075,7 @@ void requiredSymErr(sym: symbol) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int getc() {
-var c:int;
+int c;
     if (feof(&PASINPUT)) return -1;
     c = *PASINPUT.data;
     get(PASINPUT);
@@ -1101,7 +1084,7 @@ var c:int;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void readToPos80() {
-var c: int;
+int c;
     while (linePos < 80) {
         ++linePos;
         c  =  getc();
@@ -1122,13 +1105,12 @@ void nextCH() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseComment() { /* parseComment */
-var
-    badOpt, flag: int;
-    c: char;
+int badOpt, flag;
+char c;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int readOptVal(limit: int) {
-var t:int;
+int readOptVal(int limit) {
+int t;
     nextCH();
     t  =  0;
     while (('9' >= CH) && (CH >= '0')) {
@@ -1141,7 +1123,7 @@ var t:int;
 } /* readOptVal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void readOptFlag(res: *int) {
+void readOptFlag(int *res) {
     nextCH();
     if (CH == '-' || CH == '+') {
         *res  =  CH == '+';
@@ -1171,8 +1153,6 @@ void readOptFlag(res: *int) {
             break;
         case 'F': readOptFlag(&checkFortran); break;
         case 'L': PASINFOR.listMode = readOptVal(3); break;
-        case 'P': readOptFlag(&doPMD); break; // ignored
-        case 'T': readOptFlag(&checkBounds); break; // ignored
         case 'A': charEncoding = readOptVal(3); break;
         case 'C': readOptFlag(&checkTypes); break;
         case 'M': readOptFlag(&fixMult); break;
@@ -1212,20 +1192,19 @@ int skipSp() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void inSymbol() { /* inSymbol */
-var
-    localBuf: char[131];
-    tokenLen, tokenIdx: int;
-    expSign: int;
-    chain: irptr;
-    expMultiple, expValue: real;
-    curChar: char;
-    numstr: word[17];
-    expLiteral, expMagnitude: int;
-    val: int;
-    jb1473: int;
+char localBuf[131];
+int tokenLen, tokenIdx;
+int expSign;
+irptr chain;
+real expMultiple, expValue;
+char curChar;
+word numstr[17];
+int expLiteral, expMagnitude;
+int val;
+int jb1473;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void doCharConst(lim:char) {
+void doCharConst(char lim) {
 // Set of characters that are not themselves after \
 // 0123 4567 89:; <=>? @ABC DEFG HIJK LMNO PQRS TUVW XYZ
 // ++++ ++++            ++    +         +    +  + +
@@ -1233,7 +1212,7 @@ void doCharConst(lim:char) {
 //             01 2345 6789 0123 4567 8901 2345 6789 0123 4567
 const escSet = 0xFF0062022A00;
 escMap = 007101412151113;
-var advanced:int;
+int advanced;
    advanced  =  false;
    for (tokenIdx = 6; tokenIdx <= 130; ++tokenIdx) {
        if (! advanced)
@@ -1321,9 +1300,9 @@ void lexer() {
         case lookDef:
             hashTravPtr  =  symHash[bucket];
             while (hashTravPtr != NIL) {
-                if (hashTravPtr->offset == curFrameRegTemplate) {
+                if (hashTravPtr->pck.p.offset == curFrameRegTemplate) {
                     if (hashTravPtr->id != curIdent)
-                        hashTravPtr  =  hashTravPtr->next;
+                        hashTravPtr  =  hashTravPtr->pck.p.next;
                     else {
                         isDefined  =  true;
                         return;
@@ -1344,7 +1323,7 @@ void lexer() {
                         && (hashTravPtr->uptype ==
                             withIter->expr2->typ))
                             return;
-                        hashTravPtr  =  hashTravPtr->next;
+                        hashTravPtr  =  hashTravPtr->pck.p.next;
                     }
                     withIter  =  withIter->expr1;
                 }
@@ -1355,9 +1334,9 @@ void lexer() {
             hashTravPtr  =  symHash[bucket];
             while (hashTravPtr != NIL) {
                 if (hashTravPtr->id != curIdent)
-                    hashTravPtr  =  hashTravPtr->next;
+                    hashTravPtr  =  hashTravPtr->pck.p.next;
                 else {
-                    if (hashTravPtr->cl == TYPEID)
+                    if (hashTravPtr->pck.p.cl == TYPEID)
                         SY  =  TYPESY;
                     return;
                 }
@@ -1370,7 +1349,7 @@ void lexer() {
                     if ((id == curIdent) &&
                        (typ121z == uptype))
                         return;
-                    hashTravPtr  =  next;
+                    hashTravPtr  =  pck.p.next;
                }
            }
         }
@@ -1613,8 +1592,7 @@ void lexer() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void skipToEnd() {
-var
-    sym: symbol;
+symbol sym;
     sym  =  SY;
     while ((CH != '\0') && ((sym != ENDSY) || (SY != PERIOD))) {
         sym  =  SY;
@@ -1651,13 +1629,13 @@ void error {
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void skip(toset: setofsys) {
+void skip(setofsys toset) {
     while (!(SY IN toset))
         inSymbol();
 } /* skip */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void errAndSkip(errno: int; toset: setofsys)
+void errAndSkip(int errno, setofsys toset)
 {
     error(errno);
     skip(toset);
@@ -1666,9 +1644,9 @@ void errAndSkip(errno: int; toset: setofsys)
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Returns the type of the literal; the value is assigned by reference
 // in the first argument.
-tptr parseLiteral(litValue: *int; allowSign: int) {
-var
-    l3var1z: operator; ret: tptr;
+tptr parseLiteral(int *litValue, int allowSign) {
+operator l3var1z;
+tptr ret;
     *litValue  =  curToken.i;
     if (SY > STRINGSY) {
         if (allowSign && (charClass IN [PLUSOP, MINUSOP])) {
@@ -1691,7 +1669,7 @@ var
     } else
         switch (SY) {
         case IDENT:
-            if (hashTravPtr == NIL || hashTravPtr->cl != ENUMID)
+            if (hashTravPtr == NIL || hashTravPtr->pck.p.cl != ENUMID)
                 goto 99;
             ret  =  hashTravPtr->typ;
             *litValue  =  hashTravPtr->value;
@@ -1712,11 +1690,10 @@ var
 } /* parseLiteral */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-irptr hash(l3arg1z: irptr; l3arg2z: irptr) {
-var
-    l3var1z: int;
-    l3var2z: int;
-    l3var3z, l3var4z: irptr;
+irptr hash(irptr l3arg1z, irptr l3arg2z) {
+int l3var1z;
+int l3var2z;
+irptr l3var3z, l3var4z;
 //
     if (l3arg1z == NIL) {
         curVal.i  =  l3arg2z->id & hashMask;
@@ -1729,27 +1706,27 @@ var
     if (l3arg1z == l3arg2z) {
         if (l3var1z) {
             symHash[l3var2z]  =
-                symHash[l3var2z]->next;
+                symHash[l3var2z]->pck.p.next;
         } else {
-            return l3arg2z->next;
+            return l3arg2z->pck.p.next;
         }
     } else {
         l3var3z  =  l3arg1z;
         while (l3var3z != l3arg2z) {
             l3var4z  =  l3var3z;
             if (l3var3z != NIL) {
-                l3var3z  =  l3var3z->next;
+                l3var3z  =  l3var3z->pck.p.next;
             } else {
                 return l3arg1z;
             }
         }
-        l3var4z->next  =  l3arg2z->next;
+        l3var4z->pck.p.next  =  l3arg2z->pck.p.next;
     };
     return l3arg1z;
 } /* hash */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void checkSymAndRead(sym: symbol) {
+void checkSymAndRead(symbol sym) {
     if (SY != sym)
         requiredSymErr(sym);
     else
@@ -1757,10 +1734,9 @@ void checkSymAndRead(sym: symbol) {
 } /* checkSymAndRead */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int argCount(p: irptr) {
-var
-    i: int;
-    it: irptr;
+int argCount(irptr p) {
+int i;
+irptr it;
     it  =  p->argList;
     i  =  0;
     if (it != NIL)
@@ -1772,11 +1748,10 @@ var
 } /* argCount */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr makeRoutineType(routine: irptr) {
-var
-    resultTyp: tptr;
-    srcParam: irptr;
-    newParam, lastParam: sigptr;
+tptr makeRoutineType(irptr routine) {
+tptr resultTyp;
+irptr srcParam;
+sigptr newParam, lastParam;
     resultTyp.rep = malloc(offsetof(types, szRtype));
     with *(resultTyp.rep) do {
         rresult  =  routine->typ;
@@ -1793,7 +1768,7 @@ var
         while (srcParam != routine) {
             newParam = malloc(sizeof(sigrec));
             with *newParam do {
-                pclass  =  srcParam->cl;
+                pclass  =  srcParam->pck.p.cl;
                 ptyp  =  srcParam->typ;
                 next  =  NIL;
             }
@@ -1809,7 +1784,7 @@ var
 } /* makeRoutineType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int leftAlign(val:int) {
+int leftAlign(int val) {
     while ((val & [0..5]) == 0U) {
         val <<= 6;
     }
@@ -1817,9 +1792,8 @@ int leftAlign(val:int) {
 } /* leftAlign */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regResWord(keyword: int) {
-var
-    kw: *kword;
+void regResWord(int keyword) {
+kword *kw;
     curVal.i  =  keyword & hashMask;
     curVal.i = mapai(curVal.a);
     kw = malloc(sizeof(kword));
@@ -1835,43 +1809,59 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PROGRAMME                 %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void programme(retSizePtr: *int; procName: irptr; bodyBlock: int) { /* programme */
-var
-    preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr: irptr;
-    isPredefined, l2bool8z, retSeen, inTypeDef, hadParens: int;
-    typedefPending: int;
-    l2var10z: eptr;
-    hasFiles: int;
-    bodyStatSys: int;
-    l2var12z: int;
-    l2typ13z, l2typ14z, typedRetType, ceTyp: tptr;
-    ceVal, ceRegs: int;
-    labFence: int;
-    strLabList: *strLabel;
+void programme(int *retSizePtr, irptr procName, int bodyBlock) { /* programme */
+irptr preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr;
+int isPredefined, l2bool8z, retSeen, inTypeDef, hadParens;
+eptr l2var10z;
+int hasFiles;
+int bodyStatSys;
+int l2var12z;
+tptr l2typ13z, l2typ14z, typedRetType, ceTyp;
+int ceVal, ceRegs;
+int labFence;
+strLabel *strLabList;
 //
-    l2int18z, ii, localSize, sizeCount, jj: int;
+int l2int18z, ii, localSize, sizeCount, jj;
+//
+// Promoted here (rather than kept private to parseTypeRef, as base.pas
+// had them) so the shared declarator parser below -- a sibling of
+// parseTypeRef, not nested inside it -- can read them right after each
+// type-spec call: isPacked mirrors '__packed TYPE[range]' (parseTypeRef
+// resets it false on entry, sets it true on 'packed', and would
+// normally consume it itself via its own trailing '[range]' handling,
+// but here the range is a declarator suffix, not part of the type-spec
+// tokens, so nothing resets it -- the caller must). isForwardRef marks
+// a base type resolved via the forward-reference placeholder path (an
+// undefined name used mid-typedef, e.g. 'typedef expr *eptr;' parsed
+// before 'expr' itself is defined): the returned type is a
+// heap-allocated (definePtrType, not compact getPtrType) pointer-to-int
+// stand-in whose base field the *later* real definition of the name
+// patches in place, so a declarator '*' applied directly to it must
+// reuse it as-is instead of wrapping it in another pointer.
+int isPacked;
+int isForwardRef;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void myrollup(addr : int) {
-var top : int;
+void myrollup(int addr) {
+int top;
     top = setup();
-    if (top > maxHeap)
+    if (top > maxHeap) {
         maxHeap = top;
+//        writeln(' maxHeap incr line ', lineCnt);
+    }
     rollup(addr);
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void internScope(bound: int) {
-/* Forget interned types allocated above the arena mark being rolled up. */
-    while (internHead != NIL && int(internHead) >= bound)
-        internHead  =  internHead->inext;
-} /* internScope */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int knownInType(rec: *irptr) {
-var it: irptr;
-    for (it = typelist; it != NIL; it = it->next) {
-        if (it->id == curIdent) {
+// name: the Pascal '^Name' call sites (still in parseTypeRef's MUL
+// branch) pass curIdent, since the lexer is still sitting on Name there.
+// C-style forward-referenced typedef patching (see TYPEDEFSY) calls this
+// after the declarator's own name has already been read and the lexer
+// has moved on, so it passes the saved declarator.name explicitly.
+int knownInType(irptr *rec, int name) {
+irptr it;
+    for (it = typelist; it != NIL; it = it->pck.p.next) {
+        if (it->id == name) {
             *rec = it;
             return true;
         }
@@ -1880,17 +1870,15 @@ var it: irptr;
 } /* knownInType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int typeCheck(type1, type2: tptr) { /* typeCheck */
-var
-    baseMatch: int;
-    kind1, kind2: kind;
-    enums1, enums2: irptr;
-    span1, span2: int;
+int typeCheck(tptr type1, tptr type2) { /* typeCheck */
+int baseMatch;
+kind kind1, kind2;
+irptr enums1, enums2;
+int span1, span2;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int sameRoutineType(type1, type2: tptr) {
-var
-    p1, p2: sigptr;
+int sameRoutineType(tptr type1, tptr type2) {
+sigptr p1, p2;
     if (type1.rep->rargc != type2.rep->rargc ||
         ((type1.rep->rflags & [20,21,24,26]) !=
          (type2.rep->rflags & [20,21,24,26]))) {
@@ -1918,7 +1906,6 @@ var
 } /* sameRoutineType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    rangeMismatch  =  false;
     if (!checkTypes || type1 == type2)
 1:      return true;
         with *(type1.rep) do {
@@ -1946,8 +1933,7 @@ var
                     span2  =  type2.rep->aright - type2.rep->aleft;
                     if (typeCheck(type1.rep->base, type2.rep->base) &&
                        (span1 == span2) &&
-                       (type1.rep->pck == type2.rep->pck) &&
-                       !rangeMismatch) {
+                       (type1.rep->pck == type2.rep->pck)) {
                         if (type1.rep->pck) {
                             if (type1.rep->pcksize == type2.rep->pcksize)
                                 goto 1;
@@ -1966,8 +1952,8 @@ var
 } /* typeCheck */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr mkExpr(oper: operator; resTyp: tptr; e1, e2: eptr) {
-    var n: eptr;
+eptr mkExpr(operator oper, tptr resTyp, eptr e1, eptr e2) {
+    eptr n;
     n = malloc(sizeof(expr));
     with *n do {
         typ = resTyp;
@@ -1979,8 +1965,8 @@ eptr mkExpr(oper: operator; resTyp: tptr; e1, e2: eptr) {
 } /* mkExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr mkIntLit(val: int) {
-    var n: eptr;
+eptr mkIntLit(int val) {
+    eptr n;
     n = malloc(sizeof(expr));
     with *n do {
         typ = intType;
@@ -1991,16 +1977,79 @@ eptr mkIntLit(val: int) {
 } /* mkIntLit */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr flatMemAt(idx: eptr) {
+/* Construct a binary op-node, but if both operands are already constants
+   (GETENUM), fold at construction and reuse the left operand's node in place
+   as the result — no new allocation.  Construction is now the only place
+   folding happens (genFullExpr no longer re-folds); the payoff is that
+   constant expressions collapse to a literal for downstream sites that
+   require op == GETENUM.  Divide/modulo by a zero constant is left as an
+   op-node so codegen keeps its behaviour. */
+eptr mkExprFold(operator op, tptr resTyp, eptr e1, eptr e2) {
+    word v, r;
+    if ((e1->op == GETENUM) && (e2->op == GETENUM) &&
+        ! (((op == IDIVOP) || (op == IMODOP) || (op == RDIVOP)) &&
+           (e2->num1 == 0))) {
+        v.i = e1->num1;
+        r.i = e2->num1;
+        switch (op) {
+        case MUL:      v.r = v.r * r.r; break;
+        case RDIVOP:   v.r = v.r / r.r; break;
+        case ANDOP:    v.i = v.i && r.i; break;
+        case IDIVOP:   v.i = v.i / r.i; break;
+        case IMODOP:   v.i = v.i % r.i; break;
+        case PLUSOP:   v.r = v.r + r.r; break;
+        case MINUSOP:  v.r = v.r - r.r; break;
+        case OROP:     v.i = v.i || r.i; break;
+        case IMULOP:   v.i = v.i * r.i; break;
+        case SETAND:   v.i = v.i & r.i; break;
+        case SETXOR:   v.i = v.i ^ r.i; break;
+        case INTPLUS:  v.i = v.i + r.i; break;
+        case INTMINUS: v.i = v.i - r.i; break;
+        case SETOR:    v.i = v.i | r.i; break;
+        case SHLEFT:   v.i = v.i << r.i; break;
+        case SHRIGHT:  v.i = v.i >> r.i; break;
+        default:
+            return mkExpr(op, resTyp, e1, e2);   /* not a foldable op */
+        }
+        e1->num1 = v.i;    /* e1 is already GETENUM; reuse it in place */
+        e1->typ = resTyp;
+        return e1;
+    }
+    return mkExpr(op, resTyp, e1, e2);
+} /* mkExprFold */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* Unary counterpart of mkExprFold.  Only ever called with a foldable unary
+   operator, so a GETENUM operand is always folded — mutated in place and
+   reused. */
+eptr mkUnaryFold(operator op, tptr resTyp, eptr e) {
+    word v;
+    if (e->op == GETENUM) {
+        v.i = e->num1;
+        switch (op) {
+        case TOREAL:   v.r = v.i; break;
+        case NOTOP:    v.i = ! v.i; break;
+        case RNEGOP:   v.r = -v.r; break;
+        case INEGOP:   v.i = -v.i; break;
+        case BITNEGOP: v.i = ~v.i; break;
+        } /* switch */
+        e->num1 = v.i;
+        e->typ = resTyp;
+        return e;
+    }
+    return mkExpr(op, resTyp, e, NIL);
+} /* mkUnaryFold */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+eptr flatMemAt(eptr idx) {
     idx->typ = intType;
     return mkExpr(GETELT, charType,
                   mkExpr(GETVAR, flatMemType, eptr(flatMemVar), NIL), idx);
 } /* flatMemAt */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr mkCastInt(e: eptr) {
-var
-    n: eptr;
+eptr mkCastInt(eptr e) {
+eptr n;
     n = malloc(sizeof(expr));
     *n = *e;
     n->typ = intType;
@@ -2008,50 +2057,17 @@ var
 } /* mkCastInt */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr mkRef(lval: eptr) {
-var
-    ret: eptr;
+eptr mkRef(eptr lval) {
+eptr ret;
     ret = mkExpr(STANDPROC, voidPtr, lval, NIL);
     ret->num2 = fnREF;
     return ret;
 } /* mkRef */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr cpDsLval(e: eptr) {
-    if ((e != NIL) && (e->op == DEREF) &&
-        isCharPtr(e->expr1->typ))
-        return flatMemAt(e->expr1);
-    return e;
-} /* cpDsLval */
-//
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr cpDsExpr(e: eptr) {
-    if (e == NIL)
-        return NIL;
-    if ((e->op == DEREF) && isCharPtr(e->expr1->typ))
-        return flatMemAt(e->expr1);
-    return e;
-} /* cpDsExpr */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr allocPtr(toType: tptr) {
-/* Heap-allocated pointer descriptor: needed for typedef forward
- * placeholders (patched in place) and for bases the compact form
- * cannot carry (nonzero pad, e.g. textType; depth overflow). */
-var
-    t: tptr;
-    t.rep = malloc(offsetof(types, szPtr));
-    t.rep->base = toType;
-    t.p.psize = 1;
-    t.p.bits = 15;
-    t.p.pk = kindPtr;
-    return t;
-} /* allocPtr */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr getPtrType(toType: tptr) {
-var
-    t: tptr;
+tptr getPtrType(tptr toType) {
+tptr t;
     if (toType == voidType)
         return voidPtr;
     if (isCompactP(toType)) {
@@ -2066,14 +2082,20 @@ var
         t.p.pk = kindPtr;
         return t;
     }
-    return allocPtr(toType);
+    /* Fallback: heap-allocated pointer descriptor, for bases the compact
+       form cannot carry (nonzero pad, e.g. textType; depth overflow). */
+    t.rep = malloc(offsetof(types, szPtr));
+    t.rep->base = toType;
+    t.p.psize = 1;
+    t.p.bits = 15;
+    t.p.pk = kindPtr;
+    return t;
 } /* getPtrType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr bldIncDec(lval: eptr; isInc, isPost: int) {
-var
-    one, rmw: eptr;
-    op: operator;
+eptr bldIncDec(eptr lval, int isInc, int isPost) {
+eptr one, rmw;
+operator op;
     op = isInc ? INTPLUS : INTMINUS;
     one = mkIntLit(1);
     rmw = mkExpr(RMWASSIGN, intType, lval, mkExpr(op, intType, one, NIL));
@@ -2083,38 +2105,36 @@ var
 } /* bldIncDec */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formOperator(l3arg1z: opgen) { /* formOperator */
-var
-    l3int1z, l3int2z, l3int3z: int;
-    nextInsn: int;
-    helpExpr: eptr;
-    direction: int;
-    noTarget: int;
-    l3var10z, l3var11z: int;
-    saved: *insnltyp;
-    rhsMode: int;
+void formOperator(opgen l3arg1z) { /* formOperator */
+int l3int1z, l3int2z, l3int3z;
+int nextInsn;
+eptr helpExpr;
+int direction;
+int noTarget;
+int l3var10z, l3var11z;
+insnltyp *saved;
+int rhsMode;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genOneOp() { /* genOneOp */
-var
-    insnBufIdx: int;
-    i, l4var3z, l4var4z: int;
-    l4inl6z, l4inl7z, l4inl8z: oiptr;
-    l4var9z: int;
-    insnBuf: int[1..200];
-    curInsn: int;
-    tempInsn: int;
-    l4oi212z: oiptr;
-    l4var213z: int;
+int insnBufIdx;
+int i, l4var3z, l4var4z;
+oiptr l4inl6z, l4inl7z, l4inl8z;
+int l4var9z;
+int insnBuf[1..200];
+int curInsn;
+int tempInsn;
+oiptr l4oi212z;
+int l4var213z;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void  addInsnToBuf(insn: int) {
+void addInsnToBuf(int insn) {
     insnBuf[insnBufIdx]  =  insn;
     ++insnBufIdx;
 } /* addInsnToBuf */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void add2InsnsToBuf(insn1, insn2: int) {
+void add2InsnsToBuf(int insn1, int insn2) {
     insnBuf[insnBufIdx]  =  insn1;
     insnBuf[insnBufIdx+1]  =  insn2;
     insnBufIdx += 2;
@@ -2137,7 +2157,7 @@ int findLabel() {
 } /* findLabel */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void addJumpInsn(opcode: int) {
+void addJumpInsn(int opcode) {
     if (!findLabel()) {
         l4inl7z = malloc(sizeof(oneinsn));
         l4inl7z->next  =  l4inl6z;
@@ -2425,8 +2445,8 @@ void processInsn() {
 } /* genOneOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void addToInsnList(insn: int) {
-var elt: oiptr;
+void addToInsnList(int insn) {
+oiptr elt;
     elt = malloc(sizeof(oneinsn));
     with *elt do {
         next  =  NIL;
@@ -2444,15 +2464,14 @@ var elt: oiptr;
 } /* addToInsnList */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void addInsnAndOffset(insn, l4arg2z: int) {
+void addInsnAndOffset(int insn, int l4arg2z) {
     addToInsnList(insn);
     insnList->tail->offset  =  l4arg2z;
 } /* addInsnAndOffset */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void prependToInsnList(insn: int) {
-var
-    elt: oiptr;
+void prependToInsnList(int insn) {
+oiptr elt;
     elt = malloc(sizeof(oneinsn));
     with *elt do {
         next  =  insnList->head;
@@ -2468,12 +2487,11 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void prepLoad() {
-var
-    helper, l4int2z, l4int3z: int;
-    valueType: tptr;
-    l4var5z: kind;
-    l4st6z: state;
-    isSimple: int;
+int helper, l4int2z, l4int3z;
+tptr valueType;
+kind l4var5z;
+state l4st6z;
+int isSimple;
     valueType  =  insnList->typ;
     with *insnList do {
         switch (ilm) {
@@ -2573,10 +2591,9 @@ void push() {
 } /* push */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void setAddrTo(reg: int) { /* setAddrTo */
-var
-    l4var1z, l4int2z, opCode, l4var4z, l4var5z,
-    l4var6z, regField: int;
+void setAddrTo(int reg) { /* setAddrTo */
+int l4var1z, l4int2z, opCode, l4var4z, l4var5z,
+    l4var6z, regField;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void getOffset() {
@@ -2643,12 +2660,11 @@ void getOffset() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void prepStore() {
-var
-    l4int1z: int;
-    l4int2z, l4int3z: int;
-    l4bool4z, l4bool5z: int;
-    l4st6z: state;
-    l4var7z: kind;
+int l4int1z;
+int l4int2z, l4int3z;
+int l4bool4z, l4bool5z;
+state l4st6z;
+kind l4var7z;
     with *insnList do
         l4int1z  =  addrmd;
     if (15 < l4int1z) {
@@ -2705,7 +2721,7 @@ var
 } /* prepStore */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void spillAcc(op: operator) {
+void spillAcc(operator op) {
     addInsnAndOffset(curFrameRegTemplate, localSize);
     curExpr = malloc(sizeof(expr));
     with *curExpr do
@@ -2720,9 +2736,8 @@ void spillAcc(op: operator) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int insnCount() {
-var
-    cnt: int;
-    cur: oiptr;
+int cnt;
+oiptr cur;
     cnt  =  0;
     cur  =  insnList->head;
     while (cur != NIL) {
@@ -2733,13 +2748,12 @@ var
 } /* insnCount */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genFullExpr(exprToGen: eptr) { /* genFullExpr */
-var
-    arg1Const, arg2Const: int;
-    otherIns: *insnltyp;
-    arg1Val, arg2Val: word;
-    curOP: operator;
-    work: int;
+void genFullExpr(eptr exprToGen) { /* genFullExpr */
+int arg1Const, arg2Const;
+insnltyp *otherIns;
+word arg1Val, arg2Val;
+operator curOP;
+int work;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void startLVal() {
@@ -2753,8 +2767,7 @@ void startLVal() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genDeref() {
-var
-    l5var1z, l5var2z: int;
+int l5var1z, l5var2z;
     /* The optimised path manipulates addrmd/disp/payload, which only
        carry meaning for ilLVAL (addressable) operands.  For ilRVAL --
        e.g. a function-call result whose pointer value is already in ACC
@@ -2808,9 +2821,8 @@ void genHelper() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void prepMultiWord() {
-var
-    l5var1z: int;
-    l5var2z: *insnltyp;
+int l5var1z;
+insnltyp *l5var2z;
     l5var1z  =  12 in otherIns->regsused;
     setAddrTo(12);
     if (l5var1z) {
@@ -2840,10 +2852,9 @@ void negateCond() {
 } /* negateCond */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void tryFlip(commutes: int) {
-var
-    l5var1z: int;
-    l5var2z: *insnltyp;
+void tryFlip(int commutes) {
+int l5var1z;
+insnltyp *l5var2z;
     if (! (0 in otherIns->regsused)) {
         l5var1z  =  0;
     } else if (! (0 in insnList->regsused)) {
@@ -2889,11 +2900,10 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genBoolAnd() {
-var
-    l5var1z, l5var2z: int;
-    l5var3z, l5var4z, l5var5z, l5var6z, l5var7z: int;
-    l5ins8z: *insnltyp;
-    l5var9z: int;
+int l5var1z, l5var2z;
+int l5var3z, l5var4z, l5var5z, l5var6z, l5var7z;
+insnltyp *l5ins8z;
+int l5var9z;
     if (arg1Const) {
         if (arg1Val.i)
             insnList  =  otherIns;
@@ -2997,18 +3007,17 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genGetElt() { /* genGetElt */
-var
-    l5var1z, dimCnt, curDim, l5var4z, l5var5z, l5var6z,
-        l5var7z, l5var8z: int;
-    insnCopy: insnltyp;
-    copyPtr, l5ins21z: *insnltyp;
-    l5var22z, l5var23z: int;
-    l5var24z: int;
-    l5var25z: int;
-    l5var26z: tptr;
-    l5ilm28z: ilmode;
-    l5var29z: eptr;
-    getEltInsns: *insnltyp[1..10];
+int l5var1z, dimCnt, curDim, l5var4z, l5var5z, l5var6z,
+        l5var7z, l5var8z;
+insnltyp insnCopy;
+insnltyp *copyPtr, *l5ins21z;
+int l5var22z, l5var23z;
+int l5var24z;
+int l5var25z;
+tptr l5var26z;
+ilmode l5ilm28z;
+eptr l5var29z;
+insnltyp *getEltInsns[1..10];
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     dimCnt  =  0;
@@ -3171,7 +3180,7 @@ var
 } /* genGetElt */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int allocGlobalObject(arg: irptr) {
+int allocGlobalObject(irptr arg) {
     if (arg->pos == 0) {
         if (arg->flags & [20, 21]) {
             curVal.i  =  leftAlign(arg->id);
@@ -3186,15 +3195,15 @@ int allocGlobalObject(arg: irptr) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genEntry() { /* genEntry */
-var
-    l5exp1z, l5exp2z: eptr;
-    l5idr3z, l5idr4z, l5idr5z, curForml: irptr;
-    isProc, firstArg, isDirect, isFortrn, isAssembler, allByRef: int;
-    calleeFl, frameSiz, numArgs: int;
-    l5var15z: int;
-    l5var16z, l5var17z, l5var18z, l5var19z: int;
-    l5inl20z: *insnltyp;
-    l5op21z: operator; paramClass: idclass;
+eptr l5exp1z, l5exp2z;
+irptr l5idr3z, l5idr4z, l5idr5z, curForml;
+int isProc, firstArg, isDirect, isFortrn, isAssembler, allByRef;
+int calleeFl, frameSiz, numArgs;
+int l5var15z;
+int l5var16z, l5var17z, l5var18z, l5var19z;
+insnltyp *l5inl20z;
+operator l5op21z;
+idclass paramClass;
 //
 void formThunk() {
                 if (l5idr4z->value == 0) {
@@ -3225,7 +3234,7 @@ void formThunk() {
                             allocGlobalObject(l5idr4z) + KUJ);
                         if (l5idr3z != NIL) {
                             do {
-                                paramClass  =  l5idr3z->cl;
+                                paramClass  =  l5idr3z->pck.p.cl;
                                 if ((paramClass == ROUTINEID) &&
                                    (l5idr3z->typ != voidType))
                                     paramClass  =  ENUMID;
@@ -3294,7 +3303,7 @@ void formThunk() {
             insnList->regsused  =  0U;
             usedRegs |= l5idr4z->flags;
             if (l5idr4z->list != NIL) {
-                addToInsnList(l5idr4z->offset + KXTA +
+                addToInsnList(l5idr4z->pck.p.offset + KXTA +
                               l5idr4z->value);
                 if (isFortrn)
                     addToInsnList(getHelperProc(19)); /* "P/EA" */
@@ -3309,7 +3318,7 @@ void formThunk() {
                 paramClass  =  VARID;
         }
         if (! (! isDirect || (paramClass != FORMALID) ||
-               (curForml->cl != VARID)))
+               (curForml->pck.p.cl != VARID)))
             paramClass  =  VARID;
 1:      if (paramClass == FORMALID || allByRef) {
             setAddrTo(14);
@@ -3346,7 +3355,7 @@ void formThunk() {
         if (20 in l5idr5z->flags) {
             l5var17z  =  1;
         } else {
-            l5var17z  =  l5idr5z->offset / 04000000;
+            l5var17z  =  l5idr5z->pck.p.offset / 04000000;
         }
     } else {
         l5var15z  =  0;
@@ -3358,7 +3367,7 @@ void formThunk() {
         }
         addInsnAndOffset(macro+16 + l5var15z,
                          getValueOrAllocSymtab(l5var17z));
-        addToInsnList(l5idr5z->offset + KUTC + l5idr5z->value);
+        addToInsnList(l5idr5z->pck.p.offset + KUTC + l5idr5z->value);
         addToInsnList(macro+18);
         l5var17z  =  1;
     }
@@ -3400,7 +3409,7 @@ void formThunk() {
 } /* genEntry */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void startInsnList(l5arg1z: ilmode) {
+void startInsnList(ilmode l5arg1z) {
     insnList = malloc(sizeof(insnltyp));
     insnList->tail  =  NIL;
     insnList->head  =  NIL;
@@ -3420,9 +3429,8 @@ void startInsnList(l5arg1z: ilmode) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genCopy() {
-var
-    size: int;
-    lhsIns, rhsIns: *insnltyp;
+int size;
+insnltyp *lhsIns, *rhsIns;
     size  =  typeSize(insnList->typ);
     if (size == 1) {
         lhsIns  =  insnList;
@@ -3457,7 +3465,7 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genConstDiv() {
-var r: real;
+real r;
     if (card(arg2val.i) > 1) {
         curVal.r = 1.0 / arg2Val.i;
         r = curVal.r * arg2Val.i;
@@ -3472,10 +3480,9 @@ var r: real;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genComparison() {
-var
-    negate: int;
-    l5set2z: int;
-    mode, size: int;
+int negate;
+int l5set2z;
+int mode, size;
     l3int3z  =  curOP - NEOP;
     negate  =  l3int3z & 1U;
     if (l3int3z == 6) {     /* IN */
@@ -3596,10 +3603,9 @@ void genCondOp() {
  * that record's chain in the object buffer, so several jumps to the same
  * logical label share one record and are all patched together by fixup.
  */
-var
-    altExpr: eptr;
-    elseLab, endLab: int;
-    condChain, thenChain: *insnltyp;
+eptr altExpr;
+int elseLab, endLab;
+insnltyp *condChain, *thenChain;
     altExpr = exprToGen->expr2;
     /* Allocate two unique forward-label identifiers from the global
        counter used by genBoolAnd. */
@@ -3714,11 +3720,10 @@ void genRMWAssign() {
    off GETVAR / GETELT with GETVAR index) the synthetic AST may share
    the original lvalue node directly -- re-walking is cheap and side-
    effect free, and skips the push/pop traffic entirely. */
-var
-    innerNode, rhsExpr, lhsExpr, rmwLhs: eptr;
-    synthOp, synthAsn: eptr;
-    innerOp: operator;
-    needsMater: int;
+eptr innerNode, rhsExpr, lhsExpr, rmwLhs;
+eptr synthOp, synthAsn;
+operator innerOp;
+int needsMater;
     lhsExpr = exprToGen->expr1;
     innerNode = exprToGen->expr2;
     innerOp = innerNode->op;
@@ -3759,7 +3764,8 @@ var
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if (exprToGen == NIL)
         return;
-    exprToGen = cpDsExpr(exprToGen);
+    if (exprToGen->op == DEREF && isCharPtr(exprToGen->expr1->typ))
+        exprToGen = flatMemAt(exprToGen->expr1);
 7567:
     curOP  =  exprToGen->op;
     if (curOP == CONDOP) {
@@ -3791,30 +3797,9 @@ var
         if (curOP IN [NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP]) {
             genComparison();
         } else {
-            if (arg1Const && arg2Const) {
-                switch (curOP) {
-                case MUL:      arg1Val.r  =  arg1Val.r * arg2Val.r; break;
-                case RDIVOP:   arg1Val.r  =  arg1Val.r / arg2Val.r; break;
-                case ANDOP:    arg1Val.i  =  arg1Val.i && arg2Val.i; break;
-                case IDIVOP:   arg1Val.i  =  arg1Val.i / arg2Val.i; break;
-                case IMODOP:   arg1Val.i  =  arg1Val.i % arg2Val.i; break;
-                case PLUSOP:   arg1Val.r  =  arg1Val.r + arg2Val.r; break;
-                case MINUSOP:  arg1Val.r  =  arg1Val.r - arg2Val.r; break;
-                case OROP:     arg1Val.i  =  arg1Val.i || arg2Val.i; break;
-                case IMULOP:   arg1Val.i  =  arg1Val.i * arg2Val.i; break;
-                case SETAND:   arg1Val.i  =  arg1Val.i & arg2Val.i; break;
-                case SETXOR:   arg1Val.i  =  arg1Val.i ^ arg2Val.i; break;
-                case INTPLUS:  arg1Val.i  =  arg1Val.i + arg2Val.i; break;
-                case INTMINUS: arg1Val.i  =  arg1Val.i - arg2Val.i; break;
-                case SETOR:    arg1Val.i  =  arg1Val.i | arg2Val.i; break;
-                case SHLEFT:   arg1Val.i  =  arg1Val.i << arg2Val.i; break;
-                case SHRIGHT:  arg1Val.i  =  arg1Val.i >> arg2Val.i; break;
-                case NEOP: case EQOP: case LTOP: case GEOP: case GTOP: case LEOP: case INOP:
-                case ASSIGNOP:
-                    error(200);
-                } /* switch 7750 */
-                insnList->payload  =  arg1Val.i;
-            } else {
+            /* a foldable op with two constant operands is already folded to
+               GETENUM at construction (mkExprFold), so only the non-constant
+               codegen path remains here. */
                 l3int3z  =  opToMode[curOP];
                 nextInsn  =  opToInsn[curOP];
                 switch (opFlags[curOP]) {
@@ -3826,6 +3811,8 @@ var
                     break;
                 case opfASSN:
                     genCopy();
+                    if (insnList == NIL)
+                        return;
                     with *insnList do {
                         typ  =  exprToGen->typ;
                         regsused  =  regsused | E48;
@@ -3901,7 +3888,6 @@ var
                     break;
                 } /* switch 10122 */
 10122:          insnList->tail->mode  =  l3int3z;
-            }
         }
     } else if (FILEPTR >= curOP) {
         if (curOP == GETVAR) {
@@ -3912,15 +3898,15 @@ var
                 head  =  NIL;
                 regsused  =  0U;
                 ilm  =  ilLVAL;
-                payload  =  curIdRec->offset;
+                payload  =  curIdRec->pck.p.offset;
                 disp  =  curIdRec->high;
                 st  =  stWORD;
                 addrmd  =  18;
             }
-            if (curIdRec->cl == FORMALID) {
+            if (curIdRec->pck.p.cl == FORMALID) {
                 writeln (' wtf '); halt;
                 genDeref();
-            } else if (curIdRec->cl == ROUTINEID) {
+            } else if (curIdRec->pck.p.cl == ROUTINEID) {
                 insnList->disp  =  3;
                 insnList->payload  =  (insnList->payload + frameRegTemplate);
             } else if (insnList->disp >= 074000) {
@@ -3933,7 +3919,7 @@ var
             genFullExpr(exprToGen->expr1);
             curIdRec  =  exprToGen->id2;
             with *insnList do {
-                disp += curIdRec->offset;
+                disp += curIdRec->pck.p.offset;
                 if (curIdRec->pckfield) {
                     switch (st) {
                     case stWORD: {
@@ -4001,17 +3987,9 @@ var
         genEntry();
     else if (curOP IN [TOREAL..BITNEGOP]) {
         genFullExpr(exprToGen->expr1);
-        if (insnList->ilm == ilCONST) {
-            arg1Val.i  =  insnList->payload;
-            switch (curOP) {
-            case TOREAL: arg1Val.r  =  arg1Val.i; break;
-            case NOTOP:  arg1Val.i  =  ! arg1Val.i; break;
-            case RNEGOP: arg1Val.r  =  -arg1Val.r; break;
-            case INEGOP: arg1Val.i  =  -arg1Val.i; break;
-            case BITNEGOP: arg1Val.i = ~arg1Val.i;
-            } /* switch 10345 */
-            insnList->payload  =  arg1Val.i;
-        } else if (curOP == NOTOP) {
+        /* a unary op with a constant operand is already folded at construction
+           (mkUnaryFold/castToReal), so there is no ilCONST case here. */
+        if (curOP == NOTOP) {
             negateCond();
         } else {
             prepLoad();
@@ -4127,13 +4105,13 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void formFileInit() {
-var extFileP: *extfilerec;
-    fileBase: tptr;
-    fileSym: irptr;
-    fileAddr, elemSize: int;
+extfilerec *extFileP;
+tptr fileBase;
+irptr fileSym;
+int fileAddr, elemSize;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void fcloseFile(fileSym: irptr) {
+void fcloseFile(irptr fileSym) {
     fileAddr  =  fileSym->value;
     if (fileAddr < 074000) {
         form1Insn(getValueOrAllocSymtab(fileAddr) + KUTC + I7);
@@ -4349,16 +4327,24 @@ void fcloseFile(fileSym: irptr) {
         form1Insn(l3int1z);
         formAndAlign(getHelperProc(l3int3z));
         break;
-   case LITINSN:
-        with *insnList do {
-            if (ilm != ilCONST)
-                error(errNoConstant);
-            if (typeSize(insnList->typ) != 1)
-                error(errConstOfOtherTypeNeeded);
-            curVal.i  =  insnList->payload;
-        }
     } /* switch */
 } /* formOperator */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* Extract the value of a constant expression into curVal.  With folding at
+   construction a constant expression is already a GETENUM node, so we read it
+   directly rather than lowering it through genFullExpr — the former
+   formOperator(LITINSN).  Avoids an insnList allocation per constant. */
+void takeConstFromExpr() {
+    if (errors || curExpr == NIL)
+        return;
+    if (curExpr->op != GETENUM)
+        error(errNoConstant);
+    else if (typeSize(curExpr->typ) != 1)
+        error(errConstOfOtherTypeNeeded);
+    else
+        curVal.i  =  curExpr->num1;
+} /* takeConstFromExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void markTypeSym() {
@@ -4367,276 +4353,31 @@ void markTypeSym() {
         bucket = mapAI(curVal.a);
         hashTravPtr  =  symHash[bucket];
         while ((hashTravPtr != NIL) && (hashTravPtr->id != curIdent))
-            hashTravPtr  =  hashTravPtr->next;
-        if ((hashTravPtr != NIL) && (hashTravPtr->cl == TYPEID))
+            hashTravPtr  =  hashTravPtr->pck.p.next;
+        if ((hashTravPtr != NIL) && (hashTravPtr->pck.p.cl == TYPEID))
             SY  =  TYPESY;
     }
 } /* markTypeSym */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr parseTypeRef(skipTarget: setofsys) {
-typedef
-    pair = struct {
-            first, second: int
-    };
-    pair7 = pair[1..7];
-    caserec = struct {
-            size, count: int;
-            pairs: pair7;
-    };
-    rangeRec = struct {
-            aleft, aright: int;
-    };
-    rangeList = rangeRec[1..20];
-var
-    isPacked: int;
-    cond: int;
-    cases: caserec;
-    numBits, l3int22z, span, rangeCnt, curDim: int;
-    curEnum, curField: irptr;
-    arrayType, nestedType, tempType, curType: tptr;
-    ranges: rangeList;
-    curRange: rangeRec;
-    l3idr31z: irptr;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void definePtrType(toType: tptr) {
-    curType = allocPtr(toType);
-    curEnum = malloc(offsetof(identrec, szIdent));
-    CTOR(*curEnum, curIdent, lineCnt, typelist, curType, TYPEID);
-    typelist  =  curEnum;
-} /* definePtrType */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseRecordDecl(rectype: *tptr; isOuterDecl: int) { /* parseRecordDecl */
-var
-    prevVariant, selType, newVariant: tptr;
-    prevField: irptr;
-    variantIdx: int;
-    cases1, cases2: caserec;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void addFieldToHash() {
-    CTOR(*curEnum, curIdent, , fieldHash[bucket], ,
-                   FIELDID, NIL, curType, isPacked);
-    fieldHash[bucket]  =  curEnum;
-} /* addFieldToHash */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void packFields() {
-var
-    fieldWidth, pairIdx, minFirst, scanIdx, curFirst: int;
-    curSlot: *pair;
-    selType = parseTypeRef(skipTarget | [UNIONSY]);
-    if (curType.rep->fields == NIL) {
-        curType.rep->fields  =  curField;
-    } else {
-        l3idr31z->list  =  curField;
-    }
-    l3idr31z  =  curEnum;
-    do {
-        curField->typ  =  selType;
-        if (isPacked) {
-            fieldWidth  =  typeBits(selType);
-            curField->width  =  fieldWidth;
-            if (fieldWidth != 48) {
-                for (pairIdx = 1; pairIdx <= cases.count; ++pairIdx)
-11523:          {
-                    curSlot  =  &cases.pairs[pairIdx];
-                    if (curSlot->first >= fieldWidth) {
-                        curField->shift  =  48 - curSlot->first;
-                        curField->offset  =  curSlot->second;
-                        if (! (S6 IN optSflags))
-                            curField->shift  =  48 - curField->width -
-                                                  curField->shift;
-                        curSlot->first  =  curSlot->first - fieldWidth;
-                        if (curSlot->first == 0) {
-                            cases.pairs[pairIdx]  =
-                                cases.pairs[cases.count];
-                            --cases.count;
-                        }
-                        goto 11622;
-                    }
-                }
-                if (cases.count != 7) {
-                    ++cases.count;
-                    pairIdx  =  cases.count;
-                } else {
-                    minFirst  =  48;
-                    for (scanIdx = 1; scanIdx <= 7; ++scanIdx) {
-                        curFirst  =  cases.pairs[scanIdx].first;
-                        if (curFirst < minFirst) {
-                            minFirst  =  curFirst;
-                            pairIdx  =  scanIdx;
-                        }
-                    } /* for */
-                }
-                CTOR(cases.pairs[pairIdx], 48, cases.size);
-                ++cases.size;
-                goto 11523;
-            }
-        }
-        curField->pckfield  =  false;
-        curField->offset  =  cases.size;
-        cases.size += typeSize(selType);
-11622:
-        if (PASINFOR.listMode == 3) {
-            write(' ':16);
-            if (curField->pckfield)
-                write('PACKED');
-            write(' FIELD ');
-            printTextWord(curField->id);
-            write('.OFFSET=', curField->offset:5 oct, 'B');
-            if (curField->pckfield) {
-                write('.<<=SHIFT=', curField->shift:2,
-                      '. WIDTH=', curField->width:2, ' BITS');
-            } else {
-                write('.WORDS=', typeSize(selType):0);
-            }
-            writeLN;
-        }
-        cond  =  (curField == curEnum);
-        curField  =  curField->list;
-    } while (!cond);
-} /* packFields */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    if (SY != BEGINSY)
-        requiredSymErr(BEGINSY);
-    lookupMode  =  3;
-    inSymbol();
-    while (SY == IDENT) {
-        prevField  =  NIL;
-        do {
-            if (SY != IDENT) {
-                error(errNoIdent);
-            } else {
-                if (hashTravPtr != NIL)
-                    error(errIdentAlreadyDefined);
-                curEnum = malloc(offsetof(identrec, szField));
-                addFieldToHash();
-                if (prevField == NIL) {
-                    curField  =  curEnum;
-                } else {
-                    prevField->list  =  curEnum;
-                }
-                prevField  =  curEnum;
-                lookupMode  =  3;
-                inSymbol();
-            }
-            cond  =  (SY != COMMA);
-            if (! cond) {
-                lookupMode  =  3;
-                inSymbol();
-            }
-        } while (! cond);
-        checkSymAndRead(COLON);
-        packFields();
-        if (SY == SEMICOLON) {
-            lookupMode  =  3;
-            inSymbol();
-        }
-    }
-    if (SY == UNIONSY) {
-        lookupMode  =  3;
-        inSymbol();
-        if (SY != BEGINSY)
-            requiredSymErr(BEGINSY);
-        lookupMode  =  3;
-        inSymbol();
-        cases1  =  cases;
-        cases2  =  cases;
-        prevVariant.rep = NIL;
-        variantIdx  =  0;
-        while (SY == STRUCTSY) {
-            lookupMode  =  3;
-            inSymbol();
-            newVariant.rep = malloc(offsetof(types, szCases));
-            with *(newVariant.rep) do {
-                first.rep  =  typptr(variantIdx);
-                next.rep  =  NIL;
-                alt.rep  =  NIL;
-            }
-            newVariant.p.psize  =  cases.size;
-            newVariant.p.bits  =  48;
-            newVariant.p.pk  =  kindCases;
-            if (prevVariant.rep == NIL) {
-                if (curType.rep->variants.rep == NIL) {
-                    curType.rep->variants  =  newVariant;
-                } else {
-                    rectype->rep->first  =  newVariant;
-                }
-            } else {
-                prevVariant.rep->next  =  newVariant;
-            }
-            prevVariant  =  newVariant;
-            tempType  =  newVariant;
-            parseRecordDecl(&tempType, false);
-            if ((cases2.size < cases.size) ||
-               isPacked && (cases.size == 1) && (cases2.size == 1) &&
-                (cases.count == 1) && (cases2.count == 1) &&
-                (cases.pairs[1].first < cases2.pairs[1].first)) {
-                cases2  =  cases;
-            }
-            cases  =  cases1;
-            ++variantIdx;
-            if (SY == SEMICOLON) {
-                lookupMode  =  3;
-                inSymbol();
-            }
-        }
-        cases  =  cases2;
-        if (SY != ENDSY)
-            requiredSymErr(ENDSY);
-        lookupMode  =  3;
-        inSymbol();
-        if (SY == SEMICOLON) {
-            lookupMode  =  3;
-            inSymbol();
-        }
-    }
-    rectype->p.psize  =  cases.size;
-    if (isPacked && (cases.size == 1) && (cases.count == 1)) {
-        rectype->p.bits  =  48 - cases.pairs[1].first;
-    } else {
-        rectype->p.bits  =  48;
-    }
-    if (rectype->p.pk == kindStruct) {
-        prevField  =  rectype->rep->fields;
-        while (prevField != NIL) {
-            prevField->uptype  =  *rectype;
-            prevField  =  prevField->list;
-        }
-    }
-    checkSymAndRead(ENDSY);
-} /* parseRecordDecl*/
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseRange(aleft, aright: *int) {
-    curType = parseLiteral(aleft, true);
-    if (curType.rep != NIL && curType.p.pk == kindScalar) {
-        inSymbol();
-        if (SY != COLON) {
-// Handle a single value N as a range 0..N-1
-            *aright = *aleft - 1;
-            *aleft = 0;
-            return;
-        }
-        inSymbol();
-        curType = parseLiteral(aright, true);
-        inSymbol();
-        if (curType.rep != NIL && curType.p.pk == kindScalar)
-            return;
-    }
-    error(64); /* errIncorrectRangeDefinition */
-} /* parseRange */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr makeArrayType(rangeInfo: rangeRec; elementType: tptr; packedFlag: int) {
-var
-    makePacked: int;
-    sizeVal, bitsVal, perwordVal, pcksizeVal: int;
-    icand: inptr;
+// Promoted out of parseTypeRef (mirroring base.cc): makeArrayType
+// and the shared declarator parser below both need to construct/consume
+// range bounds, and a type nested inside a function is only visible
+// within that function's own scope in this codebase's Pascal-style
+// nesting -- so both live here, at programme's own level, declared
+// before parseTypeRef so that parseRecordDecl (nested inside it) can
+// also see them.
+typedef struct {
+            int aleft, aright;
+} rangeRec;
+typedef rangeRec rangeList[1..20];
+
+tptr makeArrayType(rangeRec rangeInfo, tptr elementType, int packedFlag) {
+int makePacked;
+int span, l3int22z, numBits;
+int sizeVal, bitsVal, perwordVal, pcksizeVal;
+tptr arrayType;
+inptr icand;
     makePacked  =  packedFlag;
     span  =  rangeInfo.aright - rangeInfo.aleft + 1;
     l3int22z  =  typeBits(elementType);
@@ -4696,7 +4437,408 @@ var
 } /* makeArrayType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Promoted out of parseTypeRef (like makeArrayType above) so
+// readDeclaratorCore, a sibling of parseTypeRef rather than a nestee,
+// can see it: P2C's real lexical scoping only lets siblings see each
+// other when declared-before-use at the same level. Uses its own
+// scratch 'rangeType' instead of parseTypeRef's local 'curType', which
+// is no longer in scope here.
+void parseRange(int *aleft, int *aright) {
+tptr rangeType;
+    rangeType = parseLiteral(aleft, true);
+    if (rangeType.rep != NIL && rangeType.p.pk == kindScalar) {
+        inSymbol();
+        if (SY != COLON) {
+// Handle a single value N as a range 0..N-1
+            *aright = *aleft - 1;
+            *aleft = 0;
+            return;
+        }
+        inSymbol();
+        rangeType = parseLiteral(aright, true);
+        inSymbol();
+        if (rangeType.rep != NIL && rangeType.p.pk == kindScalar)
+            return;
+    }
+    error(64); /* errIncorrectRangeDefinition */
+} /* parseRange */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Unified C declarator parsing: one declarator grammar shared by
+// var/typedef/struct-field (grouped: one type-spec, comma-separated
+// declarator list -- each caller inlines its own do-while and
+// registration, since this dialect has no closures/procedural values
+// to factor a callback through) and function parameters (individual:
+// each comma-separated item carries its own type-spec). No Pascal
+// 'name: type' fallback anywhere.
+tptr parseTypeRef(setofsys skipTarget);
+
+typedef struct {
+            int name;
+            int bucket;
+            int wasDefined;
+            irptr foundRec;
+            tptr typ;
+} declarator;
+
+typedef struct {
+            int isPtr;
+            rangeRec range;
+} dclOp;
+typedef dclOp dclOpList[1..20];
+
+dclOpList declOps;
+int declOpCount;
+// Shared scratch for the TYPEDEFSY/type-name grouped-declarator loops: each
+// iteration fills this in via parseOneDeclarator before registering it,
+// same do-while-body-can't-have-its-own-var-section reasoning as
+// declOps/declOpCount above.
+declarator curDeclarator;
+int moreDecls;
+// Scratch for the unified (no 'var' keyword) TYPESY/PACKEDSY/STRUCTSY/
+// ENUMSY declaration-dispatch loop in programme's own body: same
+// do-while-body-can't-have-its-own-var-section reasoning as above.
+int declBareName;
+int declIsRoutine;
+
+// '*'* ('(' declarator ')' | IDENT) ('[' range ']')*
+// Collects pointer/array operators into the shared declOps/declOpCount
+// while descending; parseOneDeclarator applies them in reverse so
+// precedence matches C: 'int *a[10]' is an array of pointers (the array
+// op is pushed by the inner IDENT case before the enclosing '*' case
+// pushes its own op on the way back out); 'int (*row)[3]' is a pointer
+// to an array (the parens make the '*' push before the outer '[3]' does).
+void readDeclaratorCore(declarator *d) {
+rangeRec r;
+    if (charClass == MUL) {
+        inSymbol();
+        readDeclaratorCore(d);
+        ++declOpCount;
+        declOps[declOpCount].isPtr  =  true;
+    } else if (SY == LPAREN) {
+        inSymbol();
+        readDeclaratorCore(d);
+        checkSymAndRead(RPAREN);
+    } else if (SY == IDENT) {
+        d->name  =  curIdent;
+        d->bucket  =  bucket;
+        d->wasDefined  =  isDefined ||
+            ((lookupMode == lookDef) &&
+             ((curIdent == litInput) || (curIdent == litOutput)));
+        d->foundRec  =  hashTravPtr;
+        inSymbol();
+    } else {
+        error(errNoIdent);
+        d->name  =  0;
+    }
+    while (SY == LBRACK) {
+        inSymbol();
+        parseRange(&r.aleft, &r.aright);
+        checkSymAndRead(RBRACK);
+        ++declOpCount;
+        declOps[declOpCount].isPtr  =  false;
+        declOps[declOpCount].range  =  r;
+    }
+} /* readDeclaratorCore */
+
+// packedFlag mirrors parseTypeRef's own array-suffix handling ('TYPE
+// [range]', its curDim==1 case): only the outermost array dimension of
+// a multi-dim declarator (e.g. int matrix[2][3]'s [2]) carries it, since
+// pckFlag describes how elements of the final array are packed, not
+// each nesting level. declOps is applied innermost-first (index
+// declOpCount down to 1, i.e. reverse of source order), so the
+// outermost dimension is declOps[1], processed last.
+//
+// isForwardRef: baseType is already the forward-reference placeholder
+// pointer itself (see parseTypeRef's isForwardRef output above) --
+// applying getPtrType on top would compact-encode a second, bogus
+// pointer-to-pointer layer that never gets patched when the real type
+// is later defined. Only the very first op can be this case (index
+// declOpCount, applied directly to baseType).
+// Out-param, not return-by-value: 'declarator' is a multi-word struct,
+// and P2C routines (like the Pascal they're translated from) can only
+// return a single-word result.
+void parseOneDeclarator(declarator *d, tptr baseType, int packedFlag, int isForwardRef) {
+int i;
+    declOpCount  =  0;
+    readDeclaratorCore(d);
+    d->typ  =  baseType;
+    for (i = declOpCount; i >= 1; --i) {
+        if (declOps[i].isPtr) {
+            if (! ((i == declOpCount) && isForwardRef))
+                d->typ  =  getPtrType(d->typ);
+        } else {
+            d->typ  =  makeArrayType(declOps[i].range, d->typ,
+                                    packedFlag && (i == 1));
+        }
+    }
+} /* parseOneDeclarator */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+tptr parseTypeRef {
+typedef struct {
+            int first, second;
+} pair;
+typedef pair pair7[1..7];
+typedef struct {
+            int size, count;
+            pair7 pairs;
+} caserec;
+int cond;
+int typeIsUnion;
+caserec cases;
+int numBits, l3int22z, span, rangeCnt, curDim;
+irptr curEnum, curField;
+tptr arrayType, nestedType, tempType, curType;
+rangeList ranges;
+rangeRec curRange;
+irptr l3idr31z;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void definePtrType(tptr toType) {
+    /* Heap-allocated pointer descriptor (forward-placeholder, patched in
+       place when the real pointee type is later defined). */
+    curType.rep = malloc(offsetof(types, szPtr));
+    curType.rep->base = toType;
+    curType.p.psize = 1;
+    curType.p.bits = 15;
+    curType.p.pk = kindPtr;
+    curEnum = malloc(offsetof(identrec, szIdent));
+    CTOR(*curEnum, typelist, curIdent, curType);
+    curEnum->pck.p.offset  =  lineCnt;
+    curEnum->pck.p.cl  =  TYPEID;
+    typelist  =  curEnum;
+} /* definePtrType */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void parseRecordDecl(tptr *rectype, int isOuterDecl, int isUnion) { /* parseRecordDecl */
+tptr selType;
+irptr prevField;
+int nestedIsUnion;
+caserec cases1, cases2;
+// isPacked is a single shared global here (unlike base.cc's
+// per-parseTypeRef-instance member), so parsing each field's own
+// type-spec below resets it to that field's OWN packedness -- wiping
+// out the ENCLOSING record's '__packed'-ness that packOneField needs.
+// recIsPacked saves/restores it around each field's parseTypeRef call;
+// fieldPackedFlag carries the field's own packedness through to
+// parseOneDeclarator (for its array-suffix packing), separately.
+int recIsPacked, fieldPackedFlag;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Assigns curField's offset (and, in a __packed struct, its bit
+// shift/width) within the enclosing record's shared bit-packing state
+// (cases), then bumps that state past it. Operates on curField (not a
+// parameter) so packFieldChain below can call it in a loop exactly like
+// the original Pascal-derived packFields()/ctypes-branch packFields()
+// did -- see packFieldChain's own comment for why this stayed a
+// once-per-GROUP call with an internal loop, rather than one call per
+// individual declarator.
+void packOneField() {
+int fieldWidth, pairIdx, minFirst, scanIdx, curFirst;
+int placed, wholeWord;
+pair *curSlot;
+    wholeWord  =  true;
+    if (isPacked) {
+        fieldWidth  =  typeBits(curField->typ);
+        curField->width  =  fieldWidth;
+        if (fieldWidth != 48) {
+            wholeWord  =  false;
+            placed  =  false;
+            while (! placed) {
+                pairIdx  =  1;
+                while ((pairIdx <= cases.count) && (! placed)) {
+                    curSlot  =  &cases.pairs[pairIdx];
+                    if (curSlot->first >= fieldWidth) {
+                        curField->shift  =  48 - curSlot->first;
+                        curField->pck.p.offset  =  curSlot->second;
+                        if (! (S6 IN optSflags))
+                            curField->shift  =  48 - curField->width -
+                                                  curField->shift;
+                        curSlot->first  =  curSlot->first - fieldWidth;
+                        if (curSlot->first == 0) {
+                            cases.pairs[pairIdx]  =
+                                cases.pairs[cases.count];
+                            --cases.count;
+                        }
+                        placed  =  true;
+                    }
+                    ++pairIdx;
+                }
+                if (! placed) {
+                    if (cases.count != 7) {
+                        ++cases.count;
+                        pairIdx  =  cases.count;
+                    } else {
+                        minFirst  =  48;
+                        for (scanIdx = 1; scanIdx <= 7; ++scanIdx) {
+                            curFirst  =  cases.pairs[scanIdx].first;
+                            if (curFirst < minFirst) {
+                                minFirst  =  curFirst;
+                                pairIdx  =  scanIdx;
+                            }
+                        } /* for */
+                    }
+                    CTOR(cases.pairs[pairIdx], 48, cases.size);
+                    ++cases.size;
+                }
+            }
+        }
+    }
+    if (wholeWord) {
+        curField->pckfield  =  false;
+        curField->pck.p.offset  =  cases.size;
+        cases.size += typeSize(curField->typ);
+    }
+    if (PASINFOR.listMode == 3) {
+        write(' ':16);
+        if (curField->pckfield)
+            write('PACKED');
+        write(' FIELD ');
+        printTextWord(curField->id);
+        write('.OFFSET=', curField->pck.p.offset:5 oct, 'B');
+        if (curField->pckfield) {
+            write('.<<=SHIFT=', curField->shift:2,
+                  '. WIDTH=', curField->width:2, ' BITS');
+        } else {
+            write('.WORDS=', typeSize(curField->typ):0);
+        }
+        writeLN;
+    }
+} /* packOneField */
+//
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    if (SY != BEGINSY)
+        requiredSymErr(BEGINSY);
+    // Capture the ENCLOSING record's own '__packed'-ness before any
+    // field's own type-spec is parsed below -- parseTypeRef resets the
+    // shared isPacked to that field's own packedness each time, which
+    // would otherwise wipe this out for packOneField's purposes.
+    recIsPacked  =  isPacked;
+    // lookup2 (not just lookupMode) must carry lookField through
+    // parseTypeRef's own internal inSymbol() calls -- every inSymbol()
+    // resets lookupMode := lookup2 on exit, so a field's declarator name
+    // a few tokens into its type-spec is classified under whatever
+    // lookup2 holds, not this line's lookupMode.
+    lookup2  =  lookField;
+    lookupMode  =  lookField;
+    inSymbol();
+    // A record body is a member list terminated by ENDSY. In a struct the
+    // members are laid out sequentially; in a union they overlap at the base
+    // (cases1) and the record spans the largest of them (cases2). A member is
+    // either a C field group ('TYPE a, b;' -- one FIELDID per declarator,
+    // packed onto the shared flat field chain; TYPE may be a named nested
+    // record) or an inline anonymous nested struct/union, whose fields are
+    // parsed straight into curType (promoted -- true-C anonymous members).
+    // Inline 'struct {'/'union {' in a body is always anonymous; a named
+    // nested record uses a typedef'd type name.
+    cases1  =  cases;
+    cases2  =  cases;
+    while (SY IN [IDENT, TYPESY, ENUMSY, STRUCTSY, UNIONSY, PACKEDSY]) {
+        if (SY IN [STRUCTSY, UNIONSY]) {
+            nestedIsUnion  =  SY == UNIONSY;
+            if (isUnion)
+                cases  =  cases1;
+            lookupMode  =  lookField;
+            inSymbol();
+            parseRecordDecl(&curType, false, nestedIsUnion);
+            if (isUnion && ((cases2.size < cases.size) ||
+                isPacked && (cases.size == 1) && (cases2.size == 1) &&
+                (cases.count == 1) && (cases2.count == 1) &&
+                (cases.pairs[1].first < cases2.pairs[1].first)))
+                cases2  =  cases;
+            if (SY == SEMICOLON) {
+                lookupMode  =  lookField;
+                inSymbol();
+            }
+        } else {
+            selType = parseTypeRef(skipTarget | [UNIONSY, STRUCTSY, ENDSY]);
+            // parseTypeRef just reset the shared isPacked to this field's OWN
+            // packedness (fieldPackedFlag, for parseOneDeclarator's array
+            // suffix below) -- restore the ENCLOSING record's own for
+            // packFieldChain/pckfield just below.
+            fieldPackedFlag  =  isPacked;
+            isPacked  =  recIsPacked;
+            prevField  =  NIL;
+            do {
+                parseOneDeclarator(&curDeclarator, selType, fieldPackedFlag, isForwardRef);
+                if (curDeclarator.name != 0) {
+                    if (curDeclarator.foundRec != NIL)
+                        error(errIdentAlreadyDefined);
+                    curEnum = malloc(offsetof(identrec, szField));
+                    with *curEnum do {
+                        id  =  curDeclarator.name;
+                        pck.p.next  =  fieldHash[curDeclarator.bucket];
+                        pck.p.cl  =  FIELDID;
+                        list  =  NIL;
+                        uptype  =  curType;
+                        pckfield  =  recIsPacked;
+                        typ  =  curDeclarator.typ;
+                    }
+                    fieldHash[curDeclarator.bucket]  =  curEnum;
+                    if (prevField == NIL) {
+                        curField  =  curEnum;
+                    } else {
+                        prevField->list  =  curEnum;
+                    }
+                    prevField  =  curEnum;
+                }
+                moreDecls  =  SY == COMMA;
+                if (moreDecls)
+                    inSymbol();
+            } while (moreDecls);
+            if (prevField != NIL) {
+                if (curType.rep->fields == NIL) {
+                    curType.rep->fields  =  curField;
+                } else {
+                    l3idr31z->list  =  curField;
+                }
+                l3idr31z  =  curEnum;
+                // Pack the group; in a union each declarator overlaps at the
+                // base (reset cases before each), tracking the max extent.
+                do {
+                    if (isUnion)
+                        cases  =  cases1;
+                    packOneField();
+                    if (isUnion && ((cases2.size < cases.size) ||
+                        isPacked && (cases.size == 1) && (cases2.size == 1) &&
+                        (cases.count == 1) && (cases2.count == 1) &&
+                        (cases.pairs[1].first < cases2.pairs[1].first)))
+                        cases2  =  cases;
+                    cond  =  (curField == curEnum);
+                    curField  =  curField->list;
+                } while (!cond);
+            }
+            checkSymAndRead(SEMICOLON);
+        }
+        lookupMode  =  lookField;
+    }
+    if (isUnion)
+        cases  =  cases2;
+
+    // psize/bits belong to the type being defined; an inline anonymous member
+    // (isOuterDecl == false) has no type of its own -- its extent is already
+    // reflected in the shared `cases` its caller reads.
+    if (isOuterDecl) {
+        rectype->p.psize  =  cases.size;
+        if (isPacked && (cases.size == 1) && (cases.count == 1)) {
+            rectype->p.bits  =  48 - cases.pairs[1].first;
+        } else {
+            rectype->p.bits  =  48;
+        }
+        prevField  =  rectype->p.rep->fields;
+        while (prevField != NIL) {
+            prevField->uptype  =  *rectype;
+            prevField  =  prevField->list;
+        }
+    }
+    checkSymAndRead(ENDSY);
+} /* parseRecordDecl*/
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     isPacked  =  false;
+    isForwardRef  =  false;
 12247:
     if (SY == IDENT)
         markTypeSym();
@@ -4708,12 +4850,12 @@ var
         curField  =  NIL;
         curType.rep = malloc(offsetof(types, szScalar));
         while (SY == IDENT) {
-            if (isDefined)
+            if (isDefined || (curIdent == litInput) || (curIdent == litOutput))
                 error(errIdentAlreadyDefined);
             curEnum = malloc(offsetof(identrec, szIdent));
-            CTOR(*curEnum, curIdent, curFrameRegTemplate,
-                           symHash[bucket], curType,
-                           ENUMID, NIL, span);
+            CTOR(*curEnum, symHash[bucket], curIdent, curType, NIL, span);
+            curEnum->pck.p.offset  =  curFrameRegTemplate;
+            curEnum->pck.p.cl  =  ENUMID;
             symHash[bucket]  =  curEnum;
             ++span;
             if (curField == NIL) {
@@ -4741,7 +4883,7 @@ var
                 start  =  0;
             }
             curType.p.psize  =  1;
-            curType.p.bits  =  nrOfBits(span - 1);
+            curType.p.bits  =  48 - minel(span - 1);
             curType.p.pk  =  kindScalar;
             curEnum  =  curType.rep->enums;
             while (curEnum != NIL) {
@@ -4759,7 +4901,7 @@ var
                 curType = getPtrType(hashTravPtr->typ);
             } else if (hashTravPtr == NIL) {
                 if (inTypeDef) {
-                    if (knownInType(&curEnum)) {
+                    if (knownInType(&curEnum, curIdent)) {
                         curType  =  curEnum->typ;
                     } else {
                         definePtrType(intType);
@@ -4776,6 +4918,19 @@ var
     } else if (SY IN [IDENT,TYPESY]) {
         if (SY == TYPESY) {
             curType  =  hashTravPtr->typ;
+        } else if ((hashTravPtr == NIL) && inTypeDef) {
+            /* C-style forward-referenced typedef pointer, e.g.
+               'typedef expr *eptr;' parsed before 'expr' itself is
+               defined (common for mutually-recursive record types).
+               Mirrors the '^expr' handling in the MUL branch above,
+               just entered from a bare (not '*'-prefixed) name because
+               here the '*' is the caller's declarator, not ours. */
+            if (knownInType(&curEnum, curIdent)) {
+                curType  =  curEnum->typ;
+            } else {
+                definePtrType(intType);
+            }
+            isForwardRef  =  true;
         } else
             goto 12366;
         inSymbol();
@@ -4795,9 +4950,12 @@ var
             inSymbol();
             goto 12247;
         }
-        if (SY == STRUCTSY) {
+        if (SY IN [STRUCTSY, UNIONSY]) {
+            // A union is a kindStruct whose members overlap (same base offset,
+            // size = max member); the only difference from a struct is the
+            // layout mode passed to parseRecordDecl.
+            typeIsUnion  =  SY == UNIONSY;
             curType.rep = malloc(offsetof(types, szStruct));
-            typ121z  =  curType;
             with *(curType.rep) do {
                 variants.rep  =  NIL;
                 fields  =  NIL;
@@ -4807,10 +4965,16 @@ var
             curType.p.psize  =  0;
             curType.p.bits  =  48;
             curType.p.pk  =  kindStruct;
+            /* Captured after curType's word is fully set (psize/bits/pk),
+               not right after malloc: typ121z is compared word-for-word
+               against each field's uptype in the lookField lexer case, so
+               a premature snapshot here would silently defeat every
+               "already a field of this record" duplicate check. */
+            typ121z  =  curType;
             cases.size  =  0;
             cases.count  =  0;
             inSymbol();
-            parseRecordDecl(&curType, true);
+            parseRecordDecl(&curType, true, typeIsUnion);
         } else {
             error(errNotAType);
         }
@@ -4842,9 +5006,8 @@ var
 } /* parseTypeRef */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void dumpEnumNames(l3arg1z: tptr) {
-var
-    l3var1z: irptr;
+void dumpEnumNames(tptr l3arg1z) {
+irptr l3var1z;
     if (l3arg1z.rep->start == 0) {
         l3arg1z.rep->start  =  FcstCnt;
         l3var1z  =  l3arg1z.rep->enums;
@@ -4857,9 +5020,9 @@ var
 } /* dumpEnumNames */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void fopenFile(fileSym: irptr; extFileP: *extfilerec) {
-var fileBase: tptr;
-    fileAddr, elemSize: int;
+void fopenFile(irptr fileSym, extfilerec *extFileP) {
+tptr fileBase;
+int fileAddr, elemSize;
     fileAddr  =  fileSym->value;
     fileBase  =  fileSym->typ.rep->base;
     elemSize  =  fileSym->typ.p.pad;
@@ -4885,9 +5048,8 @@ var fileBase: tptr;
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseDecls(l3arg1z: int) {
-var
-    l3int1z, frame, l3var3z: int;
+void parseDecls(int l3arg1z) {
+int l3int1z, frame, l3var3z;
     switch (l3arg1z) {
     case 0:
         lookupMode  =  lookDef;
@@ -4899,7 +5061,7 @@ var
         prevErrPos  =  0;
         write('IDENT ');
         printTextWord(l2var12z);
-        write(' IN LINE ', curIdRec->offset:0);
+        write(' IN LINE ', curIdRec->pck.p.offset:0);
         break;
     case 2:
         padToLeft();
@@ -4973,9 +5135,8 @@ var
 } /* parseDecls */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void labCheckAndDefine(isDef: int) {
-var
-    labIdx: int;
+void labCheckAndDefine(int isDef) {
+int labIdx;
     labIdx  =  numLabTop;
     while ((labIdx > labFence) && (numLabs[labIdx].id != curToken.i))
         --labIdx;
@@ -5021,21 +5182,20 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void statement() { /* statement */
-var
-    boundary: eptr;
-    strLabPtr: *strLabel;
-    nest: int;
-    flag: int;
-    l3var6z: idclass;
-    curOffset: int;
-    startLine: int;
-    ifWhlTarget, elseJump: int;
-    whileExpr: eptr;
-    l3idr12z: irptr;
-    jb8888: int;
+eptr boundary;
+strLabel *strLabPtr;
+int nest;
+int flag;
+idclass l3var6z;
+int curOffset;
+int startLine;
+int ifWhlTarget, elseJump;
+eptr whileExpr;
+irptr l3idr12z;
+int jb8888;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void expression(); forward;
+void expression();
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 /* parsePostfix: consume any chain of postfix operators (->field,
@@ -5044,10 +5204,9 @@ void expression(); forward;
    of an index list.  Safe to call when the next token isn't a postfix
    at all (loop simply exits). */
 void parsePostfix() {
-var
-    l4exp1z, l4exp2z: eptr;
-    l4typ3z, l4typ5z: tptr;
-    l4var4z: kind;
+eptr l4exp1z, l4exp2z;
+tptr l4typ3z, l4typ5z;
+kind l4var4z;
 13462:
     l4typ3z  =  curExpr->typ;
     l4var4z  =  l4typ3z.p.pk;
@@ -5113,7 +5272,7 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseLval() {
-    if (hashTravPtr->cl == FIELDID) {
+    if (hashTravPtr->pck.p.cl == FIELDID) {
         /* Implicit field of the `with` variable: build GETFIELD on
            withIter directly, then continue with any further postfix. */
         curExpr  =  mkExpr(GETFIELD, hashTravPtr->typ,
@@ -5126,12 +5285,15 @@ void parseLval() {
 } /* parseLval */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void castToReal(value: *eptr) {
-    *value = mkExpr(TOREAL, realType, *value, NIL);
+void castToReal(eptr *value) {
+    /* Fold at construction when the operand is already constant, so a mixed
+       int/real constant expression collapses to a single GETENUM node (the
+       one case bldArithOp routes through here). */
+    *value = mkUnaryFold(TOREAL, realType, *value);
 } /* castToReal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int areTypesCompatible(l4arg1z: *eptr) {
+int areTypesCompatible(eptr *l4arg1z) {
     if (arg1Type == realType) {
         if (typeCheck(intType, arg2Type)) {
             castToReal(l4arg1z);
@@ -5146,13 +5308,12 @@ int areTypesCompatible(l4arg1z: *eptr) {
 } /* areTypesCompatible */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseCallArgs(subroutine: irptr) {
-var
-    noArgs: int;
-    curActual, callExpr, argList: eptr;
-    curFormal: irptr;
-    actualOp: operator;
-    formClass: idclass;
+void parseCallArgs(irptr subroutine) {
+int noArgs;
+eptr curActual, callExpr, argList;
+irptr curFormal;
+operator actualOp;
+idclass formClass;
     with *subroutine do {
         if (typ != voidType)
             liveRegs &= ~flags;
@@ -5190,7 +5351,7 @@ var
             expression();
             actualOp  =  curExpr->op;
             do if (noArgs) {
-                formClass  =  curFormal->cl;
+                formClass  =  curFormal->pck.p.cl;
                 if (actualOp == PCALL) {
                     if ((formClass != ROUTINEID) ||
                        (curFormal->typ != voidType)) {
@@ -5246,31 +5407,20 @@ var
 } /* parseCallArgs */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int getPrec(sym: symbol; cls: operator) {
-    if (sym == EXPROP)
-        return opPrec[cls];
-    else if (sym == BECOMES)
-        return precAssign;
-    else
-        return precNone;
-} /* getPrec */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldBitOp(oper: operator; leftArg: eptr) {
+void bldBitOp(operator oper, eptr leftArg) {
     if (arg1Type.p.pk != kindScalar || arg2Type.p.pk != kindScalar) {
         error(errNeedOtherTypesOfOperands);
         curExpr = uVarPtr;
         return;
     }
-    curExpr = mkExpr(oper, arg1Type, leftArg, curExpr);
+    curExpr = mkExprFold(oper, arg1Type, leftArg, curExpr);
 } /* bldBitOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldArithOp(oper: operator; leftExpr: eptr; match: int) {
-var
-    k1, k2: kind;
-    resOp: operator;
-    resTyp: tptr;
+void bldArithOp(operator oper, eptr leftExpr, int match) {
+kind k1, k2;
+operator resOp;
+tptr resTyp;
     k1 = arg1Type.p.pk;
     k2 = arg2Type.p.pk;
     if (isCharPtr(arg1Type) && typeCheck(intType, arg2Type)) {
@@ -5305,13 +5455,12 @@ var
         resOp = intOpMap[oper];
         resTyp = intType;
     }
-    curExpr = mkExpr(resOp, resTyp, leftExpr, curExpr);
+    curExpr = mkExprFold(resOp, resTyp, leftExpr, curExpr);
 } /* bldArithOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldRelOp(oper: operator; ex2: eptr) {
-var
-    resOp: operator;
+void bldRelOp(operator oper, eptr ex2) {
+operator resOp;
     if (typeCheck(arg1Type, arg2Type)) {
         if ((typeSize(arg1Type) != 1) &&
             (oper >= LTOP) &&
@@ -5337,20 +5486,19 @@ var
 } /* bldRelOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldLogOp(oper: operator; leftExpr: eptr; match: int) {
+void bldLogOp(operator oper, eptr leftExpr, int match) {
     if (!match || ((arg1Type != boolType) && (arg1Type != intType))) {
         error(errNeedOtherTypesOfOperands);
         curExpr = uVarPtr;
     } else {
-        curExpr = mkExpr(oper, boolType, leftExpr, curExpr);
+        curExpr = mkExprFold(oper, boolType, leftExpr, curExpr);
     }
 } /* bldLogOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldCondOp(condExpr, thenExpr: eptr) {
-var
-    resType: tptr;
-    altExpr: eptr;
+void bldCondOp(eptr condExpr, eptr thenExpr) {
+tptr resType;
+eptr altExpr;
     if (condExpr->typ.p.pk > kindPtr) {
         error(errBooleanNeeded);
         return;
@@ -5372,22 +5520,20 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void factor() { /* factor */
-var
-    l4var1z, wasInCall, l4var3z, l4var4z: int;
-    l4exp5z, newExpr, l4var7z, l4var8z: eptr;
-    routine: irptr;
-    newOp: operator;
-    l4typ11z: tptr;
-    l4var12z: int;
+int l4var1z, wasInCall, l4var3z, l4var4z;
+eptr l4exp5z, newExpr, l4var7z, l4var8z;
+irptr routine;
+operator newOp;
+tptr l4typ11z;
+int l4var12z;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void stdCall() {
-var
-    l5op1z: operator;
-    l5var2z: tptr;
-    argKind: kind;
-    asBitset: int;
-    stProcNo, checkMode, resultValue: int;
+operator l5op1z;
+tptr l5var2z;
+kind argKind;
+int asBitset;
+int stProcNo, checkMode, resultValue;
     stProcNo  =  routine->low;
     if (SY != LPAREN) {
         requiredSymErr(LPAREN);
@@ -5429,7 +5575,7 @@ var
                     error(errNotDefined);
                     resultValue = 0;
                 } else {
-                    resultValue = hashTravPtr->offset;
+                    resultValue = hashTravPtr->pck.p.offset;
                 }
                 inSymbol();
             }
@@ -5495,7 +5641,7 @@ var
             curExpr  =  uVarPtr;
             inSymbol();
         } else
-            switch (hashTravPtr->cl) {
+            switch (hashTravPtr->pck.p.cl) {
             case ENUMID:
                 curExpr = malloc(sizeof(expr));
                 with *curExpr do {
@@ -5509,7 +5655,7 @@ var
             case ROUTINEID:
                 routine  =  hashTravPtr;
                 inSymbol();
-                if (routine->offset == 0) {
+                if (routine->pck.p.offset == 0) {
                     if ((routine->typ != voidType) &&
                        (SY == LPAREN)) {
                         stdCall();
@@ -5633,9 +5779,8 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseUnaryExpression() {
-var
-    oper: operator;
-    leftExpr: eptr;
+operator oper;
+eptr leftExpr;
     oper = NOOP;
     if (charClass IN [PLUSOP, MINUSOP, BITNEGOP, NOTOP, MUL, SETAND, INCROP, DECROP]) {
         if (charClass != PLUSOP)
@@ -5651,9 +5796,9 @@ var
         switch (oper) {
         case MINUSOP:
             if (arg1Type == realType) {
-                curExpr = mkExpr(RNEGOP, realType, curExpr, NIL);
+                curExpr = mkUnaryFold(RNEGOP, realType, curExpr);
             } else if (typeCheck(arg1Type, intType)) {
-                curExpr = mkExpr(INEGOP, intType, curExpr, NIL);
+                curExpr = mkUnaryFold(INEGOP, intType, curExpr);
             } else {
                 error(69); /* errUnaryMinusNeedRealOrInteger */
                 return;
@@ -5661,7 +5806,7 @@ var
             break;
         case BITNEGOP:
             if (typeCheck(arg1Type, intType)) {
-                curExpr = mkExpr(BITNEGOP, intType, curExpr, NIL);
+                curExpr = mkUnaryFold(BITNEGOP, intType, curExpr);
             } else {
                 error(62); /* errIntegerNeeded */
                 return;
@@ -5669,7 +5814,7 @@ var
             break;
         case NOTOP:
             if (arg1Type == boolType) {
-                curExpr = mkExpr(NOTOP, boolType, curExpr, NIL);
+                curExpr = mkUnaryFold(NOTOP, boolType, curExpr);
             } else if (arg1Type == intType) {
                 curExpr = mkExpr(EQOP, boolType, curExpr, mkIntLit(0));
             } else {
@@ -5730,18 +5875,22 @@ var
 } /* parseUnaryExpression */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parsePrc(minPrec: int) {
-var
-    oper: operator;
-    leftExpr, thenExpr: eptr;
-    curPrec: int;
-    match: int;
+void parsePrc(int minPrec) {
+operator oper;
+eptr leftExpr, thenExpr;
+int curPrec;
+int match;
     /* Parse left operand with unary operators */
     parseUnaryExpression();
 
     /* Climb through operators at this precedence level and higher */
     while (true) {
-        curPrec = getPrec(SY, charClass);
+        if (SY == EXPROP)
+            curPrec = opPrec[charClass];
+        else if (SY == BECOMES)
+            curPrec = precAssign;
+        else
+            curPrec = precNone;
 
         /* Stop if operator has lower precedence than minimum */
         if (curPrec < minPrec)
@@ -5804,7 +5953,9 @@ var
                 curExpr->expr2 = NIL;
                 arg2Type = curExpr->typ;
             }
-            leftExpr = cpDsLval(leftExpr);
+            if (leftExpr != NIL && leftExpr->op == DEREF &&
+                isCharPtr(leftExpr->expr1->typ))
+                leftExpr = flatMemAt(leftExpr->expr1);
             if (! typeCheck(arg1Type, arg2Type)) {
                 if (arg1Type == realType
                     && typeCheck(intType, arg2Type))
@@ -5871,7 +6022,7 @@ void expression() {
 //
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void setStrLab(id:int) {
+void setStrLab(int id) {
     strLabPtr = malloc(sizeof(strLabel));
     padToLeft();
     disableNorm();
@@ -5902,9 +6053,8 @@ void brContTarget() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void forStatement() {
-var
-   toLoop, leave : int;
-   loopExpr      : eptr;
+int toLoop, leave;
+eptr loopExpr;
     inSymbol();
     checkSymAndRead(LPAREN);
     if (SY != SEMICOLON) {
@@ -5948,10 +6098,9 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void withStatement() {
-var
-    oldWith: eptr;
-    oldRegs, usedRegs: int;
-    oldSize: int;
+eptr oldWith;
+int oldRegs, usedRegs;
+int oldSize;
     oldWith  =  withList;
     oldSize  =  localSize;
     oldRegs  =  freeRegs;
@@ -5980,8 +6129,7 @@ void reportStmtType() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void structBranch() {
-var
-    curLab: *strLabel;
+strLabel *curLab;
     curLab  =  strLabList;
     while (curLab != NIL) {
         if (curLab->ident == curIdent) {
@@ -5996,23 +6144,21 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void caseStatement() { /* caseStatement */
-typedef
-    casechain = struct {
-        next:   *casechain;
-        value:  word;
-        offset: int;
-    };
-var
-    allClauses, curClause, clause, chain: *casechain;
-    otherSeen: int;
-    otherOffset: int;
-    itemsEnded, goodMode: int;
-    firstType, itemtype, exprtype: tptr;
-    itemvalue: int;
-    itemSpan: int;
-    expected: word;
-var startLine, decoder, endOfStmt: int;
-    minValue, maxValue: word;
+typedef struct {
+        casechain *next;
+        word value;
+        int offset;
+} casechain;
+casechain *allClauses, *curClause, *clause, *chain;
+int otherSeen;
+int otherOffset;
+int itemsEnded, goodMode;
+tptr firstType, itemtype, exprtype;
+int itemvalue;
+int itemSpan;
+word expected;
+int startLine, decoder, endOfStmt;
+word minValue, maxValue;
 
     startLine  =  lineCnt;
     parentExpression();
@@ -6044,9 +6190,9 @@ var startLine, decoder, endOfStmt: int;
                 if (SY != CASESY)
                     requiredSymErr(CASESY);
                 expression();
-                formOperator(LITINSN);
+                takeConstFromExpr();
                 itemvalue = curVal.i;
-                itemType = insnList->typ;
+                itemType = curExpr->typ;
                 if (itemtype.rep != NIL) {
                     if (firstType.rep == NIL) {
                         firstType  =  itemtype;
@@ -6188,7 +6334,7 @@ void ifWhileStatement() {
 } /* ifWhileStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int allocDataRef(l6arg1z: int) {
+int allocDataRef(int l6arg1z) {
     if (l6arg1z >= 2048) {
         curVal.i  =  l6arg1z;
         return allocSymtab((curVal.i | 040000000U) & halfWord);
@@ -6199,18 +6345,16 @@ int allocDataRef(l6arg1z: int) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseData() { /* parseData */
-var
-    dsize, setcount, dataLoc, length, repCount: int;
-var boundary: eptr;
-    l4var7z: int;
-    savedVal: word;
-    dataSegLen: int;
-var F: ifcb;
+int dsize, setcount, dataLoc, length, repCount;
+eptr boundary;
+int l4var7z;
+word savedVal;
+int dataSegLen;
+ifcb F;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void putDataRec(count: int) { /* putDataRec */
-var
-    rec: int;
+void putDataRec(int count) { /* putDataRec */
+int rec;
 
     rec  =  allocDataRef(length) << 36;
     if (FcstCnt == dataLoc) {
@@ -6254,7 +6398,7 @@ var
                 curExpr  =  uVarPtr;
                 inSymbol();
             } else {
-                if (hashTravPtr->cl == VARID) {
+                if (hashTravPtr->pck.p.cl == VARID) {
                     parseLval();
                 } else goto 16545;
             }
@@ -6270,7 +6414,7 @@ var
         dataSegLen  =  0;
         do {
             expression();
-            formOperator(LITINSN);
+            takeConstFromExpr();
             savedVal  =  curVal;
             if (SY == COLON) {
                 inSymbol();
@@ -6316,34 +6460,21 @@ var
 } /* parseData */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseConstExpression() {
-    readNext  =  false;
-    ceTyp  =  voidType;
-    ceVal  =  1;
-    expression();
-    formOperator(LITINSN);
-    ceTyp  =  insnList->typ;
-    ceVal  =  curVal.i;
-    myrollup(int(boundary));
-} /* parseConstExpression */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void standProc() { /* standProc */
-var
-    l4typ1z, l4typ2z, l4typ3z: tptr;
-    firstWidth, secondWidth: eptr;
-    l4exp6z: eptr;
-    l4exp7z, l4exp8z, workExpr: eptr;
-    l4bool10z,
-    noWidth, needR12, oldOffset: int;
-    defWidth: int;
-    procNo: int;
-    helperNo: int;
-    indCnt: int;
-    opToForm: opgen;
+tptr l4typ1z, l4typ2z, l4typ3z;
+eptr firstWidth, secondWidth;
+eptr l4exp6z;
+eptr l4exp7z, l4exp8z, workExpr;
+int l4bool10z,
+    noWidth, needR12, oldOffset;
+int defWidth;
+int procNo;
+int helperNo;
+int indCnt;
+opgen opToForm;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void verifyType(t: tptr) {
+void verifyType(tptr t) {
     readNext = false;
     expression();
     if (!(curExpr->op IN lvalOpSet) ||
@@ -6400,19 +6531,27 @@ void checkElement() {
     usedRegs &= ~[12];
     curVarKind  =  l4typ3z.p.pk;
     helperNo  =  36;              /* C/WI */
-    if (l4typ3z == intType || l4typ3z == boolType)
+    if (l4typ3z == intType || l4typ3z == boolType) {
         defWidth  =  10;
-    else if (l4typ3z == realType) {
+        return;
+    }
+    if (l4typ3z == realType) {
         helperNo  =  37;               /* P/WR */
         defWidth  =  14;
-    } else if (l4typ3z == charType) {
+        return;
+    }
+    if (l4typ3z == charType) {
         helperNo  =  38;               /* P/WC */
         defWidth  =  1;
-    } else if (curVarKind == kindScalar && l4typ3z.rep->start != -1) {
+        return;
+    }
+    if (curVarKind == kindScalar && l4typ3z.rep->start != -1) {
         helperNo  =  41;               /* P/WX */
         dumpEnumNames(l4typ3z);
         defWidth  =  8;
-    } else if (isCharArray(l4typ3z)) {
+        return;
+    }
+    if (isCharArray(l4typ3z)) {
         defWidth  =  l4typ3z.rep->aright - l4typ3z.rep->aleft + 1;
         if (! l4typ3z.rep->pck)
             helperNo  =  81;            /* P/WA */
@@ -6420,7 +6559,9 @@ void checkElement() {
             helperNo  =  39;            /* P/A6 */
         else
             helperNo  =  40;           /* P/A7 */
-    } else if (typeSize(l4typ3z) == 1) {
+        return;
+    } 
+    if (typeSize(l4typ3z) == 1) {
         helperNo  =  42;               /* P/WO */
         defWidth  =  (typeBits(l4typ3z) + 5) / 3;
     } else {
@@ -6526,8 +6667,7 @@ void checkArrayArg() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void doPackUnpack() {
-var
-    t: tptr;
+tptr t;
     l4exp7z  =  mkExpr(GETELT, l4typ1z.rep->base, workExpr, l4exp8z);
     t  =  l4exp6z->typ;
     if ((t.p.pk != kindArray) ||
@@ -6541,6 +6681,34 @@ var
     curExpr->expr2  =  l4exp6z;
     formOperator(PCKUNPCK);
 } /* doPackUnpack */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void returnOp() {
+    if (SY != SEMICOLON) {
+        /* return expr: load expr to ACC, then jump */
+        if (procName->typ == voidType)
+            errAndSkip(errNeedOtherTypesOfOperands, statEndSys);
+        else {
+            if (hasFiles) {
+                writeln(' functions must not use files');
+                error(200);
+            }
+            retSeen  =  true;
+            readNext = false;
+            expression();
+            if (typeCheck(procName->typ, curExpr->typ)) {
+                /* OK */
+            } else if (procName->typ == realType &&
+                    typeCheck(intType, curExpr->typ))
+                castToReal(&curExpr);
+            else
+                error(33); /* errIllegalTypesForAssignment */
+            formOperator(LOAD);
+        }
+    } else if (procName->typ != voidType)
+        error(errNeedOtherTypesOfOperands);
+    form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
+} /* returnOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     curVal.i  =  l3idr12z->low;
@@ -6638,34 +6806,11 @@ var
         }
         break;
     case 14: /* return */
-        if (SY != SEMICOLON) {
-            /* return expr: load expr to ACC, then jump */
-            if (procName->typ == voidType)
-                errAndSkip(errNeedOtherTypesOfOperands, statEndSys);
-            else {
-                if (hasFiles) {
-                    writeln(' functions must not use files');
-                    error(200);
-                }
-                retSeen  =  true;
-                readNext = false;
-                expression();
-                if (typeCheck(procName->typ, curExpr->typ)) {
-                    /* OK */
-                } else if (procName->typ == realType &&
-                        typeCheck(intType, curExpr->typ))
-                    castToReal(&curExpr);
-                else
-                    error(33); /* errIllegalTypesForAssignment */
-                formOperator(LOAD);
-            }
-        } else if (procName->typ != voidType)
-            error(errNeedOtherTypesOfOperands);
-        form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
+        returnOp();
         return;
     case 16: /* besm */
         expression();
-        formOperator(LITINSN);
+        takeConstFromExpr();
         formAndAlign(curVal.i);
         break;
     case 19: case 20: /* pck, unpck */
@@ -6717,7 +6862,14 @@ var
         return;
     }
     if (freeRegs == ceRegs) {
-        parseConstExpression();
+        readNext  =  false;
+        ceTyp  =  voidType;
+        ceVal  =  1;
+        expression();
+        takeConstFromExpr();
+        ceTyp  =  curExpr->typ;
+        ceVal  =  curVal.i;
+        myrollup(int(boundary));
         return;
     }
     if (SY == INTCONST) {
@@ -6741,10 +6893,10 @@ var
 8888:       skip(skipToSet | statEndSys);
             break;
         }
-        l3var6z  =  hashTravPtr->cl;
+        l3var6z  =  hashTravPtr->pck.p.cl;
         if (l3var6z == ROUTINEID) {
             l3idr12z  =  hashTravPtr;
-            if (l3idr12z->offset == 0) {
+            if (l3idr12z->pck.p.offset == 0) {
                 /* System procedure (WRITE, PUT, GET, NEW, ...): special
                    syntax, handled directly. */
                 inSymbol();
@@ -6773,7 +6925,7 @@ var
         break;
     case BEGINSY:
         inSymbol();
-        while (SY != ENDSY) {
+        while ((SY != ENDSY) && (CH != '\0')) {
             statement();
         }
         inSymbol();
@@ -6875,6 +7027,18 @@ var
         expression();
         formOperator(DOIT);
         checkSymAndRead(SEMICOLON);
+        break;
+    default:
+        /* A declaration keyword reached statement context -- it leaked here
+           from a malformed routine header (see bad.p2c).  Report and consume it
+           so the enclosing 'while (SY != ENDSY) statement()' loops make progress
+           instead of spinning.  Only these keywords are caught; other stray
+           tokens (the SEMICOLON of a labelled empty statement, CASESY/DEFAULTSY
+           between switch arms) keep the original silent behaviour. */
+        if (SY IN [TYPEDEFSY, TYPESY, CONSTSY, ENUMSY, STRUCTSY, UNIONSY, PACKEDSY]) {
+            error(errBadSymbol);
+            inSymbol();
+        }
     }
     if (nest)
         --lineNesting;
@@ -6886,9 +7050,8 @@ var
 } /* statement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseConstDeclValue(typ: *tptr; value: *int) {
-var
-    savedFreeRegs: int;
+void parseConstDeclValue(tptr *typ, int *value) {
+int savedFreeRegs;
     if (SY == STRINGSY) {
         *typ  =  parseLiteral(value, true);
         inSymbol();
@@ -6904,8 +7067,7 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void outputObjFile() {
-var
-    idx: int;
+int idx;
     padToLeft();
     for (idx = 1; idx < objBufIdx; ++idx)
         putw(&_CHILD_, objBuffer[idx]);
@@ -6914,11 +7076,10 @@ var
 } /* outputObjFile */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void defineRoutine(bodyBlock: int) {
-var
-    l3var1z, l3var2z, l3int4z: int;
-    l3idr5z: irptr;
-    l3var7z: int;
+void defineRoutine(int bodyBlock) {
+int l3var1z, l3var2z, l3int4z;
+irptr l3idr5z;
+int l3var7z;
     objBufIdx  =  1;
     objBuffer[objBufIdx]  =  0U;
     curInsnTemplate  =  KXTA;
@@ -6949,7 +7110,7 @@ var
         if (procName->typ != voidType)
         l3int4z  =  4;
         while (l3idr5z != procName) {
-            if (l3idr5z->cl == VARID) {
+            if (l3idr5z->pck.p.cl == VARID) {
                 l3var2z  =  typeSize(l3idr5z->typ);
                 if (l3var2z != 1) {
                     form3Insn(KVTM+I14 + l3int4z,
@@ -6980,9 +7141,18 @@ var
             else
                 l2bool8z = (SY IN blockBegSys) || (SY == TYPESY) || (CH == '\0');
             if (! l2bool8z) {
-               if (curProcNesting == 1)
+               if (curProcNesting == 1) {
                    requiredSymErr(PERIOD);
-               else
+                   // requiredSymErr does not advance SY/CH (it may not
+                   // even report -- it suppresses repeats at the same
+                   // linePos), so without this, a malformed top-level
+                   // program whose last statement() call also makes no
+                   // progress spins here forever: no new errors ever
+                   // fire (blocking the "too many errors" abort too),
+                   // and l2bool8z can never become true on its own.
+                   if ((SY != PERIOD) && (CH != '\0'))
+                       inSymbol();
+               } else
                    errAndSkip(errBadSymbol, skipToSet);
             }
         } while (! l2bool8z);
@@ -7031,33 +7201,33 @@ var
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void mainProgram() { /* mainProgram */
-var
-    l3var1z, l3var5z, l3var6z, savedIdent: int;
-    l3var7z: irptr;
-    l3var8z, sysProcNum: int;
-    temptype: tptr;
-    l3var11z: int;
+int l3var1z, l3var5z, l3var6z, savedIdent;
+irptr l3var7z;
+int l3var8z, sysProcNum;
+tptr temptype;
+int l3var11z;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regSysType(l4arg1z:int; l4arg2z: tptr) {
+void regSysType(int l4arg1z, tptr l4arg2z) {
     curIdRec = malloc(offsetof(identrec, szIdent));
-    CTOR(*curIdRec, l4arg1z, 0, , l4arg2z, TYPEID);
+    CTOR(*curIdRec, NIL, l4arg1z, l4arg2z);
+    curIdRec->pck.p.cl  =  TYPEID;
     addToHashTab(curIdRec);
 } /* regSysType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regSysEnum(l4arg1z: int; l4arg2z: int) {
-    curIdRec = malloc(offsetof(identrec, szIdent));
-    CTOR(*curIdRec, l4arg1z, 48, , temptype, ENUMID, NIL, l4arg2z);
-    addToHashTab(curIdRec);
-} /* regSysEnum */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regSysProc(l4arg1z: int) {
-    curIdRec = malloc(offsetof(identrec, szSys));
-    CTOR(*curIdRec, l4arg1z, 0, , temptype, ROUTINEID, sysProcNum);
+void regSysProc(int l4arg1z) {
+    /* A zero name is a retired/reserved slot (e.g. the removed SQRT..EXP
+       maths procs): it still consumes a sysProcNum -- some are referenced by
+       number via fn* constants -- but nothing ever looks it up by name, so
+       skip its (dead) identrec allocation to save heap. */
+    if (l4arg1z != 0) {
+        curIdRec = malloc(offsetof(identrec, szSys));
+        CTOR(*curIdRec, NIL, l4arg1z, temptype, sysProcNum);
+        curIdRec->pck.p.cl  =  ROUTINEID;
+        addToHashTab(curIdRec);
+    }
     ++sysProcNum;
-    addToHashTab(curIdRec);
 } /* registerSysProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7065,21 +7235,22 @@ void defExtern() {
     l3var8z  =  0;
     l3var11z  =  30U | [24,27,28,29];
     l3var1z  =  leftAlign(curIdent);
-    if (curIdent == litInput) {
-        inputFile = malloc(offsetof(identrec, szIdent));
-        with *inputFile do {
+    if ((curIdent == litInput) || (curIdent == litOutput)) {
+        l3var7z = malloc(offsetof(identrec, szIdent));
+        with *l3var7z do {
             id  =  curIdent;
-            offset  =  0;
+            pck.p.offset  =  0;
             typ  =  textType;
-            cl  =  VARID;
+            pck.p.cl  =  VARID;
             list  =  NIL;
         }
         curVal.i  =  l3var1z;
-        inputFile->value  =  allocExtSymbol(l3var11z);
-        addToHashTab(inputFile);
-        l3var8z  =  lineCnt;
-    } else if (curIdent == litOutput) {
-        outputFile  =  l3var7z;
+        l3var7z->value  =  allocExtSymbol(l3var11z);
+        addToHashTab(l3var7z);
+        if (curIdent == litInput)
+            inputFile  =  l3var7z;
+        else
+            outputFile  =  l3var7z;
         l3var8z  =  lineCnt;
     }
     curExternFile  =  externFileList;
@@ -7189,9 +7360,9 @@ void defExtern() {
     flatMemVar = malloc(offsetof(identrec, szIdent));
     with *flatMemVar do {
         id = 0;
-        offset = 0;
+        pck.p.offset = 0;
         typ = flatMemType;
-        cl = VARID;
+        pck.p.cl = VARID;
         list = NIL;
         value = 0;
     }
@@ -7201,17 +7372,21 @@ void defExtern() {
     regSysType('    REAL', realType);
     regSysType('    ALFA', alfaType);
     regSysType('    VOID', voidType);
-    tempType = voidPtr;
-    regSysEnum('     NIL', 074000U);
+    temptype = voidPtr;
+    curIdRec = malloc(offsetof(identrec, szIdent));
+    CTOR(*curIdRec, NIL, '     NIL', temptype, NIL, 074000U);
+    curIdRec->pck.p.offset  =  48;
+    curIdRec->pck.p.cl  =  ENUMID;
+    addToHashTab(curIdRec);
     maxSmallString  =  0;
     for (strLen = 2; strLen <= 5; ++strLen)
         smallStringType[strlen] = makeStringType();
     maxSmallString  =  6;
     curIdRec = malloc(offsetof(identrec, szIdent));
     with *curIdRec do {
-        offset  =  0;
+        pck.p.offset  =  0;
         typ  =  intType;
-        cl  =  VARID;
+        pck.p.cl  =  VARID;
         list  =  NIL;
         value  =  7;
     }
@@ -7248,16 +7423,15 @@ void defExtern() {
     regSysProc('   TRUNC');
     regSysProc('  SIZEOF');
     regSysProc('OFFSETOF');
-    regSysProc('was SUCC');
-    regSysProc('was PRED');
-    tempType  =  voidPtr;
+    regSysProc(0);          /* was SUCC (dead name; number kept) */
+    regSysProc(0);          /* was PRED */
+    temptype  =  voidPtr;
     regSysProc('  MALLOC');
-    temptype  =  boolType;
-    regSysProc('was  EOF');
-    regSysProc('resrv   '); /* was REF, fnREF still used */
-    regSysProc('was EOLN');
+    regSysProc(0);          /* was EOF (feof is a helper, not this sysproc) */
+    regSysProc(0);          /* was REF, fnREF still uses this number */
+    regSysProc(0);          /* was EOLN */
     temptype  =  intType;
-    regSysProc('rsrv    '); /* was SETJMP, fn17 */
+    regSysProc(0);          /* was SETJMP, fn17 still uses this number */
     regSysProc('   ROUND');
     regSysProc('    CARD');
     regSysProc('   MINEL');
@@ -7287,34 +7461,28 @@ void defExtern() {
     outputFile  =  NIL;
     inputFile  =  NIL;
     externFileList  =  NIL;
-    l3var7z = malloc(offsetof(identrec, szIdent));
     lineStartOffset  =  moduleOffset;
-    with *l3var7z do {
-        id  =  litOutput;
-        offset  =  0;
-        typ  =  textType;
-        cl  =  VARID;
-        list  =  NIL;
-    }
-    curVal.i  =  litOutput;
-    l3var7z->value  =  allocExtSymbol(l3var11z);
-    addToHashTab(l3var7z);
     l3var5z  =  1;
+    savedIdent  =  curIdent;
+    curIdent  =  litOutput;
+    defExtern();
+    curIdent  =  litInput;
+    defExtern();
+    inputFile  =  NIL;
+    fileForInput  =  NIL;
+    curIdent  =  savedIdent;
     while (SY == EXTERNSY) {
         inSymbol();
         while (SY == IDENT) {
-            defExtern();
+            if ((curIdent == litInput) || (curIdent == litOutput))
+                error(errIdentAlreadyDefined);
+            else
+                defExtern();
             inSymbol();
             if (SY == COMMA)
                 inSymbol();
         }
         checkSymAndRead(SEMICOLON);
-    }
-    if (outputFile == NIL) {
-        savedIdent  =  curIdent;
-        curIdent  =  litOutput;
-        defExtern();
-        curIdent  =  savedIdent;
     }
     lookupMode  =  lookUse;
     l3var6z  =  40;
@@ -7341,108 +7509,72 @@ void makeExtFile() {
 } /* makeExtFile */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// C-style: each comma-separated parameter carries its own full type-spec
+// ('int a, int *p, char c'), mirroring base.cc's parseParameters --
+// unlike parseRecordDecl's grouped form, since a parameter list has no
+// Pascal 'a, b: type' grouping to preserve. The old Pascal grouped-colon
+// version (a, b: type; ...), including its ROUTINEID-formal-parameter
+// path, is gone: it silently misclassified every C-style 'TYPE name'
+// parameter as a ROUTINEID formal (since a leading bound-type token used
+// to mean "formal procedural parameter"), producing bogus "NO PARAM LIST"/
+// "ARGUMENT KIND MISMATCH" errors at every call site.
 void parseParameters() {
-var
-    l3var1z, l3var2z, l3var3z: irptr;
-    parClass: idclass;
-    l3var5z, l3var6z: int;
-    l3sym7z: symbol;
-    noComma: int;
-    expType: tptr;
-    lookup2  =  0;
-    l3var5z  =  0;
+irptr l3var1z, l3var2z;
+tptr paramType;
+int packedFlag;
+int extraWords, l3var5z, l3var6z;
+int noComma;
+    extraWords  =  0;
+    lookup2  =  lookDef;
     lookupMode  =  lookDef;
     inSymbol();
     l3var2z  =  NIL;
     if (SY == RPAREN) {
         inSymbol();
-        lookup2  =  1;
+        lookup2  =  lookUse;
         lookupMode  =  lookUse;
         return;
     }
-    if (SY == IDENT)
-        markTypeSym();
-    if (! (SY IN [IDENT,TYPESY]))
-        errAndSkip(errBadSymbol, (skipToSet | [IDENT,RPAREN]));
-    lookup2  =  1;
-    while (SY IN [IDENT,TYPESY]) {
-        if (SY == IDENT)
-            markTypeSym();
-        l3sym7z  =  SY;
-        if (SY == IDENT)
-            parClass  =  VARID;
-        else {
-            parClass  =  ROUTINEID;
-        }
-        l3var3z  =  NIL;
-        expType  =  (SY == TYPESY) ? hashTravPtr->typ : intType;
-        l3var6z  =  0;
-        if (SY != IDENT) {
-            lookupMode  =  lookDef;
-            inSymbol();
-        }
-        do {
-          if (SY == IDENT) {
-            if (isDefined)
+    do {
+        paramType = parseTypeRef(skipToSet | [IDENT,RPAREN,COMMA]);
+        packedFlag  =  isPacked;
+        parseOneDeclarator(&curDeclarator, paramType, packedFlag, isForwardRef);
+        if (curDeclarator.name != 0) {
+            if (curDeclarator.wasDefined)
                 error(errIdentAlreadyDefined);
-            ++l3var6z;
             l3var1z = malloc(offsetof(identrec, szIdent));
             with *l3var1z do {
-                id  =  curIdent;
-                offset  =  curFrameRegTemplate;
-                cl  =  parClass;
-                next  =  symHash[bucket];
-                typ  =  voidType;
+                id  =  curDeclarator.name;
+                pck.p.offset  =  curFrameRegTemplate;
+                pck.p.cl  =  VARID;
+                pck.p.next  =  symHash[curDeclarator.bucket];
+                typ  =  curDeclarator.typ;
                 list  =  curIdRec;
                 value  =  l2int18z;
             }
-            symHash[bucket]  =  l3var1z;
+            symHash[curDeclarator.bucket]  =  l3var1z;
             ++l2int18z;
             if (l3var2z == NIL)
                 curIdRec->argList  =  l3var1z;
             else
                 l3var2z->list  =  l3var1z;
             l3var2z  =  l3var1z;
-            if (l3var3z == NIL)
-                l3var3z  =  l3var1z;
-            inSymbol();
-        } else
-            errAndSkip(errNoIdent, skipToSet | [RPAREN,COMMA,COLON]);
+            if (typeSize(curDeclarator.typ) != 1)
+                extraWords  =  extraWords + typeSize(curDeclarator.typ);
+        }
         noComma  =  (SY != COMMA);
         if (! noComma) {
             lookupMode  =  lookDef;
             inSymbol();
         }
-        } while (! noComma);
-        if (l3sym7z != TYPESY) {
-            checkSymAndRead(COLON);
-            expType = parseTypeRef(skipToSet | [IDENT,RPAREN]);
-            if (typeSize(expType) != 1)
-                l3var5z  =  l3var6z * typeSize(expType) + l3var5z;
-            if (l3var3z != NIL)
-                while (l3var3z != curIdRec) with *l3var3z do {
-                    typ  =  expType;
-                    l3var3z  =  list;
-                }
-        } else if (l3var3z != NIL)
-            while (l3var3z != curIdRec) with *l3var3z do {
-                typ  =  expType;
-                l3var3z  =  list;
-            };
-        if (SY == SEMICOLON) {
-            lookupMode  =  lookDef;
-            inSymbol();
-            if (! (SY IN (skipToSet | [IDENT,VARSY,TYPESY])))
-                errAndSkip(errBadSymbol, skipToSet | [IDENT,RPAREN]);
-        }
-    }
-    if (l3var5z != 0) {
+    } while (! noComma);
+    if (extraWords != 0) {
         curIdRec->flags  =  curIdRec->flags | [23];
         l3var6z  =  l2int18z;
-        l2int18z += l3var5z;
+        l2int18z += extraWords;
         l3var2z  =  curIdRec->argList;
         while (l3var2z != curIdRec) {
-            if (l3var2z->cl == VARID) {
+            if (l3var2z->pck.p.cl == VARID) {
                 l3var5z  =  typeSize(l3var2z->typ);
                 if (l3var5z != 1) {
                     l3var2z->value  =  l3var6z;
@@ -7458,11 +7590,11 @@ var
 } /* parseParameters */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void exitScope(a: int) {
+void exitScope(int a) {
     for (ii = 0; ii < 128; ++ii) {
         workidr  = a ? symHash[ii] : fieldHash[ii];
         while (workidr != NIL && workidr >= scopeBound)
-            workidr  =  workidr->next;
+            workidr  =  workidr->pck.p.next;
         if (a)
             symHash[ii]  =  workidr;
         else
@@ -7481,7 +7613,6 @@ void exitScope(a: int) {
     }
     preDefHead  =  irptr(0);
     inTypeDef  =  false;
-    typedefPending  =  false;
     typelist  =  NIL;
     retSeen  =  false;
     hasFiles  =  0;
@@ -7496,8 +7627,9 @@ void exitScope(a: int) {
             if (isDefined)
                 error(errIdentAlreadyDefined);
             workidr = malloc(offsetof(identrec, szIdent));
-            CTOR(*workidr, curIdent, curFrameRegTemplate,
-                           symHash[bucket], , ENUMID, NIL);
+            CTOR(*workidr, symHash[bucket], curIdent, , NIL);
+            workidr->pck.p.offset  =  curFrameRegTemplate;
+            workidr->pck.p.cl  =  ENUMID;
             symHash[bucket]  =  workidr;
             inSymbol();
             if (charClass != ASSIGNOP)
@@ -7514,7 +7646,21 @@ void exitScope(a: int) {
             if (SY == SEMICOLON) {
                 lookupMode  =  lookDef;
                 inSymbol();
-                if (! (SY IN (skipToSet | [IDENT]))) {
+                // markTypeSym: inSymbol() alone, under lookDef, only
+                // checks the current scope for a match -- a bare type
+                // name from an outer scope (e.g. 'int', predefined at
+                // scope 0) reads back as plain IDENT, not TYPESY.
+                // markTypeSym does its own scope-agnostic hash walk to
+                // fix that up -- needed now that a declaration can follow
+                // a const group with no 'var'/'typedef' keyword of its
+                // own to signal it.
+                markTypeSym();
+                // Besides another const name (IDENT, continuing this
+                // group) or a recovery point, a bare type-spec-starting
+                // token (the next var/routine decl, no 'var' keyword
+                // needed) or TYPEDEFSY legitimately ends the const group
+                // -- not an error.
+                if (! (SY IN (skipToSet | [IDENT, TYPEDEFSY, TYPESY, PACKEDSY, STRUCTSY, ENUMSY]))) {
                     errAndSkip(errBadSymbol, skipToSet | [IDENT]);
                 }
             } else {
@@ -7524,157 +7670,75 @@ void exitScope(a: int) {
     }
     objBufIdx  =  1;
     if (SY == TYPEDEFSY) {
+        // C-style: exactly one type-spec + declarator-list per 'typedef'
+        // keyword (no Pascal-style continuation without restating it).
+        // 'typelist' is NOT reset here (only once, at programme's own
+        // start): a forward-referenced pointer typedef (e.g. 'typedef
+        // expr *eptr;', parsed before 'expr' itself is defined) can be
+        // patched by a LATER, separate 'typedef' statement, so pending
+        // placeholders must persist across consecutive typedef
+        // statements within this same procedure scope.
         inTypeDef  =  true;
-        typelist  =  NIL;
-        parseDecls(0);
+        lookup2  =  lookDef;
+        lookupMode  =  lookDef;
+        inSymbol();
+        l2typ13z = parseTypeRef(skipToSet | [IDENT, SEMICOLON]);
         do {
-            if (SY != IDENT)
-                goto 23302;
-            if (isDefined)
-                error(errIdentAlreadyDefined);
-            ii  =  bucket;
-            l2var12z  =  curIdent;
-            inSymbol();
-            if (charClass != ASSIGNOP)
-                error(errBadSymbol);
-            else
-                inSymbol();
-            l2typ13z = parseTypeRef(skipToSet | [SEMICOLON]);
-            curIdent  =  l2var12z;
-            if (knownInType(&curIdRec)) {
-                l2typ14z  =  curIdRec->typ;
-                if (l2typ14z.rep->base == boolType) {
-                    if (l2typ13z.p.pk != kindPtr) {
-                        parseDecls(1);
-                        error(78); /* errPredefinedAsPointer */
+            parseOneDeclarator(&curDeclarator, l2typ13z, isPacked, isForwardRef);
+            if (curDeclarator.name != 0) {
+                if (curDeclarator.wasDefined)
+                    error(errIdentAlreadyDefined);
+                if (knownInType(&curIdRec, curDeclarator.name)) {
+                    l2typ14z  =  curIdRec->typ;
+                    if (l2typ14z.rep->base == boolType) {
+                        if (curDeclarator.typ.p.pk != kindPtr) {
+                            l2var12z  =  curDeclarator.name;
+                            parseDecls(1);
+                            error(78); /* errPredefinedAsPointer */
+                        }
+                        l2typ14z.rep->base  =  curDeclarator.typ.rep->base;
+                    } else {
+                        l2typ14z.rep->base  =  curDeclarator.typ;
+                        curIdRec->typ  =  curDeclarator.typ;
                     }
-                    l2typ14z.rep->base  =  l2typ13z.rep->base;
+                    typelist = hash(typelist, curIdRec);
                 } else {
-                    l2typ14z.rep->base  =  l2typ13z;
-                    curIdRec->typ  =  l2typ13z;
+                    curIdRec = malloc(offsetof(identrec, szIdent));
+                    with *curIdRec do {
+                        id  =  curDeclarator.name;
+                        pck.p.offset  =  curFrameRegTemplate;
+                        typ  =  curDeclarator.typ;
+                        pck.p.cl  =  TYPEID;
+                    }
                 }
-                typelist = hash(typelist, curIdRec);
-            } else {
-                curIdRec = malloc(offsetof(identrec, szIdent));
-                with *curIdRec do {
-                    id  =  l2var12z;
-                    offset  =  curFrameRegTemplate;
-                    typ  =  l2typ13z;
-                    cl  =  TYPEID;
-                }
+                curIdRec->pck.p.next  =  symHash[curDeclarator.bucket];
+                symHash[curDeclarator.bucket]  =  curIdRec;
             }
-            curIdRec->next  =  symHash[ii];
-            symHash[ii]  =  curIdRec;
-            lookupMode  =  lookDef;
-            checkSymAndRead(SEMICOLON);
-            hashTravPtr  =  NIL;
-            markTypeSym();
-        } while (SY != TYPESY);
-23302:
-        typedefPending  =  true;
+            moreDecls  =  SY == COMMA;
+            if (moreDecls)
+                inSymbol();
+        } while (moreDecls);
+        checkSymAndRead(SEMICOLON);
+        lookup2  =  lookUse;
+        inTypeDef  =  false;
+        markTypeSym();
     }
     inTypeDef  =  false;
     curExpr  =  NIL;
-    if (SY == VARSY) {
-        if (typedefPending) {
-            while (typelist != NIL) {
-                l2var12z  =  typelist->id;
-                curIdRec  =  typelist;
-                parseDecls(1);
-                error(79); /* errNotFullyDefined */
-                typelist  =  typelist->next;
-            }
-            typedefPending  =  false;
-            typelist  =  NIL;
+    // Only once we're truly done with typedefs (SY != TYPEDEFSY): a
+    // pending forward-ref placeholder from one single-shot 'typedef'
+    // statement is routinely patched by the NEXT one (e.g. 'typedef expr
+    // *eptr;' followed later by 'typedef struct {...} expr;'), so this
+    // must not fire between every consecutive typedef statement -- only
+    // when the declaration stream actually moves on to var/routine decls.
+    if ((SY != TYPEDEFSY) && (typelist != NIL)) {
+        while (typelist != NIL) {
+            l2var12z  =  typelist->id;
+            curIdRec  =  typelist;
+            parseDecls(1);
+            error(79); /* errNotFullyDefined */
+            typelist  =  typelist->pck.p.next;
         }
-        parseDecls(0);
-        do {
-            workidr  =  NIL;
-            do {
-            if (SY == IDENT) {
-                curIdRec = malloc(offsetof(identrec, szIdent));
-                if (isDefined)
-                    error(errIdentAlreadyDefined);
-                with *curIdRec do {
-                    id  =  curIdent;
-                    offset  =  curFrameRegTemplate;
-                    next  =  symHash[bucket];
-                    cl  =  VARID;
-                    list  =  NIL;
-                }
-                symHash[bucket]  =  curIdRec;
-                inSymbol();
-                if (workidr == NIL)
-                    workidr  =  curIdRec;
-                else
-                    l2var4z->list  =  curIdRec;
-                l2var4z  =  curIdRec;
-            } else
-                error(errNoIdent);
-            if (! (SY IN [COMMA,COLON]))
-                errAndSkip(1, skipToSet | [IDENT,COMMA]);
-            l2bool8z  =  SY != COMMA;
-            if (! l2bool8z) {
-                lookupMode  =  lookDef;
-                inSymbol();
-            }
-            } while (! l2bool8z);
-            checkSymAndRead(COLON);
-            l2typ13z = parseTypeRef(skipToSet | [IDENT,SEMICOLON]);
-            jj  =  typeSize(l2typ13z);
-            while (workidr != NIL) with *workidr do {
-                curIdRec  =  list;
-                typ  =  l2typ13z;
-                list  =  NIL;
-                l2bool8z  =  true;
-                if (curProcNesting == 1) {
-                    curExternFile  =  externFileList;
-                    l2var12z  =  id;
-                    curVal.i  =  jj;
-                    toAlloc  =  curVal.i & halfWord | [24,27,28,29];
-                    while (l2bool8z && (curExternFile != NIL)) {
-                        if (curExternFile->id == l2var12z) {
-                            l2bool8z  =  false;
-                            if (curExternFile->line == 0) {
-                                curVal.i  =  curExternFile->offset;
-                                workidr->value  =  allocExtSymbol(toAlloc);
-                                curExternFile->line  =  lineCnt;
-                            }
-                        } else {
-                            curExternFile  =  curExternFile->next;
-                        }
-                    }
-                }
-                if (l2bool8z) {
-                    workidr->value  =  localSize;
-                    if (PASINFOR.listMode == 3) {
-                        write('VARIABLE ':25);
-                        printTextWord(workidr->id);
-                        writeln(' OFFSET (', curProcNesting:0, ') ',
-                                localSize:5 oct, 'B. WORDS=',
-                                jj:5 oct, 'B');
-                    }
-                    localSize += jj;
-                    curExternFile  =  NIL;
-                }
-                workidr  =  curIdRec;
-            }
-            lookupMode  =  lookDef;
-            checkSymAndRead(SEMICOLON);
-            if ((SY != IDENT) && ! (SY IN skipToSet) &&
-                (! bodyBlock || ! (SY IN statBegSys)))
-                errAndSkip(errBadSymbol, skipToSet | [IDENT]);
-            /* A leading type-IDENT after ';' starts a new C-style
-               routine decl, not another variable; bail out so the
-               routine-declaration loop below can pick it up.
-               lookDef leaves hashTravPtr unreliable when the name
-               is absent from the current scope, so re-resolve it
-               via a scope-agnostic walk over the hash bucket. */
-            hashTravPtr  =  NIL;
-            markTypeSym();
-        } while (SY == IDENT &&
-                 (! bodyBlock || hashTravPtr == NIL ||
-                  hashTravPtr->cl == TYPEID));
     }
     if (curProcNesting == 1) {
         workidr  =  outputFile;
@@ -7687,179 +7751,247 @@ void exitScope(a: int) {
         }
     }
     hasFiles  =  0;
-    if (curProcNesting == 1) {
-        curExternFile  =  externFileList;
-        while (curExternFile != NIL) {
-            if (curExternFile->line == 0) {
-                error(80); /* errUndefinedExternFile */
-                printTextWord(curExternFile->id);
-                writeLN;
-            }
-            curExternFile  =  curExternFile->next;
-        }
-    }
     outputObjFile();
     markTypeSym();
-    while (SY == TYPESY) {
-        l2bool8z  =  hashTravPtr->typ == voidType;
-        /* For the new C-style syntax 'RETTYPE NAME(args);' the current
-           TYPESY names the return type; stash it before inSymbol clobbers
-           hashTravPtr.  NIL marks "not new-style" so the code that sets
-           curIdRec->typ knows which path to take. */
-        typedRetType  =  hashTravPtr->typ;
-        if (curFrameRegTemplate == 7) {
-            error(81); /* errProcNestingTooDeep */
-        }
-        lookupMode  =  lookDef;
-        inSymbol();
-        if (SY != IDENT) {
-            error(errNoIdent);
-            curIdRec  =  uProcPtr;
-            isPredefined  =  false;
+    // C-style: no separate 'var' keyword -- a leading type-spec starts
+    // either a plain variable declarator-list ('TYPE decl, decl;') or a
+    // routine ('TYPE name(params) {...}' / 'TYPE name(params);' /
+    // 'TYPE name(params) extern;'), exactly as real C distinguishes 'int x;' from 'int
+    // f(...);'. Disambiguated right after reading the first declarator:
+    // a bare name immediately followed by '(' or ':' is a routine, as is
+    // a bare name matching an existing forward-declared routine of
+    // matching voidness (redefinition -- e.g. 'void error { ... }'
+    // completing an earlier 'void error(int errno);', which
+    // needs no parens at all). Everything else -- a '*'/'[]' on the
+    // declarator, a ',', or a bare ';' that doesn't match a pending
+    // forward routine -- is a variable.
+    //
+    // Not just TYPESY -- a type-spec can also open with
+    // '__packed'/'struct'/'enum' (mirrors parseRecordDecl's own
+    // field-group loop condition), so those must be recognized as a
+    // declaration start too, or a leading '__packed int x;' would never
+    // be seen as one.
+    while (SY IN [TYPESY, PACKEDSY, STRUCTSY, ENUMSY]) {
+        l2typ13z = parseTypeRef(skipToSet | [IDENT, LPAREN, COMMA, SEMICOLON]);
+        l2bool8z  =  l2typ13z == voidType;
+        typedRetType  =  l2typ13z;
+        parseOneDeclarator(&curDeclarator, l2typ13z, isPacked, isForwardRef);
+        if (curDeclarator.name == 0) {
+            markTypeSym();
         } else {
-            if (isDefined)  with *hashTravPtr do {
-                if (cl == ROUTINEID &&
-                    list == NIL &&
-                    preDefLink != NIL &&
-                    (typ == voidType) == l2bool8z) {
-                    isPredefined  =  true;
-                } else {
-                    isPredefined  =  false;
+        declBareName  =  curDeclarator.typ == l2typ13z;
+        isPredefined  =  false;
+        if (declBareName && (curDeclarator.foundRec != NIL) &&
+            (curDeclarator.foundRec->pck.p.cl == ROUTINEID) &&
+            (curDeclarator.foundRec->list == NIL) &&
+            (curDeclarator.foundRec->preDefLink != NIL) &&
+            ((curDeclarator.foundRec->typ == voidType) == l2bool8z)) {
+            isPredefined  =  true;
+        } else if (declBareName && curDeclarator.wasDefined &&
+                   ((SY == LPAREN) || (SY == COLON))) {
+            error(errIdentAlreadyDefined);
+            printErrMsg(82); /* errPrevDeclWasNotForward */
+        }
+        // A bare name (no '*'/'[]') is a routine only when followed by '(' or
+        // ':', or when it completes a predefined forward routine; otherwise
+        // it is a plain variable. The parenthesis-free 'RETTYPE name;'
+        // routine form is retired -- every routine now carries explicit parens
+        // -- so no lookahead past ';' is needed to disambiguate.
+        declIsRoutine  =  declBareName && ((SY == LPAREN) || (SY == COLON) || isPredefined);
+        if (! declIsRoutine) {
+            /* ---- variable declarator list ---- */
+            lookupMode  =  lookUse;
+            moreDecls  =  true;
+            while (moreDecls) {
+                curIdRec = malloc(offsetof(identrec, szIdent));
+                with *curIdRec do {
+                    id  =  curDeclarator.name;
+                    pck.p.offset  =  curFrameRegTemplate;
+                    pck.p.next  =  symHash[curDeclarator.bucket];
+                    pck.p.cl  =  VARID;
+                    list  =  NIL;
+                    typ  =  curDeclarator.typ;
+                }
+                if (curDeclarator.wasDefined)
                     error(errIdentAlreadyDefined);
-                    printErrMsg(82); /* errPrevDeclWasNotForward */
-                }
-            } else
-                isPredefined  =  false;
-        }
-        if (! isPredefined) {
-            curIdRec = malloc(offsetof(identrec, szRoutine));
-            with *curIdRec do {
-                id  =  curIdent;
-                offset  =  curFrameRegTemplate;
-                next  =  symHash[bucket];
-                typ  =  voidType;
-                symHash[bucket]  =  curIdRec;
-                cl  =  ROUTINEID;
-                list  =  NIL;
-                value  =  0;
-                argList  =  NIL;
-                preDefLink  =  NIL;
-                sigtyp  =  voidType;
-                flags  =  declEntry ? [0:15,22] : [0:15];
-                pos  =  0;
-                curFrameRegTemplate += frameRegTemplate;
-                l2int18z  =  l2bool8z ? 3 : 4;
-            }
-            ++curProcNesting;
-            inSymbol();
-            if (6 < curProcNesting)
-                error(81); /* errProcNestingTooDeep */
-            if (! (SY IN [LPAREN,SEMICOLON,COLON]))
-                errAndSkip(errBadSymbol, skipToSet | [LPAREN,SEMICOLON,COLON]);
-            hadParens  =  SY == LPAREN;
-            if (hadParens)
-                parseParameters();
-            if (! l2bool8z) {
-                if (typedRetType != voidType) {
-                    /* New C-style: return type was stashed at the loop
-                       head; no ':TYPE' suffix expected. */
-                    curIdRec->typ = typedRetType;
-                    if (typeSize(curIdRec->typ) != 1)
-                        error(errTypeMustNotBeFile);
-                } else if (SY != COLON)
-                    errAndSkip(106 /*:*/, skipToSet | [SEMICOLON]);
-                else {
-                    inSymbol();
-                    curIdRec->typ = parseTypeRef(skipToSet | [SEMICOLON]);
-                    if (typeSize(curIdRec->typ) != 1)
-                        error(errTypeMustNotBeFile);
-                }
-            }
-        } else {
-            with *hashTravPtr do {
-                l2int18z  =  level;
-                curFrameRegTemplate += indexreg[1];
-                ++curProcNesting;
-                if (preDefHead == hashTravPtr) {
-                    preDefHead  =  preDefLink;
-                } else {
-                    curIdRec  =  preDefHead;
-                    while (hashTravPtr != curIdRec) {
-                        workidr  =  curIdRec;
-                        curIdRec  =  curIdRec->preDefLink;
+                symHash[curDeclarator.bucket]  =  curIdRec;
+                jj  =  typeSize(curDeclarator.typ);
+                l2bool8z  =  true;
+                if (curProcNesting == 1) {
+                    curExternFile  =  externFileList;
+                    l2var12z  =  curDeclarator.name;
+                    curVal.i  =  jj;
+                    toAlloc  =  curVal.i & halfWord | [24,27,28,29];
+                    while (l2bool8z && (curExternFile != NIL)) {
+                        if (curExternFile->id == l2var12z) {
+                            l2bool8z  =  false;
+                            if (curExternFile->line == 0) {
+                                curVal.i  =  curExternFile->offset;
+                                curIdRec->value  =  allocExtSymbol(toAlloc);
+                                curExternFile->line  =  lineCnt;
+                            }
+                        } else {
+                            curExternFile  =  curExternFile->next;
+                        }
                     }
-                    workidr->preDefLink  =  hashTravPtr->preDefLink;
+                }
+                if (l2bool8z) {
+                    curIdRec->value  =  localSize;
+                    if (PASINFOR.listMode == 3) {
+                        write('VARIABLE ':25);
+                        printTextWord(curDeclarator.name);
+                        writeln(' OFFSET (', curProcNesting:0, ') ',
+                                localSize:5 oct, 'B. WORDS=',
+                                jj:5 oct, 'B');
+                    }
+                    localSize += jj;
+                    curExternFile  =  NIL;
+                }
+                moreDecls  =  (SY == COMMA);
+                if (moreDecls) {
+                    inSymbol();
+                    parseOneDeclarator(&curDeclarator, l2typ13z, isPacked, isForwardRef);
                 }
             }
-            hashTravPtr->preDefLink  =  NIL;
-            curIdRec  =  hashTravPtr->argList;
-            if (curIdRec != NIL) {
-                while (curIdRec != hashTravPtr) {
-                    addToHashTab(curIdRec);
-                    curIdRec  =  curIdRec->list;
-                }
-            }
-            curIdRec  =  hashTravPtr;
-            scopeBound = irptr(setup());
-            inSymbol();
-            hadParens  =  false;
-            if ((SY == LPAREN) && (curIdRec->argList == NIL)) {
-                hadParens  =  true;
-                inSymbol();
-                checkSymAndRead(RPAREN);
-            }
-        }
-        if (SY == BEGINSY) {
-            if (curIdRec->argList == NIL && ! hadParens)
-                error(42); /* errNoParamList */
-            scopeBound = irptr(setup());
-            inSymbol();
-            programme(&l2int18z, curIdRec, true);
-            curIdRec->sigtyp  =  makeRoutineType(curIdRec);
-            internScope(int(scopeBound));
-            myrollup(int(scopeBound));
-            exitScope(0);
-            exitScope(1);
-            goto 23301;
-        }
-        checkSymAndRead(SEMICOLON);
-        with *curIdRec do if (curIdent == litForward) {
-            if (isPredefined)
-                error(83); /* errRepeatedPredefinition */
-            level  =  l2int18z;
-            preDefLink  =  preDefHead;
-            preDefHead  =  curIdRec;
-            sigtyp  =  makeRoutineType(curIdRec);
-        } else if ((SY == EXTERNSY) ||
-            (curIdent == litFortran) ||
-            (curIdent == litAssembler)) {
-            if (SY == EXTERNSY) {
-                curVal.i  =  [20];
-            } else if (curIdent == litAssembler) {
-                curVal.i  =  [20,26];
-            } else if (checkFortran) {
-                curVal.i  =  [21,24];
-                checkFortran  =  false;
-            } else {
-                curVal.i  =  [21];
-            }
-            curIdRec->flags  =  curIdRec->flags | curVal.i;
-            curIdRec->sigtyp  =  makeRoutineType(curIdRec);
+            checkSymAndRead(SEMICOLON);
         } else {
-            error(errBadSymbol);
-        }
-        inSymbol();
-        checkSymAndRead(SEMICOLON);
-23301:  workidr  =  curIdRec->argList;
-        if (workidr != NIL) {
-            while (workidr != curIdRec) {
-                scopeBound = hash(NIL, workidr);
-                workidr  =  workidr->list;
+            /* ---- routine ---- */
+            curIdent  =  curDeclarator.name;
+            bucket  =  curDeclarator.bucket;
+            isDefined  =  curDeclarator.wasDefined;
+            hashTravPtr  =  curDeclarator.foundRec;
+            if (! isPredefined) {
+                if (curFrameRegTemplate == 7) {
+                    error(81); /* errProcNestingTooDeep */
+                }
+                curIdRec = malloc(offsetof(identrec, szRoutine));
+                with *curIdRec do {
+                    id  =  curIdent;
+                    pck.p.offset  =  curFrameRegTemplate;
+                    pck.p.next  =  symHash[bucket];
+                    typ  =  voidType;
+                    symHash[bucket]  =  curIdRec;
+                    pck.p.cl  =  ROUTINEID;
+                    list  =  NIL;
+                    value  =  0;
+                    argList  =  NIL;
+                    preDefLink  =  NIL;
+                    sigtyp  =  voidType;
+                    flags  =  declEntry ? [0:15,22] : [0:15];
+                    pos  =  0;
+                    curFrameRegTemplate += frameRegTemplate;
+                    l2int18z  =  l2bool8z ? 3 : 4;
+                }
+                ++curProcNesting;
+                if (6 < curProcNesting)
+                    error(81); /* errProcNestingTooDeep */
+                hadParens  =  (SY == LPAREN);
+                if (hadParens)
+                    parseParameters();
+                if (! l2bool8z) {
+                    if (typedRetType != voidType) {
+                        /* New C-style: return type was stashed at the loop
+                           head; no ':TYPE' suffix expected. */
+                        curIdRec->typ = typedRetType;
+                        if (typeSize(curIdRec->typ) != 1)
+                            error(errTypeMustNotBeFile);
+                    } else if (SY != COLON)
+                        errAndSkip(106 /*:*/, skipToSet | [SEMICOLON]);
+                    else {
+                        inSymbol();
+                        curIdRec->typ = parseTypeRef(skipToSet | [SEMICOLON]);
+                        if (typeSize(curIdRec->typ) != 1)
+                            error(errTypeMustNotBeFile);
+                    }
+                }
+            } else {
+                with *hashTravPtr do {
+                    l2int18z  =  level;
+                    curFrameRegTemplate += indexreg[1];
+                    ++curProcNesting;
+                    if (preDefHead == hashTravPtr) {
+                        preDefHead  =  preDefLink;
+                    } else {
+                        curIdRec  =  preDefHead;
+                        while (hashTravPtr != curIdRec) {
+                            workidr  =  curIdRec;
+                            curIdRec  =  curIdRec->preDefLink;
+                        }
+                        workidr->preDefLink  =  hashTravPtr->preDefLink;
+                    }
+                }
+                hashTravPtr->preDefLink  =  NIL;
+                curIdRec  =  hashTravPtr->argList;
+                if (curIdRec != NIL) {
+                    while (curIdRec != hashTravPtr) {
+                        addToHashTab(curIdRec);
+                        curIdRec  =  curIdRec->list;
+                    }
+                }
+                curIdRec  =  hashTravPtr;
+                scopeBound = irptr(setup());
+                hadParens  =  false;
+                if ((SY == LPAREN) && (curIdRec->argList == NIL)) {
+                    hadParens  =  true;
+                    inSymbol();
+                    checkSymAndRead(RPAREN);
+                }
             }
+            if (SY == BEGINSY) {
+                if (curIdRec->argList == NIL && ! hadParens)
+                    error(42); /* errNoParamList */
+                scopeBound = irptr(setup());
+                inSymbol();
+                programme(&l2int18z, curIdRec, true);
+                curIdRec->sigtyp  =  makeRoutineType(curIdRec);
+                /* Forget interned types allocated above the arena mark being rolled up. */
+                while (internHead != NIL && int(internHead) >= int(scopeBound))
+                    internHead  =  internHead->inext;
+                myrollup(int(scopeBound));
+                exitScope(0);
+                exitScope(1);
+                goto 23301;
+            }
+            if ((SY == EXTERNSY) ||
+                ((SY == IDENT) &&
+                 ((curIdent == litFortran) || (curIdent == litAssembler)))) {
+                if (SY == EXTERNSY) {
+                    curVal.i  =  [20];
+                } else if (curIdent == litAssembler) {
+                    curVal.i  =  [20,26];
+                } else if (checkFortran) {
+                    curVal.i  =  [21,24];
+                    checkFortran  =  false;
+                } else {
+                    curVal.i  =  [21];
+                }
+                curIdRec->flags  =  curIdRec->flags | curVal.i;
+                curIdRec->sigtyp  =  makeRoutineType(curIdRec);
+                inSymbol();
+                checkSymAndRead(SEMICOLON);
+            } else {
+                checkSymAndRead(SEMICOLON);
+                with *curIdRec do {
+                    if (isPredefined)
+                        error(83); /* errRepeatedPredefinition */
+                    level  =  l2int18z;
+                    preDefLink  =  preDefHead;
+                    preDefHead  =  curIdRec;
+                    sigtyp  =  makeRoutineType(curIdRec);
+                }
+            }
+23301:      workidr  =  curIdRec->argList;
+            if (workidr != NIL) {
+                while (workidr != curIdRec) {
+                    scopeBound = hash(NIL, workidr);
+                    workidr  =  workidr->list;
+                }
+            }
+            curFrameRegTemplate -= indexreg[1];
+            --curProcNesting;
         }
-        curFrameRegTemplate -= indexreg[1];
-        --curProcNesting;
         markTypeSym();
+        }
     }
     if (curProcNesting == 1 && curExpr != NIL) {
         hasFiles  =  1;
@@ -7871,16 +8003,36 @@ void exitScope(a: int) {
         return;
     if (bodyBlock) {
         if (! (SY IN (bodyStatSys | blockBegSys)) &&
-            ! (SY IN [TYPESY,ENDSY]))
+            ! (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,ENDSY]))
             errAndSkip(84 /* errErrorInDeclarations */,
                        skipToSet | bodyStatSys | blockBegSys | [ENDSY]);
-    } else if ((SY != BEGINSY) && (SY != TYPESY) &&
+    } else if ((SY != BEGINSY) && ! (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY]) &&
        ! (SY IN blockBegSys))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
     } while (! ((bodyBlock && ((SY IN bodyStatSys) ||
-                               (SY IN [TYPESY,ENDSY]))) ||
+                               (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,ENDSY]))) ||
                 (! bodyBlock && ((SY in statBegSys) ||
-                                 (SY == TYPESY)))));
+                                 (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY])))));
+    // Checked once per programme() call (guarded by curProcNesting==1, so
+    // effectively once for the whole compile), not once per do-while
+    // iteration: the C-style grammar's var/typedef sections are each a
+    // single-shot keyword-less declaration now, so a var section with N
+    // separate declarations is N do-while iterations, not one -- running
+    // this check inside the loop re-flagged the same not-yet-declared
+    // extern names on every iteration, and the resulting flood of
+    // errUndefinedExternFile errors tripped error()'s own "too many
+    // errors" abort path (skipToEnd()) mid-file.
+    if (curProcNesting == 1) {
+        curExternFile  =  externFileList;
+        while (curExternFile != NIL) {
+            if (curExternFile->line == 0) {
+                error(80); /* errUndefinedExternFile */
+                printTextWord(curExternFile->id);
+                writeLN;
+            }
+            curExternFile  =  curExternFile->next;
+        }
+    }
     if (preDefHead != irptr(0)) {
         error(85); /* errNotFullyDefinedVoids */
         while (preDefHead != irptr(0)) {
@@ -7914,14 +8066,12 @@ void exitScope(a: int) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void initTables() { /* initTables */
-var
-    idx, jdx: int;
+int idx, jdx;
 
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void initInsnTemplates() {
-var
-    op: operator;
+operator op;
     for (idx = 1; idx < 16; ++idx)
         indexreg[idx]  =  idx << 20;
     jumpType  =  KUJ;
@@ -7971,22 +8121,21 @@ void regKeywords() { /*=A3 regKeywords */
     regResWord('      IN');
     SY  =  CONSTSY;
     charClass  =  NOOP;
-    for (idx = 0; idx <= 20; ++idx) {
-        /* 'function' keyword is retired: C-style "RetType name();"
-           is the only accepted routine-declaration form. */
-        if (SY != TYPESY)
-            regResWord(resWordName[idx]);
+    /* CONSTSY..UNIONSY are 19 consecutive reserved words. TYPESY (a runtime
+       marker set by markTypeSym/lookup on a type-name IDENT, not a keyword)
+       sits just before CONSTSY so it is outside this range -- no skip needed;
+       'var'/'function' are gone entirely (free identifiers now). */
+    for (idx = 0; idx <= 18; ++idx) {
+        regResWord(resWordName[idx]);
         ++SY;
     }
 } /*=A2 regKeywords */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    writeln(' st=', &idx :5 oct);
     FcstCnt  =  0;
     FcstCount  =  0;
     initInsnTemplates();
     skipToSet  =  blockBegSys | statBegSys & (~[SWITCHSY]);
-    bigSkipSet  =  skipToSet | statEndSys;
     unpack(*pasinfor.a3, iso2text, '\052'); /* '*' */
     iso2text['_'] = iso2text['*'];
     rewrite(_CHILD_);
@@ -8005,9 +8154,8 @@ void regKeywords() { /*=A3 regKeywords */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void finalize() {
-var
-    idx, cnt: int;
-    sizes: int[10];
+int idx, cnt;
+int sizes[10];
     sizes[0]  =  1;
     sizes[1]  =  symTabPos - 074000 - 1;
     sizes[4]  =  longSymCnt;
@@ -8071,7 +8219,6 @@ void initOptions() {
     optSflags  =  pasinfor.flags << 39 >> 45;
     checkTypes  =  true;
     fixMult  =  true;
-    checkBounds  =  ! (44 in curVal.i);
     declEntry  =
     errors  =
     allowCompat  =  false;
@@ -8106,12 +8253,15 @@ void main() {
         writeln(' MAXHEAP = ', maxHeap:5 oct);
     }
 }
-{ main(); }
+{ besm(02400000); main(); besm(02400000); }
 .data
     frameRegTemplate  =  04000000;
     constRegTemplate  =  I8;
     disNormTemplate  =   KNTR+7;
-    blockBegSys  =  [CONSTSY, TYPEDEFSY, VARSY, TYPESY, BEGINSY];
+    // No VARSY: variable declarations are dispatched via TYPESY now (a
+    // leading bound type name), same as routines -- see the unified
+    // declaration loop in programme's own body.
+    blockBegSys  =  [CONSTSY, TYPEDEFSY, TYPESY, BEGINSY];
     statBegSys  =   [IDENT, EXPROP, LPAREN, INTCONST, REALCONST,
                      CHARCONST, STRINGSY, LBRACK, BEGINSY, IFSY,
                      SWITCHSY, DOSY, WHILESY, FORSY, WITHSY, GOTOSY,
@@ -8126,8 +8276,6 @@ void main() {
     resWordName  =
         '   CONST',
         ' TYPEDEF',
-        '     VAR',
-        '        ',                      // was FUNCTION
         '    ENUM',
         '**PACKED',
         '  STRUCT',

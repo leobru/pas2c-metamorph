@@ -1,7 +1,6 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-var a, b, c, r: int;
+int a, b, c, r;
 {
     a = 1;
     b = 0;

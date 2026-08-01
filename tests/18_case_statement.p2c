@@ -1,7 +1,6 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-var x: int;
+int x;
 {
     for (x = 0; x < 5; x = x + 1)
     switch (x) {

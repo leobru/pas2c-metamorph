@@ -1,16 +1,13 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-typedef
-    intptr = *int;
-    rec    = struct { x, y: int; };
-    recptr = *rec;
-var
-    i, j, k, n, a: int;
-    arr: int [1..4];
-    p:   intptr;
-    rp:  recptr;
-    r:   rec;
+typedef int *intptr;
+typedef struct { int x, y; } rec;
+typedef rec *recptr;
+int i, j, k, n, a;
+int arr[1..4];
+intptr p;
+recptr rp;
+rec r;
 {
     /* simple postfix */
     i = 5;

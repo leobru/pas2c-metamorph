@@ -1,8 +1,7 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
-var a, b: int;
-var arr: int [4];
-var k: int;
+/*=s8,y+,k9,l0*/
+int a, b;
+int arr[4];
+int k;
 {
 a = 10;
 b = 3;

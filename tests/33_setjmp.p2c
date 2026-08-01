@@ -1,10 +1,9 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
-void longjmp(jmpbuf, val: int); assembler;
-int setjmp(jmpbuf: *int); assembler;
+/*=s8,y+,k9,l0*/
+void longjmp(int jmpbuf, int val) assembler;
+int setjmp(int *jmpbuf) assembler;
 //
-var jb: int;
-var n: int;
+int jb;
+int n;
 //
 void inner() {
     writeln(' inner: about to longjmp');

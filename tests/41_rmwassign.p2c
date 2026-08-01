@@ -1,5 +1,4 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 /*
  * Exercise op-assign and ++/-- on ACC-using lvalues.  Each lvalue
  * needs the accumulator to compute its address, so the prior AST
@@ -8,18 +7,16 @@ extern _output_;
  * once in a spill slot and reuses it for load and store.
  * Labels avoid leading +/-/0 to keep BESM-6 carriage control quiet.
  */
-typedef
-    intptr = *int;
-    rec    = struct { x, y: int; };
-    recptr = *rec;
-var
-    arr: int [1..4];
-    mat: int [1..3][1..3];
-    p:   intptr;
-    rp:  recptr;
-    r:   rec;
-    n:   int;
-    i, j: int;
+typedef int *intptr;
+typedef struct { int x, y; } rec;
+typedef rec *recptr;
+int arr[1..4];
+int mat[1..3][1..3];
+intptr p;
+recptr rp;
+rec r;
+int n;
+int i, j;
 {
     /* simple array element via variable index */
     arr[1] = 10; arr[2] = 20; arr[3] = 30; arr[4] = 40;

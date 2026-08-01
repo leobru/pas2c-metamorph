@@ -1,5 +1,4 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 /*
  * Comprehensive test of integer division and modulo when one operand
  * is a compile-time constant.  The compiler picks among five distinct
@@ -28,7 +27,7 @@ extern _output_;
  * Labels avoid a leading sign or digit so BESM-6 carriage control
  * does not overstrike successive lines.
  */
-var a, b, q, r, n: int;
+int a, b, q, r, n;
 {
     /* ---------- A. constant folding (path 1) ---------- */
     q = 100 / 7;          writeln(' A01 ', q:0);

@@ -1,10 +1,8 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
 // Test P/LDARIN helper: integer array with variable index
-var 
-    arr: int[1..10];
-    idx, value: int;
+int arr[1..10];
+int idx, value;
 {
     arr[1] = 100;
     arr[2] = 200;

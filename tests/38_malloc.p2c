@@ -1,9 +1,8 @@
-/*=p-,t-,s8,y+,l0*/
-extern _output_;
+/*=s8,y+,l0*/
 //
-typedef intptr = *int;
-var p, q: intptr;
-    n: int;
+typedef int *intptr;
+intptr p, q;
+int n;
 {
     p = MALLOC(1);
     *p = 42;

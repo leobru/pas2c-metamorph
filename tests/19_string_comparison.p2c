@@ -1,7 +1,6 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-var s1, s2: __packed char[1..6];
+__packed char s1[1..6], s2[1..6];
 {
     s1 = 'HELLO ';
     s2 = 'HELLO ';

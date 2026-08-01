@@ -1,7 +1,6 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-var i, j, k, n: int;
+int i, j, k, n;
 {
     i = 10;
     ++i;

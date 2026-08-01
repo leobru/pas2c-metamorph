@@ -1,11 +1,9 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
 // Test P/LDARIN via pointer dereference
-typedef intptr = *int;
-var 
-    p: intptr;
-    x, value: int;
+typedef int *intptr;
+intptr p;
+int x, value;
 {
     x = 42;
     p = &x;

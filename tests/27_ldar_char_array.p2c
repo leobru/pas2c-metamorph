@@ -1,11 +1,9 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
 // Test P/LDAR helper: char array with variable index
-var 
-    chars: char[1..5];
-    idx: int;
-    ch: char;
+char chars[1..5];
+int idx;
+char ch;
 {
     chars[1] = 'A';
     chars[2] = 'B';

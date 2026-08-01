@@ -1,8 +1,8 @@
 #!/bin/sh
-# Compile work.p2c with the host-native compiler (base, from base.cc) into
-# the raw object work.o and the emulator-loadable library module work.bin.
-# This replaces the retired emulator base-module path (base.pas is dead).
-rm -f wrksrc.bin
+# Compile work.p2c with the host-native compiler (base, from base.cc)
+# into the raw object work.o and the emulator-loadable library module
+# work.bin.
+rm -f work.bin
 sed 's/{/<:/g;s/}/:>/g' < work.p2c | ./preprocess.py > wrksrc.utxt
 echo '                                                                                ' >> wrksrc.utxt
 rm -f work.raw.o work.o work.bin

@@ -1,7 +1,6 @@
-/*=p-,t-,s8,y+,k9*/
-extern _OUTPUT_;
-typedef tenbit = int:10;
-var c1, c2: tenbit;
+/*=s8,y+,k9*/
+typedef int:10 tenbit;
+tenbit c1, c2;
 {
 c2 = 1;
 c1 = 256;

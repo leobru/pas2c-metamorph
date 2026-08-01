@@ -1,9 +1,7 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-var
-    a: int[0..4][0..4];
-    i, j, sum: int;
+int a[0..4][0..4];
+int i, j, sum;
 {
     sum = 0;
     for (i = 0; i < 5; ++i)

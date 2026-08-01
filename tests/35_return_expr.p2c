@@ -1,17 +1,16 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-int square(x: int) {
+int square(int x) {
     return x * x;
 }
 //
-int clamp(v, lo, hi: int) {
+int clamp(int v, int lo, int hi) {
     if (v < lo) return lo;
     if (v > hi) return hi;
     return v;
 }
 //
-int early_void(x: int) {
+int early_void(int x) {
 //    early_void = -1;
     if (x == 0) return -1;
     return x + 100;

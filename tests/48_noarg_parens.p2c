@@ -1,8 +1,6 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-void later;
-FORWARD;
+void later();
 //
 void ping() {
     writeln('PING');

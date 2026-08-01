@@ -1,7 +1,6 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-var i: int;
+int i;
 {
     i = 0X0;
     writeln(' 0X0      = ', i:0);

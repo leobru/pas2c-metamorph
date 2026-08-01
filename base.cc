@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <cassert>
 #include <set>
+#include <functional>
 
 FILE * pasinput = stdin;
 unsigned char PASINPUT;
@@ -179,8 +180,8 @@ enum Symbol {
         STRINGSY,   LPAREN,     LBRACK,     EXPROP,
 /*10B*/ RPAREN,     RBRACK,     COMMA,      SEMICOLON,
         PERIOD,     ARROW,      COLON,      BECOMES,
-/*20B*/ BEGINSY,    ENDSY,      CONSTSY,    TYPEDEFSY,
-        VARSY,      TYPESY,     ENUMSY,
+/*20B*/ BEGINSY,    ENDSY,      TYPESY,     CONSTSY,
+        TYPEDEFSY,  ENUMSY,
 /*30B*/ PACKEDSY,   STRUCTSY,   IFSY,       SWITCHSY,
         WHILESY,    FORSY,      WITHSY,     GOTOSY,
 /*40B*/ ELSESY,     DOSY,
@@ -221,7 +222,7 @@ enum OpGen {
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
     SETREG9,  STOREAT9,  DOIT,  SETREG12,  DFLTWDTH,
     FRACWIDTH, gen11, gen12, FILEACCESS, FILEINIT,
-    BRANCH, PCKUNPCK, LITINSN
+    BRANCH, PCKUNPCK
 };
 
 // Flags for ops that can potentially be optimized if one operand is a constant
@@ -310,18 +311,33 @@ std::string Real::print() const
 }
 
 int64_t heap[32768];
+int64_t heapBase = 100, heapLimit = 074000;
 int64_t avail = 100, maxHeap;
 
-void * besm6_alloc(size_t s)
+void * besm6_alloc_words(size_t words)
 {
-    s = (s + 7) & ~7;
-    s /= sizeof(int64_t);
-    if (avail + s > 074000) {
-        fprintf(stderr, "Out of memory: avail = %ld, wants %lu words\n", avail, s);
+    if (words > size_t(heapLimit - avail)) {
+        fprintf(stderr, "Out of memory: avail = %ld, wants %lu words\n",
+                avail, words);
         throw std::bad_alloc();
     }
-    avail += s;
-    return heap + avail - s;
+    int64_t * result = heap + avail;
+    avail += words;
+    return result;
+}
+
+void * besm6_alloc(size_t bytes)
+{
+    return besm6_alloc_words((bytes + sizeof(int64_t) - 1) /
+                             sizeof(int64_t));
+}
+
+template<class T> T * besm6_alloc_record(size_t bytes)
+{
+    assert(bytes % sizeof(int64_t) == 0);
+    void * result = besm6_alloc(bytes);
+    memset(result, 0, bytes);
+    return reinterpret_cast<T*>(result);
 }
 
 // Dynamic allocation in the compiler expects that the pointer can be represented as
@@ -350,7 +366,7 @@ template<typename T> void succ(T & v)
 
 void rollup(void * p)
 {
-    if (p < heap || p > heap + avail) {
+    if (p < heap + heapBase || p > heap + avail) {
         fprintf(stderr, "Cannot rollup from %p to %p\n", (void*)(heap + avail), p);
         exit(1);
     }
@@ -416,6 +432,8 @@ struct PckRep {
 struct TPtr {
     // Aggregate (no user ctor: it must live in anonymous union arms).
     // TPtr() as an expression still value-initializes to all-zero.
+    // The whole-word view gives exact initialization/copy/comparison, while
+    // the LSB rep field matches the address bits used by BESM-6 indirection.
     union {
         int64_t word;      // whole-word view; only the low 48 bits matter
         PckRep p;
@@ -530,41 +548,47 @@ typedef InsnList * InsnListPtr;
 // bits, and kind live in the compact TPtr word that references this record
 // (base.pas `types` variant record after the compact-pointer redesign).
 struct Types : public BESM6Obj {
+    void * operator new(size_t) = delete;
+
     union {
+        struct { int64_t szReal; };
         struct {                       // kindArray
             TPtr base;
             int64_t pck;               // boolean
             int64_t perword, pcksize, aleft, aright;
+            int64_t szArray;
         };
         struct {                       // kindScalar
             IdentRecPtr enums;
             int64_t numen, start;
+            int64_t szScalar;
         };
         struct {                       // kindPtr
             TPtr sbase;
+            int64_t szPtr;
+        };
+        struct {                       // file-like kindPtr
+            TPtr fbase;
+            int64_t szFile;
         };
         struct {                       // kindStruct
             TPtr variants;
             IdentRecPtr fields;
             int64_t flag, pckrec;      // booleans
+            int64_t szStruct;
         };
         struct {                       // kindCases
             TPtr first, next, alt;
+            int64_t szCases;
         };
         struct {                       // kindRoutine
             TPtr rresult;
             SigPtr rparams;
             int64_t rargc;
             int64_t rflags;
+            int64_t szRtype;
         };
     };
-    // Zero the largest arm: the arena recycles memory that held raw host
-    // pointers (see IdentRec::zeroUnions), and BESM-6 heap garbage has no
-    // host counterpart.
-    Types() {
-        base = TPtr(); pck = 0;
-        perword = 0; pcksize = 0; aleft = 0; aright = 0;
-    }
 
     std::string p() const { return "type"; } // details live in TPtr now
 };
@@ -658,110 +682,130 @@ std::string toAscii(int64_t val)
 }
 
 struct IdentRec : public BESM6Obj {
+    void * operator new(size_t) = delete;
+
+    // Packed into one word, mirroring work.p2c's idpck union: `next` is a
+    // 15-bit arena word-index (like TPtr's rep), so it shares the word with
+    // offset:24 and cl:3.  offset/cl are plain bitfields (access sites keep
+    // `pck.offset`/`pck.cl`); next() converts the index back to a pointer.
+    union {
+        int64_t pckword;
+        struct {
+            uint64_t nidx   : 15;   // arena word-index (074000 = nil)
+            int64_t  offset : 24;
+            uint64_t cl     : 3;    // IdClass
+        };
+    } pck;
     int64_t id;
-    int64_t offset;
-    IdentRecPtr next;
     TPtr typ;
-    IdClass cl;
     // TYPEID, VARID classes end here
     union {
-        IdentRecPtr list_;      // ENUMID, FORMALID
-        int64_t low_;           // ROUTINEID
-        int64_t maybeUnused_;   // FIELDID
-        int64_t procno_;        // legacy alias of low_ (standard procs)
-    };
-    union {
-        int64_t value_;         // ENUMID, FORMALID
-        Word high_;             // ROUTINEID (same storage as value)
-        TPtr uptype_;           // FIELDID
-    };
-    union {
-        // FIELDID
-        struct {
+        struct {                // ENUMID, FORMALID
+            IdentRecPtr list_;
+            int64_t value_;
+            int64_t szIdent;
+        };
+        struct {                // FIELDID
+            int64_t maybeUnused_;
+            TPtr uptype_;
             bool pckfield_;
             int64_t shift_, width_;
+            int64_t szField;
         };
-
-        // ROUTINEID
-        struct {
+        struct {                // ROUTINEID
+            int64_t low_;
+            int64_t high_;
             IdentRecPtr argList_, preDefLink_;
             int64_t level_, pos_;
             int64_t flags_;
             TPtr sigtyp_;
+            int64_t szRoutine;
+        };
+        struct {                // predefined system routine
+            int64_t sysnum_;
+            int64_t szSys;
         };
     };
+    // Hash-chain link, stored as a compact arena index in pck (see above).
+    // nidx==0 is the memset-fresh state (besm6_alloc zero-fills); treat it as
+    // nil like the explicit 074000, so a just-allocated record reads NULL.
+    IdentRecPtr next() const {
+        // heap + index directly (not ptr(), whose bounds check rejects the
+        // dangling-but-unused links a native pointer tolerated across rollup).
+        return (pck.nidx == 0 || pck.nidx == 074000) ? NULL
+             : reinterpret_cast<IdentRecPtr>(heap + pck.nidx);
+    }
     IdentRecPtr & list() {
-        assert(cl != TYPEID);
+        assert(pck.cl != TYPEID);
         return list_;
     }
     int64_t & value() {
-        assert (cl != TYPEID);
+        assert(pck.cl != TYPEID);
         return value_;
     }
     int64_t & low() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return low_;
     }
     Word & high() {
-        assert(cl == ROUTINEID);
-        return high_;
+        return *reinterpret_cast<Word*>(&high_);
     }
     int64_t & procno() {
-        assert(cl == ROUTINEID);
-        return procno_;
+        assert(pck.cl == ROUTINEID);
+        return low_;
     }
     TPtr & sigtyp() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return sigtyp_;
     }
     TPtr & uptype() {
-        assert (cl == FIELDID);
+        assert(pck.cl == FIELDID);
         return uptype_;
     }
     bool & pckfield() {
-        assert(cl == FIELDID);
+        assert(pck.cl == FIELDID);
         return pckfield_;
     }
     int64_t & shift() {
-        assert(cl == FIELDID);
+        assert(pck.cl == FIELDID);
         return shift_;
     }
     int64_t & width() {
-        assert(cl == FIELDID);
+        assert(pck.cl == FIELDID);
         return width_;
     }
     IdentRecPtr & argList() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return argList_;
     }
     IdentRecPtr & preDefLink() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return preDefLink_;
     }
     int64_t & level() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return level_;
     }
     int64_t & pos() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return pos_;
     }
     int64_t & flags() {
-        assert(cl == ROUTINEID);
+        assert(pck.cl == ROUTINEID);
         return flags_;
     }
     
     std::string p(bool verbose = false) const {
         std::string ret;
         char * strp;
-        switch (cl) {
+        switch (pck.cl) {
         default: ret = toAscii(id);
             return ret.substr(ret.find_last_of(' ')+1, std::string::npos);
         case ROUTINEID:
             ret = toAscii(id);
             if (verbose) {
                 if (0 <= asprintf(&strp, "(routine) procno: %ld value: %ld argl: %ld predef: %ld level: %ld pos: %ld flags: %lx",
-                                  procno_, value_, ord(argList_), ord(preDefLink_), level_, pos_, flags_)) {
+                                  low_, value_, ord(argList_), ord(preDefLink_), level_, pos_, flags_)) {
                     ret += strp;
                     free(strp);
                 } else perror("asprintf");
@@ -769,28 +813,8 @@ struct IdentRec : public BESM6Obj {
         }
         return ret;
     }
-    IdentRec(int64_t id_, int64_t o_, IdentRecPtr n_, TPtr t_, IdClass cl_) :
-        id(id_), offset(o_), next(n_), typ(t_), cl(cl_) { zeroUnions(); }
-    IdentRec(int64_t id_, int64_t o_, IdentRecPtr n_, TPtr t_, IdClass cl_, IdentRecPtr l_, int64_t v_) :
-        id(id_), offset(o_), next(n_), typ(t_), cl(cl_) { zeroUnions(); list_ = l_; value_ = v_; }
-    IdentRec() : cl(IdClass(6)) { typ = TPtr(); zeroUnions(); }
-
-    // The arena recycles memory that previously held raw host pointers, so
-    // fields never assigned (e.g. flags_ of a formal routine parameter, read
-    // by genEntry via has(flags(), 24)) would otherwise contain PIE-base-
-    // dependent garbage, making generated code differ from run to run.
-    // BESM-6 heap garbage has no host counterpart; zero deterministically.
-    void zeroUnions() {
-        list_ = nullptr;
-        value_ = 0;
-        argList_ = nullptr;
-        preDefLink_ = nullptr;
-        level_ = 0;
-        pos_ = 0;
-        flags_ = int64_t();
-        sigtyp_ = TPtr();
-    }
 };
+
 typedef IdentRecPtr HashArray[128];
 
 struct ExtFileRec : public BESM6Obj {
@@ -804,7 +828,6 @@ enum numberFormat { decimal, octal, fullword, hex };
 
 // Globals
 
-int64_t curTimes;
 numberFormat numFormat;
 SetOfSYs   bigSkipSet, statEndSys, blockBegSys, statBegSys,
            skipToSet, lvalOpSet;
@@ -849,8 +872,7 @@ char commentModeCH;
 unsigned char CH, prevCH;
 Word prevInsn;
 
-int64_t debugLine,
-        lineNesting,
+int64_t lineNesting,
         FcstTotal,       // FcstCountTo500 in base.pas
         objBufIdx,
         lookup2, lookupMode, condLabCnt,
@@ -863,9 +885,8 @@ bool atEOL,
     isDefined, putLeft, readNext,
     errors,
     declEntry,
+    enableStdInput,
     rangeMismatch,
-    doPMD,
-    checkBounds,
     fixMult,
     bool110z,
     allowCompat,
@@ -881,7 +902,7 @@ IdentRecPtr outputFile,
 
 ExtFileRec * externFileList;
 
-TPtr baseType, typ121z;
+TPtr typ121z;
 TPtr voidType, voidPtr;
 // Expression-operator tables, filled in the initialize section
 // (base.pas: intOpMap[MUL] := IMULOP,IDIVOP... ; opPrec := precNone:48 ...).
@@ -904,12 +925,14 @@ Word curToken, curVal;
 const int64_t extSymMask = 043000000L;
 const int64_t halfWord = 077777777L;
 const int64_t leftAddr = 077777L << 24;
+const int64_t litOutput = 01257656460656412L; /* "*OUTPUT*" */
+const int64_t litInput = 012515660656412L;    /* " *INPUT*" */
 
 int64_t leftInsn;
 int64_t curIdent;
 int64_t toAlloc, usedRegs, liveRegs, freeRegs, auxRegs;
 Word optSflags;
-int64_t litOct, litForward, litFortran, litAssembler;
+int64_t litOct, litFortran, litAssembler;
 ExprPtr uVarPtr, curExpr;
 InsnList *  insnList;
 InternRec * internHead;
@@ -946,7 +969,7 @@ extern int64_t helperNames[100]; // array [1..99] of int64_t;
 
 int64_t symTab[SYMTAB_LIMIT + 1]; // array [74000B..75500B] of int64_t;
 extern int64_t systemProcNames[30];
-extern int64_t resWordNameBase[21];
+extern int64_t resWordNameBase[19];
 int64_t longSymCnt;
 int64_t longSymTabBase[91];
 int64_t longSyms[91]; // array [1..90] of int64_t;
@@ -990,7 +1013,7 @@ std::string Expr::p()
     }
     if (op == GETVAR) {
         snprintf(buf, sizeof buf, "GETVAR[id=%ld off=%ld val=%ld]",
-                 id1 ? id1->id : -1, id1 ? id1->offset : -1,
+                 id1 ? id1->id : -1, id1 ? id1->pck.offset : -1,
                  id1 ? id1->value_ : -1);
         return buf;
     }
@@ -1077,22 +1100,29 @@ const char * pasmitxt(int64_t errNo)
     case 77: return "Missing OUTPUT file in program header";
     case 79: return "Unknown identifier in type definition";
     case 81: return "Procedure nesting is too deep";
-    case 82: return "Previous declaration was not FORWARD";
+    case 82: return "Previous declaration was not a forward declaration";
     case 84: return "Error in declarations";
     case 85: return "Routines left undefined";
     case 86: return "Required token not found: ";
     case 88: return "Different types of case labels and expression";
     case 89: return "integer";
-    case 95: return "LPAREN";
-    case 96: return "LBRACK";
-    case 100: return "RPAREN";
-    case 101: return "RBRACK";
-    case 102: return "COMMA";
-    case 103: return "SEMICOLON";
-    case 104: return "PERIOD";
-    case 105: return "ARROW";
-    case 106: return "COLON";
-    case 107: return "ASSIGN";
+    /* Token names for "Required token not found" errors.  requiredSymErr(sym)
+       reports error(sym + 88), so these labels must track the Symbol enum.
+       They were previously hard-coded to the pre-compaction enum values and had
+       drifted -- e.g. SEMICOLON (now 11 -> 99) hit no case and printed "Dunno",
+       and the others printed a neighbour's name. */
+    case LPAREN + 88:    return "LPAREN";
+    case LBRACK + 88:    return "LBRACK";
+    case RPAREN + 88:    return "RPAREN";
+    case RBRACK + 88:    return "RBRACK";
+    case COMMA + 88:     return "COMMA";
+    case SEMICOLON + 88: return "SEMICOLON";
+    case PERIOD + 88:    return "PERIOD";
+    case ARROW + 88:     return "ARROW";
+    case COLON + 88:     return "COLON";
+    case BECOMES + 88:   return "ASSIGN";
+    case BEGINSY + 88:   return "BEGINSY";
+    case ENDSY + 88:     return "ENDSY";
     case 136: return "PROGRAM";
     }
     return "Dunno";
@@ -1122,7 +1152,8 @@ void printErrMsg(int64_t errNo)
 
 void printTextWord(int64_t val)
 {
-    const char *s = toAscii(val).c_str();
+    auto str = toAscii(val);
+    const char *s = str.c_str();
     while (*s == ' ')
         s++;
     fputs(s, stdout);
@@ -1159,7 +1190,7 @@ TPtr makeStringType()
     if (maxSmallString >= strLen)
         return smallStringType[strLen];
     else {
-        res.setRep(new Types);
+        res.setRep(besm6_alloc_record<Types>(offsetof(Types, szArray)));
         size = (strLen + 5) / 6;
         res.p.bits = 0;
         res.p.psize = size;
@@ -1296,20 +1327,6 @@ ExprPtr cpDsExpr(ExprPtr e)
         return e;
 } /* cpDsExpr */
 
-TPtr allocPtr(TPtr toType)
-{
-    /* Heap-allocated pointer descriptor: needed for typedef forward
-     * placeholders (patched in place) and for bases the compact form
-     * cannot carry (nonzero pad, e.g. textType; depth overflow). */
-    TPtr t{};
-    t.setRep(new Types);
-    t.rep()->base = toType;
-    t.p.psize = 1;
-    t.p.bits = 15;
-    t.p.pk = kindPtr;
-    return t;
-}
-
 TPtr getPtrType(TPtr toType)
 {
     TPtr t{};
@@ -1327,7 +1344,14 @@ TPtr getPtrType(TPtr toType)
         t.p.pk = kindPtr;
         return t;
     }
-    return allocPtr(toType);
+    /* Fallback: heap-allocated pointer descriptor, for bases the compact
+       form cannot carry (nonzero pad, e.g. textType; depth overflow). */
+    t.setRep(besm6_alloc_record<Types>(offsetof(Types, szPtr)));
+    t.rep()->base = toType;
+    t.p.psize = 1;
+    t.p.bits = 15;
+    t.p.pk = kindPtr;
+    return t;
 }
 
 ExprPtr bldIncDec(ExprPtr lval, bool isInc, bool isPost)
@@ -1348,7 +1372,7 @@ ExprPtr bldIncDec(ExprPtr lval, bool isInc, bool isPost)
 void addToHashTab(IdentRecPtr arg)
 {
     int bucket = (arg->id % 65535) % 128;
-    arg->next = symHash[bucket];
+    arg->pck.nidx = ord(symHash[bucket]);
     symHash[bucket] = arg;
 }
 
@@ -1681,20 +1705,6 @@ std::string bset(int64_t t)
     return ostr.str();
 }
 
-int64_t nrOfBits(Integer value)
-{
-    curVal.ii = value;
-    curVal.ii = curVal.ii & BitRange(7, 47);
-    return 48-minel(curVal.ii);
-}
-
-int64_t nrOfBits(int64_t value)
-{
-    int64_t b;
-    b = value & ((1L<<48)-1);
-    return 48-minel(b);
-}
-
 TPtr mkIntScl(int64_t bitWid)
 {
     TPtr res{};
@@ -1710,7 +1720,7 @@ TPtr mkIntScl(int64_t bitWid)
             return res;
         icand = icand->inext;
     }
-    res.setRep(new Types);
+    res.setRep(besm6_alloc_record<Types>(offsetof(Types, szScalar)));
     res.rep()->start = -1;
     res.rep()->enums = NULL;
     res.rep()->numen = 1L << bitWid;
@@ -2047,12 +2057,6 @@ parseComment::parseComment()
             case 'L': case 'l':
                 PASINFOR.listMode = readOptVal(3);
                 break;
-            case 'P': case 'p':
-                readOptFlag(doPMD);
-                break;
-            case 'T': case 't':
-                readOptFlag(checkBounds);
-                break;
             case 'A': case 'a':
                 charEncoding = readOptVal(3);
                 break;
@@ -2166,10 +2170,10 @@ L1473:
                 case 0: {
                     hashTravPtr = symHash[bucket];
                     while (hashTravPtr != NULL) {
-                        if (hashTravPtr->offset == curFrameRegTemplate)
+                        if (hashTravPtr->pck.offset == curFrameRegTemplate)
                         {
                             if (hashTravPtr->id != curIdent)
-                                hashTravPtr = hashTravPtr->next;
+                                hashTravPtr = hashTravPtr->next();
                             else {
                                 isDefined = true;
                                 goto exitLexer;
@@ -2182,9 +2186,9 @@ L1473:
 L2:                 hashTravPtr = symHash[bucket];
                     while (hashTravPtr != NULL) {
                         if (hashTravPtr->id != curIdent)
-                            hashTravPtr = hashTravPtr->next;
+                            hashTravPtr = hashTravPtr->next();
                         else {
-                            if (hashTravPtr->cl == TYPEID)
+                            if (hashTravPtr->pck.cl == TYPEID)
                                 SY = TYPESY;
                             goto exitLexer;
                         }
@@ -2202,7 +2206,7 @@ L2:                 hashTravPtr = symHash[bucket];
                                 if ((hashTravPtr->id == curIdent)
                                     and (hashTravPtr->uptype() == withIter->expr2->vt.typ))
                                     goto exitLexer;
-                                hashTravPtr = hashTravPtr->next;
+                                hashTravPtr = hashTravPtr->next();
                             }
                             withIter = withIter->expr1;
                         }
@@ -2215,7 +2219,7 @@ L2:                 hashTravPtr = symHash[bucket];
                         if ((hashTravPtr->id == curIdent) and
                             (typ121z == hashTravPtr->uptype()))
                             goto exitLexer;
-                        hashTravPtr = hashTravPtr->next;
+                        hashTravPtr = hashTravPtr->next();
                     }
                     break;
                 }
@@ -2562,11 +2566,13 @@ void skipToEnd()
     Symbol sym;
     sym = SY;
     while ((sym != ENDSY) or (SY != PERIOD)) {
+        if (CH == 0)          /* EOF: stop before inSymbol() reads past the */
+            break;            /* end of a truncated / badly-recovered file */
         sym = SY;
         inSymbol();
     }
     if (CH == 'D' || CH == 'd')
-        while (SY != ENDSY)
+        while (SY != ENDSY and CH != 0)
             inSymbol();
     throw 9999;
 }
@@ -2661,6 +2667,67 @@ Word foldRawInt1(Operator op, const Word &arg)
     return i64ToRawInt(r);
 }
 
+/* Construct a binary op-node, but if both operands are already constants
+   (GETENUM), fold at construction and reuse the left operand's node in place
+   as the result — no new allocation.  Construction is now the *only* place
+   constant folding happens (genFullExpr no longer re-folds), and the payoff is
+   that constant expressions collapse to a literal for every downstream site
+   that requires `op == GETENUM`.  A divide/modulo by a zero constant is left
+   as an op-node so codegen keeps its current behaviour. */
+ExprPtr mkExprFold(Operator op, TPtr resTyp, ExprPtr e1, ExprPtr e2)
+{
+    if (e1->op == GETENUM and e2->op == GETENUM and
+        not ((op == IDIVOP or op == IMODOP or op == RDIVOP) and
+             e2->lit.ii == 0)) {
+        Word &lhs = e1->lit;            /* fold in place into e1's value */
+        const Word &rhs = e2->lit;
+        switch (op) {
+        case MUL:        lhs.r = lhs.r * rhs.r; break;
+        case RDIVOP:     lhs.r = lhs.r / rhs.r; break;
+        case ANDOP:      lhs.ii = lhs.ii and rhs.ii; break;
+        case IDIVOP:
+        case IMODOP:
+        case IMULOP:
+        case INTPLUS:
+        case INTMINUS:   lhs = foldRawInt2(op, lhs, rhs); break;
+        case PLUSOP:     lhs.r = lhs.r + rhs.r; break;
+        case MINUSOP:    lhs.r = lhs.r - rhs.r; break;
+        case OROP:       lhs.ii = lhs.ii or rhs.ii; break;
+        case SETAND:     lhs.ii = lhs.ii & rhs.ii; break;
+        case SETXOR:     lhs.ii = lhs.ii ^ rhs.ii; break;
+        case SETOR:      lhs.ii = lhs.ii | rhs.ii; break;
+        case SHLEFT:     lhs.ii = shl48(lhs.ii, rhs.ii); break;
+        case SHRIGHT:    lhs.ii = (lhs.ii & BitRange(0, 47)) >> rhs.ii; break;
+        default:
+            return mkExpr(op, resTyp, e1, e2);   /* not a foldable op */
+        }
+        e1->vt.typ = resTyp;           /* e1 is already GETENUM; reuse it */
+        return e1;
+    }
+    return mkExpr(op, resTyp, e1, e2);
+}
+
+/* Unary counterpart of mkExprFold.  Only ever called with a foldable unary
+   operator (INEGOP/RNEGOP/BITNEGOP/boolean NOTOP/TOREAL), so a GETENUM operand
+   is always folded — mutated in place and reused. */
+ExprPtr mkUnaryFold(Operator op, TPtr resTyp, ExprPtr e)
+{
+    if (e->op == GETENUM) {
+        Word &arg = e->lit;
+        switch (op) {
+        case TOREAL:   arg.r = arg.ii; break;
+        case NOTOP:    arg.b = not arg.b; break;
+        case RNEGOP:   arg.r = -arg.r; break;
+        case INEGOP:   arg = foldRawInt1(op, arg); break;
+        case BITNEGOP: arg.ii = BitRange(0, 47) & ~arg.ii; break;
+        default:       break;
+        }
+        e->vt.typ = resTyp;
+        return e;
+    }
+    return mkExpr(op, resTyp, e, NULL);
+}
+
 void skip(int64_t toset)
 {
     while (not has(toset, SY))
@@ -2698,7 +2765,7 @@ L99:        litType.setRep(NULL);
         switch (SY) {
         case IDENT: {
             if ((hashTravPtr == NULL) or
-                (hashTravPtr->cl != ENUMID))
+                (hashTravPtr->pck.cl != ENUMID))
                 goto L99;
             litType = hashTravPtr->typ;
             litValue.ii = hashTravPtr->value();
@@ -2734,21 +2801,21 @@ void hash(IdentRecPtr & l3arg1z, IdentRecPtr l3arg2z)
     if (l3arg1z == l3arg2z) {
         if (l3var1z) {
             symHash[l3var2z] =
-                symHash[l3var2z]->next;
+                symHash[l3var2z]->next();
         } else {
-            l3arg1z = l3arg2z->next;
+            l3arg1z = l3arg2z->next();
         };
     } else {
         l3var3z = l3arg1z;
         while (l3var3z != l3arg2z) {
             l3var4z = l3var3z;
             if (l3var3z != NULL) {
-                l3var3z = l3var3z->next;
+                l3var3z = l3var3z->next();
             } else {
                 return;
             }
         };
-        l3var4z->next = l3arg2z->next;
+        l3var4z->pck.nidx = l3arg2z->pck.nidx;
     }
 } /* hash */
 
@@ -2760,15 +2827,20 @@ bool isFileType(TPtr typtr)
     return (typtr.p.pk == kindStruct) and typtr.rep()->flag;
 }
 
-bool knownInType(IdentRecPtr & rec)
+// name defaults to curIdent (the original, Pascal '^Name' call sites,
+// where the lexer is still sitting on Name); C-style forward-referenced
+// typedef patching (see TYPEDEFSY) calls this after the declarator's own
+// name has already been read and the lexer has moved on, so it passes
+// the saved Declarator::name explicitly instead.
+bool knownInType(IdentRecPtr & rec, int64_t name = curIdent)
 {
     if (programme::super.back()->typelist != NULL) {
         rec = programme::super.back()->typelist;
         while (rec != NULL) {
-            if (rec->id == curIdent) {
+            if (rec->id == name) {
                 return true;
             }
-            rec = rec->next;
+            rec = rec->next();
         }
     }
     return false;
@@ -2882,6 +2954,40 @@ int64_t argCount(IdentRecPtr l3arg1z)
         }
     return l3var1z;
 } /* argCount */
+
+TPtr makeRoutineType(IdentRecPtr routine)
+{
+    TPtr resultTyp{};
+    IdentRecPtr srcParam;
+    SigPtr newParam, lastParam;
+
+    resultTyp.setRep(besm6_alloc_record<Types>(offsetof(Types, szRtype)));
+    resultTyp.rep()->rresult = routine->typ;
+    resultTyp.rep()->rparams = NULL;
+    resultTyp.rep()->rargc = 0;
+    resultTyp.rep()->rflags = routine->flags();
+    resultTyp.p.psize = 1;
+    resultTyp.p.bits = 15;
+    resultTyp.p.pk = kindRoutine;
+    lastParam = NULL;
+    srcParam = routine->argList();
+    if (srcParam != NULL) {
+        while (srcParam != routine) {
+            newParam = new SigRec;
+            newParam->pclass = (IdClass)srcParam->pck.cl;
+            newParam->ptyp = srcParam->typ;
+            newParam->next = NULL;
+            if (lastParam == NULL)
+                resultTyp.rep()->rparams = newParam;
+            else
+                lastParam->next = newParam;
+            resultTyp.rep()->rargc = resultTyp.rep()->rargc + 1;
+            lastParam = newParam;
+            srcParam = srcParam->list();
+        }
+    }
+    return resultTyp;
+}
 
 struct formOperator {
     static std::vector<formOperator*> super;
@@ -4180,7 +4286,7 @@ genEntry::genEntry()
             insnList->regsused = Bits();
             usedRegs = usedRegs | l5idr4z->flags();
             if (l5idr4z->list() != NULL) {
-                addToInsnList(l5idr4z->offset + InsnTemp[XTA] +
+                addToInsnList(l5idr4z->pck.offset + InsnTemp[XTA] +
                               l5idr4z->value());
                 if (l5bool10z)
                     addToInsnList(getHelperProc(19)); /* "P/EA" */
@@ -4218,7 +4324,7 @@ genEntry::genEntry()
                         // against calls to formal parameters at runtime.
                         if (l5idr3z != NULL) {
                             do {
-                                l5idc22z = l5idr3z->cl;
+                                l5idc22z = (IdClass)l5idr3z->pck.cl;
                                 if ((l5idc22z == ROUTINEID) and
                                     (l5idr3z->typ != NULL))
                                     l5idc22z = ENUMID;
@@ -4249,7 +4355,7 @@ genEntry::genEntry()
                 l5idc22z = VARID;
         } /* 7001 */
         if (not (not l5bool9z or (l5idc22z != FORMALID) or
-                 (l5idr6z->cl != VARID)))
+                 (l5idr6z->pck.cl != VARID)))
             l5idc22z = VARID;
           loop:
         if ((l5idc22z == FORMALID) or (l5bool11z)) {
@@ -4287,7 +4393,7 @@ genEntry::genEntry()
         if (has(l5idr5z->flags(), 20)) {
             l5var17z.ii = 1;
         } else {
-            l5var17z.ii = l5idr5z->offset / 04000000;
+            l5var17z.ii = l5idr5z->pck.offset / 04000000;
         } /* 7102 */
     } else { /* 7103 */
         l5var15z = 0;
@@ -4299,7 +4405,7 @@ genEntry::genEntry()
         } /* 7115 */
         addInsnAndOffset(macro+16 + l5var15z,
                          getValueOrAllocSymtab(l5var17z.ii));
-        addToInsnList(l5idr5z->offset + InsnTemp[UTC] + l5idr5z->value());
+        addToInsnList(l5idr5z->pck.offset + InsnTemp[UTC] + l5idr5z->value());
         addToInsnList(macro+18);
         l5var17z.ii = 1;
     } /* 7132 */
@@ -4404,12 +4510,6 @@ void genCopy()
         form3Insn(KUTC+I12 + size, KATX+I13,
                   KVLM+I13 + work);
         usedRegs = usedRegs | BitRange(12,14);
-        /* work.p2c does not rebuild insnList here before the caller's
-           opfASSN metadata write; keep a placeholder in the host port. */
-        insnList = new InsnList;
-        insnList->head = NULL;
-        insnList->tail = NULL;
-        insnList->regsused = Bits();
     }
 }
 
@@ -4577,47 +4677,9 @@ L7567:
         if (has((Bits(NEOP) | Bits(EQOP) | Bits(LTOP) | Bits(GEOP) |
              Bits(GTOP) | Bits(LEOP) | Bits(INOP)), curOP)) {
             genComparison();
-        } else { /* 7625 */
-            if (arg1Const and arg2Const) {
-                switch (curOP) {
-                case MUL:        arg1Val.r = arg1Val.r * arg2Val.r;
-                    break;
-                case RDIVOP:     arg1Val.r = arg1Val.r / arg2Val.r;
-                    break;
-                case ANDOP:      arg1Val.ii = arg1Val.ii and arg2Val.ii;
-                    break;
-                case IDIVOP:
-                case IMODOP:
-                case IMULOP:
-                case INTPLUS:
-                case INTMINUS:
-                                 arg1Val = foldRawInt2(curOP, arg1Val, arg2Val);
-                    break;
-                case PLUSOP:     arg1Val.r = arg1Val.r + arg2Val.r;
-                    break;
-                case MINUSOP:    arg1Val.r = arg1Val.r - arg2Val.r;
-                    break;
-                case OROP:       arg1Val.ii = arg1Val.ii or arg2Val.ii;
-                    break;
-                case SETAND:     arg1Val.ii = arg1Val.ii & arg2Val.ii;
-                    break;
-                case SETXOR:     arg1Val.ii = arg1Val.ii ^ arg2Val.ii;
-                    break;
-                case SETOR:      arg1Val.ii = arg1Val.ii | arg2Val.ii;
-                    break;
-                case SHLEFT:     arg1Val.ii = shl48(arg1Val.ii, arg2Val.ii);
-                    break;
-                case SHRIGHT:    arg1Val.ii = (arg1Val.ii & BitRange(0, 47)) >> arg2Val.ii;
-                    break;
-                case NEOP: case EQOP: case LTOP: case GEOP: case GTOP: case LEOP:
-                case INOP: case ASSIGNOP:
-                    error(200);
-                    break;
-                default:
-                    break;
-                } /* case 7750 */
-                insnList->payload = arg1Val;
-            } else { /*7752*/
+        } else { /* 7625: a foldable op with two constant operands is already
+                    folded to GETENUM at construction (mkExprFold), so only the
+                    non-constant codegen path remains here. */
                 l3int3z = opToMode[curOP];
                 flags = opFlags[curOP];
                 nextInsn = opToInsn[curOP];
@@ -4631,6 +4693,8 @@ L7567:
                     break;
                 case opfASSN:
                     genCopy();
+                    if (insnList == NULL)
+                        return;
                     insnList->typ = exprToGen->vt.typ;
                     insnList->regsused = insnList->regsused | Bits(0);
                     insnList->ilm = ilRVAL;
@@ -4710,7 +4774,6 @@ L7567:
                 } /* case 10122 */
 L10122:
                 insnList->tail->mode = l3int3z;
-            }
         }
     } else { /* 10125 */
         if (curOP <= FILEPTR) {
@@ -4721,13 +4784,13 @@ L10122:
                 insnList->head = NULL;
                 insnList->regsused = Bits();
                 insnList->ilm = ilLVAL;
-                insnList->payload.ii = curIdRec->offset;
+                insnList->payload.ii = curIdRec->pck.offset;
                 insnList->disp = curIdRec->value();
                 insnList->st = stWORD;
                 insnList->addrmd = 18;
-                if (curIdRec->cl == FORMALID) {
+                if (curIdRec->pck.cl == FORMALID) {
                     genDeref();
-                } else if (curIdRec->cl == ROUTINEID) {
+                } else if (curIdRec->pck.cl == ROUTINEID) {
                     insnList->disp = 3;
                     insnList->payload.ii = (insnList->payload.ii + frameRegTemplate);
                 } else if (insnList->disp >= 074000) {
@@ -4740,7 +4803,7 @@ L10122:
             if (curOP == GETFIELD) {
                 genFullExpr(exprToGen->expr1);
                 curIdRec = exprToGen->id2;
-                insnList->disp = insnList->disp + curIdRec->offset;
+                insnList->disp = insnList->disp + curIdRec->pck.offset;
                 if (curIdRec->pckfield()) {
                     switch (insnList->st) {
                     case stWORD:
@@ -4796,25 +4859,10 @@ L10122:
             genEntry();
         else if (has(BitRange(TOREAL, BITNEGOP), curOP)) {
             genFullExpr(exprToGen->expr1);
-            if (insnList->ilm == ilCONST) {
-                arg1Val = insnList->payload;
-                switch (curOP) {
-                case TOREAL:
-                    arg1Val.r = arg1Val.ii;
-                    break;
-                case NOTOP: arg1Val.b = not arg1Val.b;
-                    break;
-                case RNEGOP: arg1Val.r = -arg1Val.r;
-                    break;
-                case INEGOP: arg1Val = foldRawInt1(curOP, arg1Val);
-                    break;
-                case BITNEGOP: arg1Val.ii = BitRange(0,47) & ~ arg1Val.ii;
-                    break;
-                default:
-                    break;
-                } /* case 10345 */
-                insnList->payload = arg1Val;
-            } else if (curOP == NOTOP) {
+            /* A unary op with a constant operand is already folded at
+               construction (mkUnaryFold/castToReal), so there is no ilCONST
+               case to handle here. */
+            if (curOP == NOTOP) {
                 negateCond();
             } else {
                 prepLoad();
@@ -5159,15 +5207,25 @@ formOperator::formOperator(OpGen op)
         form1Insn(l3int1z);
         formAndAlign(getHelperProc(l3int3z));
    } break;
-   case LITINSN:
-        if (insnList->ilm != ilCONST)
-            error(errNoConstant);
-        if (typeSize(insnList->typ) != 1)
-            error(errConstOfOtherTypeNeeded);
-        curVal = insnList->payload;
-        break;
     } /* case */
 } /* formOperator */
+
+/* Extract the value of a constant expression into curVal.  With folding at
+   construction a constant expression is already a GETENUM node, so we read it
+   directly rather than lowering it through genFullExpr — which is what the
+   former formOperator(LITINSN) did.  Dropping that path avoids an insnList
+   allocation per constant (case labels, const decls, array bounds, besm). */
+void takeConstFromExpr()
+{
+    if (errors or curExpr == NULL)
+        return;
+    if (curExpr->op != GETENUM)
+        error(errNoConstant);
+    else if (typeSize(curExpr->vt.typ) != 1)
+        error(errConstOfOtherTypeNeeded);
+    else
+        curVal = curExpr->lit;
+}
 
 void markTypeSym()
 {
@@ -5176,311 +5234,25 @@ void markTypeSym()
         bucket = curIdent % 65535 % 128;
         hashTravPtr = symHash[bucket];
         while (hashTravPtr != NULL and hashTravPtr->id != curIdent)
-            hashTravPtr = hashTravPtr->next;
-        if (hashTravPtr != NULL and hashTravPtr->cl == TYPEID)
+            hashTravPtr = hashTravPtr->next();
+        if (hashTravPtr != NULL and hashTravPtr->pck.cl == TYPEID)
             SY = TYPESY;
     }
 } /* markTypeSym */
 
-struct parseTypeRef {
-    static std::vector<parseTypeRef*> super;
-    parseTypeRef(TPtr & newtype, int64_t skipTarget_);
-    ~parseTypeRef() { super.pop_back(); }
-    typedef std::pair<int64_t, int64_t> pair;
-    typedef pair pair7[8]; // array [1..7] of pair;
-    typedef struct {
-            int64_t size, count;
-            pair7 pairs;
-    } caserec;
-    struct rangeRec { int64_t aleft, aright; };
-    typedef rangeRec rangeList[21]; // array [1..20] of rangeRec;
+// File scope (not nested in parseTypeRef): makeArrayType and the shared
+// declarator parser (below) both need to construct/consume range bounds,
+// and a struct type nested inside a function is only visible within that
+// function's own scope in this codebase's Pascal-mirroring conventions.
+struct rangeRec { int64_t aleft, aright; };
+typedef rangeRec rangeList[21]; // array [1..20] of rangeRec;
 
-    int64_t skipTarget;
-    bool isPacked;
-    bool cond;
-    caserec cases;
-    int64_t numBits, l3int22z, span, rangeCnt, curDim;
-    IdentRecPtr curEnum, curField;
-    TPtr arrayType{}, nestedType{}, tempType{}, curType{};
-    rangeList ranges;
-    rangeRec curRange;
-    IdentRecPtr l3idr31z;
-
-    void definePtrType(TPtr toType) {
-        IdentRecPtr & typelist = programme::super.back()->typelist;
-        curType = allocPtr(toType);
-        curEnum = new IdentRec(curIdent, lineCnt, typelist, curType, TYPEID);
-        typelist = curEnum;
-    } /* definePtrType */
-
-    TPtr makeArrayType(rangeRec rg, TPtr elem, bool pckFlag);
-};
-std::vector<parseTypeRef*> parseTypeRef::super;
-
-struct parseRecordDecl {
-    static std::vector<parseRecordDecl*> super;
-    parseRecordDecl(TPtr & rectype, bool isOuterDecl_);
-    ~parseRecordDecl() { super.pop_back(); }
-
-    bool isOuterDecl;
-    TPtr prevVariant{}, selType{}, newVariant{};
-    IdentRecPtr prevField;
-    Word variantIdx;
-    parseTypeRef::caserec cases1, cases2;
-
-    void addFieldToHash() {
-        IdentRecPtr &curEnum = parseTypeRef::super.back()->curEnum;
-        TPtr &curType = parseTypeRef::super.back()->curType;
-        bool &isPacked = parseTypeRef::super.back()->isPacked;
-        // curEnum@ := [curIdent, , fieldHash[bucket], ,
-        //              FIELDID, NIL, curType, isPacked]
-        curEnum->id = curIdent;
-        curEnum->next = fieldHash[bucket];
-        curEnum->cl = FIELDID;
-        curEnum->uptype() = curType;
-        curEnum->pckfield() = isPacked;
-        fieldHash[bucket] = curEnum;
-    } /* addFieldToHash */
-};
-std::vector<parseRecordDecl*> parseRecordDecl::super;
-
-void packFields()
-{
-    int64_t fieldWidth, pairIdx, minFirst, scanIdx, curFirst;
-    parseTypeRef::pair * curSlot;
-
-    bool &cond = parseTypeRef::super.back()->cond;
-    TPtr &curType = parseTypeRef::super.back()->curType;
-    IdentRecPtr &curField = parseTypeRef::super.back()->curField;
-    IdentRecPtr &l3idr31z = parseTypeRef::super.back()->l3idr31z;
-    TPtr &selType = parseRecordDecl::super.back()->selType;
-    int64_t &skipTarget = parseTypeRef::super.back()->skipTarget;
-    parseTypeRef::caserec &cases = parseTypeRef::super.back()->cases;
-    IdentRecPtr &curEnum = parseTypeRef::super.back()->curEnum;
-    bool &isPacked = parseTypeRef::super.back()->isPacked;
-
-    parseTypeRef(selType, skipTarget | Bits(UNIONSY));
-    if (curType.rep()->fields == NULL) {
-        curType.rep()->fields = curField;
-    } else {
-        l3idr31z->list() = curField;
-    }
-    l3idr31z = curEnum;
-    do {
-        curField->typ = selType;
-        if (isPacked) {
-            fieldWidth = typeBits(selType);
-            curField->width() = fieldWidth;
-            if (fieldWidth != 48) {
-                for (pairIdx = 1; pairIdx <= cases.count; ++pairIdx) {
-L11523:             curSlot = &cases.pairs[pairIdx];
-                    if (curSlot->first >= fieldWidth) {
-                        curField->shift() = 48 - curSlot->first;
-                        curField->offset = curSlot->second;
-                        if (not has(optSflags.ii, S6))
-                            curField->shift() = 48 - curField->width() - curField->shift();
-                        curSlot->first = curSlot->first - fieldWidth;
-                        if (curSlot->first == 0) {
-                            cases.pairs[pairIdx] = cases.pairs[cases.count];
-                            cases.count = cases.count - 1;
-                        }
-                        goto L11622;
-                    }
-                }
-                if (cases.count != 7) {
-                    cases.count = cases.count + 1;
-                    pairIdx = cases.count;
-                } else {
-                    minFirst = 48;
-                    for (scanIdx = 1; scanIdx <= 7; ++scanIdx) {
-                        curFirst = cases.pairs[scanIdx].first;
-                        if (curFirst < minFirst) {
-                            minFirst = curFirst;
-                            pairIdx = scanIdx;
-                        }
-                    } /* for */
-                }
-                cases.pairs[pairIdx] = std::make_pair(48, cases.size);
-                cases.size = cases.size + 1;
-                goto L11523;
-            }
-        }
-        curField->pckfield() = false;
-        curField->offset = cases.size;
-        cases.size = cases.size + typeSize(selType);
-L11622:
-        if (PASINFOR.listMode == 3) {
-            printf("%16c", ' ');
-            if (curField->pckfield())
-                printf("PACKED");
-            printf(" FIELD ");
-            printTextWord(curField->id);
-            printf(".OFFSET=%05loB", curField->offset);
-            if (curField->pckfield()) {
-                printf(".<<=SHIFT=%2ld. WIDTH=%2ld BITS", curField->shift(),
-                       curField->width());
-            } else {
-                printf(".WORDS=%ld", typeSize(selType));
-            }
-            putchar('\n');
-        }
-        cond = (curField == curEnum);
-        curField = curField->list();
-    } while (!cond);
-} /* packFields */
-
-parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_)
-    : isOuterDecl(isOuterDecl_)
-{
-    bool &cond = parseTypeRef::super.back()->cond;
-    TPtr &curType = parseTypeRef::super.back()->curType;
-    TPtr &tempType = parseTypeRef::super.back()->tempType;
-    IdentRecPtr &curField = parseTypeRef::super.back()->curField;
-    IdentRecPtr &curEnum = parseTypeRef::super.back()->curEnum;
-    bool &isPacked = parseTypeRef::super.back()->isPacked;
-    parseTypeRef::caserec &cases = parseTypeRef::super.back()->cases;
-
-    super.push_back(this);
-
-    if (SY != BEGINSY)
-        requiredSymErr(BEGINSY);
-    lookupMode = lookField;
-    inSymbol();
-
-    while (SY == IDENT) {
-        prevField = NULL;
-        do {
-            if (SY != IDENT) {
-                error(errNoIdent);
-            } else {
-                if (hashTravPtr != NULL)
-                    error(errIdentAlreadyDefined);
-                curEnum = new IdentRec;
-                addFieldToHash();
-                if (prevField == NULL) {
-                    curField = curEnum;
-                } else {
-                    prevField->list() = curEnum;
-                }
-                prevField = curEnum;
-                lookupMode = lookField;
-                inSymbol();
-            }
-            cond = (SY != COMMA);
-            if (not cond) {
-                lookupMode = lookField;
-                inSymbol();
-            }
-        } while (!cond);
-        checkSymAndRead(COLON);
-        packFields();
-        if (SY == SEMICOLON) {
-            lookupMode = lookField;
-            inSymbol();
-        }
-    }
-    if (SY == UNIONSY) {
-        lookupMode = lookField;
-        inSymbol();
-        if (SY != BEGINSY)
-            requiredSymErr(BEGINSY);
-        lookupMode = lookField;
-        inSymbol();
-        cases1 = cases;
-        cases2 = cases;
-        prevVariant.setRep(NULL);
-        variantIdx.ii = 0;
-        while (SY == STRUCTSY) {
-            lookupMode = lookField;
-            inSymbol();
-            newVariant.setRep(new Types);
-            newVariant.rep()->first = variantIdx.typ;
-            newVariant.rep()->next.setRep(NULL);
-            newVariant.rep()->alt.setRep(NULL);
-            newVariant.p.psize = cases.size;
-            newVariant.p.bits = 48;
-            newVariant.p.pk = kindCases;
-            if (prevVariant == NULL) {
-                if (curType.rep()->variants == NULL) {
-                    curType.rep()->variants = newVariant;
-                } else {
-                    rectype.rep()->first = newVariant;
-                }
-            } else {
-                prevVariant.rep()->next = newVariant;
-            }
-            prevVariant = newVariant;
-            tempType = newVariant;
-            parseRecordDecl(tempType, false);
-            if ((cases2.size < cases.size) or
-                (isPacked and (cases.size == 1) and (cases2.size == 1) and
-                 (cases.count == 1) and (cases2.count == 1) and
-                 (cases.pairs[1].first < cases2.pairs[1].first))) {
-                cases2 = cases;
-            }
-            cases = cases1;
-            variantIdx.ii = variantIdx.ii + 1;
-            if (SY == SEMICOLON) {
-                lookupMode = lookField;
-                inSymbol();
-            }
-        }
-        cases = cases2;
-        if (SY != ENDSY)
-            requiredSymErr(ENDSY);
-        lookupMode = lookField;
-        inSymbol();
-        if (SY == SEMICOLON) {
-            lookupMode = lookField;
-            inSymbol();
-        }
-    }
-    rectype.p.psize = cases.size;
-    if (isPacked and (cases.size == 1) and (cases.count == 1)) {
-        rectype.p.bits = 48 - cases.pairs[1].first;
-    } else {
-        rectype.p.bits = 48;
-    }
-    if (rectype.p.pk == kindStruct) {
-        prevField = rectype.rep()->fields;
-        while (prevField != NULL) {
-            prevField->uptype() = rectype;
-            prevField = prevField->list();
-        }
-    }
-    checkSymAndRead(ENDSY);
-} /* parseRecordDecl */
-
-void parseRange(int64_t & aleft, int64_t & aright)
-{
-    TPtr tempType{};
-    parseLiteral(tempType, curVal, true);
-    if (tempType != NULL and tempType.p.pk == kindScalar) {
-        inSymbol();
-        if (SY != COLON) {
-            // Handle a single value N as a range 0..N-1
-            aright = curVal.ii - 1;
-            aleft = 0;
-            return;
-        }
-        aleft = curVal.ii;
-        inSymbol();
-        parseLiteral(tempType, curVal, true);
-        inSymbol();
-        if (tempType != NULL and tempType.p.pk == kindScalar) {
-            aright = curVal.ii;
-            return;
-        }
-    }
-    error(64); /* errIncorrectRangeDefinition */
-    aleft = 0;
-    aright = 0;
-} /* parseRange */
-
-TPtr parseTypeRef::makeArrayType(rangeRec rg, TPtr elem, bool pckFlag)
+TPtr makeArrayType(rangeRec rg, TPtr elem, bool pckFlag)
 {
     bool makePacked;
+    int64_t span, l3int22z, numBits;
     int64_t sizeVal, bitsVal, perwordVal, pcksizeVal;
+    TPtr arrayType{};
 
     makePacked = pckFlag;
     span = rg.aright - rg.aleft + 1;
@@ -5524,7 +5296,7 @@ TPtr parseTypeRef::makeArrayType(rangeRec rg, TPtr elem, bool pckFlag)
         curVal.ii = (curVal.ii & BitRange(7,47)) | Bits(0);
         perwordVal = KMUL+ I8 + getFCSToffset();
     }
-    arrayType.setRep(new Types);
+    arrayType.setRep(besm6_alloc_record<Types>(offsetof(Types, szArray)));
     arrayType.rep()->aleft = rg.aleft;
     arrayType.rep()->aright = rg.aright;
     arrayType.rep()->base = elem;
@@ -5541,12 +5313,439 @@ TPtr parseTypeRef::makeArrayType(rangeRec rg, TPtr elem, bool pckFlag)
     return arrayType;
 } /* makeArrayType */
 
+struct parseTypeRef {
+    static std::vector<parseTypeRef*> super;
+    parseTypeRef(TPtr & newtype, int64_t skipTarget_);
+    ~parseTypeRef() { super.pop_back(); }
+    typedef std::pair<int64_t, int64_t> pair;
+    typedef pair pair7[8]; // array [1..7] of pair;
+    typedef struct {
+            int64_t size, count;
+            pair7 pairs;
+    } caserec;
+
+    int64_t skipTarget;
+    bool isPacked;
+    // Set when this call resolved its base type via the forward-reference
+    // placeholder path below (an undefined name used mid-typedef, e.g.
+    // 'typedef expr *eptr;' parsed before 'expr' itself is defined): the
+    // returned curType is a heap-allocated (allocPtr, not compact
+    // getPtrType) pointer-to-int stand-in whose base field the *later*
+    // real definition of the name patches in place. Callers applying a
+    // declarator '*' directly to such a curType must reuse it as-is
+    // instead of wrapping it in another getPtrType -- see parseOneDeclarator.
+    bool isForwardRef;
+    bool cond;
+    caserec cases;
+    int64_t numBits, l3int22z, span, rangeCnt, curDim;
+    IdentRecPtr curEnum, curField;
+    TPtr arrayType{}, nestedType{}, tempType{}, curType{};
+    rangeList ranges;
+    rangeRec curRange;
+    IdentRecPtr l3idr31z;
+
+    void definePtrType(TPtr toType) {
+        IdentRecPtr & typelist = programme::super.back()->typelist;
+        /* Heap-allocated pointer descriptor (forward-placeholder, patched in
+           place when the real pointee type is later defined). */
+        curType.setRep(besm6_alloc_record<Types>(offsetof(Types, szPtr)));
+        curType.rep()->base = toType;
+        curType.p.psize = 1;
+        curType.p.bits = 15;
+        curType.p.pk = kindPtr;
+        curEnum = besm6_alloc_record<IdentRec>(offsetof(IdentRec, szIdent));
+        curEnum->pck.nidx = ord(typelist);
+        curEnum->id = curIdent;
+        curEnum->pck.offset = lineCnt;
+        curEnum->typ = curType;
+        curEnum->pck.cl = TYPEID;
+        typelist = curEnum;
+    } /* definePtrType */
+};
+std::vector<parseTypeRef*> parseTypeRef::super;
+
+// --- Unified C declarator parsing -----------------------------------
+//
+// One declarator grammar shared by var/typedef/struct-field (grouped:
+// one type-spec, comma-separated declarator list) and function
+// parameters (individual: each comma-separated item carries its own
+// type-spec). No Pascal `name: type` fallback — see the
+// the-idea-is-to-kind-naur plan.
+//
+// Placed here (right after parseTypeRef's declaration, ahead of its
+// out-of-line constructor and of parseRecordDecl) so both can call
+// parseGroupedDecls; parseRange's full definition comes later, hence
+// the forward declaration.
+void parseRange(int64_t & aleft, int64_t & aright);
+
+struct Declarator {
+    int64_t name = 0;
+    int64_t bucket = 0;
+    // wasDefined mirrors isDefined, meaningful only under lookDef (var/
+    // typedef/param namespaces): inSymbol's case 0 sets isDefined when an
+    // entry already exists at the current scope. lookField (struct
+    // fields) never sets isDefined at all -- its own match check instead
+    // leaves hashTravPtr pointing at the match (or NULL), captured below
+    // as foundRec (foundRec != NULL is the field "already defined" signal).
+     bool wasDefined = false;
+    // The matched symbol-table entry itself (NULL if none), so a caller
+    // merging routine/variable dispatch (see the 'no VARSY' unified TYPESY
+    // loop in programme's constructor) can check cl/preDefLink/typ to
+    // recognize a forward-declared routine being redefined, without a
+    // second hash lookup.
+    IdentRecPtr foundRec = NULL;
+    TPtr type{};
+};
+
+struct DclOp {
+    bool isPtr;
+    rangeRec range;
+};
+
+// '*'* ('(' declarator ')' | IDENT) ('[' range ']')*
+// Collects pointer/array operators while descending; the caller applies
+// them in reverse so precedence matches C: `int *a[10]` is an array of
+// pointers (the array op is pushed by the inner IDENT case before the
+// enclosing '*' case pushes its own op on the way back out); `int
+// (*row)[3]` is a pointer to an array (the parens make the '*' push
+// before the outer '[3]' does).
+void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
+{
+    if (charClass == MUL) {
+        inSymbol();
+        readDeclaratorCore(ops, d);
+        ops.push_back({true, {}});
+    } else if (SY == LPAREN) {
+        inSymbol();
+        readDeclaratorCore(ops, d);
+        checkSymAndRead(RPAREN);
+    } else if (SY == IDENT) {
+        d.name = curIdent;
+        d.bucket = bucket;
+        d.wasDefined = isDefined /* ||
+            (lookupMode == lookDef &&
+             (curIdent == litInput || curIdent == litOutput)) */;
+        d.foundRec = hashTravPtr;
+        inSymbol();
+    } else {
+        error(errNoIdent);
+        d.name = 0;
+    }
+    while (SY == LBRACK) {
+        inSymbol();
+        rangeRec r{};
+        parseRange(r.aleft, r.aright);
+        checkSymAndRead(RBRACK);
+        ops.push_back({false, r});
+    }
+}
+
+// packedFlag mirrors parseTypeRef's own array-suffix handling ('TYPE
+// [range]', its curDim==1 case): only the outermost array dimension of
+// a multi-dim declarator (e.g. int matrix[2][3]'s [2]) carries it, since
+// pckFlag describes how elements of the final array are packed, not
+// each nesting level. ops is applied innermost-first (reverse of source
+// order), so the outermost dimension is ops.front(), processed last.
+Declarator parseOneDeclarator(TPtr baseType, bool packedFlag = false,
+                              bool isForwardRef = false)
+{
+    Declarator d;
+    std::vector<DclOp> ops;
+    readDeclaratorCore(ops, d);
+    d.type = baseType;
+    bool firstOp = true;
+    for (auto it = ops.rbegin(); it != ops.rend(); ++it) {
+        if (it->isPtr) {
+            // baseType is already the forward-reference placeholder
+            // pointer itself (see parseTypeRef::isForwardRef) -- applying
+            // getPtrType on top would compact-encode a second, bogus
+            // pointer-to-pointer layer that never gets patched when the
+            // real type is later defined. Only the very first op can be
+            // this case (it's applied directly to baseType).
+            if (not (firstOp and isForwardRef))
+                d.type = getPtrType(d.type);
+        } else
+            d.type = makeArrayType(it->range, d.type,
+                                   packedFlag and (&*it == &ops.front()));
+        firstOp = false;
+    }
+    return d;
+}
+
+// Parses 'TYPE decl (, decl)* ;' (var/typedef/struct-field grouped
+// form): one type-spec via parseTypeRef, then comma-separated
+// declarators sharing it. Caller supplies `reg` to register each
+// resulting declarator (as a var, typedef name, or field).
+void parseGroupedDecls(int64_t skipTarget,
+                       std::function<void(Declarator&)> reg)
+{
+    TPtr baseTy{};
+    // Named (not a temporary) so isPacked is still readable after the
+    // type-spec is parsed, to apply to each declarator's own array
+    // suffix below (parseTypeRef's own '__packed TYPE[range]' form
+    // consumes/resets isPacked itself, but here the range is a
+    // declarator suffix, not part of the type-spec tokens, so nothing
+    // resets it). Scoped to end right here, though: parseTypeRef::super
+    // must be popped back to the *enclosing* type-spec (e.g. the struct
+    // this field-group belongs to, if any) before reg() runs below --
+    // packOneField reads parseTypeRef::super.back()->cases expecting
+    // that enclosing record's running bit-packing state, not this
+    // field's own fresh one, and every struct's psize silently came out
+    // 0 (breaking array-of-struct sizing) while typeParser was still on
+    // the stack during registration.
+    bool packedFlag;
+    bool forwardRef;
+    {
+        parseTypeRef typeParser(baseTy, skipTarget | Bits(COMMA, SEMICOLON));
+        packedFlag = typeParser.isPacked;
+        forwardRef = typeParser.isForwardRef;
+    }
+    bool more;
+    do {
+        Declarator d = parseOneDeclarator(baseTy, packedFlag, forwardRef);
+        if (d.name != 0)
+            reg(d);
+        more = (SY == COMMA);
+        if (more)
+            inSymbol();
+    } while (more);
+    checkSymAndRead(SEMICOLON);
+}
+
+struct parseRecordDecl {
+    static std::vector<parseRecordDecl*> super;
+    parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion_);
+    ~parseRecordDecl() { super.pop_back(); }
+
+    bool isOuterDecl;
+    bool isUnion;
+    IdentRecPtr prevField;
+    parseTypeRef::caserec cases1, cases2;
+};
+std::vector<parseRecordDecl*> parseRecordDecl::super;
+
+// True if union member `c` extends the union past the running maximum `mx`.
+// Bigger by word size, or (for a single packed word) using more bits --
+// preserving the exact overlap rule of the former variant-tail loop.
+static bool unionMemberBigger(const parseTypeRef::caserec & mx,
+                              const parseTypeRef::caserec & c, bool packed)
+{
+    return (mx.size < c.size) or
+           (packed and (c.size == 1) and (mx.size == 1) and
+            (c.count == 1) and (mx.count == 1) and
+            (c.pairs[1].first < mx.pairs[1].first));
+}
+
+// Assigns fld's offset (and, in a __packed struct, its bit shift/width)
+// within the enclosing record's shared bit-packing state (cases), then
+// bumps that state past fld. Called once per field of a C-style
+// grouped declaration ('TYPE a, b;'), each with its own already-resolved
+// fldType (a, b may differ once pointer/array declarator ops are applied).
+void packOneField(IdentRecPtr fld, TPtr fldType)
+{
+    int64_t fieldWidth, pairIdx, minFirst, scanIdx, curFirst;
+    parseTypeRef::pair * curSlot;
+
+    parseTypeRef::caserec &cases = parseTypeRef::super.back()->cases;
+    bool &isPacked = parseTypeRef::super.back()->isPacked;
+
+    fld->typ = fldType;
+    if (isPacked) {
+        fieldWidth = typeBits(fldType);
+        fld->width() = fieldWidth;
+        if (fieldWidth != 48) {
+            for (pairIdx = 1; pairIdx <= cases.count; ++pairIdx) {
+L11523:         curSlot = &cases.pairs[pairIdx];
+                if (curSlot->first >= fieldWidth) {
+                    fld->shift() = 48 - curSlot->first;
+                    fld->pck.offset = curSlot->second;
+                    if (not has(optSflags.ii, S6))
+                        fld->shift() = 48 - fld->width() - fld->shift();
+                    curSlot->first = curSlot->first - fieldWidth;
+                    if (curSlot->first == 0) {
+                        cases.pairs[pairIdx] = cases.pairs[cases.count];
+                        cases.count = cases.count - 1;
+                    }
+                    goto L11622;
+                }
+            }
+            if (cases.count != 7) {
+                cases.count = cases.count + 1;
+                pairIdx = cases.count;
+            } else {
+                minFirst = 48;
+                for (scanIdx = 1; scanIdx <= 7; ++scanIdx) {
+                    curFirst = cases.pairs[scanIdx].first;
+                    if (curFirst < minFirst) {
+                        minFirst = curFirst;
+                        pairIdx = scanIdx;
+                    }
+                } /* for */
+            }
+            cases.pairs[pairIdx] = std::make_pair(48, cases.size);
+            cases.size = cases.size + 1;
+            goto L11523;
+        }
+    }
+    fld->pckfield() = false;
+    fld->pck.offset = cases.size;
+    cases.size = cases.size + typeSize(fldType);
+L11622:
+    if (PASINFOR.listMode == 3) {
+        printf("%16c", ' ');
+        if (fld->pckfield())
+            printf("PACKED");
+        printf(" FIELD ");
+        printTextWord(fld->id);
+        printf(".OFFSET=%05loB", (long)fld->pck.offset);
+        if (fld->pckfield()) {
+            printf(".<<=SHIFT=%2ld. WIDTH=%2ld BITS", fld->shift(),
+                   fld->width());
+        } else {
+            printf(".WORDS=%ld", typeSize(fldType));
+        }
+        putchar('\n');
+    }
+} /* packOneField */
+
+parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion_)
+    : isOuterDecl(isOuterDecl_), isUnion(isUnion_)
+{
+    TPtr &curType = parseTypeRef::super.back()->curType;
+    IdentRecPtr &curEnum = parseTypeRef::super.back()->curEnum;
+    IdentRecPtr &l3idr31z = parseTypeRef::super.back()->l3idr31z;
+    bool &isPacked = parseTypeRef::super.back()->isPacked;
+    int64_t &skipTarget = parseTypeRef::super.back()->skipTarget;
+    parseTypeRef::caserec &cases = parseTypeRef::super.back()->cases;
+    int64_t savedLookup2 = lookup2;
+
+    super.push_back(this);
+
+    if (SY != BEGINSY)
+        requiredSymErr(BEGINSY);
+    // lookup2 (not just lookupMode) must carry lookField through
+    // parseTypeRef's own internal inSymbol() calls -- every inSymbol()
+    // resets lookupMode := lookup2 on exit, so a field's declarator name
+    // a few tokens into its type-spec is classified under whatever
+    // lookup2 holds, not this line's lookupMode. Restored to the caller's
+    // value below (this ctor recurses into itself for anonymous nested
+    // members, and runs while an outer context's own lookup2 is still live).
+    lookup2 = lookField;
+    lookupMode = lookField;
+    inSymbol();
+
+    // A record body is a member list terminated by ENDSY. In a struct the
+    // members are laid out sequentially; in a union they overlap at the base
+    // (cases1) and the record spans the largest of them (cases2). A member is
+    // either a C field group ('TYPE a, b;' -- one FIELDID per declarator,
+    // packed onto the shared flat field chain; TYPE may be a named nested
+    // record) or an inline anonymous nested struct/union, whose fields are
+    // parsed straight into curType (promoted -- true-C anonymous members).
+    // Inline 'struct {'/'union {' in a body is always anonymous; a named
+    // nested record uses a typedef'd type name.
+    cases1 = cases;                     // union base: offset + packing state
+    cases2 = cases;                     // running max extent (union only)
+    while (has(Bits(IDENT, TYPESY, ENUMSY, STRUCTSY) | Bits(UNIONSY, PACKEDSY), SY)) {
+        if (SY == STRUCTSY or SY == UNIONSY) {
+            bool nestedIsUnion = (SY == UNIONSY);
+            if (isUnion)
+                cases = cases1;
+            lookupMode = lookField;
+            inSymbol();                 // consume 'struct'/'union'
+            parseRecordDecl(curType, false, nestedIsUnion);   // consumes { ... }
+            if (isUnion and unionMemberBigger(cases2, cases, isPacked))
+                cases2 = cases;
+            if (SY == SEMICOLON) {
+                lookupMode = lookField;
+                inSymbol();
+            }
+        } else {
+            parseGroupedDecls(skipTarget | Bits(UNIONSY, STRUCTSY, ENDSY),
+                [&](Declarator & d) {
+                    // In a union each declarator is a separate member starting
+                    // at the union base.
+                    if (isUnion)
+                        cases = cases1;
+                    // lookField never sets isDefined (see Declarator);
+                    // foundRec != NULL is the correct "already a field of this
+                    // record" signal here.
+                    if (d.foundRec != NULL)
+                        error(errIdentAlreadyDefined);
+                    curEnum = besm6_alloc_record<IdentRec>(
+                        offsetof(IdentRec, szField));
+                    curEnum->id = d.name;
+                    curEnum->pck.nidx = ord(fieldHash[d.bucket]);
+                    curEnum->pck.cl = FIELDID;
+                    curEnum->uptype() = curType;
+                    curEnum->pckfield() = isPacked;
+                    fieldHash[d.bucket] = curEnum;
+                    if (curType.rep()->fields == NULL)
+                        curType.rep()->fields = curEnum;
+                    else
+                        l3idr31z->list() = curEnum;
+                    l3idr31z = curEnum;
+                    packOneField(curEnum, d.type);
+                    if (isUnion and unionMemberBigger(cases2, cases, isPacked))
+                        cases2 = cases;
+                });
+        }
+        lookupMode = lookField;
+    }
+    if (isUnion)
+        cases = cases2;
+
+    // psize/bits belong to the *type* being defined; an inline anonymous
+    // member (isOuterDecl_ == false) has no type of its own -- its extent is
+    // already reflected in the shared `cases` that its caller reads.
+    if (isOuterDecl_) {
+        rectype.p.psize = cases.size;
+        if (isPacked and (cases.size == 1) and (cases.count == 1))
+            rectype.p.bits = 48 - cases.pairs[1].first;
+        else
+            rectype.p.bits = 48;
+        prevField = rectype.rep()->fields;
+        while (prevField != NULL) {
+            prevField->uptype() = rectype;
+            prevField = prevField->list();
+        }
+    }
+    lookup2 = savedLookup2;
+    checkSymAndRead(ENDSY);
+} /* parseRecordDecl */
+
+void parseRange(int64_t & aleft, int64_t & aright)
+{
+    TPtr tempType{};
+    parseLiteral(tempType, curVal, true);
+    if (tempType != NULL and tempType.p.pk == kindScalar) {
+        inSymbol();
+        if (SY != COLON) {
+            // Handle a single value N as a range 0..N-1
+            aright = curVal.ii - 1;
+            aleft = 0;
+            return;
+        }
+        aleft = curVal.ii;
+        inSymbol();
+        parseLiteral(tempType, curVal, true);
+        inSymbol();
+        if (tempType != NULL and tempType.p.pk == kindScalar) {
+            aright = curVal.ii;
+            return;
+        }
+    }
+    error(64); /* errIncorrectRangeDefinition */
+    aleft = 0;
+    aright = 0;
+} /* parseRange */
+
 parseTypeRef::parseTypeRef(TPtr & newtype, int64_t skipTarget_)
     : skipTarget(skipTarget_)
 {
     bool &inTypeDef = programme::super.back()->inTypeDef;
     super.push_back(this);
     isPacked = false;
+    isForwardRef = false;
 L12247:
     if (SY == IDENT)
         markTypeSym();
@@ -5556,13 +5755,20 @@ L12247:
         span = 0;
         lookupMode = lookDef;
         curField = NULL;
-        curType.setRep(new Types);
+        curType.setRep(
+            besm6_alloc_record<Types>(offsetof(Types, szScalar)));
         while (SY == IDENT) {
-            if (isDefined)
+            if (isDefined || curIdent == litInput || curIdent == litOutput)
                 error(errIdentAlreadyDefined);
-            curEnum = new IdentRec(curIdent, curFrameRegTemplate,
-                                   symHash[bucket], curType,
-                                   ENUMID, NULL, span);
+            curEnum = besm6_alloc_record<IdentRec>(
+                offsetof(IdentRec, szIdent));
+            curEnum->pck.nidx = ord(symHash[bucket]);
+            curEnum->id = curIdent;
+            curEnum->pck.offset = curFrameRegTemplate;
+            curEnum->typ = curType;
+            curEnum->pck.cl = ENUMID;
+            curEnum->list() = NULL;
+            curEnum->value() = span;
             symHash[bucket] = curEnum;
             span = span + 1;
             if (curField == NULL) {
@@ -5588,7 +5794,7 @@ L12247:
             curType.rep()->numen = span;
             curType.rep()->start = 0;
             curType.p.psize = 1;
-            curType.p.bits = nrOfBits(span - 1);
+            curType.p.bits = 48 - minel((span - 1) & ((1L << 48) - 1));
             curType.p.pk = kindScalar;
             curEnum = curType.rep()->enums;
             while (curEnum != NULL) {
@@ -5623,6 +5829,19 @@ L12366:             error(errNotAType);
     } else if (SY == IDENT or SY == TYPESY) {
         if (SY == TYPESY) {
             curType = hashTravPtr->typ;
+        } else if (hashTravPtr == NULL and inTypeDef) {
+            // C-style forward-referenced typedef pointer, e.g.
+            // 'typedef expr *eptr;' parsed before 'expr' itself is
+            // defined (common for mutually-recursive record types).
+            // Mirrors the '^expr' handling in the MUL branch above,
+            // just entered from a bare (not '*'-prefixed) name because
+            // here the '*' is the caller's declarator, not ours.
+            if (knownInType(curEnum)) {
+                curType = curEnum->typ;
+            } else {
+                definePtrType(IntegerType);
+            }
+            isForwardRef = true;
         } else
             goto L12366;
         inSymbol();
@@ -5642,9 +5861,13 @@ L12366:             error(errNotAType);
             inSymbol();
             goto L12247;
         }
-        if (SY == STRUCTSY) {
-            curType.setRep(new Types);
-            typ121z = curType;
+        if (SY == STRUCTSY or SY == UNIONSY) {
+            // A union is a kindStruct whose members overlap (same base offset,
+            // size = max member); the only difference from a struct is the
+            // layout mode passed to parseRecordDecl.
+            bool typeIsUnion = (SY == UNIONSY);
+            curType.setRep(
+                besm6_alloc_record<Types>(offsetof(Types, szStruct)));
             curType.rep()->variants.setRep(NULL);
             curType.rep()->fields = NULL;
             curType.rep()->flag = false;
@@ -5652,10 +5875,17 @@ L12366:             error(errNotAType);
             curType.p.psize = 0;
             curType.p.bits = 48;
             curType.p.pk = kindStruct;
+            // Captured after curType's word is fully set (psize/bits/pk),
+            // not right after setRep(): typ121z is compared word-for-word
+            // (TPtr::operator==) against each field's uptype() in
+            // inSymbol's lookField case, so a premature snapshot here
+            // would silently defeat every "already a field of this
+            // record" duplicate check.
+            typ121z = curType;
             cases.size = 0;
             cases.count = 0;
             inSymbol();
-            parseRecordDecl(curType, true);
+            parseRecordDecl(curType, true, typeIsUnion);
         } else {
             error(errNotAType);
         }
@@ -5751,7 +5981,7 @@ void parseDecls(int64_t l3arg1z)
         prevErrPos = 0;
         printf("IDENT ");
         printTextWord(l2var12z);
-        printf(" IN LINE %ld", curIdRec->offset);
+        printf(" IN LINE %ld", (long)curIdRec->pck.offset);
     } break;
     case 2: {
         padToLeft();
@@ -5973,7 +6203,7 @@ L55:        lookupMode = lookField;
 
 void parseLval()
 {
-    if (hashTravPtr->cl == FIELDID) {
+    if (hashTravPtr->pck.cl == FIELDID) {
         /* Implicit field of the `with` variable: build GETFIELD on
            withIter directly, then continue with any further postfix. */
         curExpr = mkExpr(GETFIELD, hashTravPtr->typ,
@@ -5988,7 +6218,10 @@ void parseLval()
 
 void castToReal(ExprPtr & value)
 {
-    value = mkExpr(TOREAL, RealType, value, NULL);
+    /* Fold at construction when the operand is already constant, so a mixed
+       int/real constant expression collapses to a single GETENUM node (the
+       one case bldArithOp routes through here). */
+    value = mkUnaryFold(TOREAL, RealType, value);
 } /* castToReal */
 
 bool areTypesCompatible(ExprPtr & other)
@@ -6047,7 +6280,7 @@ void parseCallArgs(IdentRecPtr subroutine)
             expression();
             actualOp = curExpr->op;
             if (noArgs) { /*(a)*/
-                formClass = curFormal->cl;
+                formClass = (IdClass)curFormal->pck.cl;
                 if (actualOp == PCALL) {
                     if (formClass != ROUTINEID or
                         curFormal->typ != voidType) {
@@ -6120,7 +6353,7 @@ void bldBitOp(Operator oper, ExprPtr leftArg)
         error(errNeedOtherTypesOfOperands);
         return;
     }
-    curExpr = mkExpr(oper, arg1Type, leftArg, curExpr);
+    curExpr = mkExprFold(oper, arg1Type, leftArg, curExpr);
 } /* bldBitOp */
 
 void bldArithOp(Operator oper, ExprPtr leftExpr, [[maybe_unused]] bool match)
@@ -6162,7 +6395,7 @@ void bldArithOp(Operator oper, ExprPtr leftExpr, [[maybe_unused]] bool match)
         resOp = intOpMap[oper];
         resTyp = IntegerType;
     }
-    curExpr = mkExpr(resOp, resTyp, leftExpr, curExpr);
+    curExpr = mkExprFold(resOp, resTyp, leftExpr, curExpr);
 } /* bldArithOp */
 
 void bldRelOp(Operator oper, ExprPtr ex2)
@@ -6198,7 +6431,7 @@ void bldLogOp(Operator oper, ExprPtr leftExpr, bool match)
         ((arg1Type != BooleanType) and (arg1Type != IntegerType)))
         error(errNeedOtherTypesOfOperands);
     else
-        curExpr = mkExpr(oper, BooleanType, leftExpr, curExpr);
+        curExpr = mkExprFold(oper, BooleanType, leftExpr, curExpr);
 } /* bldLogOp */
 
 void bldCondOp(ExprPtr condExpr, ExprPtr thenExpr)
@@ -6294,7 +6527,7 @@ void Factor::stdCall()
                     error(errNotDefined);
                     resultValue = 0;
                 } else {
-                    resultValue = hashTravPtr->offset;
+                    resultValue = hashTravPtr->pck.offset;
                 }
                 inSymbol();
             }
@@ -6379,7 +6612,7 @@ Factor::Factor()
                 curExpr = uVarPtr;
                 inSymbol();
             } else
-                switch (hashTravPtr->cl) {
+                switch (hashTravPtr->pck.cl) {
                 case ENUMID: {
                     curExpr = new Expr;
                     curExpr->vt.typ = hashTravPtr->typ;
@@ -6391,7 +6624,7 @@ Factor::Factor()
                 case ROUTINEID: { /*(rout)*/
                     routine = hashTravPtr;
                     inSymbol();
-                    if (routine->offset == 0) {
+                    if (routine->pck.offset == 0) {
                         if (routine->typ != voidType and
                             SY == LPAREN) {
                             stdCall();
@@ -6538,9 +6771,9 @@ void parseUnaryExpression()
         switch (oper) {
         case MINUSOP: {
             if (arg1Type == RealType)
-                curExpr = mkExpr(RNEGOP, RealType, curExpr, NULL);
+                curExpr = mkUnaryFold(RNEGOP, RealType, curExpr);
             else if (typeCheck(arg1Type, IntegerType))
-                curExpr = mkExpr(INEGOP, IntegerType, curExpr, NULL);
+                curExpr = mkUnaryFold(INEGOP, IntegerType, curExpr);
             else {
                 error(69); /* errUnaryMinusNeedRealOrInteger */
                 return;
@@ -6548,7 +6781,7 @@ void parseUnaryExpression()
         } break;
         case BITNEGOP: {
             if (typeCheck(arg1Type, IntegerType))
-                curExpr = mkExpr(BITNEGOP, IntegerType, curExpr, NULL);
+                curExpr = mkUnaryFold(BITNEGOP, IntegerType, curExpr);
             else {
                 error(62); /* errIntegerNeeded */
                 return;
@@ -6556,7 +6789,7 @@ void parseUnaryExpression()
         } break;
         case NOTOP: {
             if (arg1Type == BooleanType)
-                curExpr = mkExpr(NOTOP, BooleanType, curExpr, NULL);
+                curExpr = mkUnaryFold(NOTOP, BooleanType, curExpr);
             else if (arg1Type == IntegerType) {
                 curExpr = mkExpr(EQOP, BooleanType, curExpr, mkIntLit(0));
             } else {
@@ -6927,9 +7160,9 @@ void caseStatement()
                 if (SY != CASESY)
                     requiredSymErr(CASESY);
                 expression();
-                (void) formOperator(LITINSN);
+                takeConstFromExpr();
                 itemvalue = curVal;
-                itemtype = insnList->typ;
+                itemtype = curExpr->vt.typ;
                 if (itemtype.rep() != NULL) {
                     if (firstType.rep() == NULL) {
                         firstType = itemtype;
@@ -7151,7 +7384,7 @@ L16545:             error(errNotDefined);
                     curExpr = uVarPtr;
                     inSymbol();
                 } else {
-                    if (hashTravPtr->cl == VARID) {
+                    if (hashTravPtr->pck.cl == VARID) {
                         parseLval();
                     } else goto L16545;
                 }
@@ -7167,7 +7400,7 @@ L16545:             error(errNotDefined);
             l4var9z.ii = 0;
             do { /* 16574 */
                 expression();
-                (void) formOperator(LITINSN);
+                takeConstFromExpr();
                 l4var8z = curVal;
                 if (SY == COLON) {
                     inSymbol();
@@ -7219,8 +7452,8 @@ void parseConstExpression()
     ceTyp = voidType;
     ceVal.ii = 1;
     expression();
-    (void) formOperator(LITINSN);
-    ceTyp = insnList->typ;
+    takeConstFromExpr();
+    ceTyp = curExpr->vt.typ;
     ceVal = curVal;
     rollup(boundary);
 } /* parseConstExpression */
@@ -7430,12 +7663,40 @@ struct standProc {
         (void) formOperator(PCKUNPCK);
     } /* doPackUnpack */
 
-    standProc() { /* standProc */
-        IdentRecPtr &l3idr12z = Statement::super.back()->l3idr12z;
-        TPtr &l2typ13z = programme::super.back()->l2typ13z;
+    void returnOp() {
         IdentRecPtr &procName = programme::super.back()->procName;
         int64_t &hasFiles = programme::super.back()->hasFiles;
         bool &retSeen = programme::super.back()->retSeen;
+
+        if (not has(statEndSys, SY)) {
+            /* return expr: load expr to ACC, then jump */
+            if (procName->typ == voidType)
+                error(errNeedOtherTypesOfOperands);
+            else {
+                if (hasFiles != 0) {
+                    printf(" functions must not use files\n");
+                    error(200);
+                }
+                retSeen = true;
+                readNext = false;
+                expression();
+                if (typeCheck(procName->typ, curExpr->vt.typ)) {
+                    /* OK */
+                } else if (procName->typ == RealType and
+                           typeCheck(IntegerType, curExpr->vt.typ)) {
+                    castToReal(curExpr);
+                } else
+                    error(33); /* errIllegalTypesForAssignment */
+                (void) formOperator(LOAD);
+            }
+        } else if (procName->typ != voidType)
+            error(errNeedOtherTypesOfOperands);
+        form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
+    } /* returnOp */
+
+    standProc() { /* standProc */
+        IdentRecPtr &l3idr12z = Statement::super.back()->l3idr12z;
+        TPtr &l2typ13z = programme::super.back()->l2typ13z;
         int64_t &ii = programme::super.back()->ii;
 
         curVal.ii = l3idr12z->low();
@@ -7535,35 +7796,12 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
             }
         } break;
         case 14: { /* return [expr] */
-            if (not has(statEndSys, SY)) {
-                /* return expr: load expr to ACC, then jump */
-                if (procName->typ == voidType)
-                    error(errNeedOtherTypesOfOperands);
-                else {
-                    if (hasFiles != 0) {
-                        printf(" functions must not use files\n");
-                        error(200);
-                    }
-                    retSeen = true;
-                    readNext = false;
-                    expression();
-                    if (typeCheck(procName->typ, curExpr->vt.typ)) {
-                        /* OK */
-                    } else if (procName->typ == RealType and
-                               typeCheck(IntegerType, curExpr->vt.typ)) {
-                        castToReal(curExpr);
-                    } else
-                        error(33); /* errIllegalTypesForAssignment */
-                    (void) formOperator(LOAD);
-                }
-            } else if (procName->typ != voidType)
-                error(errNeedOtherTypesOfOperands);
-            form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
+            returnOp();
             return;
         } break;
         case 16: { /* besm */
             expression();
-            (void) formOperator(LITINSN);
+            takeConstFromExpr();
             formAndAlign(curVal.ii);
         } break;
         case 19: case 20: { /* pck, unpck */
@@ -7637,10 +7875,10 @@ Statement::Statement()
 /*(ident)*/
             if (SY == IDENT) {
                 if (hashTravPtr != NULL) {
-                    l3var6z = hashTravPtr->cl;
+                    l3var6z = (IdClass)hashTravPtr->pck.cl;
                     if (l3var6z == ROUTINEID) {
                         l3idr12z = hashTravPtr;
-                        if (l3idr12z->offset == 0) {
+                        if (l3idr12z->pck.offset == 0) {
                             /* System procedure (WRITE, PUT, GET, NEW, ...):
                                special syntax, handled directly. */
                             inSymbol();
@@ -7683,7 +7921,7 @@ Statement::Statement()
               L_rep:
                 inSymbol();
               L_skip:
-                while (SY != ENDSY)
+                while (SY != ENDSY and CH != 0)
                     Statement();
                 if (SY != ENDSY) {
                     stmtName = " BEGIN";
@@ -7776,6 +8014,18 @@ Statement::Statement()
                 brContTarget(); /* removing break */
             } else if (SY == WITHSY) {
                 withStatement();
+            } else if (has(Bits(TYPEDEFSY, TYPESY, CONSTSY) |
+                           Bits(ENUMSY, STRUCTSY, UNIONSY) | Bits(PACKEDSY), SY)) {
+                /* A declaration keyword reached statement context -- it leaked
+                   here from a malformed routine header (see bad.p2c).  Report
+                   and consume it so the enclosing 'while (SY != ENDSY)
+                   Statement()' loops make progress instead of spinning.  Only
+                   these keywords are caught: other stray tokens (the SEMICOLON
+                   of a labelled empty statement, CASESY/DEFAULTSY between switch
+                   arms) keep the original silent-return behaviour, so valid
+                   code is unaffected. */
+                error(errBadSymbol);
+                inSymbol();
             }
           exit_ident:;
         } catch (int foo) {
@@ -7869,7 +8119,7 @@ void defineRoutine(bool bodyBlock = false)
         if (procName->typ != voidType)
             l3int4z = 4;
         while (l3idr5z != procName) {
-            if (l3idr5z->cl == VARID) {
+            if (l3idr5z->pck.cl == VARID) {
                 l3var2z.ii = typeSize(l3idr5z->typ);
                 if (l3var2z.ii != 1) {
                     form3Insn(KVTM+I14 + l3int4z,
@@ -7900,9 +8150,18 @@ void defineRoutine(bool bodyBlock = false)
             else
                 done = has(blockBegSys, SY) or (SY == TYPESY) or (CH == 0);
             if (not done) {
-                if (curProcNesting == 1)
+                if (curProcNesting == 1) {
                     requiredSymErr(PERIOD);
-                else {
+                    // requiredSymErr does not advance SY/CH (it may not
+                    // even report -- it suppresses repeats at the same
+                    // linePos), so without this, a malformed top-level
+                    // program whose last Statement() call also makes no
+                    // progress spins here forever: no new errors ever
+                    // fire (blocking the "too many errors" abort too),
+                    // and 'done' can never become true on its own.
+                    if (SY != PERIOD and CH != 0)
+                        inSymbol();
+                } else {
                     errAndSkip(errBadSymbol, skipToSet);
                 }
             }
@@ -7951,7 +8210,7 @@ void defineRoutine(bool bodyBlock = false)
 } /* defineRoutine */
 
 struct initScalars {
-    Word l3var1z, outName, inName, savedIdent;
+    Word l3var1z, savedIdent;
     int64_t l3var5z, l3var6z;
     IdentRecPtr l3var7z;
     int64_t l3var8z, sysProcNum;
@@ -7960,37 +8219,46 @@ struct initScalars {
     IdentRecPtr &curIdRec;
 
     void regSysType(int64_t l4arg1z, TPtr l4arg2z) {
-        curIdRec = new IdentRec;
+        curIdRec = besm6_alloc_record<IdentRec>(
+            offsetof(IdentRec, szIdent));
         // curIdRec@ := [l4arg1z, 0, , l4arg2z, TYPEID];
         curIdRec->id = l4arg1z;
-        curIdRec->offset = 0;
+        curIdRec->pck.offset = 0;
         curIdRec->typ = l4arg2z;
-        curIdRec->cl = TYPEID;
+        curIdRec->pck.cl = TYPEID;
         addToHashTab(curIdRec);
     } /* regSysType */
 
     void regSysEnum(int64_t l4arg1z, int64_t l4arg2z) {
-        curIdRec = new IdentRec;
+        curIdRec = besm6_alloc_record<IdentRec>(
+            offsetof(IdentRec, szIdent));
         // curIdRec@ := [l4arg1z, 48, , temptype, ENUMID, NIL, l4arg2z];
         curIdRec->id = l4arg1z;
-        curIdRec->offset = 48;
+        curIdRec->pck.offset = 48;
         curIdRec->typ = temptype;
-        curIdRec->cl = ENUMID;
+        curIdRec->pck.cl = ENUMID;
         curIdRec->list() = NULL;
         curIdRec->value() = l4arg2z;
         addToHashTab(curIdRec);
     } /* regSysEnum */
 
     void regSysProc(int64_t l4arg1z) {
-        curIdRec = new IdentRec;
-        // curIdRec@ := [l4arg1z, 0, , temptype, ROUTINEID, sysProcNum];
-        curIdRec->id = l4arg1z;
-        curIdRec->offset = 0;
-        curIdRec->typ = temptype;
-        curIdRec->cl = ROUTINEID;
-        curIdRec->procno() = sysProcNum;
+        // A zero name is a retired/reserved slot (e.g. the removed SQRT..EXP
+        // maths procs): it still consumes a sysProcNum -- some are referenced
+        // by number via fn* constants -- but nothing looks it up by name, so
+        // skip its (dead) identrec allocation.
+        if (l4arg1z != 0) {
+            curIdRec = besm6_alloc_record<IdentRec>(
+                offsetof(IdentRec, szSys));
+            // curIdRec@ := [l4arg1z, 0, , temptype, ROUTINEID, sysProcNum];
+            curIdRec->id = l4arg1z;
+            curIdRec->pck.offset = 0;
+            curIdRec->typ = temptype;
+            curIdRec->pck.cl = ROUTINEID;
+            curIdRec->procno() = sysProcNum;
+            addToHashTab(curIdRec);
+        }
         sysProcNum = sysProcNum + 1;
-        addToHashTab(curIdRec);
     } /* registerSysProc */
 
     void defExtern();
@@ -8001,19 +8269,21 @@ void initScalars::defExtern()
 {
     int64_t l = 0;
     l3var1z.ii = leftAlign(curIdent);
-    if (curIdent == inName.ii) {
-        inputFile = new IdentRec;
-        inputFile->id = curIdent;
-        inputFile->offset = 0;
-        inputFile->typ = textType;
-        inputFile->cl = VARID;
-        inputFile->list() = NULL;
+    if (curIdent == litInput || curIdent == litOutput) {
+        l3var7z = besm6_alloc_record<IdentRec>(
+            offsetof(IdentRec, szIdent));
+        l3var7z->id = curIdent;
+        l3var7z->pck.offset = 0;
+        l3var7z->typ = textType;
+        l3var7z->pck.cl = VARID;
+        l3var7z->list() = NULL;
         curVal = l3var1z;
-        inputFile->value() = allocExtSymbol(l3var11z.ii);
-        addToHashTab(inputFile);
-        l = lineCnt;
-    } else if (curIdent == outName.ii) {
-        outputFile = l3var7z;
+        l3var7z->value() = allocExtSymbol(l3var11z.ii);
+        addToHashTab(l3var7z);
+        if (curIdent == litInput)
+            inputFile = l3var7z;
+        else
+            outputFile = l3var7z;
         l = lineCnt;
     }
     curExternFile = externFileList;
@@ -8031,7 +8301,7 @@ void initScalars::defExtern()
     curExternFile->line = l;
     curExternFile->offset = l3var1z.ii;
     if (l != 0) {
-        if (curIdent == outName.ii) {
+        if (curIdent == litOutput) {
             fileForOutput = curExternFile;
         } else {
             fileForInput = curExternFile;
@@ -8046,7 +8316,8 @@ void initScalars::defExtern()
 initScalars::initScalars() :
     curIdRec(programme::super.back()->curIdRec)
 {
-    BooleanType.setRep(new Types);
+    BooleanType.setRep(
+        besm6_alloc_record<Types>(offsetof(Types, szScalar)));
     BooleanType.rep()->numen = 2;
     BooleanType.rep()->start = 0;
     BooleanType.rep()->enums = NULL;
@@ -8054,7 +8325,8 @@ initScalars::initScalars() :
     BooleanType.p.bits = 1;
     BooleanType.p.pk = kindScalar;
 
-    IntegerType.setRep(new Types);
+    IntegerType.setRep(
+        besm6_alloc_record<Types>(offsetof(Types, szScalar)));
     IntegerType.rep()->numen = 100000;
     IntegerType.rep()->start = -1;
     IntegerType.rep()->enums = NULL;
@@ -8062,7 +8334,8 @@ initScalars::initScalars() :
     IntegerType.p.bits = 48;
     IntegerType.p.pk = kindScalar;
 
-    CharType.setRep(new Types);
+    CharType.setRep(
+        besm6_alloc_record<Types>(offsetof(Types, szScalar)));
     CharType.rep()->numen = 256;
     CharType.rep()->start = -1;
     CharType.rep()->enums = NULL;
@@ -8080,20 +8353,20 @@ initScalars::initScalars() :
     voidType.p.bits = 48;
     voidType.p.pk = kindVoid;
 
-    voidPtr.setRep(new Types);
+    voidPtr.setRep(besm6_alloc_record<Types>(offsetof(Types, szPtr)));
     voidPtr.rep()->base = voidType;
     voidPtr.p.psize = 1;
     voidPtr.p.bits = 15;
     voidPtr.p.pk = kindPtr;
 
-    textType.setRep(new Types);
+    textType.setRep(besm6_alloc_record<Types>(offsetof(Types, szFile)));
     textType.rep()->base = CharType;
     textType.p.pad = 8;
     textType.p.psize = 30;
     textType.p.bits = 48;
     textType.p.pk = kindPtr;
 
-    AlfaType.setRep(new Types);
+    AlfaType.setRep(besm6_alloc_record<Types>(offsetof(Types, szArray)));
     AlfaType.rep()->base = CharType;
     AlfaType.rep()->pck = true;
     AlfaType.rep()->perword = 6;
@@ -8106,7 +8379,8 @@ initScalars::initScalars() :
 
     charPtrType = getPtrType(CharType);
 
-    flatMemType.setRep(new Types);
+    flatMemType.setRep(
+        besm6_alloc_record<Types>(offsetof(Types, szArray)));
     flatMemType.rep()->base = CharType;
     flatMemType.rep()->pck = true;
     flatMemType.rep()->perword = 6;
@@ -8117,11 +8391,12 @@ initScalars::initScalars() :
     flatMemType.p.bits = 48;
     flatMemType.p.pk = kindArray;
 
-    flatMemVar = new IdentRec;
+    flatMemVar = besm6_alloc_record<IdentRec>(
+        offsetof(IdentRec, szIdent));
     flatMemVar->id = 0;
-    flatMemVar->offset = 0;
+    flatMemVar->pck.offset = 0;
     flatMemVar->typ = flatMemType;
-    flatMemVar->cl = VARID;
+    flatMemVar->pck.cl = VARID;
     flatMemVar->list() = NULL;
     flatMemVar->value() = 0;
 
@@ -8138,20 +8413,23 @@ initScalars::initScalars() :
         smallStringType[strLen] = makeStringType();
     maxSmallString = 6;
 
-    curIdRec = new IdentRec;
-    curIdRec->offset = 0;
+    curIdRec = besm6_alloc_record<IdentRec>(
+        offsetof(IdentRec, szIdent));
+    curIdRec->pck.offset = 0;
     curIdRec->typ = IntegerType;
-    curIdRec->cl = VARID;
+    curIdRec->pck.cl = VARID;
     curIdRec->list() = NULL;
     curIdRec->value() = 7;
 
-    uVarPtr = new Expr;
+    uVarPtr = reinterpret_cast<ExprPtr>(
+        besm6_alloc_record<IdentRec>(sizeof(IdentRec)));
     uVarPtr->vt.typ = IntegerType;
     uVarPtr->op = GETVAR;
     uVarPtr->id1 = curIdRec;
 
-    uProcPtr = new IdentRec;
-    uProcPtr->cl = ROUTINEID; // cl left as heap garbage in base.pas
+    uProcPtr = besm6_alloc_record<IdentRec>(
+        offsetof(IdentRec, szRoutine));
+    uProcPtr->pck.cl = ROUTINEID; // cl left as heap garbage in base.pas
     uProcPtr->typ.setRep(NULL);
     uProcPtr->list() = NULL;
     uProcPtr->argList() = NULL;
@@ -8197,11 +8475,10 @@ initScalars::initScalars() :
 
     l3var11z.ii = 30;
     l3var11z.ii = (l3var11z.ii & halfWord) | Bits(24,27,28,29);
-    programObj = new IdentRec;
-    outName.ii = 01257656460656412L /*"*OUTPUT*"*/;
-    inName.ii = 012515660656412L /*" *INPUT*"*/;
+    programObj = besm6_alloc_record<IdentRec>(
+        offsetof(IdentRec, szRoutine));
     symTabPos = 074004;
-    programObj->cl = ROUTINEID; // cl left as heap garbage in base.pas
+    programObj->pck.cl = ROUTINEID; // cl left as heap garbage in base.pas
     curVal.ii = 06041634357556054L; /* PASCOMPL */
     programObj->id = curVal.ii;
     programObj->pos() = 0;
@@ -8227,33 +8504,31 @@ initScalars::initScalars() :
     inputFile = NULL;
     externFileList = NULL;
 
-    l3var7z = new IdentRec;
     lineStartOffset = moduleOffset;
-    l3var7z->id = outName.ii;
-    l3var7z->offset = 0;
-    l3var7z->typ = textType;
-    l3var7z->cl = VARID;
-    l3var7z->list() = NULL;
-    curVal.ii = 01257656460656412L /*"*OUTPUT*"*/;
-    l3var7z->value() = allocExtSymbol(l3var11z.ii);
-    addToHashTab(l3var7z);
     l3var5z = 1;
+    savedIdent.ii = curIdent;
+    curIdent = litOutput;
+    defExtern();
+    curIdent = litInput;
+    defExtern();
+    if (!enableStdInput) {
+        inputFile = NULL;
+        fileForInput = NULL;
+    }
+    curIdent = savedIdent.ii;
     while (SY == EXTERNSY) {
         inSymbol();
         while (SY == IDENT) {
-            defExtern();
+            if (curIdent == litInput || curIdent == litOutput)
+                error(errIdentAlreadyDefined);
+            else
+                defExtern();
             inSymbol();
             if (SY == COMMA)
                 inSymbol();
         }
         checkSymAndRead(SEMICOLON);
     } /* while SY = EXTERNSY */
-    if (outputFile == NULL) {
-        savedIdent.ii = curIdent;
-        curIdent = outName.ii;
-        defExtern();
-        curIdent = savedIdent.ii;
-    }
     lookupMode = lookUse;
     l3var6z = 40;
     do {
@@ -8286,19 +8561,24 @@ void makeExtFile()
     curExpr = l2var10z;
 }
 
+// C-style 'individual' form: each comma-separated parameter carries its
+// own full type-spec ('int a, int *p, char c'), unlike the grouped form
+// var/typedef/fields use. No Pascal ROUTINEID (procedure-valued
+// parameter) support -- unexercised by the test corpus; revisit with a
+// concrete failing case if one ever turns up.
 void parseParameters()
 {
-    IdentRecPtr l3var1z, l3var2z, l3var3z;
-    IdClass parClass;
-    int64_t l3var5z, l3var6z;
-    Symbol l3sym7z;
+    IdentRecPtr l3var2z;
+    int64_t extraWords;
     bool noComma;
-    TPtr expType;
     IdentRecPtr &curIdRec = programme::super.back()->curIdRec;
     int64_t &l2int18z = programme::super.back()->l2int18z;
 
+    extraWords = 0;
+    // lookup2 (not just lookupMode) must carry lookDef through
+    // parseTypeRef's own internal inSymbol() calls -- see the identical
+    // note on TYPEDEFSY/VARSY/parseRecordDecl.
     lookup2 = lookDef;
-    l3var5z = 0;
     lookupMode = lookDef;
     inSymbol();
     l3var2z = NULL;
@@ -8308,97 +8588,58 @@ void parseParameters()
         lookupMode = lookUse;
         return;
     }
-    if (SY == IDENT)
-        markTypeSym();
-    if (not has(Bits(IDENT, TYPESY), SY))
-        errAndSkip(errBadSymbol, (skipToSet | Bits(IDENT, RPAREN)));
-    lookup2 = lookUse;
-    while (has(Bits(IDENT, TYPESY), SY)) {
-        if (SY == IDENT)
-            markTypeSym();
-        l3sym7z = SY;
-        if (SY == IDENT)
-            parClass = VARID;
-        else {
-            parClass = ROUTINEID;
+    do {
+        TPtr paramType{};
+        // Scoped exactly as parseGroupedDecls's typeParser is: see its
+        // comment for why parseTypeRef::super must be popped back before
+        // any registration code runs.
+        bool packedFlag;
+        {
+            parseTypeRef paramTypeParser(paramType, skipToSet | Bits(IDENT, RPAREN, COMMA));
+            packedFlag = paramTypeParser.isPacked;
         }
-        l3var3z = NULL;
-        if (SY == TYPESY)
-            expType = hashTravPtr->typ;
-        else
-            expType = IntegerType;
-        l3var6z = 0;
-        if (SY != IDENT) {
+        Declarator d = parseOneDeclarator(paramType, packedFlag);
+        if (d.name != 0) {
+            if (d.wasDefined)
+                error(errIdentAlreadyDefined);
+            IdentRecPtr np = besm6_alloc_record<IdentRec>(
+                offsetof(IdentRec, szIdent));
+            np->id = d.name;
+            np->pck.offset = curFrameRegTemplate;
+            np->pck.cl = VARID;
+            np->pck.nidx = ord(symHash[d.bucket]);
+            np->typ = d.type;
+            np->list() = curIdRec;
+            np->value() = l2int18z;
+            symHash[d.bucket] = np;
+            l2int18z = l2int18z + 1;
+            if (l3var2z == NULL)
+                curIdRec->argList() = np;
+            else
+                l3var2z->list() = np;
+            l3var2z = np;
+            if (typeSize(d.type) != 1)
+                extraWords = extraWords + typeSize(d.type);
+        }
+        noComma = (SY != COMMA);
+        if (not noComma) {
             lookupMode = lookDef;
             inSymbol();
         }
-        do {
-            if (SY == IDENT) {
-                if (isDefined)
-                    error(errIdentAlreadyDefined);
-                l3var6z = l3var6z + 1;
-                l3var1z = new IdentRec;
-                l3var1z->id = curIdent;
-                l3var1z->offset = curFrameRegTemplate;
-                l3var1z->cl = parClass;
-                l3var1z->next = symHash[bucket];
-                l3var1z->typ = voidType;
-                l3var1z->list() = curIdRec;
-                l3var1z->value() = l2int18z;
-                symHash[bucket] = l3var1z;
-                l2int18z = l2int18z + 1;
-                if (l3var2z == NULL)
-                    curIdRec->argList() = l3var1z;
-                else
-                    l3var2z->list() = l3var1z;
-                l3var2z = l3var1z;
-                if (l3var3z == NULL)
-                    l3var3z = l3var1z;
-                inSymbol();
-            } else
-                errAndSkip(errNoIdent, skipToSet | Bits(RPAREN, COMMA, COLON));
-            noComma = (SY != COMMA);
-            if (not noComma) {
-                lookupMode = lookDef;
-                inSymbol();
-            }
-        } while (!noComma);
-        if (l3sym7z != TYPESY) {
-            checkSymAndRead(COLON);
-            parseTypeRef(expType, (skipToSet | Bits(IDENT, RPAREN)));
-            if (typeSize(expType) != 1)
-                l3var5z = l3var6z * typeSize(expType) + l3var5z;
-            if (l3var3z != NULL)
-                while (l3var3z != curIdRec) /* with l3var3z@ */ {
-                    l3var3z->typ = expType;
-                    l3var3z = l3var3z->list();
-                }
-        } else if (l3var3z != NULL)
-            while (l3var3z != curIdRec) /* with l3var3z@ */ {
-                l3var3z->typ = expType;
-                l3var3z = l3var3z->list();
-            }
-
-        if (SY == SEMICOLON) {
-            lookupMode = lookDef;
-            inSymbol();
-            if (not has((skipToSet | Bits(IDENT, VARSY, TYPESY)), SY))
-                errAndSkip(errBadSymbol, (skipToSet | Bits(IDENT, RPAREN)));
-        }
-    }
+    } while (!noComma);
     /* 22276 */
-    if (l3var5z != 0) {
+    if (extraWords != 0) {
         curIdRec->flags() = (curIdRec->flags() | Bits(23));
-        l3var6z = l2int18z;
-        l2int18z = l2int18z + l3var5z;
+        int64_t base = l2int18z;
+        l2int18z = l2int18z + extraWords;
         l3var2z = curIdRec->argList();
         /* 22306 */
         while (l3var2z != curIdRec) {
-            if (l3var2z->cl == VARID) {
-                l3var5z = typeSize(l3var2z->typ);
-                if (l3var5z != 1) {
-                    l3var2z->value() = l3var6z;
-                    l3var6z = l3var6z + l3var5z;
+            if (l3var2z->pck.cl == VARID) {
+                int64_t sz = typeSize(l3var2z->typ);
+                if (sz != 1) {
+                    l3var2z->value() = base;
+                    base = base + sz;
                 }
             }
             l3var2z = l3var2z->list();
@@ -8419,7 +8660,7 @@ void exitScope(IdentRecPtr arg[128])
         workidr = arg[ii];
         while (workidr != NULL and
               workidr >= scopeBound)
-            workidr = workidr->next;
+            workidr = workidr->next();
         arg[ii] = workidr;
     }
 } /* exitScope */
@@ -8445,6 +8686,14 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
     strLabList = NULL;
     lineNesting = lineNesting + 1;
     labFence = numLabTop;
+    // Not just TYPESY -- a type-spec can also open with
+    // '__packed'/'struct'/'enum' (mirrors parseRecordDecl's own
+    // field-group loop condition), so those must be recognized as a
+    // declaration start too, or a leading '__packed int x;' would never
+    // be seen as one. Declared here (above the do-while, not inside it)
+    // so it's visible both in the loop body and in the do-while's own
+    // trailing condition below, whose scope excludes the body's locals.
+    int64_t declStartSys = Bits(TYPESY, PACKEDSY, STRUCTSY) | Bits(ENUMSY);
     do {
         if (SY == CONSTSY) {
             parseDecls(0);
@@ -8453,11 +8702,12 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     error(errIdentAlreadyDefined);
                 /* workidr@ := [curIdent, curFrameRegTemplate, symHash[bucket],
                    , ENUMID, NIL]; */
-                workidr = new IdentRec;
+                workidr = besm6_alloc_record<IdentRec>(
+                    offsetof(IdentRec, szIdent));
                 workidr->id = curIdent;
-                workidr->offset = curFrameRegTemplate;
-                workidr->next = symHash[bucket];
-                workidr->cl = ENUMID;
+                workidr->pck.offset = curFrameRegTemplate;
+                workidr->pck.nidx = ord(symHash[bucket]);
+                workidr->pck.cl = ENUMID;
                 workidr->list() = NULL;
                 symHash[bucket] = workidr;
                 inSymbol();
@@ -8465,7 +8715,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     error(errBadSymbol);
                 else
                     inSymbol();
-                parseConstDeclValue(workidr->typ, workidr->high_); // actually value() but need a Word here
+                parseConstDeclValue(workidr->typ, workidr->high());
                 if (workidr->typ == voidType) {
                     error(errNoConstant);
                     workidr->typ = IntegerType;
@@ -8474,7 +8724,22 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 if (SY == SEMICOLON) {
                     lookupMode = lookDef;
                     inSymbol();
-                    if (!has((skipToSet | Bits(IDENT)), SY)) {
+                    // markTypeSym: inSymbol() alone, under lookDef, only
+                    // checks the current scope for a match -- a bare type
+                    // name from an outer scope (e.g. 'int', predefined at
+                    // scope 0) reads back as plain IDENT, not TYPESY.
+                    // markTypeSym does its own scope-agnostic hash walk to
+                    // fix that up, same as after TYPEDEFSY/VARSY/routines
+                    // below -- needed now that a declaration can follow a
+                    // const group with no 'var'/'typedef' keyword of its
+                    // own to signal it.
+                    markTypeSym();
+                    // Besides another const name (IDENT, continuing this
+                    // group) or a recovery point, a bare declStartSys
+                    // token (the next var/routine decl, no 'var' keyword
+                    // needed) or TYPEDEFSY (the next typedef) legitimately
+                    // ends the const group -- not an error.
+                    if (!has((skipToSet | Bits(IDENT, TYPEDEFSY)) | declStartSys, SY)) {
                         errAndSkip(errBadSymbol, skipToSet | Bits(IDENT));
                     }
                 } else {
@@ -8483,169 +8748,57 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             }
         } /* 22511 */
         objBufIdx = 1;
-        if (SY == TYPEDEFSY) {  // base.pas 7936: the `typedef` keyword, NOT a
-                                // type-name (TYPESY); otherwise TYPEDEFSY is
-                                // never consumed and the decl loop spins.
+        if (SY == TYPEDEFSY) {
+            // C-style: exactly one type-spec + declarator-list per
+            // 'typedef' keyword (no Pascal-style continuation without
+            // restating it). This keeps a leading TYPESY right after ';'
+            // unambiguous evidence of the next nested routine's return
+            // type, never another implicit typedef group.
+            //
+            // Forward-referenced pointer typedefs (mutually-recursive
+            // records, e.g. 'typedef expr *eptr;' parsed before 'expr'
+            // itself is defined) ARE supported -- parseTypeRef's
+            // isForwardRef path leaves a pending placeholder on typelist
+            // (see definePtrType); when the real definition for that name
+            // comes through here, patch the placeholder's base in place
+            // instead of creating an unrelated second IdentRec, exactly
+            // mirroring the retired Pascal '= ^Name' bookkeeping.
             inTypeDef = true;
-            typelist = NULL;
-            parseDecls(0);
-            while (SY == IDENT) {
-                if (isDefined)
-                    error(errIdentAlreadyDefined);
-                ii = bucket;
-                l2var12z = curIdent;
-                inSymbol();
-                if (charClass != ASSIGNOP)  // base.pas 7948: the `=` in a
-                    error(errBadSymbol);    // typedef is a single `=` (ASSIGNOP);
-                else                        // `==` (EQOP) is the equality op.
-                    inSymbol();
-                parseTypeRef(l2typ13z, skipToSet | Bits(SEMICOLON));
-                curIdent = l2var12z;
-                if (knownInType(curIdRec)) {
-                    l2typ14z = curIdRec->typ;
-                    if (l2typ14z.rep()->base == BooleanType) {
-                        if (l2typ13z.p.pk != kindPtr) {
-                            prevErrPos = 0;
-                            error(78); /* errPredefinedAsPointer */
-                            printf(": ");
-                            printTextWord(l2var12z);
-                            printf(" in line %ld\n", curIdRec->offset);
-                        }
-                        l2typ14z.rep()->base = l2typ13z.rep()->base;
+            // lookup2 (not just lookupMode) must carry lookDef through
+            // parseTypeRef's own internal inSymbol() calls -- every
+            // inSymbol() resets lookupMode := lookup2 on exit, so the
+            // declarator name a few tokens after 'typedef' is classified
+            // under whatever lookup2 holds, not this line's lookupMode.
+            lookup2 = lookDef;
+            lookupMode = lookDef;
+            inSymbol();
+            parseGroupedDecls(skipToSet | Bits(IDENT, SEMICOLON),
+                [&](Declarator & d) {
+                    if (d.wasDefined)
+                        error(errIdentAlreadyDefined);
+                    IdentRecPtr pending;
+                    if (knownInType(pending, d.name)) {
+                        TPtr placeholderPtr = pending->typ;
+                        placeholderPtr.rep()->base = d.type;
+                        pending->typ = d.type;
+                        hash(typelist, pending);
+                        curIdRec = pending;
                     } else {
-                        l2typ14z.rep()->base = l2typ13z;
-                        curIdRec->typ = l2typ13z;
+                        curIdRec = besm6_alloc_record<IdentRec>(
+                            offsetof(IdentRec, szIdent));
+                        curIdRec->id = d.name;
+                        curIdRec->pck.offset = curFrameRegTemplate;
+                        curIdRec->typ = d.type;
+                        curIdRec->pck.cl = TYPEID;
                     }
-                    hash(typelist, curIdRec);
-                } else {
-                    curIdRec = new IdentRec;
-                    curIdRec->id = l2var12z;
-                    curIdRec->offset = curFrameRegTemplate;
-                    curIdRec->typ = l2typ13z;
-                    curIdRec->cl = TYPEID;
-                } /* 22574 */
-                curIdRec->next = symHash[ii];
-                symHash[ii] = curIdRec;
-                lookupMode = lookDef;
-                checkSymAndRead(SEMICOLON);
-                hashTravPtr = NULL;
-                markTypeSym();
-                if (SY == TYPESY)
-                    break;
-            } /* 22602 */
-            while (typelist != NULL) {
-                l2var12z = typelist->id;
-                curIdRec = typelist;
-                prevErrPos = 0;
-                error(79); /* errNotFullyDefined */
-                printf(": ");
-                printTextWord(l2var12z);
-                printf(" in line %ld\n", curIdRec->offset);
-                typelist = typelist->next;
-            }
-        } /* TYPESY -> 22612 */
+                    curIdRec->pck.nidx = ord(symHash[d.bucket]);
+                    symHash[d.bucket] = curIdRec;
+                });
+            lookup2 = lookUse;
+            inTypeDef = false;
+        } /* TYPEDEFSY */
         inTypeDef = false;
         curExpr = NULL;
-    if (SY == VARSY) {
-        parseDecls(0);
-        /*22617*/
-        do {
-            workidr = NULL;
-            /*22620*/
-            do {
-                if (SY == IDENT) {
-                    curIdRec = new IdentRec;
-                    if (isDefined)
-                        error(errIdentAlreadyDefined);
-                    curIdRec->id = curIdent;
-                    curIdRec->offset = curFrameRegTemplate;
-                    curIdRec->next = symHash[bucket];
-                    curIdRec->cl = VARID;
-                    curIdRec->list() = NULL;
-                    symHash[bucket] = curIdRec;
-                    inSymbol();
-                    if (workidr == NULL)
-                        workidr = curIdRec;
-                    else
-                        l2var4z->list() = curIdRec;
-                    l2var4z = curIdRec;
-                } else
-                    error(errNoIdent);
-                if (SY == LBRACK) {
-                    inSymbol();
-                    if (SY != INTCONST ||
-                        curToken.ii < 0 ||
-                        curToken.ii > 77777)
-                        error(errNumberTooLarge);
-                    curIdRec->value() = curToken.ii;
-                    curIdRec->offset = 0;
-                    inSymbol();
-                    checkSymAndRead(RBRACK);
-                } else curIdRec->value() = -1;
-                if (SY != COMMA && SY != COLON)
-                    errAndSkip(1, skipToSet | Bits(IDENT, COMMA));
-                l2bool8z = SY != COMMA;
-                if (not l2bool8z) {
-                    lookupMode = lookDef;
-                    inSymbol();
-                };
-            } while (!l2bool8z);
-            checkSymAndRead(COLON);
-            parseTypeRef(l2typ13z, skipToSet | Bits(IDENT, SEMICOLON));
-            jj = typeSize(l2typ13z);
-            while (workidr != NULL) /* do with workidr@ do */ {
-                curIdRec = workidr->list();
-                workidr->typ = l2typ13z;
-                workidr->list() = NULL;
-                l2bool8z = true;
-                if (curProcNesting == 1) {
-                    curExternFile = externFileList;
-                    l2var12z = workidr->id;
-                    curVal.ii = jj;
-                    toAlloc = (curVal.ii & halfWord) | 047000000;
-                    while (l2bool8z and curExternFile != NULL) {
-                        if (curExternFile->id == l2var12z) {
-                            l2bool8z = false;
-                            if (curExternFile->line == 0) {
-                                curVal.ii = curExternFile->offset;
-                                workidr->value() = allocExtSymbol(toAlloc);
-                                curExternFile->line = lineCnt;
-                            }
-                        } else {
-                            curExternFile = curExternFile->next;
-                        }
-                    }
-                } /* 22731 */
-                if (l2bool8z && workidr->value() == -1) {
-                    workidr->value() = localSize;
-                    if (PASINFOR.listMode == 3) {
-                        printf("%25s", "VARIABLE ");
-                        printTextWord(workidr->id);
-                        printf(" OFFSET (%ld) %05loB. WORDS=%05loB\n", curProcNesting,
-                                localSize, jj);
-                    }
-                    localSize = localSize + jj;
-                    curExternFile = NULL;
-                } /*22764*/
-                if (isFileType(l2typ13z))
-                    makeExtFile();
-                workidr = curIdRec;
-            } /* 22771 */
-            lookupMode = lookDef;
-            checkSymAndRead(SEMICOLON);
-            if (SY != IDENT and not has(skipToSet, SY)
-                and not (bodyBlock_ and has(statBegSys, SY)))
-                errAndSkip(errBadSymbol, skipToSet | Bits(IDENT));
-            /* base.pas 8079: a leading type-IDENT after ';' starts a new
-               C-style routine decl, not another variable; markTypeSym re-
-               resolves it (scope-agnostic bucket walk, hence the reset) so
-               the loop bails and the routine-decl loop below picks it up. */
-            hashTravPtr = NULL;
-            markTypeSym();
-        } while (SY == IDENT and
-                 not (bodyBlock_ and hashTravPtr != NULL and
-                      hashTravPtr->cl != TYPEID));
-    } /* VARSY -> 23003 */
     if (curProcNesting == 1) {
         if (outputFile != NULL) {
             workidr = outputFile;
@@ -8662,178 +8815,254 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
     // by defineRoutine's formOperator(FILEINIT). The upstream extra call here
     // duplicated the file-close block.
     hasFiles = 0;
-    if (curProcNesting == 1) {
-        curExternFile = externFileList;
-        while (curExternFile != NULL) {
-            if (curExternFile->line == 0) {
-                error(80); /* errUndefinedExternFile */
-                printTextWord(curExternFile->id);
-                putchar('\n');
-            }
-            curExternFile = curExternFile->next;
-        }
-    } /*23035*/
     outputObjFile();
     markTypeSym();
-    while (SY == TYPESY) {
-        done = hashTravPtr->typ == voidType;
-        /* For the new C-style syntax 'RETTYPE NAME(args);' the current TYPESY
-           names the return type; stash it before inSymbol clobbers
-           hashTravPtr.  voidType (i.e. done) marks a procedure. */
-        typedRetType = hashTravPtr->typ;
-        if (curFrameRegTemplate == 7) {
-            error(81); /* errProcNestingTooDeep */
-        }
+    // C-style: no separate 'var' keyword -- a leading type-spec starts
+    // either a plain variable declarator-list ('TYPE decl, decl;') or a
+    // routine ('TYPE name(params) {...}' / 'TYPE name(params);' /
+    // 'TYPE name(params) extern;'), exactly as real C distinguishes 'int x;' from 'int
+    // f(...);'. Disambiguated right after reading the first declarator:
+    // a bare name immediately followed by '(' or ':' is a routine, as is
+    // a bare name matching an existing forward-declared routine of
+    // matching voidness (redefinition -- e.g. 'void error { ... }'
+    // completing an earlier 'void error(int errno);', which
+    // needs no parens at all). Everything else -- a '*'/'[]' on the
+    // declarator, a ',', or a bare ';' that doesn't match a pending
+    // forward routine -- is a variable.
+    //
+    while (has(declStartSys, SY)) {
+        TPtr baseTy{};
+        bool packedFlag, forwardRef;
+        // lookup2 (not just lookupMode) must carry lookDef through
+        // parseTypeRef's own internal inSymbol() calls, all the way to
+        // the declarator name read by parseOneDeclarator below.
+        lookup2 = lookDef;
         lookupMode = lookDef;
-        inSymbol();
-        if (SY != IDENT) {
-            error(errNoIdent);
-            curIdRec = uProcPtr;
-            isPredefined = false;
-        } else {
-            if (isDefined) {
-                if (hashTravPtr->cl == ROUTINEID and
-                    hashTravPtr->list() == NULL and
-                    hashTravPtr->preDefLink() != NULL and
-                    ((hashTravPtr->typ == voidType) == done)) {
-                    isPredefined = true;
-                } else {
-                    isPredefined = false;
-                    error(errIdentAlreadyDefined);
-                    printErrMsg(82); /* errPrevDeclWasNotForward */
-                }
-            } else
-                isPredefined = false;
-        } /* 23103 */
-        if (not isPredefined) {
-            curIdRec = new IdentRec;
-            curIdRec->id = curIdent;
-            curIdRec->offset = curFrameRegTemplate;
-            curIdRec->next = symHash[bucket];
-            curIdRec->typ = voidType;
-            symHash[bucket] = curIdRec;
-            curIdRec->cl = ROUTINEID;
-            curIdRec->list() = NULL;
-            curIdRec->value() = 0;
-            curIdRec->argList() = NULL;
-            curIdRec->preDefLink() = NULL;
-            curIdRec->sigtyp() = voidType;
-            if (declEntry)
-                curIdRec->flags() = BitRange(0,15) | Bits(22);
-            else
-                curIdRec->flags() = BitRange(0,15);
-            curIdRec->pos() = 0;
-            curFrameRegTemplate = curFrameRegTemplate + frameRegTemplate;
-            if (done)
-                l2int18z = 3;
-            else
-                l2int18z = 4;
-            curProcNesting = curProcNesting + 1;
-            inSymbol();
-            if (6 < curProcNesting)
-                error(81); /* errProcNestingTooDeep */
-            if (not has(Bits(LPAREN, SEMICOLON, COLON), SY))
-                errAndSkip(errBadSymbol, skipToSet | Bits(LPAREN, SEMICOLON, COLON));
-            hadParens = SY == LPAREN;
-            if (hadParens)
-                parseParameters();
-            if (not done) {
-                if (typedRetType != voidType) {
-                    /* New C-style: return type stashed at the loop head;
-                       no ':TYPE' suffix expected. */
-                    curIdRec->typ = typedRetType;
-                    if (typeSize(curIdRec->typ) != 1)
-                        error(errTypeMustNotBeFile);
-                } else if (SY != COLON)
-                    errAndSkip(106 /*:*/, skipToSet | Bits(SEMICOLON));
-                else {
-                    inSymbol();
-                    parseTypeRef(curIdRec->typ, skipToSet | Bits(SEMICOLON));
-                    if (typeSize(curIdRec->typ) != 1)
-                        error(errTypeMustNotBeFile);
-                }
-            }
-        } else /*23167*/ {
-            l2int18z = hashTravPtr->level();
-            curFrameRegTemplate = curFrameRegTemplate + indexreg[1];
-            curProcNesting = curProcNesting + 1;
-            if (preDefHead == hashTravPtr) {
-                preDefHead = hashTravPtr->preDefLink();
-            } else {
-                curIdRec = preDefHead;
-                while (hashTravPtr != curIdRec) {
-                    workidr = curIdRec;
-                    curIdRec = curIdRec->preDefLink();
-                }
-                workidr->preDefLink() = hashTravPtr->preDefLink();
-            }
-            hashTravPtr->preDefLink() = NULL;
-            curIdRec = hashTravPtr->argList();
-            if (curIdRec != NULL) {
-                while (curIdRec != hashTravPtr) {
-                    addToHashTab(curIdRec);
-                    curIdRec = curIdRec->list();
-                }
-            }
-            curIdRec = hashTravPtr;
-            setup(scopeBound);
-            inSymbol();
-            hadParens = false;
-            if (SY == LPAREN and curIdRec->argList() == NULL) {
-                hadParens = true;
-                inSymbol();
-                checkSymAndRead(RPAREN);
-            }
-        } /* 23224 */
-        if (SY == BEGINSY) {
-            if (curIdRec->argList() == NULL and not hadParens)
-                error(42); /* errNoParamList */
-            setup(scopeBound);
-            inSymbol();
-            programme(l2int18z, curIdRec, true);
-            internScope(ord(scopeBound));
-            rollup(scopeBound);
-            exitScope(symHash);
-            exitScope(fieldHash);
-            goto L23301;
+        {
+            parseTypeRef typeParser(baseTy, skipToSet | Bits(IDENT, MUL, LPAREN, COMMA) | Bits(SEMICOLON));
+            packedFlag = typeParser.isPacked;
+            forwardRef = typeParser.isForwardRef;
         }
-        checkSymAndRead(SEMICOLON);
-        if (curIdent == litForward) {
-            if (isPredefined)
-                error(83); /* errRepeatedPredefinition */
-            curIdRec->level() = l2int18z;
-            curIdRec->preDefLink() = preDefHead;
-            preDefHead = curIdRec;
-        } else if (SY == EXTERNSY or
-                   curIdent == litFortran or
-                   curIdent == litAssembler) {
-            if (SY == EXTERNSY) {
-                curVal.ii = Bits(20);
-            } else if (curIdent == litAssembler) {
-                curVal.ii = Bits(20,26);
-            } else if (checkFortran) {
-                curVal.ii = Bits(21,24);
-                checkFortran = false;
+        done = baseTy == voidType;
+        Declarator d = parseOneDeclarator(baseTy, packedFlag, forwardRef);
+        lookup2 = lookUse;
+        if (d.name == 0) {
+            lookupMode = lookUse;
+            markTypeSym();
+            continue;
+        }
+        bool bareName = (d.type == baseTy);
+        isPredefined = false;
+        if (bareName and d.foundRec != NULL and
+            d.foundRec->pck.cl == ROUTINEID and
+            d.foundRec->list() == NULL and
+            d.foundRec->preDefLink() != NULL and
+            ((d.foundRec->typ == voidType) == done)) {
+            isPredefined = true;
+        } else if (bareName and d.wasDefined and (SY == LPAREN or SY == COLON)) {
+            error(errIdentAlreadyDefined);
+            printErrMsg(82); /* errPrevDeclWasNotForward */
+        }
+        // A bare name (no '*'/'[]') is a routine only when followed by '(' or
+        // ':', or when it completes a predefined forward routine; otherwise
+        // it is a plain variable. The parenthesis-free 'RETTYPE name;'
+        // routine form is retired -- every routine now carries explicit parens
+        // -- so no lookahead past ';' is needed to disambiguate.
+        bool isRoutine = bareName and (SY == LPAREN or SY == COLON or isPredefined);
+        if (not isRoutine) {
+            /* ---- variable declarator list ---- */
+            lookupMode = lookUse;
+            bool moreDecls = true;
+            while (moreDecls) {
+                curIdRec = besm6_alloc_record<IdentRec>(
+                    offsetof(IdentRec, szIdent));
+                curIdRec->id = d.name;
+                curIdRec->pck.offset = curFrameRegTemplate;
+                curIdRec->pck.nidx = ord(symHash[d.bucket]);
+                curIdRec->pck.cl = VARID;
+                curIdRec->list() = NULL;
+                curIdRec->typ = d.type;
+                if (d.wasDefined)
+                    error(errIdentAlreadyDefined);
+                symHash[d.bucket] = curIdRec;
+                jj = typeSize(d.type);
+                l2bool8z = true;
+                if (curProcNesting == 1) {
+                    curExternFile = externFileList;
+                    toAlloc = (jj & halfWord) | 047000000;
+                    while (l2bool8z and curExternFile != NULL) {
+                        if (curExternFile->id == d.name) {
+                            l2bool8z = false;
+                            if (curExternFile->line == 0) {
+                                curVal.ii = curExternFile->offset;
+                                curIdRec->value() = allocExtSymbol(toAlloc);
+                                curExternFile->line = lineCnt;
+                            }
+                        } else {
+                            curExternFile = curExternFile->next;
+                        }
+                    }
+                }
+                if (l2bool8z) {
+                    curIdRec->value() = localSize;
+                    if (PASINFOR.listMode == 3) {
+                        printf("%25s", "VARIABLE ");
+                        printTextWord(d.name);
+                        printf(" OFFSET (%ld) %05loB. WORDS=%05loB\n",
+                               curProcNesting, localSize, jj);
+                    }
+                    localSize = localSize + jj;
+                    curExternFile = NULL;
+                }
+                if (isFileType(d.type)) {
+                    workidr = curIdRec;
+                    makeExtFile();
+                }
+                moreDecls = (SY == COMMA);
+                if (moreDecls) {
+                    inSymbol();
+                    d = parseOneDeclarator(baseTy, packedFlag, forwardRef);
+                }
+            }
+            checkSymAndRead(SEMICOLON);
+        } else {
+            /* ---- routine ---- */
+            curIdent = d.name;
+            bucket = d.bucket;
+            isDefined = d.wasDefined;
+            hashTravPtr = d.foundRec;
+            typedRetType = baseTy;
+            if (not isPredefined) {
+                if (curFrameRegTemplate == 7) {
+                    error(81); /* errProcNestingTooDeep */
+                }
+                curIdRec = besm6_alloc_record<IdentRec>(
+                    offsetof(IdentRec, szRoutine));
+                curIdRec->id = curIdent;
+                curIdRec->pck.offset = curFrameRegTemplate;
+                curIdRec->pck.nidx = ord(symHash[bucket]);
+                curIdRec->typ = voidType;
+                symHash[bucket] = curIdRec;
+                curIdRec->pck.cl = ROUTINEID;
+                curIdRec->list() = NULL;
+                curIdRec->value() = 0;
+                curIdRec->argList() = NULL;
+                curIdRec->preDefLink() = NULL;
+                curIdRec->sigtyp() = voidType;
+                if (declEntry)
+                    curIdRec->flags() = BitRange(0,15) | Bits(22);
+                else
+                    curIdRec->flags() = BitRange(0,15);
+                curIdRec->pos() = 0;
+                curFrameRegTemplate = curFrameRegTemplate + frameRegTemplate;
+                if (done)
+                    l2int18z = 3;
+                else
+                    l2int18z = 4;
+                curProcNesting = curProcNesting + 1;
+                if (6 < curProcNesting)
+                    error(81); /* errProcNestingTooDeep */
+                hadParens = (SY == LPAREN);
+                if (hadParens)
+                    parseParameters();
+                if (not done) {
+                    if (typedRetType != voidType) {
+                        /* New C-style: return type stashed at the loop head;
+                           no ':TYPE' suffix expected. */
+                        curIdRec->typ = typedRetType;
+                        if (typeSize(curIdRec->typ) != 1)
+                            error(errTypeMustNotBeFile);
+                    } else if (SY != COLON)
+                        errAndSkip(106 /*:*/, skipToSet | Bits(SEMICOLON));
+                    else {
+                        inSymbol();
+                        parseTypeRef(curIdRec->typ, skipToSet | Bits(SEMICOLON));
+                        if (typeSize(curIdRec->typ) != 1)
+                            error(errTypeMustNotBeFile);
+                    }
+                }
+            } else /*23167*/ {
+                l2int18z = hashTravPtr->level();
+                curFrameRegTemplate = curFrameRegTemplate + indexreg[1];
+                curProcNesting = curProcNesting + 1;
+                if (preDefHead == hashTravPtr) {
+                    preDefHead = hashTravPtr->preDefLink();
+                } else {
+                    curIdRec = preDefHead;
+                    while (hashTravPtr != curIdRec) {
+                        workidr = curIdRec;
+                        curIdRec = curIdRec->preDefLink();
+                    }
+                    workidr->preDefLink() = hashTravPtr->preDefLink();
+                }
+                hashTravPtr->preDefLink() = NULL;
+                curIdRec = hashTravPtr->argList();
+                if (curIdRec != NULL) {
+                    while (curIdRec != hashTravPtr) {
+                        addToHashTab(curIdRec);
+                        curIdRec = curIdRec->list();
+                    }
+                }
+                curIdRec = hashTravPtr;
+                setup(scopeBound);
+                hadParens = false;
+                if (SY == LPAREN and curIdRec->argList() == NULL) {
+                    hadParens = true;
+                    inSymbol();
+                    checkSymAndRead(RPAREN);
+                }
+            } /* 23224 */
+            if (SY == BEGINSY) {
+                if (curIdRec->argList() == NULL and not hadParens)
+                    error(42); /* errNoParamList */
+                setup(scopeBound);
+                inSymbol();
+                programme(l2int18z, curIdRec, true);
+                curIdRec->sigtyp() = makeRoutineType(curIdRec);
+                internScope(ord(scopeBound));
+                rollup(scopeBound);
+                exitScope(symHash);
+                exitScope(fieldHash);
+                goto L23301;
+            }
+            if (SY == EXTERNSY or
+                (SY == IDENT and
+                 (curIdent == litFortran or curIdent == litAssembler))) {
+                if (SY == EXTERNSY) {
+                    curVal.ii = Bits(20);
+                } else if (curIdent == litAssembler) {
+                    curVal.ii = Bits(20,26);
+                } else if (checkFortran) {
+                    curVal.ii = Bits(21,24);
+                    checkFortran = false;
+                } else {
+                    curVal.ii = Bits(21);
+                }
+                curIdRec->flags() = curIdRec->flags() | curVal.ii;
+                curIdRec->sigtyp() = makeRoutineType(curIdRec);
+                inSymbol();
+                checkSymAndRead(SEMICOLON);
             } else {
-                curVal.ii = Bits(21);
+                checkSymAndRead(SEMICOLON);
+                if (isPredefined)
+                    error(83); /* errRepeatedPredefinition */
+                curIdRec->level() = l2int18z;
+                curIdRec->preDefLink() = preDefHead;
+                preDefHead = curIdRec;
+                curIdRec->sigtyp() = makeRoutineType(curIdRec);
             }
-            curIdRec->flags() = curIdRec->flags() | curVal.ii;
-        } else /* 23257 */ {
-            error(errBadSymbol);
-        } /* 23277 */
-        inSymbol();
-        checkSymAndRead(SEMICOLON);
 L23301:
-        workidr = curIdRec->argList();
-        if (workidr != NULL) {
-            while (workidr != curIdRec) {
-                scopeBound = NULL;
-                hash(scopeBound, workidr);
-                workidr = workidr->list();
-            }
-        } /* 23314 */
-        curFrameRegTemplate = curFrameRegTemplate - indexreg[1];
-        curProcNesting = curProcNesting - 1;
+            workidr = curIdRec->argList();
+            if (workidr != NULL) {
+                while (workidr != curIdRec) {
+                    scopeBound = NULL;
+                    hash(scopeBound, workidr);
+                    workidr = workidr->list();
+                }
+            } /* 23314 */
+            curFrameRegTemplate = curFrameRegTemplate - indexreg[1];
+            curProcNesting = curProcNesting - 1;
+        }
         markTypeSym();
     } /* 23320 */
     if (curProcNesting == 1 and curExpr != NULL) {
@@ -8845,15 +9074,35 @@ L23301:
     if (CH == 0) return;
     if (bodyBlock_) {
         if (not has((bodyStatSys | blockBegSys), SY) and
-            not has(Bits(TYPESY, ENDSY), SY))
+            not has(declStartSys | Bits(ENDSY), SY))
             errAndSkip(84 /* errErrorInDeclarations */,
                        skipToSet | bodyStatSys | blockBegSys | Bits(ENDSY));
-    } else if (not has(blockBegSys, SY) and (SY != TYPESY))
+    } else if (not has(blockBegSys, SY) and not has(declStartSys, SY))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
     } while (not ((bodyBlock_ and (has(bodyStatSys, SY) or
-                                  has(Bits(TYPESY, ENDSY), SY))) or
+                                  has(declStartSys | Bits(ENDSY), SY))) or
                   (not bodyBlock_ and (has(statBegSys, SY) or
-                                      (SY == TYPESY)))));
+                                      has(declStartSys, SY)))));
+    // Checked once per programme() call (guarded by curProcNesting==1, so
+    // effectively once for the whole compile), not once per do-while
+    // iteration: the C-style grammar's var/typedef sections are each a
+    // single-shot 'var'/'typedef' keyword now (Phase B), so a var section
+    // with N separate declarations is N do-while iterations, not one --
+    // running this check inside the loop re-flagged the same
+    // not-yet-declared extern names on every iteration, and the resulting
+    // flood of errUndefinedExternFile errors tripped error()'s own
+    // "too many errors" abort path (skipToEnd()) mid-file.
+    if (curProcNesting == 1) {
+        curExternFile = externFileList;
+        while (curExternFile != NULL) {
+            if (curExternFile->line == 0) {
+                error(80); /* errUndefinedExternFile */
+                printTextWord(curExternFile->id);
+                putchar('\n');
+            }
+            curExternFile = curExternFile->next;
+        }
+    }
     if (preDefHead != ptr(0))  {
         error(85); /* errNotFullyDefinedProcedures */
         while (preDefHead != ptr(0)) {
@@ -8961,9 +9210,12 @@ struct initTables {
         regResWord(toText("IN"));
         SY = CONSTSY;
         charClass = NOOP;
-        for (idx = 0; idx <= 20; ++idx) {
-            if (SY != TYPESY)
-                regResWord(resWordNameBase[idx]);
+        // CONSTSY..UNIONSY are 19 consecutive reserved words. TYPESY (a runtime
+        // marker set by markTypeSym/lookup on a type-name IDENT, not a keyword)
+        // sits just before CONSTSY, outside this range -- no skip needed;
+        // 'var'/'function' are gone entirely (free identifiers now).
+        for (idx = 0; idx <= 18; ++idx) {
+            regResWord(resWordNameBase[idx]);
             succ(SY);
         }
     } /* regKeyWords */
@@ -9104,6 +9356,8 @@ void usage ()
     printf("                        -d8: Invoke Pascal Debugger\n");
     printf("    -e- -e+             Make procedures external (-e+) or local (-e-)\n");
     printf("    -f- -f+             Compile procedures as Pascal (-f-) or Fortran (-f+)\n");
+    printf("    -Hooooo             Set first host heap address in octal (9 zones)\n");
+    printf("    -i                  Enable automatic fopen/fclose for *INPUT*\n");
     printf("    -k0 -k1 ... -k23    Heap size in 1024-word chunks (default -k4)\n");
     printf("    -l0 -l1 -l2 -l3     Listing mode:\n");
     printf("                        -l0: No listing, only error messages\n");
@@ -9111,7 +9365,6 @@ void usage ()
     printf("                        -l2: Also print generated object code\n");
     printf("                        -l3: Also print offsets for variables and fields\n");
     printf("    -m+ -m-             Optimize integer multiplication (positives only)\n");
-    printf("    -p+ -p-             Enable/disable debug information and crash dump\n");
     printf("    -r+ -r-             Compare reals with predefined tolerance\n");
     printf("    -s0                 Use stars for commons (like *foobar*)\n");
     printf("    -s1                 Append one star for external names (like foobar*)\n");
@@ -9123,7 +9376,6 @@ void usage ()
     printf("    -s7                 Disable pointer checking\n");
     printf("    -s8                 Disable checking for stack overflow\n");
     printf("    -s9                 Unknown\n");
-    printf("    -t+ -t-             Enable/disable range checks\n");
     printf("    -u- -u+             Set length of source lines: 120 or 72 columns\n");
     printf("    -y- -y+             Disable/enable non-standard syntax\n");
     printf("    -v                  Output version information and exit\n");
@@ -9153,11 +9405,10 @@ void initOptions(int argc, char **argv)
     heapSize = 100;
     forValue = true;
     atEOL = false;
-    doPMD = true; // not (42 in curVal.ii);
     checkTypes = true;
     fixMult = true;
-    checkBounds = true; // not (44 in curVal.ii);
     declEntry = false;
+    enableStdInput = false;
     errors = false;
     allowCompat = false;
     fileBufSize = 1;
@@ -9170,7 +9421,7 @@ void initOptions(int argc, char **argv)
     progname = progname ? progname+1 : argv[0];
 
     for (;;) {
-        switch (getopt(argc, argv, "vVhe:p:t:c:r:m:y:u:f:a:d:k:b:s:l:")) {
+        switch (getopt(argc, argv, "vVhiH:e:c:r:m:y:u:f:a:d:k:b:s:l:")) {
         case EOF:
             break;
         case 'a':
@@ -9204,6 +9455,26 @@ void initOptions(int argc, char **argv)
         case 'f':
             checkFortran = (optarg[0] == '+');
             continue;
+        case 'H': {
+            const char *end = optarg;
+            while ('0' <= *end && *end <= '7')
+                ++end;
+            unsigned long base = strtoul(optarg, NULL, 8);
+            if (end == optarg || *end != '\0' ||
+                base == 0 || base > 074000 - 9 * 1024) {
+                fprintf(stderr,
+                        "%s: Bad option -H: expected an octal address from 1 through 052000\n",
+                        progname);
+                exit(-1);
+            }
+            heapBase = base;
+            avail = heapBase;
+            heapLimit = heapBase + 9 * 1024;
+            continue;
+        }
+        case 'i':
+            enableStdInput = true;
+            continue;
         case 'k':
             heapSize = strtoul(optarg, 0, 0);
             if (heapSize > 23) {
@@ -9221,9 +9492,6 @@ void initOptions(int argc, char **argv)
         case 'm':
             fixMult = (optarg[0] == '+');
             continue;
-        case 'p':
-            doPMD = (optarg[0] == '+');
-            continue;
         case 'r':
             // Fuzzy real comparison was removed from base.pas; option is a no-op.
             continue;
@@ -9238,9 +9506,6 @@ void initOptions(int argc, char **argv)
             } else if (4 <= curVal.ii && curVal.ii <= 9) {
                 optSflags.ii = optSflags.ii | Bits(curVal.ii - 3);
             }
-            continue;
-        case 't':
-            checkBounds = (optarg[0] == '+');
             continue;
         case 'u':
             // Source line length is a compile-time constant (maxLineLen);
@@ -9284,7 +9549,10 @@ void initOptions(int argc, char **argv)
 int main(int argc, char **argv)
 {
     // Data Initializations moved here
-    blockBegSys = Bits(CONSTSY, TYPEDEFSY, VARSY, TYPESY) | Bits(BEGINSY);
+    // No VARSY: variable declarations are dispatched via TYPESY now (a
+    // leading bound type name), same as routines -- see the unified
+    // TYPESY loop in programme's constructor.
+    blockBegSys = Bits(CONSTSY, TYPEDEFSY, TYPESY) | Bits(BEGINSY);
     statBegSys = Bits(IDENT, EXPROP, LPAREN, INTCONST)
         | Bits(REALCONST, CHARCONST, STRINGSY, LBRACK)
         | Bits(BEGINSY, IFSY, SWITCHSY, DOSY)
@@ -9409,7 +9677,6 @@ int main(int argc, char **argv)
     curInsnTemplate = 0;
     initTables();
     litAssembler = toText("ASSEMBLE");
-    litForward = toText("FORWARD");
     litFortran = toText("FORTRAN");
     litOct = toText("OCT");
     PASINPUT = ugetc(pasinput);
@@ -9441,11 +9708,9 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
     }
 }
 
-int64_t resWordNameBase[21] = {
+int64_t resWordNameBase[19] = {
         04357566364L             /*"   CONST"*/,
         064716045444546L         /*" TYPEDEF"*/,
-        0664162L                 /*"     VAR"*/,
-        0L                       /*"was FUNCTION"*/,
         045566555L               /*"    ENUM"*/,
         01212604143534544L       /*"**PACKED"*/,
         0636462654364L           /*"  STRUCT"*/,

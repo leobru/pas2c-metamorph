@@ -1,18 +1,16 @@
-/*=p-,t-,s8,y+,l0*/
-extern _output_;
+/*=s8,y+,l0*/
 //
-typedef fileblk = struct {
-    data: *char;
-    w1, w2, w3, w4, w5, w6, w7, w8, w9, w10,
+typedef struct {
+    char *data;
+    int w1, w2, w3, w4, w5, w6, w7, w8, w9, w10,
     w11, w12, w13, w14, w15, w16, w17, w18, w19, w20,
-    w21, w22, w23, w24, w25, w26, w27, w28, w29: int;
-};
+    w21, w22, w23, w24, w25, w26, w27, w28, w29;
+} fileblk;
 //
-void fopen(fcb: *fileblk; sizes, name: int); assembler;
-void fclose(fcb: *fileblk); assembler;
+void fopen(fileblk *fcb, int sizes, int name) assembler;
+void fclose(fileblk *fcb) assembler;
 //
-var
-    f, a, b, c: fileblk;
+fileblk f, a, b, c;
 //
 {
     fopen(&f, 010000100010, 0);

@@ -1,6 +1,6 @@
 #!/bin/bash
-# Test runner for p2c compiler test suite through native base + tmpbin.bin.
-# Runs test programs using runhotest.sh and compares outputs.
+# Test-suite runner: compiles every tests/*.p2c with the host-native ./base
+# (via runhotest.sh) and compares outputs against the .expected files.
 
 set -e
 
@@ -78,7 +78,7 @@ run_test() {
 }
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}P2C Hot Test Suite${NC}"
+echo -e "${BLUE}base / tests Suite${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 

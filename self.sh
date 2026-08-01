@@ -1,4 +1,8 @@
 #!/bin/sh
+# Self-host work.p2c under the DUBNA emulator: run the host-built work.bin
+# compiler module against a preprocessed copy of its own source, producing
+# self.bin/.o for comparison against the host-built work.o (check.sh).
+#
 rm -f wrksrc.bin
 sed 's/{/<:/g;s/}/:>/g' < work.p2c | ./preprocess.py > wrksrc.utxt
 echo '                                                                                ' >> wrksrc.utxt

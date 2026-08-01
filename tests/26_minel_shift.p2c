@@ -1,7 +1,6 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-var i, j: int;
+int i, j;
 {
     for (j = 2; j < 10000; j = j * 2) {
     i  = minel(j & (~0));

@@ -1,7 +1,6 @@
-/*=p-,t-,s8,y+,k9,l0*/
-extern _output_;
+/*=s8,y+,k9,l0*/
 //
-var a, b, c: int;
+int a, b, c;
 {
     a = 12;  // 1100 in binary
     b = 10;  // 1010 in binary

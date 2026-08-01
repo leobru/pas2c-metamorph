@@ -1,14 +1,11 @@
-/*=p-,t-,s8,y+,l0*/
-extern _output_;
+/*=s8,y+,l0*/
 //
-typedef
-    point = struct { x, y: int; };
-    ptpr  = *point;
+typedef struct { int x, y; } point;
+typedef point *ptpr;
 //
-var
-    obj: point;
-    p: ptpr;
-    arr: int[1..3];
+point obj;
+ptpr p;
+int arr[1..3];
 //
 ptpr getp() {
     return p;

@@ -1,7 +1,0 @@
-/*=s8,y+,k9,l0*/
-
-int words[1..8];
-
-{
-    writeln('RESULT ', sizeof(words):0);
-}
