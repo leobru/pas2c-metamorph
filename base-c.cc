@@ -684,10 +684,17 @@ std::string toAscii(int64_t val)
 struct IdentRec : public BESM6Obj {
     void * operator new(size_t) = delete;
 
-    struct {
-        IdentRecPtr next;
-        int64_t offset;
-        IdClass cl;
+    // Packed into one word, mirroring work-c.p2c's idpck union: `next` is a
+    // 15-bit arena word-index (like TPtr's rep), so it shares the word with
+    // offset:24 and cl:3.  offset/cl are plain bitfields (access sites keep
+    // `pck.offset`/`pck.cl`); next() converts the index back to a pointer.
+    union {
+        int64_t pckword;
+        struct {
+            uint64_t nidx   : 15;   // arena word-index (074000 = nil)
+            int64_t  offset : 24;
+            uint64_t cl     : 3;    // IdClass
+        };
     } pck;
     int64_t id;
     TPtr typ;
@@ -719,6 +726,15 @@ struct IdentRec : public BESM6Obj {
             int64_t szSys;
         };
     };
+    // Hash-chain link, stored as a compact arena index in pck (see above).
+    // nidx==0 is the memset-fresh state (besm6_alloc zero-fills); treat it as
+    // nil like the explicit 074000, so a just-allocated record reads NULL.
+    IdentRecPtr next() const {
+        // heap + index directly (not ptr(), whose bounds check rejects the
+        // dangling-but-unused links a native pointer tolerated across rollup).
+        return (pck.nidx == 0 || pck.nidx == 074000) ? NULL
+             : reinterpret_cast<IdentRecPtr>(heap + pck.nidx);
+    }
     IdentRecPtr & list() {
         assert(pck.cl != TYPEID);
         return list_;
@@ -1356,7 +1372,7 @@ ExprPtr bldIncDec(ExprPtr lval, bool isInc, bool isPost)
 void addToHashTab(IdentRecPtr arg)
 {
     int bucket = (arg->id % 65535) % 128;
-    arg->pck.next = symHash[bucket];
+    arg->pck.nidx = ord(symHash[bucket]);
     symHash[bucket] = arg;
 }
 
@@ -2157,7 +2173,7 @@ L1473:
                         if (hashTravPtr->pck.offset == curFrameRegTemplate)
                         {
                             if (hashTravPtr->id != curIdent)
-                                hashTravPtr = hashTravPtr->pck.next;
+                                hashTravPtr = hashTravPtr->next();
                             else {
                                 isDefined = true;
                                 goto exitLexer;
@@ -2170,7 +2186,7 @@ L1473:
 L2:                 hashTravPtr = symHash[bucket];
                     while (hashTravPtr != NULL) {
                         if (hashTravPtr->id != curIdent)
-                            hashTravPtr = hashTravPtr->pck.next;
+                            hashTravPtr = hashTravPtr->next();
                         else {
                             if (hashTravPtr->pck.cl == TYPEID)
                                 SY = TYPESY;
@@ -2190,7 +2206,7 @@ L2:                 hashTravPtr = symHash[bucket];
                                 if ((hashTravPtr->id == curIdent)
                                     and (hashTravPtr->uptype() == withIter->expr2->vt.typ))
                                     goto exitLexer;
-                                hashTravPtr = hashTravPtr->pck.next;
+                                hashTravPtr = hashTravPtr->next();
                             }
                             withIter = withIter->expr1;
                         }
@@ -2203,7 +2219,7 @@ L2:                 hashTravPtr = symHash[bucket];
                         if ((hashTravPtr->id == curIdent) and
                             (typ121z == hashTravPtr->uptype()))
                             goto exitLexer;
-                        hashTravPtr = hashTravPtr->pck.next;
+                        hashTravPtr = hashTravPtr->next();
                     }
                     break;
                 }
@@ -2785,21 +2801,21 @@ void hash(IdentRecPtr & l3arg1z, IdentRecPtr l3arg2z)
     if (l3arg1z == l3arg2z) {
         if (l3var1z) {
             symHash[l3var2z] =
-                symHash[l3var2z]->pck.next;
+                symHash[l3var2z]->next();
         } else {
-            l3arg1z = l3arg2z->pck.next;
+            l3arg1z = l3arg2z->next();
         };
     } else {
         l3var3z = l3arg1z;
         while (l3var3z != l3arg2z) {
             l3var4z = l3var3z;
             if (l3var3z != NULL) {
-                l3var3z = l3var3z->pck.next;
+                l3var3z = l3var3z->next();
             } else {
                 return;
             }
         };
-        l3var4z->pck.next = l3arg2z->pck.next;
+        l3var4z->pck.nidx = l3arg2z->pck.nidx;
     }
 } /* hash */
 
@@ -2824,7 +2840,7 @@ bool knownInType(IdentRecPtr & rec, int64_t name = curIdent)
             if (rec->id == name) {
                 return true;
             }
-            rec = rec->pck.next;
+            rec = rec->next();
         }
     }
     return false;
@@ -2958,7 +2974,7 @@ TPtr makeRoutineType(IdentRecPtr routine)
     if (srcParam != NULL) {
         while (srcParam != routine) {
             newParam = new SigRec;
-            newParam->pclass = srcParam->pck.cl;
+            newParam->pclass = (IdClass)srcParam->pck.cl;
             newParam->ptyp = srcParam->typ;
             newParam->next = NULL;
             if (lastParam == NULL)
@@ -4308,7 +4324,7 @@ genEntry::genEntry()
                         // against calls to formal parameters at runtime.
                         if (l5idr3z != NULL) {
                             do {
-                                l5idc22z = l5idr3z->pck.cl;
+                                l5idc22z = (IdClass)l5idr3z->pck.cl;
                                 if ((l5idc22z == ROUTINEID) and
                                     (l5idr3z->typ != NULL))
                                     l5idc22z = ENUMID;
@@ -5218,7 +5234,7 @@ void markTypeSym()
         bucket = curIdent % 65535 % 128;
         hashTravPtr = symHash[bucket];
         while (hashTravPtr != NULL and hashTravPtr->id != curIdent)
-            hashTravPtr = hashTravPtr->pck.next;
+            hashTravPtr = hashTravPtr->next();
         if (hashTravPtr != NULL and hashTravPtr->pck.cl == TYPEID)
             SY = TYPESY;
     }
@@ -5338,7 +5354,7 @@ struct parseTypeRef {
         curType.p.bits = 15;
         curType.p.pk = kindPtr;
         curEnum = besm6_alloc_record<IdentRec>(offsetof(IdentRec, szIdent));
-        curEnum->pck.next = typelist;
+        curEnum->pck.nidx = ord(typelist);
         curEnum->id = curIdent;
         curEnum->pck.offset = lineCnt;
         curEnum->typ = curType;
@@ -5581,7 +5597,7 @@ L11622:
             printf("PACKED");
         printf(" FIELD ");
         printTextWord(fld->id);
-        printf(".OFFSET=%05loB", fld->pck.offset);
+        printf(".OFFSET=%05loB", (long)fld->pck.offset);
         if (fld->pckfield()) {
             printf(".<<=SHIFT=%2ld. WIDTH=%2ld BITS", fld->shift(),
                    fld->width());
@@ -5658,7 +5674,7 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion
                     curEnum = besm6_alloc_record<IdentRec>(
                         offsetof(IdentRec, szField));
                     curEnum->id = d.name;
-                    curEnum->pck.next = fieldHash[d.bucket];
+                    curEnum->pck.nidx = ord(fieldHash[d.bucket]);
                     curEnum->pck.cl = FIELDID;
                     curEnum->uptype() = curType;
                     curEnum->pckfield() = isPacked;
@@ -5746,7 +5762,7 @@ L12247:
                 error(errIdentAlreadyDefined);
             curEnum = besm6_alloc_record<IdentRec>(
                 offsetof(IdentRec, szIdent));
-            curEnum->pck.next = symHash[bucket];
+            curEnum->pck.nidx = ord(symHash[bucket]);
             curEnum->id = curIdent;
             curEnum->pck.offset = curFrameRegTemplate;
             curEnum->typ = curType;
@@ -5965,7 +5981,7 @@ void parseDecls(int64_t l3arg1z)
         prevErrPos = 0;
         printf("IDENT ");
         printTextWord(l2var12z);
-        printf(" IN LINE %ld", curIdRec->pck.offset);
+        printf(" IN LINE %ld", (long)curIdRec->pck.offset);
     } break;
     case 2: {
         padToLeft();
@@ -6264,7 +6280,7 @@ void parseCallArgs(IdentRecPtr subroutine)
             expression();
             actualOp = curExpr->op;
             if (noArgs) { /*(a)*/
-                formClass = curFormal->pck.cl;
+                formClass = (IdClass)curFormal->pck.cl;
                 if (actualOp == PCALL) {
                     if (formClass != ROUTINEID or
                         curFormal->typ != voidType) {
@@ -7859,7 +7875,7 @@ Statement::Statement()
 /*(ident)*/
             if (SY == IDENT) {
                 if (hashTravPtr != NULL) {
-                    l3var6z = hashTravPtr->pck.cl;
+                    l3var6z = (IdClass)hashTravPtr->pck.cl;
                     if (l3var6z == ROUTINEID) {
                         l3idr12z = hashTravPtr;
                         if (l3idr12z->pck.offset == 0) {
@@ -8591,7 +8607,7 @@ void parseParameters()
             np->id = d.name;
             np->pck.offset = curFrameRegTemplate;
             np->pck.cl = VARID;
-            np->pck.next = symHash[d.bucket];
+            np->pck.nidx = ord(symHash[d.bucket]);
             np->typ = d.type;
             np->list() = curIdRec;
             np->value() = l2int18z;
@@ -8644,7 +8660,7 @@ void exitScope(IdentRecPtr arg[128])
         workidr = arg[ii];
         while (workidr != NULL and
               workidr >= scopeBound)
-            workidr = workidr->pck.next;
+            workidr = workidr->next();
         arg[ii] = workidr;
     }
 } /* exitScope */
@@ -8690,7 +8706,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     offsetof(IdentRec, szIdent));
                 workidr->id = curIdent;
                 workidr->pck.offset = curFrameRegTemplate;
-                workidr->pck.next = symHash[bucket];
+                workidr->pck.nidx = ord(symHash[bucket]);
                 workidr->pck.cl = ENUMID;
                 workidr->list() = NULL;
                 symHash[bucket] = workidr;
@@ -8775,7 +8791,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                         curIdRec->typ = d.type;
                         curIdRec->pck.cl = TYPEID;
                     }
-                    curIdRec->pck.next = symHash[d.bucket];
+                    curIdRec->pck.nidx = ord(symHash[d.bucket]);
                     symHash[d.bucket] = curIdRec;
                 });
             lookup2 = lookUse;
@@ -8862,7 +8878,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     offsetof(IdentRec, szIdent));
                 curIdRec->id = d.name;
                 curIdRec->pck.offset = curFrameRegTemplate;
-                curIdRec->pck.next = symHash[d.bucket];
+                curIdRec->pck.nidx = ord(symHash[d.bucket]);
                 curIdRec->pck.cl = VARID;
                 curIdRec->list() = NULL;
                 curIdRec->typ = d.type;
@@ -8924,7 +8940,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     offsetof(IdentRec, szRoutine));
                 curIdRec->id = curIdent;
                 curIdRec->pck.offset = curFrameRegTemplate;
-                curIdRec->pck.next = symHash[bucket];
+                curIdRec->pck.nidx = ord(symHash[bucket]);
                 curIdRec->typ = voidType;
                 symHash[bucket] = curIdRec;
                 curIdRec->pck.cl = ROUTINEID;

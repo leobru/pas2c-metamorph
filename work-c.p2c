@@ -343,10 +343,20 @@ typedef struct {
     int defined;
 } numLabel;
 /*=l3*/
-typedef struct {
-    irptr next;
-    int offset;
+typedef __packed struct {
+    irptr   next;
+    int:24  offset;
     idclass cl;
+} idpckp;
+typedef union {
+    /* One word: the whole-word arm reads/writes next as a plain pointer
+       (its 15 address bits are the LSBs, so it stays directly dereferenceable
+       and a whole-word store clears offset/cl); the packed arm carries
+       next(15)/offset(24)/cl in that same word.  Mirrors tptr/pckrep.  Chain
+       traversal reads pck.p.next (masked) so a terminator's offset/cl don't
+       spoil the NIL test. */
+    irptr  next;
+    idpckp p;
 } idpck;
 typedef struct {
     idpck pck;
@@ -626,7 +636,7 @@ tptr res;
 void addToHashTab(irptr arg) {
     curVal.i  =  arg->id & hashMask;
     curVal.i = mapai(curVal.a);
-    arg->pck.next  =  symHash[curval.i];
+    arg->pck.p.next  =  symHash[curval.i];
     symHash[curval.i]  =  arg;
 } /* addToHashTab */
 //
@@ -1290,9 +1300,9 @@ void lexer() {
         case lookDef:
             hashTravPtr  =  symHash[bucket];
             while (hashTravPtr != NIL) {
-                if (hashTravPtr->pck.offset == curFrameRegTemplate) {
+                if (hashTravPtr->pck.p.offset == curFrameRegTemplate) {
                     if (hashTravPtr->id != curIdent)
-                        hashTravPtr  =  hashTravPtr->pck.next;
+                        hashTravPtr  =  hashTravPtr->pck.p.next;
                     else {
                         isDefined  =  true;
                         return;
@@ -1313,7 +1323,7 @@ void lexer() {
                         && (hashTravPtr->uptype ==
                             withIter->expr2->typ))
                             return;
-                        hashTravPtr  =  hashTravPtr->pck.next;
+                        hashTravPtr  =  hashTravPtr->pck.p.next;
                     }
                     withIter  =  withIter->expr1;
                 }
@@ -1324,9 +1334,9 @@ void lexer() {
             hashTravPtr  =  symHash[bucket];
             while (hashTravPtr != NIL) {
                 if (hashTravPtr->id != curIdent)
-                    hashTravPtr  =  hashTravPtr->pck.next;
+                    hashTravPtr  =  hashTravPtr->pck.p.next;
                 else {
-                    if (hashTravPtr->pck.cl == TYPEID)
+                    if (hashTravPtr->pck.p.cl == TYPEID)
                         SY  =  TYPESY;
                     return;
                 }
@@ -1339,7 +1349,7 @@ void lexer() {
                     if ((id == curIdent) &&
                        (typ121z == uptype))
                         return;
-                    hashTravPtr  =  pck.next;
+                    hashTravPtr  =  pck.p.next;
                }
            }
         }
@@ -1659,7 +1669,7 @@ tptr ret;
     } else
         switch (SY) {
         case IDENT:
-            if (hashTravPtr == NIL || hashTravPtr->pck.cl != ENUMID)
+            if (hashTravPtr == NIL || hashTravPtr->pck.p.cl != ENUMID)
                 goto 99;
             ret  =  hashTravPtr->typ;
             *litValue  =  hashTravPtr->value;
@@ -1696,21 +1706,21 @@ irptr l3var3z, l3var4z;
     if (l3arg1z == l3arg2z) {
         if (l3var1z) {
             symHash[l3var2z]  =
-                symHash[l3var2z]->pck.next;
+                symHash[l3var2z]->pck.p.next;
         } else {
-            return l3arg2z->pck.next;
+            return l3arg2z->pck.p.next;
         }
     } else {
         l3var3z  =  l3arg1z;
         while (l3var3z != l3arg2z) {
             l3var4z  =  l3var3z;
             if (l3var3z != NIL) {
-                l3var3z  =  l3var3z->pck.next;
+                l3var3z  =  l3var3z->pck.p.next;
             } else {
                 return l3arg1z;
             }
         }
-        l3var4z->pck.next  =  l3arg2z->pck.next;
+        l3var4z->pck.p.next  =  l3arg2z->pck.p.next;
     };
     return l3arg1z;
 } /* hash */
@@ -1758,7 +1768,7 @@ sigptr newParam, lastParam;
         while (srcParam != routine) {
             newParam = malloc(sizeof(sigrec));
             with *newParam do {
-                pclass  =  srcParam->pck.cl;
+                pclass  =  srcParam->pck.p.cl;
                 ptyp  =  srcParam->typ;
                 next  =  NIL;
             }
@@ -1850,7 +1860,7 @@ int top;
 // has moved on, so it passes the saved declarator.name explicitly.
 int knownInType(irptr *rec, int name) {
 irptr it;
-    for (it = typelist; it != NIL; it = it->pck.next) {
+    for (it = typelist; it != NIL; it = it->pck.p.next) {
         if (it->id == name) {
             *rec = it;
             return true;
@@ -3224,7 +3234,7 @@ void formThunk() {
                             allocGlobalObject(l5idr4z) + KUJ);
                         if (l5idr3z != NIL) {
                             do {
-                                paramClass  =  l5idr3z->pck.cl;
+                                paramClass  =  l5idr3z->pck.p.cl;
                                 if ((paramClass == ROUTINEID) &&
                                    (l5idr3z->typ != voidType))
                                     paramClass  =  ENUMID;
@@ -3293,7 +3303,7 @@ void formThunk() {
             insnList->regsused  =  0U;
             usedRegs |= l5idr4z->flags;
             if (l5idr4z->list != NIL) {
-                addToInsnList(l5idr4z->pck.offset + KXTA +
+                addToInsnList(l5idr4z->pck.p.offset + KXTA +
                               l5idr4z->value);
                 if (isFortrn)
                     addToInsnList(getHelperProc(19)); /* "P/EA" */
@@ -3308,7 +3318,7 @@ void formThunk() {
                 paramClass  =  VARID;
         }
         if (! (! isDirect || (paramClass != FORMALID) ||
-               (curForml->pck.cl != VARID)))
+               (curForml->pck.p.cl != VARID)))
             paramClass  =  VARID;
 1:      if (paramClass == FORMALID || allByRef) {
             setAddrTo(14);
@@ -3345,7 +3355,7 @@ void formThunk() {
         if (20 in l5idr5z->flags) {
             l5var17z  =  1;
         } else {
-            l5var17z  =  l5idr5z->pck.offset / 04000000;
+            l5var17z  =  l5idr5z->pck.p.offset / 04000000;
         }
     } else {
         l5var15z  =  0;
@@ -3357,7 +3367,7 @@ void formThunk() {
         }
         addInsnAndOffset(macro+16 + l5var15z,
                          getValueOrAllocSymtab(l5var17z));
-        addToInsnList(l5idr5z->pck.offset + KUTC + l5idr5z->value);
+        addToInsnList(l5idr5z->pck.p.offset + KUTC + l5idr5z->value);
         addToInsnList(macro+18);
         l5var17z  =  1;
     }
@@ -3888,15 +3898,15 @@ int needsMater;
                 head  =  NIL;
                 regsused  =  0U;
                 ilm  =  ilLVAL;
-                payload  =  curIdRec->pck.offset;
+                payload  =  curIdRec->pck.p.offset;
                 disp  =  curIdRec->high;
                 st  =  stWORD;
                 addrmd  =  18;
             }
-            if (curIdRec->pck.cl == FORMALID) {
+            if (curIdRec->pck.p.cl == FORMALID) {
                 writeln (' wtf '); halt;
                 genDeref();
-            } else if (curIdRec->pck.cl == ROUTINEID) {
+            } else if (curIdRec->pck.p.cl == ROUTINEID) {
                 insnList->disp  =  3;
                 insnList->payload  =  (insnList->payload + frameRegTemplate);
             } else if (insnList->disp >= 074000) {
@@ -3909,7 +3919,7 @@ int needsMater;
             genFullExpr(exprToGen->expr1);
             curIdRec  =  exprToGen->id2;
             with *insnList do {
-                disp += curIdRec->pck.offset;
+                disp += curIdRec->pck.p.offset;
                 if (curIdRec->pckfield) {
                     switch (st) {
                     case stWORD: {
@@ -4343,8 +4353,8 @@ void markTypeSym() {
         bucket = mapAI(curVal.a);
         hashTravPtr  =  symHash[bucket];
         while ((hashTravPtr != NIL) && (hashTravPtr->id != curIdent))
-            hashTravPtr  =  hashTravPtr->pck.next;
-        if ((hashTravPtr != NIL) && (hashTravPtr->pck.cl == TYPEID))
+            hashTravPtr  =  hashTravPtr->pck.p.next;
+        if ((hashTravPtr != NIL) && (hashTravPtr->pck.p.cl == TYPEID))
             SY  =  TYPESY;
     }
 } /* markTypeSym */
@@ -4594,7 +4604,9 @@ void definePtrType(tptr toType) {
     curType.p.bits = 15;
     curType.p.pk = kindPtr;
     curEnum = malloc(offsetof(identrec, szIdent));
-    CTOR(*curEnum, typelist, lineCnt, TYPEID, curIdent, curType);
+    CTOR(*curEnum, typelist, curIdent, curType);
+    curEnum->pck.p.offset  =  lineCnt;
+    curEnum->pck.p.cl  =  TYPEID;
     typelist  =  curEnum;
 } /* definePtrType */
 //
@@ -4639,7 +4651,7 @@ pair *curSlot;
                     curSlot  =  &cases.pairs[pairIdx];
                     if (curSlot->first >= fieldWidth) {
                         curField->shift  =  48 - curSlot->first;
-                        curField->pck.offset  =  curSlot->second;
+                        curField->pck.p.offset  =  curSlot->second;
                         if (! (S6 IN optSflags))
                             curField->shift  =  48 - curField->width -
                                                   curField->shift;
@@ -4675,7 +4687,7 @@ pair *curSlot;
     }
     if (wholeWord) {
         curField->pckfield  =  false;
-        curField->pck.offset  =  cases.size;
+        curField->pck.p.offset  =  cases.size;
         cases.size += typeSize(curField->typ);
     }
     if (PASINFOR.listMode == 3) {
@@ -4684,7 +4696,7 @@ pair *curSlot;
             write('PACKED');
         write(' FIELD ');
         printTextWord(curField->id);
-        write('.OFFSET=', curField->pck.offset:5 oct, 'B');
+        write('.OFFSET=', curField->pck.p.offset:5 oct, 'B');
         if (curField->pckfield) {
             write('.<<=SHIFT=', curField->shift:2,
                   '. WIDTH=', curField->width:2, ' BITS');
@@ -4757,8 +4769,8 @@ pair *curSlot;
                     curEnum = malloc(offsetof(identrec, szField));
                     with *curEnum do {
                         id  =  curDeclarator.name;
-                        pck.next  =  fieldHash[curDeclarator.bucket];
-                        pck.cl  =  FIELDID;
+                        pck.p.next  =  fieldHash[curDeclarator.bucket];
+                        pck.p.cl  =  FIELDID;
                         list  =  NIL;
                         uptype  =  curType;
                         pckfield  =  recIsPacked;
@@ -4841,8 +4853,9 @@ pair *curSlot;
             if (isDefined || (curIdent == litInput) || (curIdent == litOutput))
                 error(errIdentAlreadyDefined);
             curEnum = malloc(offsetof(identrec, szIdent));
-            CTOR(*curEnum, symHash[bucket], curFrameRegTemplate, ENUMID,
-                           curIdent, curType, NIL, span);
+            CTOR(*curEnum, symHash[bucket], curIdent, curType, NIL, span);
+            curEnum->pck.p.offset  =  curFrameRegTemplate;
+            curEnum->pck.p.cl  =  ENUMID;
             symHash[bucket]  =  curEnum;
             ++span;
             if (curField == NIL) {
@@ -5048,7 +5061,7 @@ int l3int1z, frame, l3var3z;
         prevErrPos  =  0;
         write('IDENT ');
         printTextWord(l2var12z);
-        write(' IN LINE ', curIdRec->pck.offset:0);
+        write(' IN LINE ', curIdRec->pck.p.offset:0);
         break;
     case 2:
         padToLeft();
@@ -5259,7 +5272,7 @@ kind l4var4z;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseLval() {
-    if (hashTravPtr->pck.cl == FIELDID) {
+    if (hashTravPtr->pck.p.cl == FIELDID) {
         /* Implicit field of the `with` variable: build GETFIELD on
            withIter directly, then continue with any further postfix. */
         curExpr  =  mkExpr(GETFIELD, hashTravPtr->typ,
@@ -5338,7 +5351,7 @@ idclass formClass;
             expression();
             actualOp  =  curExpr->op;
             do if (noArgs) {
-                formClass  =  curFormal->pck.cl;
+                formClass  =  curFormal->pck.p.cl;
                 if (actualOp == PCALL) {
                     if ((formClass != ROUTINEID) ||
                        (curFormal->typ != voidType)) {
@@ -5562,7 +5575,7 @@ int stProcNo, checkMode, resultValue;
                     error(errNotDefined);
                     resultValue = 0;
                 } else {
-                    resultValue = hashTravPtr->pck.offset;
+                    resultValue = hashTravPtr->pck.p.offset;
                 }
                 inSymbol();
             }
@@ -5628,7 +5641,7 @@ int stProcNo, checkMode, resultValue;
             curExpr  =  uVarPtr;
             inSymbol();
         } else
-            switch (hashTravPtr->pck.cl) {
+            switch (hashTravPtr->pck.p.cl) {
             case ENUMID:
                 curExpr = malloc(sizeof(expr));
                 with *curExpr do {
@@ -5642,7 +5655,7 @@ int stProcNo, checkMode, resultValue;
             case ROUTINEID:
                 routine  =  hashTravPtr;
                 inSymbol();
-                if (routine->pck.offset == 0) {
+                if (routine->pck.p.offset == 0) {
                     if ((routine->typ != voidType) &&
                        (SY == LPAREN)) {
                         stdCall();
@@ -6385,7 +6398,7 @@ int rec;
                 curExpr  =  uVarPtr;
                 inSymbol();
             } else {
-                if (hashTravPtr->pck.cl == VARID) {
+                if (hashTravPtr->pck.p.cl == VARID) {
                     parseLval();
                 } else goto 16545;
             }
@@ -6880,10 +6893,10 @@ void returnOp() {
 8888:       skip(skipToSet | statEndSys);
             break;
         }
-        l3var6z  =  hashTravPtr->pck.cl;
+        l3var6z  =  hashTravPtr->pck.p.cl;
         if (l3var6z == ROUTINEID) {
             l3idr12z  =  hashTravPtr;
-            if (l3idr12z->pck.offset == 0) {
+            if (l3idr12z->pck.p.offset == 0) {
                 /* System procedure (WRITE, PUT, GET, NEW, ...): special
                    syntax, handled directly. */
                 inSymbol();
@@ -7097,7 +7110,7 @@ int l3var7z;
         if (procName->typ != voidType)
         l3int4z  =  4;
         while (l3idr5z != procName) {
-            if (l3idr5z->pck.cl == VARID) {
+            if (l3idr5z->pck.p.cl == VARID) {
                 l3var2z  =  typeSize(l3idr5z->typ);
                 if (l3var2z != 1) {
                     form3Insn(KVTM+I14 + l3int4z,
@@ -7197,7 +7210,8 @@ int l3var11z;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysType(int l4arg1z, tptr l4arg2z) {
     curIdRec = malloc(offsetof(identrec, szIdent));
-    CTOR(*curIdRec, NIL, 0, TYPEID, l4arg1z, l4arg2z);
+    CTOR(*curIdRec, NIL, l4arg1z, l4arg2z);
+    curIdRec->pck.p.cl  =  TYPEID;
     addToHashTab(curIdRec);
 } /* regSysType */
 //
@@ -7209,7 +7223,8 @@ void regSysProc(int l4arg1z) {
        skip its (dead) identrec allocation to save heap. */
     if (l4arg1z != 0) {
         curIdRec = malloc(offsetof(identrec, szSys));
-        CTOR(*curIdRec, NIL, 0, ROUTINEID, l4arg1z, temptype, sysProcNum);
+        CTOR(*curIdRec, NIL, l4arg1z, temptype, sysProcNum);
+        curIdRec->pck.p.cl  =  ROUTINEID;
         addToHashTab(curIdRec);
     }
     ++sysProcNum;
@@ -7224,9 +7239,9 @@ void defExtern() {
         l3var7z = malloc(offsetof(identrec, szIdent));
         with *l3var7z do {
             id  =  curIdent;
-            pck.offset  =  0;
+            pck.p.offset  =  0;
             typ  =  textType;
-            pck.cl  =  VARID;
+            pck.p.cl  =  VARID;
             list  =  NIL;
         }
         curVal.i  =  l3var1z;
@@ -7345,9 +7360,9 @@ void defExtern() {
     flatMemVar = malloc(offsetof(identrec, szIdent));
     with *flatMemVar do {
         id = 0;
-        pck.offset = 0;
+        pck.p.offset = 0;
         typ = flatMemType;
-        pck.cl = VARID;
+        pck.p.cl = VARID;
         list = NIL;
         value = 0;
     }
@@ -7359,7 +7374,9 @@ void defExtern() {
     regSysType('    VOID', voidType);
     temptype = voidPtr;
     curIdRec = malloc(offsetof(identrec, szIdent));
-    CTOR(*curIdRec, NIL, 48, ENUMID, '     NIL', temptype, NIL, 074000U);
+    CTOR(*curIdRec, NIL, '     NIL', temptype, NIL, 074000U);
+    curIdRec->pck.p.offset  =  48;
+    curIdRec->pck.p.cl  =  ENUMID;
     addToHashTab(curIdRec);
     maxSmallString  =  0;
     for (strLen = 2; strLen <= 5; ++strLen)
@@ -7367,9 +7384,9 @@ void defExtern() {
     maxSmallString  =  6;
     curIdRec = malloc(offsetof(identrec, szIdent));
     with *curIdRec do {
-        pck.offset  =  0;
+        pck.p.offset  =  0;
         typ  =  intType;
-        pck.cl  =  VARID;
+        pck.p.cl  =  VARID;
         list  =  NIL;
         value  =  7;
     }
@@ -7528,9 +7545,9 @@ int noComma;
             l3var1z = malloc(offsetof(identrec, szIdent));
             with *l3var1z do {
                 id  =  curDeclarator.name;
-                pck.offset  =  curFrameRegTemplate;
-                pck.cl  =  VARID;
-                pck.next  =  symHash[curDeclarator.bucket];
+                pck.p.offset  =  curFrameRegTemplate;
+                pck.p.cl  =  VARID;
+                pck.p.next  =  symHash[curDeclarator.bucket];
                 typ  =  curDeclarator.typ;
                 list  =  curIdRec;
                 value  =  l2int18z;
@@ -7557,7 +7574,7 @@ int noComma;
         l2int18z += extraWords;
         l3var2z  =  curIdRec->argList;
         while (l3var2z != curIdRec) {
-            if (l3var2z->pck.cl == VARID) {
+            if (l3var2z->pck.p.cl == VARID) {
                 l3var5z  =  typeSize(l3var2z->typ);
                 if (l3var5z != 1) {
                     l3var2z->value  =  l3var6z;
@@ -7577,7 +7594,7 @@ void exitScope(int a) {
     for (ii = 0; ii < 128; ++ii) {
         workidr  = a ? symHash[ii] : fieldHash[ii];
         while (workidr != NIL && workidr >= scopeBound)
-            workidr  =  workidr->pck.next;
+            workidr  =  workidr->pck.p.next;
         if (a)
             symHash[ii]  =  workidr;
         else
@@ -7610,8 +7627,9 @@ void exitScope(int a) {
             if (isDefined)
                 error(errIdentAlreadyDefined);
             workidr = malloc(offsetof(identrec, szIdent));
-            CTOR(*workidr, symHash[bucket], curFrameRegTemplate, ENUMID,
-                           curIdent, , NIL);
+            CTOR(*workidr, symHash[bucket], curIdent, , NIL);
+            workidr->pck.p.offset  =  curFrameRegTemplate;
+            workidr->pck.p.cl  =  ENUMID;
             symHash[bucket]  =  workidr;
             inSymbol();
             if (charClass != ASSIGNOP)
@@ -7688,12 +7706,12 @@ void exitScope(int a) {
                     curIdRec = malloc(offsetof(identrec, szIdent));
                     with *curIdRec do {
                         id  =  curDeclarator.name;
-                        pck.offset  =  curFrameRegTemplate;
+                        pck.p.offset  =  curFrameRegTemplate;
                         typ  =  curDeclarator.typ;
-                        pck.cl  =  TYPEID;
+                        pck.p.cl  =  TYPEID;
                     }
                 }
-                curIdRec->pck.next  =  symHash[curDeclarator.bucket];
+                curIdRec->pck.p.next  =  symHash[curDeclarator.bucket];
                 symHash[curDeclarator.bucket]  =  curIdRec;
             }
             moreDecls  =  SY == COMMA;
@@ -7719,7 +7737,7 @@ void exitScope(int a) {
             curIdRec  =  typelist;
             parseDecls(1);
             error(79); /* errNotFullyDefined */
-            typelist  =  typelist->pck.next;
+            typelist  =  typelist->pck.p.next;
         }
     }
     if (curProcNesting == 1) {
@@ -7764,7 +7782,7 @@ void exitScope(int a) {
         declBareName  =  curDeclarator.typ == l2typ13z;
         isPredefined  =  false;
         if (declBareName && (curDeclarator.foundRec != NIL) &&
-            (curDeclarator.foundRec->pck.cl == ROUTINEID) &&
+            (curDeclarator.foundRec->pck.p.cl == ROUTINEID) &&
             (curDeclarator.foundRec->list == NIL) &&
             (curDeclarator.foundRec->preDefLink != NIL) &&
             ((curDeclarator.foundRec->typ == voidType) == l2bool8z)) {
@@ -7788,9 +7806,9 @@ void exitScope(int a) {
                 curIdRec = malloc(offsetof(identrec, szIdent));
                 with *curIdRec do {
                     id  =  curDeclarator.name;
-                    pck.offset  =  curFrameRegTemplate;
-                    pck.next  =  symHash[curDeclarator.bucket];
-                    pck.cl  =  VARID;
+                    pck.p.offset  =  curFrameRegTemplate;
+                    pck.p.next  =  symHash[curDeclarator.bucket];
+                    pck.p.cl  =  VARID;
                     list  =  NIL;
                     typ  =  curDeclarator.typ;
                 }
@@ -7849,11 +7867,11 @@ void exitScope(int a) {
                 curIdRec = malloc(offsetof(identrec, szRoutine));
                 with *curIdRec do {
                     id  =  curIdent;
-                    pck.offset  =  curFrameRegTemplate;
-                    pck.next  =  symHash[bucket];
+                    pck.p.offset  =  curFrameRegTemplate;
+                    pck.p.next  =  symHash[bucket];
                     typ  =  voidType;
                     symHash[bucket]  =  curIdRec;
-                    pck.cl  =  ROUTINEID;
+                    pck.p.cl  =  ROUTINEID;
                     list  =  NIL;
                     value  =  0;
                     argList  =  NIL;

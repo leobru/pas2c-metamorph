@@ -15,12 +15,16 @@
  ISОРТЕХТ:  , LС  ,11
  ISОРIТМ :  , LС  ,22
  ISОРRЕSV:  , LС  ,22
+ *INPUT* :  , LС  ,30
+ *OUTPUT*:  , LС  ,30
  *СНILD* :  , LС  ,30
+ P/SYS   :  , SUBP,
  РАSISОСD:  , SUВР,
  РАSLISТ :  , SUВР,
  GАМ/0   :  , ЕQU ,РАSINFОR+1
  Р/РАМРАМ:  , SUВР,
  РАSСОNТR:  , SUВР,
+ P/FIRP  :  , PC  ,1024
  РАSСОМРL:  , SUВР,
  GАМ/5   :  , ЕQU ,ЕNТRУ*-1
  GАМ/7   :  , ЕQU ,РАSINFОR+8
