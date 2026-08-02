@@ -392,10 +392,15 @@ typedef int:15 tok;
 typedef struct { int *data; int rest[29]; } ifcb;
 //
 NumberFormat numFormat;
-setofsys statEndSys, blockBegSys, statBegSys,
-    skipToSet, lvalOpSet;
+setofsys statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
+    blockBegSys = [CONSTSY, TYPEDEFSY, TYPESY, BEGINSY],
+    statBegSys = [IDENT, EXPROP, LPAREN, INTCONST, REALCONST,
+                  CHARCONST, STRINGSY, LBRACK, BEGINSY, IFSY,
+                  SWITCHSY, DOSY, WHILESY, FORSY, WITHSY, GOTOSY,
+                  BREAKSY, CONTSY, SEMICOLON],
+    skipToSet,
+    lvalOpSet = [GETELT, GETVAR, op37, GETFIELD, DEREF, FILEPTR];
 int inCallArgs, bool48z, forValue;
-int dataCheck;
 int jumpType;
 int jumpTarget;
 operator charClass;
@@ -469,7 +474,7 @@ int numLabTop;
 word curToken;
 word curVal;
 int leftInsn;
-int hashMask;
+int hashMask = 0203407U;
 int curIdent;
 int toAlloc;
 int usedRegs;
@@ -487,31 +492,210 @@ tptr smallStringType[2..6];
 int symTabCnt;
 word symtabarray[80];
 int symtbidx[80];
-operator intOpMap[MUL..MINUSOP];
+operator intOpMap[MUL..MINUSOP] = {
+    [MUL] = IMULOP, IDIVOP,
+    [IMODOP] = IMODOP, INTPLUS, INTMINUS };
 entries entryPtTable;
-four frameRestore[3..6];
+four frameRestore[3..6] = 0:16;
 int indexreg[1..15];
 int opToInsn[SHLEFT..STKLVAL];
 int opToMode[SHLEFT..STKLVAL];
 opflg opFlags[SHLEFT..STKLVAL];
-int funcInsn[24];
-int frameRegTemplate;
-int constRegTemplate;
-int disNormTemplate;
+int funcInsn[24] = {
+    [fnABS]    = KAMX,
+    [fnTRUNC]  = KADD+ZERO,
+    [fnROUND]  = macro + mcROUND,
+    [fnCARD]   = KACX,
+    [fnMINEL]  = macro + mcMINEL,
+    [fnMALLOC] = macro + mcMALLOC,
+    [fnABSI]   = KAMX };
+int frameRegTemplate = 04000000;
+int constRegTemplate = I8;
+int disNormTemplate = KNTR+7;
 int jb9999;
 char lineBuf[130];
 int errMap[10];
-operator chrClass['\200'];
-kword *kwordHash[128];
-symbol charSym['\200'];
-hashArray symHash, fieldHash;
-int helperMap[1..99];
-int helperNames[1..99];
-int opPrec[SHLEFT..ALTERN];
+operator chrClass['\200'] = {
+    NOOP:128,
+    ['0']=ALNUM:10, ['A']=ALNUM:26, ['Ю']=ALNUM:31, ['_']=ALNUM,
+    ['+']=PLUSOP, ['-']=MINUSOP, ['|']=SETOR, ['*']=MUL, ['/']=RDIVOP,
+    ['%']=IMODOP, ['^']=SETXOR, ['=']=ASSIGNOP, ['&']=SETAND,
+    ['>']=GTOP, ['<']=LTOP, ['!']=NOTOP, ['~']=BITNEGOP, ['?']=CONDOP };
+kword *kwordHash[128] = NIL:128;
+symbol charSym['\200'] = {
+    NOSY:128,
+    ['0']=INTCONST:10, ['A']=IDENT:26, ['Ю']=IDENT:31,
+    ['\'']=CHARCONST, ['"']=CHARCONST, ['_']=IDENT,
+    ['<']=EXPROP, ['>']=EXPROP, ['+']=EXPROP, ['-']=EXPROP,
+    ['|']=EXPROP, ['*']=EXPROP, ['/']=EXPROP, ['%']=EXPROP, ['&']=EXPROP,
+    [',']=COMMA, ['.']=PERIOD, ['^']=EXPROP, ['(']=LPAREN, [')']=RPAREN,
+    [';']=SEMICOLON, ['[']=LBRACK, [']']=RBRACK, ['=']=BECOMES,
+    [':']=COLON, ['!']=EXPROP, ['~']=EXPROP, ['?']=EXPROP };
+hashArray symHash = NIL:128, fieldHash = NIL:128;
+int helperMap[1..99] = 0:102;
+/*=A3*/
+int helperNames[1..99] = {
+        'P/1     ',
+        'P/2     ',
+        'P/3     ',
+        'P/4     ',
+        'P/5     ',
+        'P/6     ',
+        'P/CA    ',
+        'P/EO    ',
+        '        ', // was P/SS, not needed anymore
+/*10*/  'P/EL    ',
+        'C/MD    ',
+        'P/MI    ',
+        'P/PA    ',
+        'P/UN    ',
+        'P/CP    ',
+        'P/AB    ',
+        'C/DI    ',
+        'C/RC    ',
+        'P/EA    ',
+/*20*/  'P/NA    ',
+        'P/BA    ',
+        'P/II   u',
+        'P/RR    ',
+        'P/RI    ',
+        'P/1D    ',
+        'P/GD    ',
+        'C/E     ',
+        'C/EF    ',
+        'P/PF    ',
+/*30*/  'P/GF    ',
+        'P/TF    ',
+        'P/RF    ',
+        'P/NW    ',
+        'P/DS    ',
+        'P/HT    ',
+        'C/WI    ',
+        'P/WR    ',
+        'P/WC    ',
+        'P/A6    ',
+/*40*/  'P/A7    ',
+        'P/WX    ',
+        'P/WO    ',
+        'P/CW    ',
+        'P/6A    ',
+        'P/7A    ',
+        'P/WL    ',
+        'P/RDI   ',  // unused from here
+        'P/RDR   ',
+        'P/RDC   ',
+/*50*/  'P/RA6   ',
+        'P/RA7   ',
+        'P/RX   u',
+        'P/RL    ',  // to here
+        'P/WOLN  ',
+        'P/RILN  ',  // unused
+        'P/RR    ',
+        'P/CE    ',
+        'P/TR    ',
+        'P/LV    ',
+/*60*/  'FOPEN   ',
+        'FCLOSE  ',
+        'P/BP    ',
+        'P/B6    ',
+        'P/PB    ',
+        'P/B7    ',
+        'P/IN    ',
+        'P/IS    ',
+        'P/DA    ',
+        'P/CO    ',
+/*70*/  'P/IT    ',
+        'P/CK    ',
+        'P/KC    ',
+        'P/LNGPAR',
+        'P/LDAR  ',
+        'P/LDARIN',
+        'P/00C   ',
+        'P/STAR  ',
+        'P/PMDSET',
+        'P/CI    ',
+/*80*/  'PAIB    ',
+        'P/WA    ',
+        '        ', // was SQRT*
+        '        ', // was SIN*
+        '        ', // was COS*
+        '        ', // was ARCTAN*
+        '        ', // was ARCSIN*
+        '        ', // was LN*
+        '        ', // was EXP*
+        'P/EQ    ',
+/*90*/  'P/RA    ', // unused
+        'P/GE    ',
+        'P/MF    ',
+        'P/FM    ',
+        'P/NN    ',
+        'P/SC    ',
+        'P/DD    ',
+        'P/RE    ',
+        'C/SHL   ',
+        'C/SHR   ' };
+/*=A2*/
+int opPrec[SHLEFT..ALTERN] = {
+    precNone:48,
+    [CONDOP]=precCond,
+    [OROP]=precOr,
+    [ANDOP]=precAnd,
+    [SETOR]=precBitOr,
+    [SETXOR]=precBitXor,
+    [SETAND]=precBitAnd,
+    [NEOP]=precEq, [EQOP]=precEq,
+    [LTOP]=precRel, [GEOP]=precRel, [GTOP]=precRel, [LEOP]=precRel, [INOP]=precRel,
+    [SHLEFT]=precShift, [SHRIGHT]=precShift,
+    [PLUSOP]=precAdd, [MINUSOP]=precAdd,
+    [MUL]=precMul, [RDIVOP]=precMul, [IDIVOP]=precMul, [IMODOP]=precMul };
 //
 int symTab[074000 .. 075500];
-int systemProcNames[23];
-int resWordName[19];
+/*=A3*/
+int systemProcNames[23] = {
+/*0*/   '     PUT',
+        '     GET',
+        ' REWRITE',
+        '   RESET',
+        ' was NEW',
+        '    FREE',
+        '    HALT',
+        '    STOP',
+        '        ',
+        '        ',
+/*10*/  '   WRITE',
+        ' WRITELN',
+        '    CTOR',
+        '        ',  // was READLN
+        '  RETURN',
+        '        ',
+        '    BESM',
+        '        ',  // was MAPIA, unused
+        '        ',  // was MAPAI, unused
+        '     PCK',
+/*20*/  '   UNPCK',
+        '    PACK',
+        '  UNPACK' };
+int resWordName[19] = {
+        '   CONST',
+        ' TYPEDEF',
+        '    ENUM',
+        '**PACKED',
+        '  STRUCT',
+        '      IF',
+        '  SWITCH',
+        '   WHILE',
+        '     FOR',
+        '    WITH',
+        '    GOTO',
+        '    ELSE',
+        '      DO',
+        '  EXTERN',
+        '   BREAK',
+        'CONTINUE',
+        '    CASE',
+        ' DEFAULT',
+        '   UNION' };
+/*=A2*/
 int longSymCnt;
 int longSym[1..90];
 int longSyms[1..90];
@@ -520,7 +704,7 @@ int constNums[1..500];
 int objBuffer[1..1024];
 char iso2text['\052'..'\177'];
 int maxHeap;
-ifcb fcst, pasinput, _child_;
+ifcb fcst, pasinput, _child_, initbuf;
 //
 struct {
     /*0*/ int listMode;
@@ -1564,8 +1748,6 @@ void lexer() {
         case tok('//') >> 32: while (!atEOL) nextCH(); longjmp(jb1473, 1);
         case tok('..') >> 32: SY = COLON; break;
         default:
-            if (prevCH == '.' && prevSY == ENDSY)
-               dataCheck = true;
             return;
         } /* switch prevCH, CH */
         nextCH();
@@ -1573,12 +1755,6 @@ void lexer() {
 } /* lexer */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        if (dataCheck) {
-//            error(errEOFEncountered);
-//            readToPos80();
-            writeln('EOF reached');
-            halt;
-        }
         if(setjmp(&jb1473));
 1473:   while(skipsp());
         hashTravPtr  =  NIL;
@@ -1818,6 +1994,8 @@ int bodyStatSys;
 int l2var12z;
 tptr l2typ13z, l2typ14z, typedRetType, ceTyp;
 int ceVal, ceRegs;
+int initRegs, flushRegs;
+irptr initVar;
 int labFence;
 strLabel *strLabList;
 //
@@ -6350,18 +6528,98 @@ int allocDataRef(int l6arg1z) {
 } /* allocDataRef */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseData() { /* parseData */
-int dsize, setcount, dataLoc, length, repCount;
-eptr boundary;
-int l4var7z;
-word savedVal;
-int dataSegLen;
-ifcb F;
+// Declaration-site initializers (C-style), replacing the '.data' section.
+// Each global '= initializer' is buffered into the INITBUF scratch file as a
+// stream of 3-word entries -- (0, base, 0) opens a target segment, (1, value,
+// count) is an item -- and materialized once, at program end, by
+// flushInitializers as the contiguous trailing data region of FCST (which must
+// follow the whole constant pool: finalize describes it only by length+count).
+void putInitEntry(int k, int a, int b) {
+    *INITBUF.data  =  k;  put(INITBUF);
+    *INITBUF.data  =  a;  put(INITBUF);
+    *INITBUF.data  =  b;  put(INITBUF);
+} /* putInitEntry */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void putDataRec(int count) { /* putDataRec */
+// Open a new destination segment: 'var' bare (offset 0) or, when 'designator',
+// 'var[index]...' (SY at '['; parsePostfix builds the GETELT chain, leaving SY
+// at '=').  formOperator(SETREG9) yields the base-register template with no
+// module/FCST side effect, exactly as parseData does for a '.data' LHS.
+void beginInitSeg(irptr var, int designator) {
+    curExpr  =  mkExpr(GETVAR, var->typ, eptr(var), NIL);
+    if (designator)
+        parsePostfix();
+    putLeft  =  true;
+    objBufIdx  =  1;
+    formOperator(SETREG9);
+    if (objBufIdx != 1)
+        error(errVarTooComplex);
+    putInitEntry(0, leftInsn & (07777U << 24), 0);
+} /* beginInitSeg */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Parse (but do not emit) one global's '= initializer', buffering it.  A
+// '[index]=' designator opens a new segment; bare items and 'value:count'
+// fills accumulate into the current segment.  An unbraced initializer is a
+// single scalar (',' separates declarators, not items).
+void parseInitializer(irptr var) {
+eptr boundary;
+int braced, count, v;
+    inSymbol();                       /* consume '=' */
+    braced  =  SY == BEGINSY;
+    if (braced)
+        inSymbol();                   /* consume '{' */
+    boundary  =  eptr(setup());
+    beginInitSeg(var, false);
+    while (true) {
+        if (braced && (SY == LBRACK)) {
+            myrollup(int(boundary));
+            boundary  =  eptr(setup());
+            readNext  =  true;        /* parsePostfix's expression() eats '[' */
+            beginInitSeg(var, true);
+            checkSymAndRead(BECOMES);
+        }
+        readNext  =  false;           /* SY already at the value's first token */
+        expression();
+        takeConstFromExpr();
+        v  =  curVal.i;
+        count  =  1;
+        if (SY == COLON) {
+            inSymbol();
+            if (SY != INTCONST) {
+                error(62);            /* errIntNeeded */
+                count  =  0;
+            } else {
+                count  =  curToken.i;
+                inSymbol();
+            }
+        }
+        putInitEntry(1, v, count);
+        if (braced && (SY == COMMA)) {
+            inSymbol();
+        } else {
+            break;
+        }
+    }
+    myrollup(int(boundary));
+    if (braced)
+        checkSymAndRead(ENDSY);
+} /* parseInitializer */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Materialize all buffered initializers as the contiguous trailing data region
+// of FCST.  Runs at program end (where the '.data' section used to be parsed);
+// replays the INITBUF stream with one-entry lookahead so 'hasNext' matches
+// parseData's list/fill record emission exactly.
+void flushInitializers() {
+int dsize, setcount, dataLoc, length, dataSegLen, base;
+int ck, ca, cb, nk, na, nb;
+int curEnd, nextEnd, rep, hasNext;
+word savedVal;
+ifcb F;
+//
+void putDataRec(int cnt) {
 int rec;
-
     rec  =  allocDataRef(length) << 36;
     if (FcstCnt == dataLoc) {
         curVal  =  savedVal;
@@ -6370,14 +6628,14 @@ int rec;
         curVal.i  =  dataLoc;
     }
     rec  =  rec | (07777U & allocSymtab(0400100000000U | curVal.i & halfWord)) << 24;
-    rec  =  rec | allocDataRef(count) << 12;
+    rec  =  rec | allocDataRef(cnt) << 12;
     if (dataSegLen == 0) {
-        curVal.i  =  l4var7z >> 24;
+        curVal.i  =  base >> 24;
     } else {
-        curVal.i  =  allocSymtab(l4var7z | dataSegLen & halfWord);
+        curVal.i  =  allocSymtab(base | dataSegLen & halfWord);
     }
     rec  =  rec | curVal.i & 07777U;
-    dataSegLen  =  count * length + dataSegLen;
+    dataSegLen  =  cnt * length + dataSegLen;
     *F.data  =  rec;
     put(F);
     ++setcount;
@@ -6385,61 +6643,44 @@ int rec;
     dataLoc  =  FcstCnt;
 } /* putDataRec */
 //
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     fopen(&F, 010000100000, 0);
+    reset(INITBUF);
     dsize  =  FcstCnt;
-    inSymbol();
     setcount  =  0;
-    do {
-        inSymbol();
-        boundary = eptr(setup());
-        if (SY != IDENT) {
-            if (SY == ENDSY)
-                break;
-            error(errNoIdent);
-            curExpr  =  uVarPtr;
-        } else {
-            if (hashTravPtr == NIL) {
-16545:          error(errNotDefined);
-                curExpr  =  uVarPtr;
-                inSymbol();
-            } else {
-                if (hashTravPtr->pck.p.cl == VARID) {
-                    parseLval();
-                } else goto 16545;
-            }
+    length  =  0;
+    dataSegLen  =  0;
+    dataLoc  =  FcstCnt;
+    base  =  0;
+    curEnd  =  feof(&INITBUF);
+    if (! curEnd) {
+        ck  =  *INITBUF.data;  get(INITBUF);
+        ca  =  *INITBUF.data;  get(INITBUF);
+        cb  =  *INITBUF.data;  get(INITBUF);
+    }
+    while (! curEnd) {
+        nextEnd  =  feof(&INITBUF);
+        if (! nextEnd) {
+            nk  =  *INITBUF.data;  get(INITBUF);
+            na  =  *INITBUF.data;  get(INITBUF);
+            nb  =  *INITBUF.data;  get(INITBUF);
         }
-        putLeft  =  true;
-        objBufIdx  =  1;
-        formOperator(SETREG9);
-        if (objBufIdx != 1)
-            error(errVarTooComplex);
-        l4var7z  =  leftInsn & (07777U << 24);
-        dataLoc  =  FcstCnt;
-        length  =  0;
-        dataSegLen  =  0;
-        do {
-            expression();
-            takeConstFromExpr();
-            savedVal  =  curVal;
-            if (SY == COLON) {
-                inSymbol();
-                repCount  =  curToken.i;
-                if (SY != INTCONST) {
-                    error(62); /* errIntNeeded */
-                    repCount  =  0;
-                } else
-                    inSymbol();
-            } else
-                repCount  =  1;
-            if (repCount != 1) {
+        if (ck == 0) {
+            base  =  ca;
+            dataLoc  =  FcstCnt;
+            length  =  0;
+            dataSegLen  =  0;
+        } else {
+            savedVal.i  =  ca;
+            rep  =  cb;
+            hasNext  =  (! nextEnd) && (nk == 1);
+            if (rep != 1) {
                 if (length != 0)
                     putDataRec(1);
                 length  =  1;
-                putDataRec(repCount);
+                putDataRec(rep);
             } else {
                 ++length;
-                if (SY == COMMA) {
+                if (hasNext) {
                     curVal  =  savedVal;
                     toFCST();
                 } else {
@@ -6450,11 +6691,10 @@ int rec;
                     putDataRec(1);
                 }
             }
-        } while (SY == COMMA);
-        myrollup(int(boundary));
-    } while (SY == SEMICOLON);
-    if (SY != ENDSY)
-        error(errBadSymbol);
+        }
+        ck  =  nk;  ca  =  na;  cb  =  nb;
+        curEnd  =  nextEnd;
+    }
     reset(F);
     while (! feof(&F)) {
         putw(&FCST, *F.data);
@@ -6463,7 +6703,7 @@ int rec;
     lookup2  =  FcstCnt - dsize;
     FcstCnt  =  dsize;
     lookupMode  =  setcount;
-} /* parseData */
+} /* flushInitializers */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void standProc() { /* standProc */
@@ -6863,10 +7103,6 @@ void returnOp() {
     boundary = eptr(setup());
     abort  =  false;
     startLine  =  lineCnt;
-    if (freeRegs == halfWord) {
-        parseData();
-        return;
-    }
     if (freeRegs == ceRegs) {
         readNext  =  false;
         ceTyp  =  voidType;
@@ -6876,6 +7112,14 @@ void returnOp() {
         ceTyp  =  curExpr->typ;
         ceVal  =  curVal.i;
         myrollup(int(boundary));
+        return;
+    }
+    if (freeRegs == initRegs) {
+        parseInitializer(initVar);
+        return;
+    }
+    if (freeRegs == flushRegs) {
+        flushInitializers();
         return;
     }
     if (SY == INTCONST) {
@@ -7495,14 +7739,10 @@ void defExtern() {
     do {
         programme(&l3var6z, programObj, false);
     } while ((SY != PERIOD) && (CH != '\0'));
-    if (CH != 'D') {
-        lookup2  =
-        lookupMode  =  lookDef;
-    } else {
-        freeRegs  =  halfWord;
-        dataCheck  =  false;
-        statement();
-    }
+    // The retired '.data' section is gone; declaration-site initializers are
+    // buffered during parsing and materialized here.
+    freeRegs  =  flushRegs;
+    statement();
     readToPos80();
     curVal.i  =  l3var6z;
     symTab[074003]  =  (helperNames[25] | [24,27,28,29]) |
@@ -7612,6 +7852,8 @@ void exitScope(int a) {
 //
     localSize  =  *retSizePtr;
     ceRegs  =  halfWord | (E48 >> 23);
+    initRegs  =  halfWord | (E48 >> 22);
+    flushRegs  =  halfWord | (E48 >> 21);
     if (localSize == 0) {
         inSymbol();
         mainProgram();
@@ -7852,6 +8094,13 @@ void exitScope(int a) {
                     }
                     localSize += jj;
                     curExternFile  =  NIL;
+                }
+                if (SY == BECOMES) {
+                    if (curProcNesting != 1)
+                        error(errVarTooComplex); /* load-time init: globals only */
+                    initVar  =  curIdRec;
+                    freeRegs  =  initRegs;
+                    statement();
                 }
                 moreDecls  =  (SY == COMMA);
                 if (moreDecls) {
@@ -8218,7 +8467,7 @@ void initOptions() {
     lookup2  =  lookupMode  =  1;
     lineStartOffset  =  moduleOffset  =  040000;
     condLabCnt  =  1;
-    dataCheck  =  inCallArgs  =  false;
+    inCallArgs  =  false;
     heapSize  =  100;
     forValue  =  true;
     atEOL  =  false;
@@ -8249,6 +8498,7 @@ void main() {
     curInsnTemplate  =  0;
     initTables();
     fopen(&FCST, 010000100000, 0);
+    fopen(&INITBUF, 010000100000, 0);
     programme(&curInsnTemplate, hashTravPtr, false);
     if (errors) {
 9999:   writeln(' IN ', (lineCnt-1):0, ' LINES ',
@@ -8260,275 +8510,4 @@ void main() {
     }
 }
 { besm(02400000); main(); besm(02400000); }
-.data
-    frameRegTemplate  =  04000000;
-    constRegTemplate  =  I8;
-    disNormTemplate  =   KNTR+7;
-    // No VARSY: variable declarations are dispatched via TYPESY now (a
-    // leading bound type name), same as routines -- see the unified
-    // declaration loop in programme's own body.
-    blockBegSys  =  [CONSTSY, TYPEDEFSY, TYPESY, BEGINSY];
-    statBegSys  =   [IDENT, EXPROP, LPAREN, INTCONST, REALCONST,
-                     CHARCONST, STRINGSY, LBRACK, BEGINSY, IFSY,
-                     SWITCHSY, DOSY, WHILESY, FORSY, WITHSY, GOTOSY,
-                     BREAKSY, CONTSY, SEMICOLON];
-    hashMask  =  0203407U;
-    statEndSys  =  [SEMICOLON, ENDSY, ELSESY, WHILESY];
-    lvalOpSet  =  [GETELT, GETVAR, op37, GETFIELD, DEREF, FILEPTR];
-    symHash = NIL:128;
-    fieldHash = NIL:128;
-    kwordHash = NIL:128;
-    /*=A3*/
-    resWordName  =
-        '   CONST',
-        ' TYPEDEF',
-        '    ENUM',
-        '**PACKED',
-        '  STRUCT',
-        '      IF',
-        '  SWITCH',
-        '   WHILE',
-        '     FOR',
-        '    WITH',
-        '    GOTO',
-        '    ELSE',
-        '      DO',
-        '  EXTERN',
-        '   BREAK',
-        'CONTINUE',
-        '    CASE',
-        ' DEFAULT',
-        '   UNION';
-/*=A2*/
-    charSym  =  NOSY:128;
-    chrClass  =  NOOP:128;
-    charSym['0']  =  INTCONST:10;
-    chrClass['0']  =  ALNUM:10;
-    charSym['A']  =  IDENT:26;
-    chrClass['A']  =  ALNUM:26;
-    charSym['Ю']  =  IDENT:31;
-    chrClass['Ю']  =  ALNUM:31;
-    chrClass['_']  =  ALNUM;
-    funcInsn[fnABS]  =  KAMX;
-    funcInsn[fnTRUNC]  =  KADD+ZERO;
-    funcInsn[fnROUND]  =  macro + mcROUND;
-    funcInsn[fnCARD]  =  KACX;
-    funcInsn[fnMINEL]  =  macro + mcMINEL;
-    funcInsn[fnMALLOC] = macro + mcMALLOC;
-    funcInsn[fnABSI]  =  KAMX;
-    intOpMap[MUL] = IMULOP,IDIVOP;
-    intOpMap[IMODOP] = IMODOP,INTPLUS,INTMINUS;
-    frameRestore = 0:16;
-    charSym['\'']  =  CHARCONST;
-    charSym['"']  =  CHARCONST;
-    charSym['_']  =  IDENT;
-    charSym['<']  =  EXPROP;
-    charSym['>']  =  EXPROP;
-    chrClass['+']  =  PLUSOP;
-    chrClass['-']  =  MINUSOP;
-    chrClass['|']  =  SETOR;
-    chrClass['*']  =  MUL;
-    chrClass['/']  =  RDIVOP;
-    chrClass['%']  =  IMODOP;
-    chrClass['^']  =  SETXOR;
-    chrClass['=']  =  ASSIGNOP;
-    chrClass['&']  =  SETAND;
-    chrClass['>']  =  GTOP;
-    chrClass['<']  =  LTOP;
-    chrClass['!']  =  NOTOP;
-    chrClass['~']  =  BITNEGOP;
-    chrClass['?']  =  CONDOP;
-    charSym['+']  =  EXPROP;
-    charSym['-']  =  EXPROP;
-    charSym['|']  =  EXPROP;
-    charSym['*']  =  EXPROP;
-    charSym['/']  =  EXPROP;
-    charSym['%']  =  EXPROP;
-    charSym['&']  =  EXPROP;
-    charSym[',']  =  COMMA;
-    charSym['.']  =  PERIOD;
-    charSym['^']  =  EXPROP;
-    charSym['(']  =  LPAREN;
-    charSym[')']  =  RPAREN;
-    charSym[';']  =  SEMICOLON;
-    charSym['[']  =  LBRACK;
-    charSym[']']  =  RBRACK;
-    charSym['=']  =  BECOMES;
-    charSym[':']  =  COLON;
-    charSym['!']  =  EXPROP;
-    charSym['~']  =  EXPROP;
-    charSym['?']  =  EXPROP;
-
-    /* Initialize operator precedence table */
-    opPrec = precNone:48;
-
-    /* Conditional ternary operator - precedence 1 (lowest), right-assoc */
-    opPrec[CONDOP] = precCond;
-
-    /* Logical OR operators - precedence 2 */
-    opPrec[OROP] = precOr;
-
-    /* Logical AND operators - precedence 3 */
-    opPrec[ANDOP] = precAnd;
-
-    /* Bitwise OR - precedence 4 */
-    opPrec[SETOR] = precBitOr;
-
-    /* Bitwise XOR - precedence 5 */
-    opPrec[SETXOR] = precBitXor;
-
-    /* Bitwise AND - precedence 6 */
-    opPrec[SETAND] = precBitAnd;
-
-    /* Equality operators - precedence 7 */
-    opPrec[NEOP] = precEq;
-    opPrec[EQOP] = precEq;
-
-    /* Relational operators - precedence 8 */
-    opPrec[LTOP] = precRel;
-    opPrec[GEOP] = precRel;
-    opPrec[GTOP] = precRel;
-    opPrec[LEOP] = precRel;
-    opPrec[INOP] = precRel;
-
-    /* Shift operators - precedence 9 */
-    opPrec[SHLEFT] = precShift;
-    opPrec[SHRIGHT] = precShift;
-
-    /* Additive operators - precedence 10 */
-    opPrec[PLUSOP] = precAdd;
-    opPrec[MINUSOP] = precAdd;
-
-    /* Multiplicative operators - precedence 11 (highest) */
-    opPrec[MUL] = precMul;
-    opPrec[RDIVOP] = precMul;
-    opPrec[IDIVOP] = precMul;
-    opPrec[IMODOP] = precMul;
-
-    helperMap    =  0:102;
-    /*=A3*/
-    helperNames  =
-        'P/1     ',
-        'P/2     ',
-        'P/3     ',
-        'P/4     ',
-        'P/5     ',
-        'P/6     ',
-        'P/CA    ',
-        'P/EO    ',
-        '        ', // was P/SS, not needed anymore
-/*10*/  'P/EL    ',
-        'C/MD    ',
-        'P/MI    ',
-        'P/PA    ',
-        'P/UN    ',
-        'P/CP    ',
-        'P/AB    ',
-        'C/DI    ',
-        'C/RC    ',
-        'P/EA    ',
-/*20*/  'P/NA    ',
-        'P/BA    ',
-        'P/II   u',
-        'P/RR    ',
-        'P/RI    ',
-        'P/1D    ',
-        'P/GD    ',
-        'C/E     ',
-        'C/EF    ',
-        'P/PF    ',
-/*30*/  'P/GF    ',
-        'P/TF    ',
-        'P/RF    ',
-        'P/NW    ',
-        'P/DS    ',
-        'P/HT    ',
-        'C/WI    ',
-        'P/WR    ',
-        'P/WC    ',
-        'P/A6    ',
-/*40*/  'P/A7    ',
-        'P/WX    ',
-        'P/WO    ',
-        'P/CW    ',
-        'P/6A    ',
-        'P/7A    ',
-        'P/WL    ',
-        'P/RDI   ',  // unused from here
-        'P/RDR   ',
-        'P/RDC   ',
-/*50*/  'P/RA6   ',
-        'P/RA7   ',
-        'P/RX   u',
-        'P/RL    ',  // to here
-        'P/WOLN  ',
-        'P/RILN  ',  // unused
-        'P/RR    ',
-        'P/CE    ',
-        'P/TR    ',
-        'P/LV    ',
-/*60*/  'FOPEN   ',
-        'FCLOSE  ',
-        'P/BP    ',
-        'P/B6    ',
-        'P/PB    ',
-        'P/B7    ',
-        'P/IN    ',
-        'P/IS    ',
-        'P/DA    ',
-        'P/CO    ',
-/*70*/  'P/IT    ',
-        'P/CK    ',
-        'P/KC    ',
-        'P/LNGPAR',
-        'P/LDAR  ',
-        'P/LDARIN',
-        'P/00C   ',
-        'P/STAR  ',
-        'P/PMDSET',
-        'P/CI    ',
-/*80*/  'PAIB    ',
-        'P/WA    ',
-        '        ', // was SQRT*
-        '        ', // was SIN*
-        '        ', // was COS*
-        '        ', // was ARCTAN*
-        '        ', // was ARCSIN*
-        '        ', // was LN*
-        '        ', // was EXP*
-        'P/EQ    ',
-/*90*/  'P/RA    ', // unused
-        'P/GE    ',
-        'P/MF    ',
-        'P/FM    ',
-        'P/NN    ',
-        'P/SC    ',
-        'P/DD    ',
-        'P/RE    ',
-        'C/SHL   ',
-        'C/SHR   ';
-    systemProcNames  =
-/*0*/   '     PUT',
-        '     GET',
-        ' REWRITE',
-        '   RESET',
-        ' was NEW',
-        '    FREE',
-        '    HALT',
-        '    STOP',
-        '        ',
-        '        ',
-/*10*/  '   WRITE',
-        ' WRITELN',
-        '    CTOR',
-        '        ',  // was READLN
-        '  RETURN',
-        '        ',
-        '    BESM',
-        '        ',  // was MAPIA, unused
-        '        ',  // was MAPAI, unused
-        '     PCK',
-/*20*/  '   UNPCK',
-        '    PACK',
-        '  UNPACK';
-}
+.

@@ -833,7 +833,6 @@ SetOfSYs   bigSkipSet, statEndSys, blockBegSys, statBegSys,
            skipToSet, lvalOpSet;
 
 bool   inCallArgs, bool48z, forValue;
-bool   dataCheck;
 
 int64_t jumpType, jumpTarget;
 
@@ -2129,11 +2128,6 @@ bool skipSp()
 inSymbol::inSymbol()
 {
 {
-        if (dataCheck) {
-            error(errEOFEncountered);
-            readToPos80();
-            throw 9999;
-        }
 L1473:
         while (skipSp()) ;
         hashTravPtr = NULL;
@@ -2552,8 +2546,6 @@ loop:                   {
             if (CH == '.') { SY = COLON; nextCH(); goto exitLexer; }
             break;
         }
-        if ((prevCH == '.') and (prevSY == ENDSY))
-            dataCheck = true;
       exitLexer:
         prevSY = SY;
         commentModeCH = ' ';
@@ -7291,135 +7283,181 @@ void ifWhileStatement()
     Statement();
 } /* ifWhileStatement */
 
-struct ParseData {
-    struct DATAREC {
-        int64_t b = 0;
-        unsigned operator[](int i) {
-            return (b >> (12*(3-i))) & 4095;
-        }
-        void assn(int i, int64_t val) {
-            val &= 4095;
-            val ^= (*this)[i];
-            b = (b ^ (val << (12*(3-i)))) & 0xFFFFFFFFFFFFL;
-        }
-    };
+// ---- Declaration-site initializers (C-style) -------------------------------
+// A global variable/array may carry a load-time initializer at its declaration
+// ('int x = 5;', 'int a[N] = { v:count, [i]=w, ... };'), replacing the retired
+// trailing '.data' section.  The FCST data-init region must stay a contiguous
+// trailing block (finalize() describes it only by length + record count, right
+// after the constant pool), so each initializer is BUFFERED at its declaration
+// and materialized once, at program end, by flushInitializers().
 
-    int64_t dsize, setcount;
-    Word l4var3z, l4var4z, l4var5z;
+struct DATAREC {
+    int64_t b = 0;
+    unsigned operator[](int i) {
+        return (b >> (12*(3-i))) & 4095;
+    }
+    void assn(int i, int64_t val) {
+        val &= 4095;
+        val ^= (*this)[i];
+        b = (b ^ (val << (12*(3-i)))) & 0xFFFFFFFFFFFFL;
+    }
+};
+
+int64_t allocDataRef(int64_t arg) {
+    if (arg >= 2048) {
+        curVal.ii = arg;
+        return allocSymtab((curVal.ii | 040000000) & halfWord);
+    } else {
+        return arg;
+    }
+} /* allocDataRef */
+
+struct InitItem { int64_t value, count; };
+struct InitSeg  { int64_t base; std::vector<InitItem> items; };
+std::vector<InitSeg> initSegs;
+
+// Start a new destination segment: 'var' bare (offset 0), or -- when
+// 'designator' -- 'var[index]...' (SY is at '['; parsePostfix builds the GETELT
+// chain and leaves SY at '=').  formOperator(SETREG9) yields the base-register
+// template with no module/FCST side effect (it builds only into the object
+// buffer, guarded by objBufIdx==1), exactly as ParseData does for a '.data' LHS.
+void beginInitSeg(IdentRecPtr var, bool designator) {
+    curExpr = mkExpr(GETVAR, var->typ, (ExprPtr)var, NULL);
+    if (designator)
+        parsePostfix();
+    putLeft = true;
+    objBufIdx = 1;
+    (void) formOperator(SETREG9);
+    if (objBufIdx != 1)
+        error(errVarTooComplex);
+    initSegs.push_back(InitSeg{ leftInsn & 0777700000000L, {} });
+}
+
+// Parse (but do not emit) one global's '= initializer', buffering it into
+// initSegs.  A '[index]=' designator opens a new segment; bare items and
+// 'value:count' fills accumulate into the current segment.
+void parseInitializer(IdentRecPtr var) {
     ExprPtr boundary;
-    Word l4var7z, l4var8z, l4var9z;
-    std::vector<DATAREC> F;
-
-    int64_t allocDataRef(int64_t l6arg1z) {
-        if (l6arg1z >= 2048) {
-            curVal.ii = l6arg1z;
-            return allocSymtab((curVal.ii | 040000000) & halfWord);
-        } else {
-            return l6arg1z;
+    inSymbol();                       /* consume '=' -> SY at first init token */
+    bool braced = SY == BEGINSY;
+    if (braced)
+        inSymbol();                   /* consume '{' */
+    setup(boundary);
+    beginInitSeg(var, false);         /* initial segment: var, offset 0 */
+    for (;;) {
+        if (braced and SY == LBRACK) {
+            /* '[index]=' designator opens a new segment (parsePostfix's
+               expression() consumes the '[' -- it needs readNext=true). */
+            rollup(boundary);
+            setup(boundary);
+            readNext = true;
+            beginInitSeg(var, true);
+            checkSymAndRead(BECOMES);
         }
-    } /* allocDataRef */
+        readNext = false;             /* SY already at the value's first token */
+        expression();
+        takeConstFromExpr();
+        int64_t v = curVal.ii;
+        int64_t count = 1;
+        if (SY == COLON) {
+            inSymbol();
+            if (SY != INTCONST) {
+                error(62);            /* errIntegerNeeded */
+                count = 0;
+            } else {
+                count = curToken.ii;
+                inSymbol();
+            }
+        }
+        initSegs.back().items.push_back(InitItem{ v, count });
+        /* Only a braced initializer uses ',' to separate items; an unbraced
+           scalar ends here so the declarator loop can read the next name. */
+        if (braced and SY == COMMA) {
+            inSymbol();
+            continue;
+        }
+        break;
+    }
+    rollup(boundary);
+    if (braced)
+        checkSymAndRead(ENDSY);
+    /* the trailing ';' is consumed by the declarator loop */
+}
 
-    void putDataRec(int64_t l5arg1z) {
-        DATAREC l5var1z;
-
-        l5var1z.assn(0, allocDataRef(l4var4z.ii));
-        if (FcstCnt == l4var3z.ii) {
-            curVal = l4var8z;
+// Materialize all buffered declaration-site initializers as the contiguous
+// trailing data-init region of FCST.  Runs at program end (where the '.data'
+// section used to be parsed); mirrors ParseData's record/value emission.
+void flushInitializers() {
+    if (initSegs.empty()) {
+        lookup2 = 0;
+        lookupMode = lookDef;
+        return;
+    }
+    int64_t dsize = FcstCnt;
+    int64_t setcount = 0;
+    int64_t dataLoc = FcstCnt, length = 0, dataSegLen = 0, base = 0;
+    Word savedVal;
+    std::vector<DATAREC> F;
+    auto putDataRec = [&](int64_t rep) {
+        DATAREC r;
+        r.assn(0, allocDataRef(length));
+        if (FcstCnt == dataLoc) {
+            curVal = savedVal;
             curVal.ii = addCurValToFCST();
         } else {
-            curVal = l4var3z;
+            curVal.ii = dataLoc;
         }
-        l5var1z.assn(1, allocSymtab(0400100000000L | (curVal.ii & halfWord)));
-        l5var1z.assn(2, allocDataRef(l5arg1z));
-        if (l4var9z.ii == 0) {
-            curVal.ii = shr48(l4var7z.ii, 24);
+        r.assn(1, allocSymtab(0400100000000L | (curVal.ii & halfWord)));
+        r.assn(2, allocDataRef(rep));
+        if (dataSegLen == 0) {
+            curVal.ii = shr48(base, 24);
         } else {
-            curVal.ii = allocSymtab(l4var7z.ii | (l4var9z.ii & halfWord));
+            curVal.ii = allocSymtab(base | (dataSegLen & halfWord));
         }
-        l5var1z.assn(3, curVal.ii);
-        l4var9z.ii = l5arg1z * l4var4z.ii + l4var9z.ii;
-        F.push_back(l5var1z);
+        r.assn(3, curVal.ii);
+        dataSegLen = rep * length + dataSegLen;
+        F.push_back(r);
         setcount = setcount + 1;
-        l4var4z.ii = 0;
-        l4var3z.ii = FcstCnt;
-    } /* putDataRec */
-
-    ParseData() {
-        dsize = FcstCnt;
-        inSymbol();
-        setcount = 0;
-/*(loop)*/
-        do { /* 16530 */
-            inSymbol();
-            setup(boundary);
-            if (SY != IDENT) {
-                if (SY == ENDSY)
-                    break;
-                error(errNoIdent);
-                curExpr = uVarPtr;
-            } else /* 16543 */ {
-                if (hashTravPtr == NULL) {
-L16545:             error(errNotDefined);
-                    curExpr = uVarPtr;
-                    inSymbol();
+        length = 0;
+        dataLoc = FcstCnt;
+    };
+    for (size_t s = 0; s < initSegs.size(); ++s) {
+        base = initSegs[s].base;
+        dataLoc = FcstCnt;
+        length = 0;
+        dataSegLen = 0;
+        std::vector<InitItem> &items = initSegs[s].items;
+        for (size_t i = 0; i < items.size(); ++i) {
+            savedVal.ii = items[i].value;
+            int64_t count = items[i].count;
+            bool hasNext = i + 1 < items.size();
+            if (count != 1) {
+                if (length != 0)
+                    putDataRec(1);
+                length = 1;
+                putDataRec(count);
+            } else {
+                length = length + 1;
+                if (hasNext) {
+                    curVal = savedVal;
+                    toFCST();
                 } else {
-                    if (hashTravPtr->pck.cl == VARID) {
-                        parseLval();
-                    } else goto L16545;
-                }
-            } /* 16557 */
-            putLeft = true;
-            objBufIdx = 1;
-            (void) formOperator(SETREG9);
-            if (objBufIdx != 1)
-                error(errVarTooComplex);
-            l4var7z.ii = leftInsn & 0777700000000L;
-            l4var3z.ii = FcstCnt;
-            l4var4z.ii = 0;
-            l4var9z.ii = 0;
-            do { /* 16574 */
-                expression();
-                takeConstFromExpr();
-                l4var8z = curVal;
-                if (SY == COLON) {
-                    inSymbol();
-                    l4var5z = curToken;
-                    if (SY != INTCONST) {
-                        error(62); /* errIntegerNeeded */
-                        l4var5z.ii = 0;
-                    } else
-                        inSymbol();
-                } else
-                    l4var5z.ii = 1;
-                if (l4var5z.ii != 1) {
-                    if (l4var4z.ii != 0)
-                        putDataRec(1);
-                    l4var4z.ii = 1;
-                    putDataRec(l4var5z.ii);
-                } else {
-                    l4var4z.ii = l4var4z.ii + 1;
-                    if (SY == COMMA) {
-                        curVal = l4var8z;
+                    if (length != 1) {
+                        curVal = savedVal;
                         toFCST();
-                    } else {
-                        if (l4var4z.ii != 1) {
-                            curVal = l4var8z;
-                            toFCST();
-                        }
-                        putDataRec(1);
                     }
-                } /* 16641 */
-            } while (SY == COMMA);
-            rollup(boundary);
-        } while (SY == SEMICOLON); /* 16645 */
-        if (SY != ENDSY)
-            error(errBadSymbol);
-        for (size_t s = 0; s < F.size(); ++s) FCST.push_back(F[s].b);
-        lookup2 = FcstCnt - dsize;
-        FcstCnt = dsize;
-        lookupMode = setcount;
+                    putDataRec(1);
+                }
+            }
+        }
     }
-}; /* parseData */
+    for (size_t s = 0; s < F.size(); ++s)
+        FCST.push_back(F[s].b);
+    lookup2 = FcstCnt - dsize;
+    FcstCnt = dsize;
+    lookupMode = setcount;
+} /* flushInitializers */
+
 
 void parseConstExpression()
 {
@@ -7832,9 +7870,7 @@ Statement::Statement()
     setup(boundary);
     bool110z = false;
     startLine = lineCnt;
-    if (freeRegs == halfWord)
-        ParseData();
-    else if (freeRegs == ceRegs) {
+    if (freeRegs == ceRegs) {
         parseConstExpression();
         return;
     } else {
@@ -8546,14 +8582,9 @@ initScalars::initScalars() :
     do {
         programme(l3var6z, programObj, false);
     } while (!(SY == PERIOD || CH == 0));
-    if (CH != 'D' && CH != 'd') {
-        lookup2 = 0;
-        lookupMode = lookDef;
-    } else {
-        freeRegs = halfWord;
-        dataCheck = false;
-        Statement();
-    }
+    // The retired '.data' section is gone; declaration-site initializers are
+    // buffered during parsing and materialized here.
+    flushInitializers();
     readToPos80();
     curVal.ii = l3var6z;
     symTab[074003] = (helperNames[25] | Bits(24,27,28,29)) |
@@ -8929,6 +8960,11 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 if (isFileType(d.type)) {
                     workidr = curIdRec;
                     makeExtFile();
+                }
+                if (SY == BECOMES) {
+                    if (curProcNesting != 1)
+                        error(errVarTooComplex); /* load-time init: globals only */
+                    parseInitializer(curIdRec);
                 }
                 moreDecls = (SY == COMMA);
                 if (moreDecls) {
@@ -9413,7 +9449,6 @@ void initOptions(int argc, char **argv)
     lineStartOffset = 16384;
     condLabCnt = 1;
     inCallArgs = false;
-    dataCheck = false;
     heapSize = 100;
     forValue = true;
     atEOL = false;
