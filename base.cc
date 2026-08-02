@@ -5713,31 +5713,10 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion
     checkSymAndRead(ENDSY);
 } /* parseRecordDecl */
 
-void parseRange(int64_t & aleft, int64_t & aright)
-{
-    TPtr tempType{};
-    parseLiteral(tempType, curVal, true);
-    if (tempType != NULL and tempType.p.pk == kindScalar) {
-        inSymbol();
-        if (SY != COLON) {
-            // Handle a single value N as a range 0..N-1
-            aright = curVal.ii - 1;
-            aleft = 0;
-            return;
-        }
-        aleft = curVal.ii;
-        inSymbol();
-        parseLiteral(tempType, curVal, true);
-        inSymbol();
-        if (tempType != NULL and tempType.p.pk == kindScalar) {
-            aright = curVal.ii;
-            return;
-        }
-    }
-    error(64); /* errIncorrectRangeDefinition */
-    aleft = 0;
-    aright = 0;
-} /* parseRange */
+// parseRange's definition lives past the Statement struct (near
+// parseConstDeclValue): array bounds are const-expressions, evaluated by
+// running Statement() in ceRegs mode, which needs the full Statement
+// definition in scope.  Only the forward declaration (above) is visible here.
 
 parseTypeRef::parseTypeRef(TPtr & newtype, int64_t skipTarget_)
     : skipTarget(skipTarget_)
@@ -8044,6 +8023,39 @@ Statement::Statement()
     }
     /* 20766 */
 } /* Statement */
+
+// Array bounds are const-expressions.  Each bound is evaluated by running
+// Statement() in ceRegs mode (parses one expression, const-folds it, and
+// leaves the value in ceVal / its type in ceTyp), exactly as
+// parseConstDeclValue below drives it.  Forward-declared far above (near
+// parseTypeRef); defined here because it needs the Statement definition.
+void parseRange(int64_t & aleft, int64_t & aright)
+{
+    int64_t &ceRegs = programme::super.back()->ceRegs;
+    TPtr &ceTyp = programme::super.back()->ceTyp;
+    Word &ceVal = programme::super.back()->ceVal;
+
+    freeRegs = ceRegs;
+    Statement();
+    if (ceTyp != NULL and ceTyp.p.pk == kindScalar) {
+        aleft = ceVal.ii;
+        if (SY != COLON) {
+            // Handle a single value N as a range 0..N-1
+            aright = aleft - 1;
+            aleft = 0;
+            return;
+        }
+        inSymbol();
+        Statement();
+        if (ceTyp != NULL and ceTyp.p.pk == kindScalar) {
+            aright = ceVal.ii;
+            return;
+        }
+    }
+    error(64); /* errIncorrectRangeDefinition */
+    aleft = 0;
+    aright = 0;
+} /* parseRange */
 
 void parseConstDeclValue(TPtr &typ, Word &value)
 {

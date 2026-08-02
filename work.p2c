@@ -4437,17 +4437,20 @@ inptr icand;
 } /* makeArrayType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// Promoted out of parseTypeRef (like makeArrayType above) so
-// readDeclaratorCore, a sibling of parseTypeRef rather than a nestee,
-// can see it: P2C's real lexical scoping only lets siblings see each
-// other when declared-before-use at the same level. Uses its own
-// scratch 'rangeType' instead of parseTypeRef's local 'curType', which
-// is no longer in scope here.
+// Array bounds are const-expressions.  parseRange evaluates each bound
+// with the shared const-expression evaluator: statement() run in ceRegs
+// mode parses one expression, const-folds it, and leaves the value in
+// ceVal / its type in ceTyp (the freeRegs==ceRegs branch of statement();
+// parseConstDeclValue drives it the same way).  statement() is a
+// PROGRAMM-level sibling of parseRange, hence the forward declaration --
+// promoted out of parseTypeRef like makeArrayType above so
+// readDeclaratorCore can call it at the same level.
+void statement();
 void parseRange(int *aleft, int *aright) {
-tptr rangeType;
-    rangeType = parseLiteral(aleft, true);
-    if (rangeType.rep != NIL && rangeType.p.pk == kindScalar) {
-        inSymbol();
+    freeRegs = ceRegs;
+    statement();
+    if (ceTyp.rep != NIL && ceTyp.p.pk == kindScalar) {
+        *aleft = ceVal;
         if (SY != COLON) {
 // Handle a single value N as a range 0..N-1
             *aright = *aleft - 1;
@@ -4455,12 +4458,15 @@ tptr rangeType;
             return;
         }
         inSymbol();
-        rangeType = parseLiteral(aright, true);
-        inSymbol();
-        if (rangeType.rep != NIL && rangeType.p.pk == kindScalar)
+        statement();
+        if (ceTyp.rep != NIL && ceTyp.p.pk == kindScalar) {
+            *aright = ceVal;
             return;
+        }
     }
     error(64); /* errIncorrectRangeDefinition */
+    *aleft = 0;
+    *aright = 0;
 } /* parseRange */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
