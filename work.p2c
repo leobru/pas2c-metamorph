@@ -164,7 +164,7 @@ typedef enum {
         WHILESY,    FORSY,      WITHSY,     GOTOSY,
 /*40B*/ ELSESY,     DOSY,
         EXTERNSY,   BREAKSY,    CONTSY,     CASESY,
-/*50B*/ DEFAULTSY,  UNIONSY,    NOSY
+/*50B*/ DEFAULTSY,  UNIONSY,    RETURNSY,   NOSY
 } symbol;
 //
 typedef enum {
@@ -397,7 +397,7 @@ setofsys statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
     statBegSys = [IDENT, EXPROP, LPAREN, INTCONST, REALCONST,
                   CHARCONST, STRINGSY, LBRACK, BEGINSY, IFSY,
                   SWITCHSY, DOSY, WHILESY, FORSY, WITHSY, GOTOSY,
-                  BREAKSY, CONTSY, SEMICOLON],
+                  BREAKSY, CONTSY, RETURNSY, SEMICOLON],
     skipToSet,
     lvalOpSet = [GETELT, GETVAR, op37, GETFIELD, DEREF, FILEPTR];
 int inCallArgs, bool48z, forValue;
@@ -666,7 +666,7 @@ int systemProcNames[23] = {
         ' WRITELN',
         '    CTOR',
         '        ',  // was READLN
-        '  RETURN',
+        '        ',  // was RETURN, now a keyword
         '        ',
         '    BESM',
         '        ',  // was MAPIA, unused
@@ -675,7 +675,7 @@ int systemProcNames[23] = {
 /*20*/  '   UNPCK',
         '    PACK',
         '  UNPACK' };
-int resWordName[19] = {
+int resWordName[20] = {
         '   CONST',
         ' TYPEDEF',
         '    ENUM',
@@ -694,7 +694,8 @@ int resWordName[19] = {
         'CONTINUE',
         '    CASE',
         ' DEFAULT',
-        '   UNION' };
+        '   UNION',
+        '  RETURN' };
 /*=A2*/
 int longSymCnt;
 int longSym[1..90];
@@ -6731,6 +6732,34 @@ int rec;
 } /* flushInitializers */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void returnOp() {
+    if (SY != SEMICOLON) {
+        /* return expr: load expr to ACC, then jump */
+        if (procName->typ == voidType)
+            errAndSkip(errNeedOtherTypesOfOperands, statEndSys);
+        else {
+            if (hasFiles) {
+                writeln(' functions must not use files');
+                error(200);
+            }
+            retSeen  =  true;
+            readNext = false;
+            expression();
+            if (typeCheck(procName->typ, curExpr->typ)) {
+                /* OK */
+            } else if (procName->typ == realType &&
+                    typeCheck(intType, curExpr->typ))
+                castToReal(&curExpr);
+            else
+                error(33); /* errIllegalTypesForAssignment */
+            formOperator(LOAD);
+        }
+    } else if (procName->typ != voidType)
+        error(errNeedOtherTypesOfOperands);
+    form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
+} /* returnOp */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void standProc() { /* standProc */
 tptr l4typ1z, l4typ2z, l4typ3z;
 eptr firstWidth, secondWidth;
@@ -6962,34 +6991,6 @@ tptr t;
 } /* doPackUnpack */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void returnOp() {
-    if (SY != SEMICOLON) {
-        /* return expr: load expr to ACC, then jump */
-        if (procName->typ == voidType)
-            errAndSkip(errNeedOtherTypesOfOperands, statEndSys);
-        else {
-            if (hasFiles) {
-                writeln(' functions must not use files');
-                error(200);
-            }
-            retSeen  =  true;
-            readNext = false;
-            expression();
-            if (typeCheck(procName->typ, curExpr->typ)) {
-                /* OK */
-            } else if (procName->typ == realType &&
-                    typeCheck(intType, curExpr->typ))
-                castToReal(&curExpr);
-            else
-                error(33); /* errIllegalTypesForAssignment */
-            formOperator(LOAD);
-        }
-    } else if (procName->typ != voidType)
-        error(errNeedOtherTypesOfOperands);
-    form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
-} /* returnOp */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     curVal.i  =  l3idr12z->low;
     procNo  =  curVal.i;
     l4bool10z  =  (SY == LPAREN);
@@ -7084,9 +7085,6 @@ void returnOp() {
             }
         }
         break;
-    case 14: /* return */
-        returnOp();
-        return;
     case 16: /* besm */
         expression();
         takeConstFromExpr();
@@ -7259,6 +7257,11 @@ void returnOp() {
     case BREAKSY: case CONTSY:
         structBranch();
         inSymbol();
+        checkSymAndRead(SEMICOLON);
+        break;
+    case RETURNSY:
+        inSymbol();
+        returnOp();
         checkSymAndRead(SEMICOLON);
         break;
     case DOSY:
@@ -8409,11 +8412,11 @@ void regKeywords() { /*=A3 regKeywords */
     regResWord('      IN');
     SY  =  CONSTSY;
     charClass  =  NOOP;
-    /* CONSTSY..UNIONSY are 19 consecutive reserved words. TYPESY (a runtime
+    /* CONSTSY..RETURNSY are 20 consecutive reserved words. TYPESY (a runtime
        marker set by markTypeSym/lookup on a type-name IDENT, not a keyword)
        sits just before CONSTSY so it is outside this range -- no skip needed;
        'var'/'function' are gone entirely (free identifiers now). */
-    for (idx = 0; idx <= 18; ++idx) {
+    for (idx = 0; idx <= 19; ++idx) {
         regResWord(resWordName[idx]);
         ++SY;
     }

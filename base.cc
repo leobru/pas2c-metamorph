@@ -186,7 +186,7 @@ enum Symbol {
         WHILESY,    FORSY,      WITHSY,     GOTOSY,
 /*40B*/ ELSESY,     DOSY,
         EXTERNSY,   BREAKSY,    CONTSY,     CASESY,
-/*50B*/ DEFAULTSY,  UNIONSY,    NOSY
+/*50B*/ DEFAULTSY,  UNIONSY,    RETURNSY,   NOSY
 };
 
 enum IdClass {
@@ -968,7 +968,7 @@ extern int64_t helperNames[100]; // array [1..99] of int64_t;
 
 int64_t symTab[SYMTAB_LIMIT + 1]; // array [74000B..75500B] of int64_t;
 extern int64_t systemProcNames[30];
-extern int64_t resWordNameBase[19];
+extern int64_t resWordNameBase[20];
 int64_t longSymCnt;
 int64_t longSymTabBase[91];
 int64_t longSyms[91]; // array [1..90] of int64_t;
@@ -7503,6 +7503,37 @@ void parseConstExpression()
     rollup(boundary);
 } /* parseConstExpression */
 
+void returnOp() {
+    IdentRecPtr &procName = programme::super.back()->procName;
+    int64_t &hasFiles = programme::super.back()->hasFiles;
+    bool &retSeen = programme::super.back()->retSeen;
+
+    if (not has(statEndSys, SY)) {
+        /* return expr: load expr to ACC, then jump */
+        if (procName->typ == voidType)
+            error(errNeedOtherTypesOfOperands);
+        else {
+            if (hasFiles != 0) {
+                printf(" functions must not use files\n");
+                error(200);
+            }
+            retSeen = true;
+            readNext = false;
+            expression();
+            if (typeCheck(procName->typ, curExpr->vt.typ)) {
+                /* OK */
+            } else if (procName->typ == RealType and
+                       typeCheck(IntegerType, curExpr->vt.typ)) {
+                castToReal(curExpr);
+            } else
+                error(33); /* errIllegalTypesForAssignment */
+            (void) formOperator(LOAD);
+        }
+    } else if (procName->typ != voidType)
+        error(errNeedOtherTypesOfOperands);
+    form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
+} /* returnOp */
+
 struct standProc {
 
     TPtr l4typ1z, l4typ2z, l4typ3z;
@@ -7714,37 +7745,6 @@ struct standProc {
         (void) formOperator(PCKUNPCK);
     } /* doPackUnpack */
 
-    void returnOp() {
-        IdentRecPtr &procName = programme::super.back()->procName;
-        int64_t &hasFiles = programme::super.back()->hasFiles;
-        bool &retSeen = programme::super.back()->retSeen;
-
-        if (not has(statEndSys, SY)) {
-            /* return expr: load expr to ACC, then jump */
-            if (procName->typ == voidType)
-                error(errNeedOtherTypesOfOperands);
-            else {
-                if (hasFiles != 0) {
-                    printf(" functions must not use files\n");
-                    error(200);
-                }
-                retSeen = true;
-                readNext = false;
-                expression();
-                if (typeCheck(procName->typ, curExpr->vt.typ)) {
-                    /* OK */
-                } else if (procName->typ == RealType and
-                           typeCheck(IntegerType, curExpr->vt.typ)) {
-                    castToReal(curExpr);
-                } else
-                    error(33); /* errIllegalTypesForAssignment */
-                (void) formOperator(LOAD);
-            }
-        } else if (procName->typ != voidType)
-            error(errNeedOtherTypesOfOperands);
-        form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
-    } /* returnOp */
-
     standProc() { /* standProc */
         IdentRecPtr &l3idr12z = Statement::super.back()->l3idr12z;
         TPtr &l2typ13z = programme::super.back()->l2typ13z;
@@ -7845,10 +7845,6 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
                     (void) formOperator(STOREAT9);
                 }
             }
-        } break;
-        case 14: { /* return [expr] */
-            returnOp();
-            return;
         } break;
         case 16: { /* besm */
             expression();
@@ -8027,6 +8023,10 @@ Statement::Statement()
             } else if (SY == BREAKSY or SY == CONTSY) {
                 structBranch();
                 inSymbol();
+                checkSymAndRead(SEMICOLON);
+            } else if (SY == RETURNSY) {
+                inSymbol();
+                returnOp();
                 checkSymAndRead(SEMICOLON);
             } else if (SY == DOSY) {
                 liveRegs = Bits();
@@ -9292,11 +9292,11 @@ struct initTables {
         regResWord(toText("IN"));
         SY = CONSTSY;
         charClass = NOOP;
-        // CONSTSY..UNIONSY are 19 consecutive reserved words. TYPESY (a runtime
+        // CONSTSY..RETURNSY are 20 consecutive reserved words. TYPESY (a runtime
         // marker set by markTypeSym/lookup on a type-name IDENT, not a keyword)
         // sits just before CONSTSY, outside this range -- no skip needed;
         // 'var'/'function' are not reserved words (they are free identifiers).
-        for (idx = 0; idx <= 18; ++idx) {
+        for (idx = 0; idx <= 19; ++idx) {
             regResWord(resWordNameBase[idx]);
             succ(SY);
         }
@@ -9637,7 +9637,7 @@ int main(int argc, char **argv)
         | Bits(REALCONST, CHARCONST, STRINGSY, LBRACK)
         | Bits(BEGINSY, IFSY, SWITCHSY, DOSY)
         | Bits(WHILESY, FORSY, WITHSY, GOTOSY)
-        | Bits(BREAKSY, CONTSY, SEMICOLON);
+        | Bits(BREAKSY, CONTSY, RETURNSY, SEMICOLON);
     statEndSys = Bits(SEMICOLON, ENDSY, ELSESY, WHILESY);
     lvalOpSet = Bits(GETELT, GETVAR, op37, GETFIELD) | Bits(DEREF, FILEPTR);
 
@@ -9788,7 +9788,7 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
     }
 }
 
-int64_t resWordNameBase[19] = {
+int64_t resWordNameBase[20] = {
         04357566364L             /*"   CONST"*/,
         064716045444546L         /*" TYPEDEF"*/,
         045566555L               /*"    ENUM"*/,
@@ -9807,7 +9807,8 @@ int64_t resWordNameBase[19] = {
         04357566451566545L       /*"CONTINUE"*/,
         043416345L               /*"    CASE"*/,
         044454641655464L         /*" DEFAULT"*/,
-        06556515756L             /*"   UNION"*/};
+        06556515756L             /*"   UNION"*/,
+        0624564656256L           /*"  RETURN"*/};
 
 int64_t helperNames[100] = { 0L,
         06017210000000000L      /*"P/1     "*/,
@@ -9912,9 +9913,9 @@ int64_t helperNames[100] = { 0L,
 
 // Copied verbatim from base.pas 8796 (systemProcNames: array [0..22]).  The
 // registration loop (regSysProc) only reads indices 0..22; the trailing slots
-// zero-fill.  This is the P2C set (CTOR/RETURN/BESM/FREE...), NOT the upstream
-// pascompl set (READ/EXIT/DEBUG/NEW/DISPOSE...) -- index 14 in particular is
-// RETURN, not EXIT, so `return` is recognised as standproc #14.
+// zero-fill.  This is the P2C set (CTOR/BESM/FREE...), NOT the upstream
+// pascompl set (READ/EXIT/DEBUG/NEW/DISPOSE...).  Index 14 (was RETURN) is now
+// blank: `return` is a reserved keyword (RETURNSY), not a standproc.
 int64_t systemProcNames[30] = {
 /*0*/   0606564L                /*"     PUT"*/,
         0474564L                /*"     GET"*/,
@@ -9930,7 +9931,7 @@ int64_t systemProcNames[30] = {
         067625164455456L        /*" WRITELN"*/,
         043645762L              /*"    CTOR"*/,
         0L                      /*"  READLN"*/,
-        0624564656256L          /*"  RETURN"*/,
+        0L                      /*"was RETURN, now keyword"*/,
         0L                      /*"was LONGJMP"*/,
         042456355L              /*"    BESM"*/,
         0L                      /*"   MAPIA"*/,
