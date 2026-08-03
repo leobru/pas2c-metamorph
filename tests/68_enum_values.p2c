@@ -1,0 +1,24 @@
+/*=s8,y+,k9,l0*/
+//
+// Enum bodies with explicit '= constExpr' values; later enumerators
+// auto-increment from the last value. Values may reference earlier
+// enumerators (const-expressions). For explicit-value enums, name
+// printing is suppressed -- the value is written as an integer.
+enum { A = 1, B, C = 10, D } e1;
+enum { X = 5, Y = X + 3 } e2;
+enum { RED, GREEN, BLUE } color;
+enum { LO = -2, MID, HI } ev;
+int val;
+{
+    val = A; writeln(' A=', val:0);
+    val = B; writeln(' B=', val:0);
+    val = C; writeln(' C=', val:0);
+    val = D; writeln(' D=', val:0);
+    val = X; writeln(' X=', val:0);
+    val = Y; writeln(' Y=', val:0);
+    ev = MID; writeln(' MID=', ev:0);
+    ev = HI;  writeln(' HI=', ev:0);
+    // A plain (sequential) enum still prints its enumerator name:
+    color = GREEN; writeln(' color=', color);
+}
+.

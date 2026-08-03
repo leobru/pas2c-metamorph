@@ -590,7 +590,7 @@ struct Types : public BESM6Obj {
         };
     };
 
-    std::string p() const { return "type"; } // details live in TPtr now
+    std::string p() const { return "type"; } // details live in TPtr
 };
 
 inline Types * TPtr::rep() const
@@ -3424,7 +3424,7 @@ void prepLoad()
                     helper = l4int3z + l4int2z;
                     if (isSimple) {
 // The commented out optimization is specific to the original BESM-6
-// without a barrel shifter. Now there is no need for it.
+// without a barrel shifter; it is not needed here.
 //                      if (30 < l4int3z) {
 //                          addToInsnList(ASN64-48 + l4int3z);
 //                          addToInsnList(KYTA);
@@ -5330,6 +5330,8 @@ struct parseTypeRef {
     bool cond;
     caserec cases;
     int64_t numBits, l3int22z, span, rangeCnt, curDim;
+    int64_t nextEnum, enumName, enumBucket;
+    bool hasExplicit;
     IdentRecPtr curEnum, curField;
     TPtr arrayType{}, nestedType{}, tempType{}, curType{};
     rangeList ranges;
@@ -5369,6 +5371,7 @@ std::vector<parseTypeRef*> parseTypeRef::super;
 // parseGroupedDecls; parseRange's full definition comes later, hence
 // the forward declaration.
 void parseRange(int64_t & aleft, int64_t & aright);
+void parseConstDeclValue(TPtr &typ, Word &value);
 
 struct Declarator {
     int64_t name = 0;
@@ -5381,7 +5384,7 @@ struct Declarator {
     // as foundRec (foundRec != NULL is the field "already defined" signal).
      bool wasDefined = false;
     // The matched symbol-table entry itself (NULL if none), so a caller
-    // merging routine/variable dispatch (see the 'no VARSY' unified TYPESY
+    // merging routine/variable dispatch (see the unified TYPESY
     // loop in programme's constructor) can check cl/preDefLink/typ to
     // recognize a forward-declared routine being redefined, without a
     // second hash lookup.
@@ -5724,6 +5727,8 @@ L12247:
         inSymbol();
         checkSymAndRead(BEGINSY);
         span = 0;
+        nextEnum = 0;
+        hasExplicit = false;
         lookupMode = lookDef;
         curField = NULL;
         curType.setRep(
@@ -5731,16 +5736,34 @@ L12247:
         while (SY == IDENT) {
             if (isDefined || curIdent == litInput || curIdent == litOutput)
                 error(errIdentAlreadyDefined);
+            enumName = curIdent;
+            enumBucket = bucket;
+            inSymbol();
+            // Optional '= constExpr': an explicit enumerator value.  Later
+            // enumerators auto-increment from it. Evaluated through the shared
+            // const-expression path (Statement() in freeRegs==ceRegs mode).
+            if (charClass == ASSIGNOP) {
+                TPtr enumTyp{};
+                Word enumVal;
+                inSymbol();
+                parseConstDeclValue(enumTyp, enumVal);
+                if (enumTyp != NULL and enumTyp.p.pk == kindScalar)
+                    nextEnum = enumVal.ii;
+                else
+                    error(62); /* errIntNeeded */
+                hasExplicit = true;
+            }
             curEnum = besm6_alloc_record<IdentRec>(
                 offsetof(IdentRec, szIdent));
-            curEnum->pck.nidx = ord(symHash[bucket]);
-            curEnum->id = curIdent;
+            curEnum->pck.nidx = ord(symHash[enumBucket]);
+            curEnum->id = enumName;
             curEnum->pck.offset = curFrameRegTemplate;
             curEnum->typ = curType;
             curEnum->pck.cl = ENUMID;
             curEnum->list() = NULL;
-            curEnum->value() = span;
-            symHash[bucket] = curEnum;
+            curEnum->value() = nextEnum;
+            symHash[enumBucket] = curEnum;
+            nextEnum = nextEnum + 1;
             span = span + 1;
             if (curField == NULL) {
                 curType.rep()->enums = curEnum;
@@ -5748,7 +5771,6 @@ L12247:
                 curField->list() = curEnum;
             }
             curField = curEnum;
-            inSymbol();
             if (SY == COMMA) {
                 lookupMode = lookDef;
                 inSymbol();
@@ -5763,9 +5785,15 @@ L12247:
             error(errNoIdent);
         } else {
             curType.rep()->numen = span;
-            curType.rep()->start = 0;
+            // start = -1 suppresses the name table (writeProc then prints the
+            // value as an integer): explicit values can be sparse or negative,
+            // so there is no dense name array to index by value.
+            curType.rep()->start = hasExplicit ? -1 : 0;
             curType.p.psize = 1;
-            curType.p.bits = 48 - minel((span - 1) & ((1L << 48) - 1));
+            // Explicit values may be sparse or negative -> a full 48-bit
+            // value field (like int); else the packed minimum.
+            curType.p.bits = hasExplicit ? 48
+                             : (48 - minel((span - 1) & ((1L << 48) - 1)));
             curType.p.pk = kindScalar;
             curEnum = curType.rep()->enums;
             while (curEnum != NULL) {
@@ -7285,11 +7313,11 @@ void ifWhileStatement()
 
 // ---- Declaration-site initializers (C-style) -------------------------------
 // A global variable/array may carry a load-time initializer at its declaration
-// ('int x = 5;', 'int a[N] = { v:count, [i]=w, ... };'), replacing the retired
-// trailing '.data' section.  The FCST data-init region must stay a contiguous
-// trailing block (finalize() describes it only by length + record count, right
-// after the constant pool), so each initializer is BUFFERED at its declaration
-// and materialized once, at program end, by flushInitializers().
+// ('int x = 5;', 'int a[N] = { v:count, [i]=w, ... };').  The FCST data-init
+// region must be a contiguous trailing block (finalize() describes it only by
+// length + record count, right after the constant pool), so each initializer is
+// BUFFERED at its declaration and materialized once, at program end, by
+// flushInitializers().
 
 struct DATAREC {
     int64_t b = 0;
@@ -7320,7 +7348,7 @@ std::vector<InitSeg> initSegs;
 // 'designator' -- 'var[index]...' (SY is at '['; parsePostfix builds the GETELT
 // chain and leaves SY at '=').  formOperator(SETREG9) yields the base-register
 // template with no module/FCST side effect (it builds only into the object
-// buffer, guarded by objBufIdx==1), exactly as ParseData does for a '.data' LHS.
+// buffer, guarded by objBufIdx==1).
 void beginInitSeg(IdentRecPtr var, bool designator) {
     curExpr = mkExpr(GETVAR, var->typ, (ExprPtr)var, NULL);
     if (designator)
@@ -7385,8 +7413,8 @@ void parseInitializer(IdentRecPtr var) {
 }
 
 // Materialize all buffered declaration-site initializers as the contiguous
-// trailing data-init region of FCST.  Runs at program end (where the '.data'
-// section used to be parsed); mirrors ParseData's record/value emission.
+// trailing data-init region of FCST.  Called at program end, after the whole
+// constant pool has been laid down.
 void flushInitializers() {
     if (initSegs.empty()) {
         lookup2 = 0;
@@ -7555,6 +7583,12 @@ struct standProc {
             helperNo = 41;               /* P/WX */
             dumpEnumNames(l4typ3z);
             defWidth = 8;
+        } else if (curVarKind == kindScalar
+                   and l4typ3z.rep()->enums != NULL) {
+            // Explicit-value enum (start == -1): name printing suppressed,
+            // so print the value as a decimal integer, exactly like int.
+            helperNo = 36;               /* C/WI */
+            defWidth = 10;
         } else if (isCharArray(l4typ3z)) {
             defWidth = l4typ3z.rep()->aright - l4typ3z.rep()->aleft + 1;
             if (not l4typ3z.rep()->pck)
@@ -8582,8 +8616,8 @@ initScalars::initScalars() :
     do {
         programme(l3var6z, programObj, false);
     } while (!(SY == PERIOD || CH == 0));
-    // The retired '.data' section is gone; declaration-site initializers are
-    // buffered during parsing and materialized here.
+    // Emit the data-init region from the declaration-site initializers
+    // buffered during parsing.
     flushInitializers();
     readToPos80();
     curVal.ii = l3var6z;
@@ -8620,7 +8654,7 @@ void parseParameters()
     extraWords = 0;
     // lookup2 (not just lookupMode) must carry lookDef through
     // parseTypeRef's own internal inSymbol() calls -- see the identical
-    // note on TYPEDEFSY/VARSY/parseRecordDecl.
+    // note on TYPEDEFSY/parseRecordDecl.
     lookup2 = lookDef;
     lookupMode = lookDef;
     inSymbol();
@@ -8772,9 +8806,9 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     // name from an outer scope (e.g. 'int', predefined at
                     // scope 0) reads back as plain IDENT, not TYPESY.
                     // markTypeSym does its own scope-agnostic hash walk to
-                    // fix that up, same as after TYPEDEFSY/VARSY/routines
-                    // below -- needed now that a declaration can follow a
-                    // const group with no 'var'/'typedef' keyword of its
+                    // fix that up, same as after TYPEDEFSY/routines
+                    // below -- needed because a declaration can follow a
+                    // const group with no 'typedef' keyword of its
                     // own to signal it.
                     markTypeSym();
                     // Besides another const name (IDENT, continuing this
@@ -8908,9 +8942,9 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         }
         // A bare name (no '*'/'[]') is a routine only when followed by '(' or
         // ':', or when it completes a predefined forward routine; otherwise
-        // it is a plain variable. The parenthesis-free 'RETTYPE name;'
-        // routine form is retired -- every routine now carries explicit parens
-        // -- so no lookahead past ';' is needed to disambiguate.
+        // it is a plain variable. Every routine carries explicit parens
+        // (there is no parenthesis-free 'RETTYPE name;' form), so no
+        // lookahead past ';' is needed to disambiguate.
         bool isRoutine = bareName and (SY == LPAREN or SY == COLON or isPredefined);
         if (not isRoutine) {
             /* ---- variable declarator list ---- */
@@ -9134,7 +9168,7 @@ L23301:
     // Checked once per programme() call (guarded by curProcNesting==1, so
     // effectively once for the whole compile), not once per do-while
     // iteration: the C-style grammar's var/typedef sections are each a
-    // single-shot 'var'/'typedef' keyword now (Phase B), so a var section
+    // single keyword-less declaration, so a var section
     // with N separate declarations is N do-while iterations, not one --
     // running this check inside the loop re-flagged the same
     // not-yet-declared extern names on every iteration, and the resulting
@@ -9261,7 +9295,7 @@ struct initTables {
         // CONSTSY..UNIONSY are 19 consecutive reserved words. TYPESY (a runtime
         // marker set by markTypeSym/lookup on a type-name IDENT, not a keyword)
         // sits just before CONSTSY, outside this range -- no skip needed;
-        // 'var'/'function' are gone entirely (free identifiers now).
+        // 'var'/'function' are not reserved words (they are free identifiers).
         for (idx = 0; idx <= 18; ++idx) {
             regResWord(resWordNameBase[idx]);
             succ(SY);
@@ -9595,10 +9629,9 @@ void initOptions(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    // Data Initializations moved here
-    // No VARSY: variable declarations are dispatched via TYPESY now (a
-    // leading bound type name), same as routines -- see the unified
-    // TYPESY loop in programme's constructor.
+    // Variable declarations are dispatched via TYPESY (a leading bound
+    // type name), same as routines -- see the unified TYPESY loop in
+    // programme's constructor.
     blockBegSys = Bits(CONSTSY, TYPEDEFSY, TYPESY) | Bits(BEGINSY);
     statBegSys = Bits(IDENT, EXPROP, LPAREN, INTCONST)
         | Bits(REALCONST, CHARCONST, STRINGSY, LBRACK)

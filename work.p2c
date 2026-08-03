@@ -2719,7 +2719,7 @@ int isSimple;
                     helper  =  l4int3z + l4int2z;
                     if (isSimple) {
 // The commented out optimization is specific to the original BESM-6
-// without a barrel shifter. Now there is no need for it.
+// without a barrel shifter; it is not needed here.
 //                      if (30 < l4int3z) {
 //                          addToInsnList(ASN64-48 + l4int3z);
 //                          addToInsnList(KYTA);
@@ -4772,6 +4772,7 @@ int cond;
 int typeIsUnion;
 caserec cases;
 int numBits, l3int22z, span, rangeCnt, curDim;
+int nextEnum, hasExplicit, enumName, enumBucket;
 irptr curEnum, curField;
 tptr arrayType, nestedType, tempType, curType;
 rangeList ranges;
@@ -5030,17 +5031,36 @@ pair *curSlot;
         inSymbol();
         checkSymAndRead(BEGINSY);
         span  =  0;
+        nextEnum  =  0;
+        hasExplicit  =  false;
         lookupMode  =  lookDef;
         curField  =  NIL;
         curType.rep = malloc(offsetof(types, szScalar));
         while (SY == IDENT) {
             if (isDefined || (curIdent == litInput) || (curIdent == litOutput))
                 error(errIdentAlreadyDefined);
+            enumName  =  curIdent;
+            enumBucket  =  bucket;
+            inSymbol();
+            // Optional '= constExpr': an explicit enumerator value.  Later
+            // enumerators auto-increment from it. Evaluated through the shared
+            // const-expression path (statement() in freeRegs==ceRegs mode).
+            if (charClass == ASSIGNOP) {
+                inSymbol();
+                freeRegs  =  ceRegs;
+                statement();
+                if (ceTyp.rep != NIL && ceTyp.p.pk == kindScalar)
+                    nextEnum  =  ceVal;
+                else
+                    error(62); /* errIntNeeded */
+                hasExplicit  =  true;
+            }
             curEnum = malloc(offsetof(identrec, szIdent));
-            CTOR(*curEnum, symHash[bucket], curIdent, curType, NIL, span);
+            CTOR(*curEnum, symHash[enumBucket], enumName, curType, NIL, nextEnum);
             curEnum->pck.p.offset  =  curFrameRegTemplate;
             curEnum->pck.p.cl  =  ENUMID;
-            symHash[bucket]  =  curEnum;
+            symHash[enumBucket]  =  curEnum;
+            ++nextEnum;
             ++span;
             if (curField == NIL) {
                 curType.rep->enums  =  curEnum;
@@ -5048,7 +5068,6 @@ pair *curSlot;
                 curField->list  =  curEnum;
             }
             curField  =  curEnum;
-            inSymbol();
             if (SY == COMMA) {
                 lookupMode  =  lookDef;
                 inSymbol();
@@ -5064,10 +5083,15 @@ pair *curSlot;
         } else {
             with *(curType.rep) do {
                 numen  =  span;
-                start  =  0;
+                // start = -1 suppresses the name table (writeProc then prints
+                // the value as an integer): explicit values can be sparse or
+                // negative, so there is no dense name array to index by value.
+                start  =  hasExplicit ? -1 : 0;
             }
             curType.p.psize  =  1;
-            curType.p.bits  =  48 - minel(span - 1);
+            // Explicit values may be sparse or negative -> a full 48-bit
+            // value field (like int); else the packed minimum.
+            curType.p.bits  =  hasExplicit ? 48 : (48 - minel(span - 1));
             curType.p.pk  =  kindScalar;
             curEnum  =  curType.rep->enums;
             while (curEnum != NIL) {
@@ -6528,12 +6552,12 @@ int allocDataRef(int l6arg1z) {
 } /* allocDataRef */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// Declaration-site initializers (C-style), replacing the '.data' section.
-// Each global '= initializer' is buffered into the INITBUF scratch file as a
-// stream of 3-word entries -- (0, base, 0) opens a target segment, (1, value,
-// count) is an item -- and materialized once, at program end, by
-// flushInitializers as the contiguous trailing data region of FCST (which must
-// follow the whole constant pool: finalize describes it only by length+count).
+// Declaration-site initializers (C-style).  Each global '= initializer' is
+// buffered into the INITBUF scratch file as a stream of 3-word entries --
+// (0, base, 0) opens a target segment, (1, value, count) is an item -- and
+// materialized once, at program end, by flushInitializers as the contiguous
+// trailing data region of FCST (which must follow the whole constant pool:
+// finalize describes it only by length+count).
 void putInitEntry(int k, int a, int b) {
     *INITBUF.data  =  k;  put(INITBUF);
     *INITBUF.data  =  a;  put(INITBUF);
@@ -6544,7 +6568,7 @@ void putInitEntry(int k, int a, int b) {
 // Open a new destination segment: 'var' bare (offset 0) or, when 'designator',
 // 'var[index]...' (SY at '['; parsePostfix builds the GETELT chain, leaving SY
 // at '=').  formOperator(SETREG9) yields the base-register template with no
-// module/FCST side effect, exactly as parseData does for a '.data' LHS.
+// module/FCST side effect (it builds only into the object buffer).
 void beginInitSeg(irptr var, int designator) {
     curExpr  =  mkExpr(GETVAR, var->typ, eptr(var), NIL);
     if (designator)
@@ -6608,9 +6632,10 @@ int braced, count, v;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Materialize all buffered initializers as the contiguous trailing data region
-// of FCST.  Runs at program end (where the '.data' section used to be parsed);
-// replays the INITBUF stream with one-entry lookahead so 'hasNext' matches
-// parseData's list/fill record emission exactly.
+// of FCST.  Called at program end, after the whole constant pool has been laid
+// down; replays the INITBUF stream with one-entry lookahead so 'hasNext' drives
+// the list/fill record emission (consecutive single values coalesce into one
+// record; a 'value:count' is a fill).
 void flushInitializers() {
 int dsize, setcount, dataLoc, length, dataSegLen, base;
 int ck, ca, cb, nk, na, nb;
@@ -6795,6 +6820,14 @@ void checkElement() {
         helperNo  =  41;               /* P/WX */
         dumpEnumNames(l4typ3z);
         defWidth  =  8;
+        return;
+    }
+    // An explicit-value enum (start == -1, but still carries enumerators):
+    // name printing is suppressed, so print the value as a decimal integer,
+    // exactly like int.
+    if (curVarKind == kindScalar && l4typ3z.rep->enums != NIL) {
+        helperNo  =  36;               /* C/WI */
+        defWidth  =  10;
         return;
     }
     if (isCharArray(l4typ3z)) {
@@ -7739,8 +7772,8 @@ void defExtern() {
     do {
         programme(&l3var6z, programObj, false);
     } while ((SY != PERIOD) && (CH != '\0'));
-    // The retired '.data' section is gone; declaration-site initializers are
-    // buffered during parsing and materialized here.
+    // Emit the data-init region from the declaration-site initializers buffered
+    // during parsing (statement() dispatches flushInitializers on flushRegs).
     freeRegs  =  flushRegs;
     statement();
     readToPos80();
@@ -7899,8 +7932,8 @@ void exitScope(int a) {
                 // name from an outer scope (e.g. 'int', predefined at
                 // scope 0) reads back as plain IDENT, not TYPESY.
                 // markTypeSym does its own scope-agnostic hash walk to
-                // fix that up -- needed now that a declaration can follow
-                // a const group with no 'var'/'typedef' keyword of its
+                // fix that up -- needed because a declaration can follow
+                // a const group with no 'typedef' keyword of its
                 // own to signal it.
                 markTypeSym();
                 // Besides another const name (IDENT, continuing this
@@ -8042,9 +8075,9 @@ void exitScope(int a) {
         }
         // A bare name (no '*'/'[]') is a routine only when followed by '(' or
         // ':', or when it completes a predefined forward routine; otherwise
-        // it is a plain variable. The parenthesis-free 'RETTYPE name;'
-        // routine form is retired -- every routine now carries explicit parens
-        // -- so no lookahead past ';' is needed to disambiguate.
+        // it is a plain variable. Every routine carries explicit parens
+        // (there is no parenthesis-free 'RETTYPE name;' form), so no
+        // lookahead past ';' is needed to disambiguate.
         declIsRoutine  =  declBareName && ((SY == LPAREN) || (SY == COLON) || isPredefined);
         if (! declIsRoutine) {
             /* ---- variable declarator list ---- */
@@ -8271,7 +8304,7 @@ void exitScope(int a) {
     // Checked once per programme() call (guarded by curProcNesting==1, so
     // effectively once for the whole compile), not once per do-while
     // iteration: the C-style grammar's var/typedef sections are each a
-    // single-shot keyword-less declaration now, so a var section with N
+    // single keyword-less declaration, so a var section with N
     // separate declarations is N do-while iterations, not one -- running
     // this check inside the loop re-flagged the same not-yet-declared
     // extern names on every iteration, and the resulting flood of
