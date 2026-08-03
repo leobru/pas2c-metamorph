@@ -936,6 +936,7 @@ ExprPtr uVarPtr, curExpr;
 InsnList *  insnList;
 InternRec * internHead;
 ExtFileRec * fileForOutput, * fileForInput;
+int64_t hasFiles;
 int64_t maxSmallString;
 
 TPtr smallStringType[7]; // [2..6]
@@ -1037,7 +1038,6 @@ struct programme {
     bool isPredefined, l2bool8z, inTypeDef;
     bool done, retSeen, hadParens, typedefPending;
     ExprPtr l2var10z;
-    int64_t hasFiles;
     int64_t l2var12z;
     TPtr l2typ13z, l2typ14z, typedRetType, ceTyp;
     Word ceVal;
@@ -5967,7 +5967,6 @@ void parseDecls(int64_t l3arg1z)
     IdentRecPtr &procName = programme::super.back()->procName;
     IdentRecPtr &curIdRec = programme::super.back()->curIdRec;
     int64_t &l2var12z = programme::super.back()->l2var12z;
-    int64_t &hasFiles = programme::super.back()->hasFiles;
 
     switch (l3arg1z) {
     case 0: {
@@ -7505,7 +7504,6 @@ void parseConstExpression()
 
 void returnOp() {
     IdentRecPtr &procName = programme::super.back()->procName;
-    int64_t &hasFiles = programme::super.back()->hasFiles;
     bool &retSeen = programme::super.back()->retSeen;
 
     if (not has(statEndSys, SY)) {
@@ -7513,10 +7511,6 @@ void returnOp() {
         if (procName->typ == voidType)
             error(errNeedOtherTypesOfOperands);
         else {
-            if (hasFiles != 0) {
-                printf(" functions must not use files\n");
-                error(200);
-            }
             retSeen = true;
             readNext = false;
             expression();
@@ -8166,7 +8160,6 @@ void defineRoutine(bool bodyBlock = false)
     IdentRecPtr l3idr5z;
     Word l3var7z;
     IdentRecPtr &procName = programme::super.back()->procName;
-    int64_t &hasFiles = programme::super.back()->hasFiles;
     int64_t &sizeCount = programme::super.back()->sizeCount;
     int64_t &jj = programme::super.back()->jj;
     int64_t &localSize = programme::super.back()->localSize;
@@ -8176,7 +8169,7 @@ void defineRoutine(bool bodyBlock = false)
     objBuffer[objBufIdx] = 0;
     curInsnTemplate = InsnTemp[XTA];
     bool48z = has(procName->flags(), 22);
-    if (curProcNesting == 1 and hasFiles != 0) {
+    if (hasFiles != 0) {
         hasFiles = moduleOffset;
         (void) formOperator(FILEINIT);
     }
@@ -8270,10 +8263,10 @@ void defineRoutine(bool bodyBlock = false)
             form1Insn(InsnTemp[UJ] + indexreg[curVal.ii]);
         }
     } else /* 21220 */ {
-        if (hasFiles == 0)
-            jj = 27;    /* C/E */
-        else
+        if (hasFiles != 0)
             jj = 28;   /* C/EF */
+        else
+            jj = 27;    /* C/E */
         form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
         if (curProcNesting == 1) {
             parseDecls(2);
@@ -8613,6 +8606,7 @@ initScalars::initScalars() :
     } /* while SY = EXTERNSY */
     lookupMode = lookUse;
     l3var6z = 40;
+    hasFiles = 0;
     do {
         programme(l3var6z, programObj, false);
     } while (!(SY == PERIOD || CH == 0));
@@ -8758,7 +8752,6 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
     typedefPending = false;
     typelist = NULL;
     retSeen = false;
-    hasFiles = 0;
     bodyStatSys = statBegSys;
     strLabList = NULL;
     lineNesting = lineNesting + 1;
@@ -8887,11 +8880,11 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             curExternFile = fileForInput;
             makeExtFile();
         }
+        hasFiles = 0;
     }
     // base.pas just sets hasFiles := 0 here; the file-init code is emitted once,
     // by defineRoutine's formOperator(FILEINIT). The upstream extra call here
     // duplicated the file-close block.
-    hasFiles = 0;
     outputObjFile();
     markTypeSym();
     // C-style: no separate 'var' keyword -- a leading type-spec starts

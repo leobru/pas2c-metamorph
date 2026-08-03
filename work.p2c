@@ -487,6 +487,7 @@ eptr curExpr;
 insnltyp *insnList;
 inptr internHead;
 extfilerec *fileForOutput, *fileForInput;
+int hasFiles;
 int maxSmallString;
 tptr smallStringType[2..6];
 int symTabCnt;
@@ -1990,7 +1991,6 @@ void programme(int *retSizePtr, irptr procName, int bodyBlock) { /* programme */
 irptr preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr;
 int isPredefined, l2bool8z, retSeen, inTypeDef, hadParens;
 eptr l2var10z;
-int hasFiles;
 int bodyStatSys;
 int l2var12z;
 tptr l2typ13z, l2typ14z, typedRetType, ceTyp;
@@ -6738,10 +6738,6 @@ void returnOp() {
         if (procName->typ == voidType)
             errAndSkip(errNeedOtherTypesOfOperands, statEndSys);
         else {
-            if (hasFiles) {
-                writeln(' functions must not use files');
-                error(200);
-            }
             retSeen  =  true;
             readNext = false;
             expression();
@@ -7370,7 +7366,7 @@ int l3var7z;
     objBuffer[objBufIdx]  =  0U;
     curInsnTemplate  =  KXTA;
     bool48z  =  ((E48 >> 22) & procName->flags) >> 25;
-    if (curProcNesting == 1 && hasFiles != 0) {
+    if (hasFiles != 0) {
         hasFiles  =  moduleOffset;
         formOperator(FILEINIT);
     }
@@ -7464,10 +7460,7 @@ int l3var7z;
             form1Insn(KUJ + indexreg[curVal.i]);
         }
     } else {
-        if (hasFiles == 0)
-            jj  =  27;    /* C/E */
-        else
-            jj  =  28;   /* C/EF */
+        jj = hasFiles == 0 ? 27 /* C/E */ : 28; /* C/EF */
         form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
         if (curProcNesting == 1) {
             parseDecls(2);
@@ -7772,6 +7765,7 @@ void defExtern() {
     }
     lookupMode  =  lookUse;
     l3var6z  =  40;
+    hasFiles  =  0;
     do {
         programme(&l3var6z, programObj, false);
     } while ((SY != PERIOD) && (CH != '\0'));
@@ -7899,7 +7893,6 @@ void exitScope(int a) {
     inTypeDef  =  false;
     typelist  =  NIL;
     retSeen  =  false;
-    hasFiles  =  0;
     bodyStatSys  =  statBegSys;
     strLabList  =  NIL;
     ++lineNesting;
@@ -8033,8 +8026,8 @@ void exitScope(int a) {
             curExternFile  =  fileForInput;
             makeExtFile();
         }
+        hasFiles  =  0;
     }
-    hasFiles  =  0;
     outputObjFile();
     markTypeSym();
     // C-style: no separate 'var' keyword -- a leading type-spec starts
