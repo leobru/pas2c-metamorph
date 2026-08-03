@@ -21,4 +21,3 @@ int val;
     // A plain (sequential) enum still prints its enumerator name:
     color = GREEN; writeln(' color=', color);
 }
-.

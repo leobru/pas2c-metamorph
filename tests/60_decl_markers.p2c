@@ -14,4 +14,3 @@ void later() {
     later();
     writeln('FORWARD=', forward:0);
 }
-.

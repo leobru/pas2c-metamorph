@@ -23,4 +23,3 @@ int i;
     i = 0XFFFFFFFFFFFFU;
     writeln(' 0XFFFFFFFFFFFFU  =', i oct);
 }
-.

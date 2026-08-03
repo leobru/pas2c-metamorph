@@ -11,4 +11,3 @@ __packed char s1[1..6], s2[1..6];
         writeln(' Strings are different');
     }
 }
-.

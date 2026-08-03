@@ -18,4 +18,3 @@ char ch;
     ch = chars[idx];
     writeln('Character at index 4: ', ch);
 }
-.

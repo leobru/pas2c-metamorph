@@ -8,4 +8,3 @@ color c;
         writeln('Color is GREEN');
     }
 }
-.

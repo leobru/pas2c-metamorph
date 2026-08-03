@@ -7,4 +7,3 @@ char c;
     c = c + 1;
     writeln('Next character: ', c);
 }
-.

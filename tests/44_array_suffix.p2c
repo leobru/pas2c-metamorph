@@ -27,4 +27,3 @@ int idx;
     writeln('matrix ', matrix[1][2]:0, ' ', matrix[2][3]:0,
             ' size ', sizeof(matrix):0);
 }
-.

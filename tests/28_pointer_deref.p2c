@@ -14,4 +14,3 @@ int x, value;
     value = *p;
     writeln('Updated value: ', value:0);
 }
-.

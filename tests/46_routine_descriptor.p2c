@@ -22,4 +22,3 @@ void addto(intptr p, int delta) {
     addto(&g, 7);
     writeln('G=', g:0);
 }
-.

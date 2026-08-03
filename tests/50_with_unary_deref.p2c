@@ -26,4 +26,3 @@ holder h;
     writeln(' HX=', obj.x:0);
     writeln(' HY=', obj.y:0);
 }
-.

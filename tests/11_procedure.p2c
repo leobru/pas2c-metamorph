@@ -7,4 +7,3 @@ void greet(int x) {
 {
     greet(42);
 }
-.

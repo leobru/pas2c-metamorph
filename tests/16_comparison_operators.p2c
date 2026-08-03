@@ -29,4 +29,3 @@ int a, b;
         writeln(' 10 != 20: true');
     }
 }
-.

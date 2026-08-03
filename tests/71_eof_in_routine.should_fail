@@ -1,0 +1,1 @@
+EOF inside a routine body must report the missing closing brace.

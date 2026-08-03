@@ -9,4 +9,3 @@ int i;
         writeln('i = ', i:0);
     }
 }
-.

@@ -17,4 +17,3 @@ int a, b, c, d;
     a = b = 100;
     writeln('reuse ', a:0, ' ', b:0);
 }
-.

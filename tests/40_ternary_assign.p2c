@@ -14,4 +14,3 @@ int a, b, c, r;
     r = a ? (b = 5) : (c = 5);
     writeln(' false r=', r:0, ' b=', b:0, ' c=', c:0);
 }
-.

@@ -14,4 +14,3 @@ fchar arr[2];
     h.x = 52;
     writeln('file restrictions ', h.x:0);
 }
-.

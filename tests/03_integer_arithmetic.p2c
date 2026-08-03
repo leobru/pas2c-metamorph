@@ -15,4 +15,3 @@ int a, b, c;
     c = a % b;
     writeln(' 10 % 3 = ', c:0);
 }
-.

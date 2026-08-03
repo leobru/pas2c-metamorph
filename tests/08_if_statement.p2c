@@ -9,4 +9,3 @@ int x;
         writeln('x is not greater than 5');
     }
 }
-.

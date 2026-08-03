@@ -17,4 +17,3 @@ int idx, value;
     value = arr[idx];
     writeln('Value at index 5: ', value:0);
 }
-.

@@ -19,4 +19,4 @@ k = 1;
 arr[k] = 100;
 arr[k] += 7;
 writeln(' arr ', arr[1]:0);
-}.
+}

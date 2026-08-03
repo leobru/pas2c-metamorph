@@ -21,4 +21,3 @@ tagged t;
     writeln('overlap: tag=', t.tag:0, ' a=', t.a:0, ' b=', t.b:0);
     writeln('sizeof tagged = ', sizeof(tagged):0);
 }
-.

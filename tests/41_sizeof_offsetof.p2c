@@ -18,4 +18,3 @@ int words[1..8];
     writeln(' off packed b=', offsetof(tiny, b):0);
     writeln(' off packed c=', offsetof(tiny, c):0);
 }
-.

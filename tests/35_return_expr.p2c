@@ -25,4 +25,3 @@ int early_void(int x) {
     writeln('ev(0)=', early_void(0):0);
     writeln('ev(8)=', early_void(8):0);
 }
-.

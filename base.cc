@@ -2555,17 +2555,8 @@ loop:                   {
 
 void skipToEnd()
 {
-    Symbol sym;
-    sym = SY;
-    while ((sym != ENDSY) or (SY != PERIOD)) {
-        if (CH == 0)          /* EOF: stop before inSymbol() reads past the */
-            break;            /* end of a truncated / badly-recovered file */
-        sym = SY;
+    while (CH != 0)
         inSymbol();
-    }
-    if (CH == 'D' || CH == 'd')
-        while (SY != ENDSY and CH != 0)
-            inSymbol();
     throw 9999;
 }
 
@@ -8186,7 +8177,7 @@ void defineRoutine(bool bodyBlock = false)
     if (curProcNesting != 1)
         parseDecls(2);
     sizeCount = localSize;
-    if (not bodyBlock and SY != BEGINSY)
+    if (not bodyBlock and SY != BEGINSY and CH != 0)
         requiredSymErr(BEGINSY);
     if (has(procName->flags(), 23)) {
         l3idr5z = procName->argList();
@@ -8217,24 +8208,19 @@ void defineRoutine(bool bodyBlock = false)
             requiredSymErr(ENDSY);
         else
             inSymbol();
-    } else {
+    } else if (CH != 0) {
         do {
             Statement();
-            if (curProcNesting == 1)
-                done = (SY == PERIOD) or (CH == 0);
-            else
+            if (curProcNesting == 1) {
+                if (CH == 0 and SY != NOSY)
+                    error(errBadSymbol);
+                done = CH == 0;
+            } else
                 done = has(blockBegSys, SY) or (SY == TYPESY) or (CH == 0);
             if (not done) {
                 if (curProcNesting == 1) {
-                    requiredSymErr(PERIOD);
-                    // requiredSymErr does not advance SY/CH (it may not
-                    // even report -- it suppresses repeats at the same
-                    // linePos), so without this, a malformed top-level
-                    // program whose last Statement() call also makes no
-                    // progress spins here forever: no new errors ever
-                    // fire (blocking the "too many errors" abort too),
-                    // and 'done' can never become true on its own.
-                    if (SY != PERIOD and CH != 0)
+                    error(errBadSymbol);
+                    if (CH != 0)
                         inSymbol();
                 } else {
                     errAndSkip(errBadSymbol, skipToSet);
@@ -8609,7 +8595,7 @@ initScalars::initScalars() :
     hasFiles = 0;
     do {
         programme(l3var6z, programObj, false);
-    } while (!(SY == PERIOD || CH == 0));
+    } while (CH != 0);
     // Emit the data-init region from the declaration-site initializers
     // buffered during parsing.
     flushInitializers();
@@ -9146,17 +9132,21 @@ L23301:
         hasFiles = 0;
     }
     markTypeSym();
-    if (CH == 0) return;
+    if (CH == 0 and bodyBlock_) {
+        requiredSymErr(ENDSY);
+        return;
+    }
     if (bodyBlock_) {
         if (not has((bodyStatSys | blockBegSys), SY) and
             not has(declStartSys | Bits(ENDSY), SY))
             errAndSkip(84 /* errErrorInDeclarations */,
                        skipToSet | bodyStatSys | blockBegSys | Bits(ENDSY));
-    } else if (not has(blockBegSys, SY) and not has(declStartSys, SY))
+    } else if (CH != 0 and not has(blockBegSys, SY) and
+               not has(declStartSys, SY))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
     } while (not ((bodyBlock_ and (has(bodyStatSys, SY) or
                                   has(declStartSys | Bits(ENDSY), SY))) or
-                  (not bodyBlock_ and (has(statBegSys, SY) or
+                  (not bodyBlock_ and (CH == 0 or has(statBegSys, SY) or
                                       has(declStartSys, SY)))));
     // Checked once per programme() call (guarded by curProcNesting==1, so
     // effectively once for the whole compile), not once per do-while

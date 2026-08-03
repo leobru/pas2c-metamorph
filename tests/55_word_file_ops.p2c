@@ -37,4 +37,3 @@ fileblk f;
     fclose(&f);
     writeln('close ', f.w4:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
 }
-.

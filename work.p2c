@@ -1770,15 +1770,8 @@ void lexer() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void skipToEnd() {
-symbol sym;
-    sym  =  SY;
-    while ((CH != '\0') && ((sym != ENDSY) || (SY != PERIOD))) {
-        sym  =  SY;
+    while (CH != '\0')
         inSymbol();
-    }
-    if (CH == 'D')
-        while ((CH != '\0') && (SY != ENDSY))
-            inSymbol();
     longjmp(jb9999, 1);
 }
 //
@@ -7384,7 +7377,7 @@ int l3var7z;
     if (curProcNesting != 1)
         parseDecls(2);
     sizeCount  =  localSize;
-    if (! bodyBlock && SY != BEGINSY)
+    if (! bodyBlock && SY != BEGINSY && CH != '\0')
         requiredSymErr(BEGINSY);
     if ((E48 >> 23) & procName->flags) {
         l3idr5z  =  procName->argList;
@@ -7415,24 +7408,19 @@ int l3var7z;
             requiredSymErr(ENDSY);
         else
             inSymbol();
-    } else {
+    } else if (CH != '\0') {
         do {
             statement();
-            if (curProcNesting == 1)
-                l2bool8z = (SY == PERIOD) || (CH == '\0');
-            else
+            if (curProcNesting == 1) {
+                if (CH == '\0' && SY != NOSY)
+                    error(errBadSymbol);
+                l2bool8z = CH == '\0';
+            } else
                 l2bool8z = (SY IN blockBegSys) || (SY == TYPESY) || (CH == '\0');
             if (! l2bool8z) {
                if (curProcNesting == 1) {
-                   requiredSymErr(PERIOD);
-                   // requiredSymErr does not advance SY/CH (it may not
-                   // even report -- it suppresses repeats at the same
-                   // linePos), so without this, a malformed top-level
-                   // program whose last statement() call also makes no
-                   // progress spins here forever: no new errors ever
-                   // fire (blocking the "too many errors" abort too),
-                   // and l2bool8z can never become true on its own.
-                   if ((SY != PERIOD) && (CH != '\0'))
+                   error(errBadSymbol);
+                   if (CH != '\0')
                        inSymbol();
                } else
                    errAndSkip(errBadSymbol, skipToSet);
@@ -7768,7 +7756,7 @@ void defExtern() {
     hasFiles  =  0;
     do {
         programme(&l3var6z, programObj, false);
-    } while ((SY != PERIOD) && (CH != '\0'));
+    } while (CH != '\0');
     // Emit the data-init region from the declaration-site initializers buffered
     // during parsing (statement() dispatches flushInitializers on flushRegs).
     freeRegs  =  flushRegs;
@@ -8283,19 +8271,22 @@ void exitScope(int a) {
         hasFiles  =  0;
     }
     markTypeSym();
-    if (CH == '\0')
+    if (CH == '\0' && bodyBlock) {
+        requiredSymErr(ENDSY);
         return;
+    }
     if (bodyBlock) {
         if (! (SY IN (bodyStatSys | blockBegSys)) &&
             ! (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,ENDSY]))
             errAndSkip(84 /* errErrorInDeclarations */,
                        skipToSet | bodyStatSys | blockBegSys | [ENDSY]);
-    } else if ((SY != BEGINSY) && ! (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY]) &&
+    } else if (CH != '\0' && (SY != BEGINSY) &&
+       ! (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY]) &&
        ! (SY IN blockBegSys))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
     } while (! ((bodyBlock && ((SY IN bodyStatSys) ||
                                (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,ENDSY]))) ||
-                (! bodyBlock && ((SY in statBegSys) ||
+                (! bodyBlock && ((CH == '\0') || (SY in statBegSys) ||
                                  (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY])))));
     // Checked once per programme() call (guarded by curProcNesting==1, so
     // effectively once for the whole compile), not once per do-while
@@ -8539,4 +8530,3 @@ void main() {
     }
 }
 { besm(02400000); main(); besm(02400000); }
-.

@@ -25,4 +25,3 @@ ptpr getp() {
     /* postfix on the result of a function call: getp()->y */
     writeln('getp()->y= ', getp()->y:0);
 }
-.

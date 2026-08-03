@@ -15,4 +15,3 @@ int x;
     writeln(' X=', x:0);
     writeln(' S=', S);
 }
-.

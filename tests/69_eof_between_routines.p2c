@@ -1,0 +1,7 @@
+/*=s8,y+,k9,l0*/
+void first() {
+}
+
+int second() {
+    return 69;
+}

@@ -39,4 +39,3 @@ fileblk f, a, b, c;
     writeln('a2 ', a.w18:0, ' ', a.w27:0, ' ', a.w1 != 0:0);
     fclose(&a);
 }
-.

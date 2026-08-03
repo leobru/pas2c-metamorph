@@ -9,4 +9,3 @@ int square(int x) {
     result = square(7);
     writeln('7 squared = ', result:0);
 }
-.

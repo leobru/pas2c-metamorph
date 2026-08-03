@@ -9,4 +9,3 @@ point p;
     p.y = 20;
     writeln('Point: (', p.x:0, ', ', p.y:0, ')');
 }
-.

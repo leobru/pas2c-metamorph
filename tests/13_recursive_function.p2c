@@ -11,4 +11,3 @@ int fact(int n) {
 {
     writeln(' 5! = ', fact(5):0);
 }
-.

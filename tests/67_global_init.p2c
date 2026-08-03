@@ -20,4 +20,3 @@ int i;
     for (i = 0; i <= 5; i = i + 1)
         writeln(' c', i:0, '=', c[i]:0);
 }
-.

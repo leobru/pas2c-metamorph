@@ -11,4 +11,3 @@ int i, j;
     writeln(' ', i:0);
 }
 }
-.

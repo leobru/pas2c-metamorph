@@ -18,4 +18,3 @@ int outer(int base) {
 {
     writeln('blocks ', outer(5):0);
 }
-.

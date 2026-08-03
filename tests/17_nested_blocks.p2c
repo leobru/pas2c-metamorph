@@ -14,4 +14,3 @@ int x;
     };
     writeln('Outer again: x = ', x:0);
 }
-.

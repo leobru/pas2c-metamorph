@@ -14,4 +14,3 @@ intptr p, q;
     *q = 222;
     writeln(' after rollup p=', *p:0);
 }
-.

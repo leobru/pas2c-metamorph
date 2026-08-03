@@ -190,4 +190,3 @@ int a, b, q, r, n;
     q = a / b;            writeln(' H10 ', q:0);
     r = a % b;            writeln(' H11 ', r:0);
 }
-.
