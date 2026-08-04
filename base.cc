@@ -1,9 +1,8 @@
 /*
  * Host-native C++ port of the base.pas "Pascal to C metamorphosis" (P2C)
  * compiler, replacing the emulator-hosted base compiler. base.pas is the
- * authoritative source for semantics; work.p2c is the C-style mirror (a
- * phrasing donor only — the two mirrors diverge, e.g. work.p2c drops fnPTR
- * and adds fnEOF/fnEOLN/fnSETJMP).
+ * authoritative source for semantics; work.p2c is the C-style mirror and
+ * phrasing donor.
  *
  * Invoked with two arguments, infile and outfile. Infile is the P2C source
  * in ASCII/UTF-8 (read as KOI-8 via unicode_to_koi8); outfile is a
@@ -38,11 +37,9 @@ const int SYMTAB_MAX = 80;
 const int OBJBUF_SIZE = 8192;    // initially 1024
 
 const int64_t
-    /* slots 0-6 were SQRT, SIN, COS, ARCTAN, ARCSIN, LN, EXP */
-    fnABS =  7,  fnTRUNC = 8,  fnSIZEOF = 9,
-    fnOFFSETOF = 10, /*  11        12  */  fnMALLOC = 13, /*  14  */
-    fnREF   = 15, /*  16        17  */  fnROUND = 18, fnCARD = 19,
-    fnMINEL = 20, fnPTR  = 21, fnABSI = 22;
+    fnABS = 0, fnTRUNC = 1, fnSIZEOF = 2, fnOFFSETOF = 3,
+    fnMALLOC = 4, fnROUND = 5, fnCARD = 6, fnMINEL = 7,
+    fnREF = 8, fnABSI = 9;
 
 const int64_t
     S3 = 0,
@@ -96,8 +93,6 @@ const int64_t
     mcPCKSTORE = 22;
 
 const int64_t
-    P_CP = 15,
-    P_RC = 18,
     P_RR = 56,
     P_TR = 58,
     P_LDAR = 74;
@@ -950,7 +945,7 @@ int64_t indexreg[16];
 int64_t opToInsn[48];
 int64_t opToMode[48];
 OpFlg opFlags[48]; // array [MUL..op44] of OpFlg;
-int64_t funcInsn[24];
+int64_t funcInsn[10];
 int64_t InsnTemp[48];
 
 int64_t frameRegTemplate = 04000000,
@@ -964,8 +959,8 @@ KeyWord * KeyWordHashTabBase[128]; // array [0..127] of @KeyWord;
 Symbol charSymTabBase[256]; // array ['_000'..'_177'] of Symbol;
 IdentRecPtr symHash[128]; // array [0..127] of IdentRecPtr;
 IdentRecPtr fieldHash[128]; //array [0..127] of IdentRecPtr;
-int64_t helperMap[100];
-extern int64_t helperNames[100]; // array [1..99] of int64_t;
+int64_t helperMap[93];
+extern int64_t helperNames[93]; // array [1..92] of int64_t;
 
 int64_t symTab[SYMTAB_LIMIT + 1]; // array [74000B..75500B] of int64_t;
 extern int64_t systemProcNames[30];
@@ -4247,7 +4242,7 @@ genEntry::genEntry()
     } else if (l5bool10z) {     // isFortrn
         l5bool8z = not l5bool7z;
         if (checkFortran) {
-            addToInsnList(getHelperProc(92)); /* "P/MF" */
+            addToInsnList(getHelperProc(85)); /* "P/MF" */
         }
     } else {
         l5bool8z = true;
@@ -4424,7 +4419,7 @@ genEntry::genEntry()
         if (not checkFortran)
             addToInsnList(KNTR+7);
         else
-            addToInsnList(getHelperProc(93));    /* "P/FM" */
+            addToInsnList(getHelperProc(86));    /* "P/FM" */
         insnList->tail->mode = 2;
     } /* 7226 */
     // NB: base.pas 3486 has no `else` here -- a non-Fortran function returns
@@ -4560,7 +4555,7 @@ void genComparison()
         if (size != 1) {
             genFullExpr::super.back()->prepMultiWord();
             addInsnAndOffset(KVTM+I11, 1 - size);
-            addToInsnList(getHelperProc(89 + l3int3z)); /* P/EQ */
+            addToInsnList(getHelperProc(82 + l3int3z)); /* P/EQ */
             insnList->ilm = ilRVAL;
             negate = not negate;
         } else if (l3int3z == 0) {
@@ -4876,68 +4871,61 @@ L10122:
             work = exprToGen->num2;
             if (work == fnMALLOC)
                 heapCallsCnt = heapCallsCnt + 1;
-            if (100 < work) {
-                prepLoad();
-                addToInsnList(getHelperProc(work - 100));
-            } else {
-                if (insnList->ilm == ilCONST) {
-                    arg1Const = true;
-                    arg1Val = insnList->payload;
-                } else
-                    arg1Const = false;
-                arg2Const = (insnList->typ == RealType);
-                if (arg1Const) {
-                    switch (work) {
-                    case fnABS:   arg1Val.r = fabs(arg1Val.r);
-                        break;
-                    case fnTRUNC: arg1Val.ii = int64_t(trunc(arg1Val.r));
-                        break;
-                    case fnPTR:   arg1Val.ii = arg1Val.ii & BitRange(7,47);
-                        break;
-                    case fnROUND: arg1Val.ii = int64_t(round(arg1Val.r));
-                        break;
-                    case fnCARD:  arg1Val.ii = card(arg1Val.ii);
-                        break;
-                    case fnMINEL: arg1Val.ii = minel(arg1Val.ii);
-                        break;
-                    case fnABSI:  arg1Val.ii = labs(arg1Val.ii);
-                        break;
-                    case fnMALLOC:
-                        addToInsnList(KVTM+I14+getValueOrAllocSymtab(arg1Val.ii));
-                        addToInsnList(getHelperProc(33)); /*"P/NW"*/
-                        insnList->ilm = ilRVAL;
-                        insnList->regsused = insnList->regsused | Bits(0);
-                        insnList->typ = exprToGen->vt.typ;
-                        return;
-                    case fnREF:
-                        error(201);
-                        break;
-                    default:
-                        break;
-                    } /* 10546 */
-                    insnList->payload = arg1Val;
-                } else if (work == fnREF) {
-                    setAddrTo(14);
-                    addToInsnList(KITA+14);
+            if (insnList->ilm == ilCONST) {
+                arg1Const = true;
+                arg1Val = insnList->payload;
+            } else
+                arg1Const = false;
+            arg2Const = (insnList->typ == RealType);
+            if (arg1Const) {
+                switch (work) {
+                case fnABS:   arg1Val.r = fabs(arg1Val.r);
+                    break;
+                case fnTRUNC: arg1Val.ii = int64_t(trunc(arg1Val.r));
+                    break;
+                case fnROUND: arg1Val.ii = int64_t(round(arg1Val.r));
+                    break;
+                case fnCARD:  arg1Val.ii = card(arg1Val.ii);
+                    break;
+                case fnMINEL: arg1Val.ii = minel(arg1Val.ii);
+                    break;
+                case fnABSI:  arg1Val.ii = labs(arg1Val.ii);
+                    break;
+                case fnMALLOC:
+                    addToInsnList(KVTM+I14+getValueOrAllocSymtab(arg1Val.ii));
+                    addToInsnList(getHelperProc(33)); /*"P/NW"*/
                     insnList->ilm = ilRVAL;
                     insnList->regsused = insnList->regsused | Bits(0);
-                } else {
-                    prepLoad();
-                    if (work == fnTRUNC) {
-                        l3int3z = 2;
-                        addToInsnList(getHelperProc(P_TR));
-                        goto L10122;
-                    }
-                    if (work == fnCARD or work == fnPTR) {
-                        l3int3z = 0;
-                    } else if (work == fnABS)
-                        l3int3z = 3;
-                    else {
-                        l3int3z = 1;
-                    }
-                    addToInsnList(funcInsn[work]);
+                    insnList->typ = exprToGen->vt.typ;
+                    return;
+                case fnREF:
+                    error(201);
+                    break;
+                default:
+                    break;
+                } /* 10546 */
+                insnList->payload = arg1Val;
+            } else if (work == fnREF) {
+                setAddrTo(14);
+                addToInsnList(KITA+14);
+                insnList->ilm = ilRVAL;
+                insnList->regsused = insnList->regsused | Bits(0);
+            } else {
+                prepLoad();
+                if (work == fnTRUNC) {
+                    l3int3z = 2;
+                    addToInsnList(getHelperProc(P_TR));
                     goto L10122;
                 }
+                if (work == fnCARD) {
+                    l3int3z = 0;
+                } else if (work == fnABS)
+                    l3int3z = 3;
+                else {
+                    l3int3z = 1;
+                }
+                addToInsnList(funcInsn[work]);
+                goto L10122;
             }
         } else { /* 10621 */
             if (curOP == NOOP) {
@@ -6000,7 +5988,7 @@ void parseDecls(int64_t l3arg1z)
         }
         if (l3var3z)
             form2Insn((KVTM+I14) + l3arg1z + (frame.ii - 3) * 01000,
-                      getHelperProc(94 /*"P/NN"*/) - 010000000);
+                      getHelperProc(87 /*"P/NN"*/) - 010000000);
         if (1 < l3arg1z) {
             frame.ii = getValueOrAllocSymtab(-(frame.ii+l3arg1z));
         }
@@ -6559,7 +6547,7 @@ void Factor::stdCall()
               (subset(asint64_t, (BitRange(fnABS,fnTRUNC) | Bits(fnREF, fnROUND)))))
           or ((checkMode == chkINT) and
               (subset(asint64_t, (Bits(fnABS,fnMALLOC,fnREF,fnCARD) |
-                           Bits(fnMINEL,fnPTR)))))
+                           Bits(fnMINEL)))))
           or ((checkMode == chkCHAR or checkMode == chkSCALAR or
                checkMode == chkPTR) and
               (subset(asint64_t, Bits(fnREF))))
@@ -7765,7 +7753,7 @@ struct standProc {
                 if (not typeCheck(IntegerType, curExpr->vt.typ))
                     error(14); /* errExprIsNotInteger */
                 (void) formOperator(LOAD);
-                formAndAlign(getHelperProc(97)); /*"P/RE"*/
+                formAndAlign(getHelperProc(90)); /*"P/RE"*/
             } else {
                 (void) formOperator(FILEACCESS);
             }
@@ -8202,7 +8190,7 @@ void defineRoutine(bool bodyBlock = false)
         }
     } /* 21105 */
     if (not has(optSflags.ii, NoStackCheck))
-        fixup(-1, 95); /* P/SC */
+        fixup(-1, 88); /* P/SC */
     l3var2z.ii = lineNesting;
     if (bodyBlock) {
         while (SY != ENDSY and CH != 0)
@@ -8307,21 +8295,15 @@ struct initScalars {
     } /* regSysEnum */
 
     void regSysProc(int64_t l4arg1z) {
-        // A zero name is a retired/reserved slot (e.g. the removed SQRT..EXP
-        // maths procs): it still consumes a sysProcNum -- some are referenced
-        // by number via fn* constants -- but nothing looks it up by name, so
-        // skip its (dead) identrec allocation.
-        if (l4arg1z != 0) {
-            curIdRec = besm6_alloc_record<IdentRec>(
-                offsetof(IdentRec, szSys));
-            // curIdRec@ := [l4arg1z, 0, , temptype, ROUTINEID, sysProcNum];
-            curIdRec->id = l4arg1z;
-            curIdRec->pck.offset = 0;
-            curIdRec->typ = temptype;
-            curIdRec->pck.cl = ROUTINEID;
-            curIdRec->procno() = sysProcNum;
-            addToHashTab(curIdRec);
-        }
+        curIdRec = besm6_alloc_record<IdentRec>(
+            offsetof(IdentRec, szSys));
+        // curIdRec@ := [l4arg1z, 0, , temptype, ROUTINEID, sysProcNum];
+        curIdRec->id = l4arg1z;
+        curIdRec->pck.offset = 0;
+        curIdRec->typ = temptype;
+        curIdRec->pck.cl = ROUTINEID;
+        curIdRec->procno() = sysProcNum;
+        addToHashTab(curIdRec);
         sysProcNum = sysProcNum + 1;
     } /* registerSysProc */
 
@@ -8503,39 +8485,25 @@ initScalars::initScalars() :
 
     temptype.setRep(NULL);
     sysProcNum = 0;
-    for (l3var5z = 0; l3var5z <= 22; ++l3var5z)
-        regSysProc(systemProcNames[l3var5z]);
+    for (l3var5z = 0; l3var5z <= 22; ++l3var5z) {
+        if (systemProcNames[l3var5z] != 0)
+            regSysProc(systemProcNames[l3var5z]);
+        else
+            sysProcNum = sysProcNum + 1;
+    }
     sysProcNum = 0;
     temptype = RealType;
-    regSysProc(0L /*"was SQRT"*/);
-    regSysProc(0L /*"was SIN"*/);
-    regSysProc(0L /*"was COS"*/);
-    regSysProc(0L /*"was ATAN"*/);
-    regSysProc(0L /*"was ASIN"*/);
-    regSysProc(0L /*"was LN"*/);
-    regSysProc(0L /*"was EXP"*/);
     regSysProc(0414263L /*"     ABS"*/);
     temptype = IntegerType;
     regSysProc(06462655643L /*"   TRUNC"*/);
     regSysProc(0635172455746L /*"  SIZEOF"*/);
     regSysProc(05746466345645746L /*"OFFSETOF"*/);
-    regSysProc(0L /*" was SUCC"*/);
-    regSysProc(0L /*" was PRED"*/);
     temptype = voidPtr;
     regSysProc(0554154545743L /*"  MALLOC"*/);
-    temptype = BooleanType;
-    regSysProc(0455746L /*"     EOF"*/);
-    temptype = voidPtr;
-    regSysProc(0L /*"was REF, unused"*/);
-    temptype = BooleanType;
-    regSysProc(045575456L /*"    EOLN"*/);
     temptype = IntegerType;
-    regSysProc(0L /*" was SETJMP"*/);
     regSysProc(06257655644L /*"   ROUND"*/);
     regSysProc(043416244L /*"    CARD"*/);
     regSysProc(05551564554L /*"   MINEL"*/);
-    temptype = voidPtr;
-    regSysProc(0606462L /*"     PTR"*/);
 
     l3var11z.ii = 30;
     l3var11z.ii = (l3var11z.ii & halfWord) | Bits(24,27,28,29);
@@ -9246,8 +9214,8 @@ struct initTables {
         opToInsn[SETOR] = InsnTemp[AOX];
         opToInsn[INTPLUS] = InsnTemp[ADD];
         opToInsn[INTMINUS] = InsnTemp[SUB];
-        opToInsn[SHLEFT] = 98;
-        opToInsn[SHRIGHT] = 99;
+        opToInsn[SHLEFT] = 91;
+        opToInsn[SHRIGHT] = 92;
         opFlags[ANDOP] = opfAND;
         opFlags[IDIVOP] = opfDIV;
         opFlags[OROP] = opfOR;
@@ -9298,7 +9266,7 @@ struct initTables {
             for (jdx=1; jdx <= l3var2z; ++jdx)
                 frameRestore[idx][jdx] = 0;
         }
-        for (idx=1; idx <= 99; ++idx)
+        for (idx=1; idx <= 92; ++idx)
             helperMap[idx] = 0;
     } /* initArrays */
 
@@ -9633,7 +9601,6 @@ int main(int argc, char **argv)
     funcInsn[fnCARD] = KACX;
     funcInsn[fnMINEL] = macro + mcMINEL;
     funcInsn[fnMALLOC] = macro + mcMALLOC;
-    funcInsn[fnPTR] = KAAX+MANTISSA;
     funcInsn[fnABSI] = KAMX;
 
     for (int i = 0; i < 128; ++i) {
@@ -9796,7 +9763,7 @@ int64_t resWordNameBase[20] = {
         06556515756L             /*"   UNION"*/,
         0624564656256L           /*"  RETURN"*/};
 
-int64_t helperNames[100] = { 0L,
+int64_t helperNames[93] = { 0L,
         06017210000000000L      /*"P/1     "*/,
         06017220000000000L      /*"P/2     "*/,
         06017230000000000L      /*"P/3     "*/,
@@ -9878,22 +9845,15 @@ int64_t helperNames[100] = { 0L,
         06017435100000000L      /*"P/CI    "*/,
 /*80*/  06041514200000000L      /*"PAIB    "*/,
         06017674100000000L      /*"P/WA    "*/,
-        0L                      /*"was SQRT"*/,
-        0L                      /*"was SIN "*/,
-        0L                      /*"was COS "*/,
-        0L                      /*"was ATAN"*/,
-        0L                      /*"was ASIN"*/,
-        0L                      /*"was LN  "*/,
-        0L                      /*"was EXP "*/,
         06017456100000000L      /*"P/EQ    "*/,
-/*90*/  06017624100000000L      /*"P/RA    "*/,
+        06017624100000000L      /*"P/RA    "*/,
         06017474500000000L      /*"P/GE    "*/,
         06017554600000000L      /*"P/MF    "*/,
         06017465500000000L      /*"P/FM    "*/,
         06017565600000000L      /*"P/NN    "*/,
         06017634300000000L      /*"P/SC    "*/,
         06017444400000000L      /*"P/DD    "*/,
-        06017624500000000L      /*"P/RE    "*/,
+/*90*/  06017624500000000L      /*"P/RE    "*/,
         04317635054000000L      /*"C/SHL   "*/,
         04317635062000000L      /*"C/SHR   "*/};
 
