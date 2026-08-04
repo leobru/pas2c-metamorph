@@ -1,0 +1,17 @@
+ FPUTW:,NAME,
+C===========================================================
+C fputw(value, f) - store one word in f^ and advance the file.
+C
+C Calling convention for a two-argument ASSEMBLER routine:
+C   ACC        = f (pointer to the FCB)
+C   [SP-1]     = value
+C
+C P/PF expects M12 to address the FCB and f^ to contain the
+C value being written.  It is already an ENTRY in p_sys.asm.
+C===========================================================
+ P/PF:          ,SUBP,
+                ,STI ,12     . M12 := f; ACC := value
+            12  ,WTC ,       . address f^ through FILE[0]
+                ,STX ,       . f^ := value; restore caller's ACC
+                ,UJ  ,P/PF   . tail call to put(f)
+                ,END ,

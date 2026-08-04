@@ -27,7 +27,7 @@
 #include <functional>
 
 FILE * pasinput = stdin;
-unsigned char PASINPUT;
+int PASINPUT;
 const char *outFileName = "output.obj";
 
 const char * boilerplate = " PASCAL METAMORPH HELPER (2025) ";
@@ -1942,25 +1942,25 @@ static int utf8_getc(FILE *fin)
 
 }
 
-static unsigned char ugetc(FILE * fin)
+static int ugetc(FILE * fin)
 {
     int c = utf8_getc(fin);
-    // At EOF base.pas sees CH = '_000' (NUL); the programme/initScalars loops
-    // use `CH == 0` as the end-of-input sentinel. unicode_to_koi8(-1) would
-    // otherwise yield 0377, so the sentinel would never fire.
+    // Keep the host EOF sentinel distinct in the input lookahead.  nextCH()
+    // maps it to the zero-byte sentinel used by work.p2c only when assigning
+    // CH; passing EOF through unicode_to_koi8 would turn it into 0377.
     if (c < 0)
-        return 0;
+        return EOF;
     return unicode_to_koi8(c);
 }
 
 void readToPos80()
 {
-    // base.pas readToPos80: fill lineBuf to column 81, no endOfLine (adding one
-    // here trips the second-EOF guard on the final flush). ugetc yields NUL
-    // past EOF, matching base.pas's PASINPUT@ = '_000'.
+    // work.p2c readToPos80: fill lineBuf to column 81, no endOfLine (adding one
+    // here trips the second-EOF guard on the final flush).  Map host EOF (-1)
+    // to the zero-byte sentinel stored by the work compiler.
     while (linePos < 81) {
         linePos = linePos + 1;
-        lineBufBase[linePos] = PASINPUT;
+        lineBufBase[linePos] = PASINPUT == EOF ? 0 : PASINPUT;
         if (linePos != 81) PASINPUT = ugetc(pasinput);
     }
 }
@@ -1984,8 +1984,8 @@ struct inSymbol {
 void nextCH()
 {
     do {
-        atEOL = PASINPUT == '\n' || feof(pasinput);
-        CH = PASINPUT;
+        atEOL = PASINPUT == '\n' || PASINPUT == EOF;
+        CH = PASINPUT == EOF ? 0 : PASINPUT;
         PASINPUT = ugetc(pasinput);
         linePos = linePos + 1;
         lineBufBase[linePos] = CH;
@@ -2078,6 +2078,10 @@ parseComment::parseComment()
     }; /* 1446 */
     do {
         while (CH != '*') {
+            if (CH == 0) {
+                error(errEOFEncountered);
+                throw 9999;
+            }
             c = commentModeCH;
             commentModeCH = '*';
             if (atEOL)
@@ -2111,10 +2115,9 @@ bool skipSp()
 {
     while ((CH == ' ') or ((CH == 011) and not atEOL))
         nextCH();
-    // At true EOF ugetc yields the NUL sentinel (base.pas: CH = '_000').
-    // base.cc's atEOL is feof-sticky (unlike base.pas's per-line eoln), so
-    // without this guard skipSp would keep calling endOfLine past EOF and trip
-    // the second-EOF error. Stop here so the parser sees CH == 0 and unwinds.
+    // nextCH maps host EOF (-1) to the zero-word sentinel returned by the
+    // work.p2c FGETC path.  Stop here so the parser unwinds without indexing
+    // its character tables with the sentinel.
     if (CH == 0)
         return false;
     if (atEOL) {

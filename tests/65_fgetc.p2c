@@ -1,0 +1,31 @@
+/*=s8,y+,l0*/
+//
+typedef struct {
+    int *data;
+    int w1, w2, w3, w4, w5, w6, w7, w8, w9, w10,
+    w11, w12, w13, w14, w15, w16, w17, w18, w19, w20,
+    w21, w22, w23, w24, w25, w26, w27, w28, w29;
+} fileblk;
+//
+void fopen(fileblk *fcb, int sizes, int name) assembler;
+void fclose(fileblk *fcb) assembler;
+int fgetc(fileblk *fcb) assembler;
+//
+fileblk f;
+int a, b, c;
+//
+{
+    fopen(&f, 010000100010, 0);
+    rewrite(f);
+    *f.data = 'A';
+    put(f);
+    *f.data = 012;
+    put(f);
+
+    reset(f);
+    a = fgetc(&f);
+    b = fgetc(&f);
+    c = fgetc(&f);
+    writeln(a:0, ' ', b:0, ' ', c:0);
+    fclose(&f);
+}

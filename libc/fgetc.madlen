@@ -1,0 +1,40 @@
+ FGETC:,NAME,
+C===========================================================
+C fgetc(fcb) - read one character with C stream semantics.
+C
+C Calling convention (single argument, in ACC):
+C   ACC = pointer to the 30-word FILE control block
+C   M13 = return link
+C
+C Result:
+C   ACC = current character, with PASEOLSY returned for EOL;
+C         zero at EOF.
+C
+C P/GF owns all cursor movement and buffer/refill state.  Its
+C Pascal interface aborts when called with FILE[2] non-zero and
+C represents the synthetic stdin line boundary through FILE[24]
+C plus a space in f^.  Check EOF before calling it and translate
+C that cached EOL state to LF, while leaving a real LF in f^
+C unchanged.  Save both the result and the caller's M13 while
+C P/GF advances to the next element.
+C===========================================================
+ P/GF:          ,SUBP,
+ PASEOLSY:      ,LC  ,1
+                ,ATI ,12     . M12 := fcb
+            12  ,XTA ,2      . FILE[2] != 0 means EOF
+             1  ,AEX ,8
+            13  ,UZA ,       . C EOF sentinel is a zero word
+            12  ,XTA ,30B    . FILE[24]: synthetic stdin EOL
+                ,UZA ,CHAR
+                ,UTC ,PASEOLSY
+                ,XTA ,       . C newline byte (ASCII LF)
+                ,UJ  ,SAVE
+ CHAR:      12  ,WTC ,       . WT := FILE[0] (current cursor)
+                ,XTA ,       . ACC := current f^ character
+ SAVE:          ,ITS ,13     . push result; ACC := caller's M13
+            15  ,ATX ,       . push caller's M13
+            13  ,VJM ,P/GF   . advance/refill using Pascal runtime
+            15  ,XTA ,       . pop caller's M13
+                ,STI ,13     . pop saved character result
+            13  ,UJ  ,       . return it
+                ,END ,

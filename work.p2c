@@ -731,11 +731,8 @@ typedef ifcb *pfcb;
 void fopen(pfcb fcb, int sizes, int name) assembler;
 void fclose(pfcb fcb) assembler;
 int feof(pfcb fcb) assembler;
-int feoln(pfcb fcb) assembler;
-void putw(pfcb f, int i) {
-    *f->data = i;
-    put(*f);
-}
+int fgetc(pfcb fcb) assembler;
+void fputw(int value, pfcb f) assembler;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
@@ -828,7 +825,7 @@ void addToHashTab(irptr arg) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void toFCST() {
-    putw(&FCST, curVal.i);
+    fputw(curVal.i, &FCST);
     ++FcstCnt;
 } /* toFCST */
 //
@@ -1260,20 +1257,11 @@ void requiredSymErr(symbol sym) {
 } /* requiredSymErr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int getc() {
-int c;
-    if (feof(&PASINPUT)) return -1;
-    c = *PASINPUT.data;
-    get(PASINPUT);
-    return c;
-}
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void readToPos80() {
 int c;
     while (linePos < 80) {
         ++linePos;
-        c  =  getc();
+        c  =  fgetc(&PASINPUT);
         lineBuf[linePos]  =  c;
     }
     endOfLine();
@@ -1282,8 +1270,8 @@ int c;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void nextCH() {
     do {
-        atEOL  =  feoln(&PASINPUT);
-        CH  =  getc();
+        CH  =  fgetc(&PASINPUT);
+        atEOL  =  CH == '\n' || CH == 0;
         ++linePos;
         lineBuf[linePos]  =  CH;
     } while ((maxLineLen < linePos) && !atEOL);
@@ -1352,6 +1340,10 @@ void readOptFlag(int *res) {
     }
     do {
         while (CH != '*') {
+            if (CH == 0) {
+                error(errEOFEncountered);
+                longjmp(jb9999, 1);
+            }
             c  =  commentModeCH;
             commentModeCH  =  '*';
             if (atEOL)
@@ -1368,6 +1360,8 @@ void readOptFlag(int *res) {
 int skipSp() {
      while ((CH == ' ' || CH == '\t') && !atEOL)
          nextCH();
+     if (CH == 0)
+         return false;
      if (atEOL) {
          endOfLine();
          nextCH();
@@ -6553,9 +6547,9 @@ int allocDataRef(int l6arg1z) {
 // trailing data region of FCST (which must follow the whole constant pool:
 // finalize describes it only by length+count).
 void putInitEntry(int k, int a, int b) {
-    *INITBUF.data  =  k;  put(INITBUF);
-    *INITBUF.data  =  a;  put(INITBUF);
-    *INITBUF.data  =  b;  put(INITBUF);
+    fputw(k, &INITBUF);
+    fputw(a, &INITBUF);
+    fputw(b, &INITBUF);
 } /* putInitEntry */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6655,8 +6649,7 @@ int rec;
     }
     rec  =  rec | curVal.i & 07777U;
     dataSegLen  =  cnt * length + dataSegLen;
-    *F.data  =  rec;
-    put(F);
+    fputw(rec, &F);
     ++setcount;
     length  =  0;
     dataLoc  =  FcstCnt;
@@ -6716,7 +6709,7 @@ int rec;
     }
     reset(F);
     while (! feof(&F)) {
-        putw(&FCST, *F.data);
+        fputw(*F.data, &FCST);
         get(F);
     }
     lookup2  =  FcstCnt - dsize;
@@ -7107,7 +7100,7 @@ tptr t;
         checkSymAndRead(COMMA);
         checkArrayArg();
         doPackUnpack();
-    case 4: case 7: case 8: case 9: case 13: case 15: case 17: case 18:
+    case 4: case 7: case 8: case 9: case 13: case 14: case 15: case 17: case 18:
         // unused, listed for completeness
     }
     if (procNo in [0,1,2,3,5,10,11,13,21,22])
@@ -7345,7 +7338,7 @@ void outputObjFile() {
 int idx;
     padToLeft();
     for (idx = 1; idx < objBufIdx; ++idx)
-        putw(&_CHILD_, objBuffer[idx]);
+        fputw(objBuffer[idx], &_CHILD_);
     lineStartOffset  =  moduleOffset;
     prevOpcode  =  0;
 } /* outputObjFile */
@@ -7717,7 +7710,7 @@ void defExtern() {
     entryPtTable[3]  =  [1];
     entryPtCnt  =  4;
     /*=A2 done with TEXT constants */
-    putw(&_CHILD_, (KVTM+I8+074001) << 24 | KUJ+074002);
+    fputw((KVTM+I8+074001) << 24 | KUJ+074002, &_CHILD_);
     moduleOffset  =  040001;
     programObj->argList  =  NIL;
     programObj->flags  =  0U;
@@ -8415,7 +8408,7 @@ void regKeywords() { /*=A3 regKeywords */
     iso2text['_'] = iso2text['*'];
     rewrite(_CHILD_);
     for (jdx = 1; jdx <= 10; ++jdx)
-        put(_CHILD_);
+        fputw(0, &_CHILD_);
     regKeywords();
     internHead  =  NIL;
     numLabTop  =  0;
@@ -8445,7 +8438,7 @@ int sizes[10];
     symTab[074001]  =  [24,29] | curVal.i;
     reset(FCST);
     while (! feof(&FCST)) {
-        putw(&_CHILD_, *FCST.data);
+        fputw(*FCST.data, &_CHILD_);
         get(FCST);
     }
     curVal.i  =  (symTabPos - 070000) << 24;
@@ -8456,9 +8449,9 @@ int sizes[10];
     }
     --symTabPos;
     for (cnt  =  074000; cnt <= symTabPos; ++cnt)
-        putw(&_CHILD_, symTab[cnt]);
+        fputw(symTab[cnt], &_CHILD_);
     for (cnt = 1; cnt <= longSymCnt; ++cnt)
-        putw(&_CHILD_, longSyms[cnt]);
+        fputw(longSyms[cnt], &_CHILD_);
     fclose(&_CHILD_);
     if (allowCompat) {
         writeln('     MODULE HEADER:   HDR REL    0    0 LSYM NCODE   0 CONST DATA SETS');

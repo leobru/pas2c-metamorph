@@ -9,6 +9,7 @@ typedef struct {
 //
 void fopen(fileblk *fcb, int sizes, int name) assembler;
 void fclose(fileblk *fcb) assembler;
+void fputw(int value, fileblk *fcb) assembler;
 //
 fileblk f;
 //
@@ -19,12 +20,9 @@ fileblk f;
     rewrite(f);
     writeln('rewrite ', f.w4:0, ' ', f.w14:0, ' ', f.w2:0, ' ', f.w16:0);
 
-    *f.data = 1234;
-    put(f);
-    *f.data = 2345;
-    put(f);
-    *f.data = 3456;
-    put(f);
+    fputw(1234, &f);
+    fputw(2345, &f);
+    fputw(3456, &f);
     writeln('put ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
 
     reset(f);
