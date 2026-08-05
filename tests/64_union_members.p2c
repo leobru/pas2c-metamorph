@@ -4,7 +4,7 @@
 //
 typedef union {
     int i;
-    real r;
+    float r;
 } numunion;
 typedef struct {
     int tag;

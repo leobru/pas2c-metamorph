@@ -238,8 +238,8 @@ typedef __packed struct {
 typedef int:6 textchar;
 typedef union {
     int i;
-    real r;
-    alfa a;
+    float r;
+    __alfa a;
     __packed textchar t[8];
     char c;
     idclass cl;
@@ -322,7 +322,12 @@ typedef struct {
 typedef struct {
     int w;
     symbol sym;
-    operator op;
+    // A TYPESY keyword (int, char, float, __alfa, void) carries its type;
+    // every other keyword carries the character class of its first symbol.
+    union {
+        operator op;
+        tptr typ;
+    };
     kword *next;
 } kword;
 //
@@ -422,7 +427,7 @@ int strLen;
 int heapCallsCnt;
 int heapSize;
 int arithMode;
-alfa stmtName;
+__alfa stmtName;
 kword *keywordHashPtr;
 kind curVarKind;
 pextf curExternFile;
@@ -463,6 +468,7 @@ tptr charType;
 tptr charPtrType, flatMemType;
 irptr flatMemVar;
 tptr alfaType;
+tptr symType; // the type denoted by the current TYPESY
 tptr arg1Type;
 tptr arg2Type;
 numLabel numLabs[1..20];
@@ -646,19 +652,19 @@ int systemProcNames[23] = {
         '     GET',
         ' REWRITE',
         '   RESET',
-        ' was NEW',
+        '        ',  // was NEW
         '    FREE',
         '    HALT',
-        '    STOP',
+        '    BESM',  // was STOP
         '        ',
         '        ',
 /*10*/  '   WRITE',
         ' WRITELN',
-        '    CTOR',
+        '        ',  // was CTOR
         '        ',  // was READLN
         '        ',  // was RETURN, now a keyword
         '        ',
-        '    BESM',
+        '        ',  // BESM moved to slot 7
         '        ',  // was MAPIA, unused
         '        ',  // was MAPAI, unused
         '     PCK',
@@ -690,7 +696,7 @@ int resWordName[20] = {
 int longSymCnt;
 int longSym[1..90];
 int longSyms[1..90];
-alfa constVals[1..500];
+__alfa constVals[1..500];
 int constNums[1..500];
 int objBuffer[1..1024];
 char iso2text['\052'..'\177'];
@@ -707,11 +713,11 @@ struct {
  /*8-17*/ int sizes[10];
    /*18*/ int flags;
 } pasinfor;
-alfa paseofcd;
+__alfa paseofcd;
 //
 // %%%%%%%%%%%% Libc functions %%%%%%%%%%%
 //
-int mapai(alfa a) assembler;
+int mapai(__alfa a) assembler;
 void longjmp(int jmpbuf, int val) assembler;
 int setjmp(int *jmpbuf) assembler;
 int setup() assembler;
@@ -1365,7 +1371,7 @@ char localBuf[131];
 int tokenLen, tokenIdx;
 int expSign;
 irptr chain;
-real expMultiple, expValue;
+float expMultiple, expValue;
 char curChar;
 word numstr[17];
 int expLiteral, expMagnitude;
@@ -1458,7 +1464,10 @@ void lexer() {
         while (keywordHashPtr != NIL) {
             if (keywordHashPtr->w == curToken.i) {
                 SY  =  keywordHashPtr->sym;
-                charClass  =  keywordHashPtr->op;
+                if (SY == TYPESY)
+                    symType  =  keywordHashPtr->typ;
+                else
+                    charClass  =  keywordHashPtr->op;
                 return;
             }
             keywordHashPtr  =  keywordHashPtr->next;
@@ -1505,8 +1514,10 @@ void lexer() {
                 if (hashTravPtr->id != curIdent)
                     hashTravPtr  =  hashTravPtr->pck.p.next;
                 else {
-                    if (hashTravPtr->pck.p.cl == TYPEID)
+                    if (hashTravPtr->pck.p.cl == TYPEID) {
                         SY  =  TYPESY;
+                        symType  =  hashTravPtr->typ;
+                    }
                     return;
                 }
             }
@@ -1954,7 +1965,10 @@ kword *kw;
     with *kw do {
         w  =  keyword;
         sym  =  SY;
-        op  =  charClass;
+        if (SY == TYPESY)
+            typ  =  symType;
+        else
+            op  =  charClass;
         next  =  kwordHash[curVal.i];
     }
     kwordHash[curVal.i]  =  kw;
@@ -3620,7 +3634,7 @@ insnltyp *lhsIns, *rhsIns;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genConstDiv() {
-real r;
+float r;
     if (card(arg2val.i) > 1) {
         curVal.r = 1.0 / arg2Val.i;
         r = curVal.r * arg2Val.i;
@@ -4497,8 +4511,10 @@ void markTypeSym() {
         hashTravPtr  =  symHash[bucket];
         while ((hashTravPtr != NIL) && (hashTravPtr->id != curIdent))
             hashTravPtr  =  hashTravPtr->pck.p.next;
-        if ((hashTravPtr != NIL) && (hashTravPtr->pck.p.cl == TYPEID))
+        if ((hashTravPtr != NIL) && (hashTravPtr->pck.p.cl == TYPEID)) {
             SY  =  TYPESY;
+            symType  =  hashTravPtr->typ;
+        }
     }
 } /* markTypeSym */
 //
@@ -4614,12 +4630,12 @@ void parseRange(int *aleft, int *aright) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Unified C declarator parsing: one declarator grammar shared by
-// var/typedef/struct-field (grouped: one type-spec, comma-separated
-// declarator list -- each caller inlines its own do-while and
-// registration, since this dialect has no closures/procedural values
-// to factor a callback through) and function parameters (individual:
-// each comma-separated item carries its own type-spec). No Pascal
-// 'name: type' fallback anywhere.
+// variable/typedef/struct-field declarations (grouped: one type-spec,
+// comma-separated declarator list -- each caller inlines its own
+// do-while and registration, since this dialect has no closures/
+// procedural values to factor a callback through) and routine
+// parameters (individual: each comma-separated item carries its own
+// type-spec).
 tptr parseTypeRef(setofsys skipTarget);
 
 typedef struct {
@@ -4640,13 +4656,12 @@ dclOpList declOps;
 int declOpCount;
 // Shared scratch for the TYPEDEFSY/type-name grouped-declarator loops: each
 // iteration fills this in via parseOneDeclarator before registering it,
-// same do-while-body-can't-have-its-own-var-section reasoning as
-// declOps/declOpCount above.
+// for the same reason as declOps/declOpCount above -- the body of a
+// do-while cannot declare locals of its own.
 declarator curDeclarator;
 int moreDecls;
-// Scratch for the unified (no 'var' keyword) TYPESY/PACKEDSY/STRUCTSY/
-// ENUMSY declaration-dispatch loop in programme's own body: same
-// do-while-body-can't-have-its-own-var-section reasoning as above.
+// Scratch for the unified TYPESY/PACKEDSY/STRUCTSY/ENUMSY declaration-
+// dispatch loop in programme's own body: same reasoning as above.
 int declBareName;
 int declIsRoutine;
 
@@ -4754,7 +4769,11 @@ void definePtrType(tptr toType) {
     curType.p.bits = 15;
     curType.p.pk = kindPtr;
     curEnum = malloc(offsetof(identrec, szIdent));
-    CTOR(*curEnum, typelist, curIdent, curType);
+    with *curEnum do {
+        pck.next  =  typelist;
+        id  =  curIdent;
+        typ  =  curType;
+    }
     curEnum->pck.p.offset  =  lineCnt;
     curEnum->pck.p.cl  =  TYPEID;
     typelist  =  curEnum;
@@ -4829,7 +4848,10 @@ pair *curSlot;
                             }
                         } /* for */
                     }
-                    CTOR(cases.pairs[pairIdx], 48, cases.size);
+                    with cases.pairs[pairIdx] do {
+                        first  =  48;
+                        second  =  cases.size;
+                    }
                     ++cases.size;
                 }
             }
@@ -5021,7 +5043,13 @@ pair *curSlot;
                 hasExplicit  =  true;
             }
             curEnum = malloc(offsetof(identrec, szIdent));
-            CTOR(*curEnum, symHash[enumBucket], enumName, curType, NIL, nextEnum);
+            with *curEnum do {
+                pck.next  =  symHash[enumBucket];
+                id  =  enumName;
+                typ  =  curType;
+                list  =  NIL;
+                value  =  nextEnum;
+            }
             curEnum->pck.p.offset  =  curFrameRegTemplate;
             curEnum->pck.p.cl  =  ENUMID;
             symHash[enumBucket]  =  curEnum;
@@ -5071,7 +5099,7 @@ pair *curSlot;
             curType  =  voidPtr;
         } else {
             if (SY == TYPESY) {
-                curType = getPtrType(hashTravPtr->typ);
+                curType = getPtrType(symType);
             } else if (hashTravPtr == NIL) {
                 if (inTypeDef) {
                     if (knownInType(&curEnum, curIdent)) {
@@ -5090,7 +5118,7 @@ pair *curSlot;
         }
     } else if (SY IN [IDENT,TYPESY]) {
         if (SY == TYPESY) {
-            curType  =  hashTravPtr->typ;
+            curType  =  symType;
         } else if ((hashTravPtr == NIL) && inTypeDef) {
             /* C-style forward-referenced typedef pointer, e.g.
                'typedef expr *eptr;' parsed before 'expr' itself is
@@ -5716,7 +5744,7 @@ int stProcNo, checkMode, resultValue;
         lookupMode = lookUse;
         inSymbol();
         if (SY == TYPESY) {
-            l5var2z = hashTravPtr->typ;
+            l5var2z = symType;
             inSymbol();
         } else {
             if (stProcNo == fnSIZEOF) {
@@ -5791,7 +5819,7 @@ int stProcNo, checkMode, resultValue;
     inCallArgs  =  false;
     switch (SY) {
     case TYPESY:
-        l4typ11z = hashTravPtr->typ;
+        l4typ11z = symType;
         inSymbol();
         if (SY != LPAREN)
             error(88 + LPAREN);
@@ -6948,16 +6976,16 @@ tptr t;
     l4bool10z  =  (SY == LPAREN);
     oldOffset  =  moduleOffset;
     if (! l4bool10z &&
-       (procNo IN [0:5,10,12,15:28]))
+       (procNo IN [0:5,7,10,15:28]))
         error(45); /* errNoOpenParenForStandProc */
-    if (procNo IN [0,1,2,3,4,5,12,15]) {
+    if (procNo IN [0,1,2,3,5,15]) {
         expression();
         if (! (curExpr->op IN lvalOpSet))
             error(27); /* errExpressionWhereVariableExpected */
         arg1Type  =  curExpr->typ;
         curVarKind  =  arg1Type.p.pk;
     }
-    if (procNo < 7)
+    if (procNo IN [0:3,5,6])
         jumpTarget  =  getHelperProc(29 + procNo); /* P/PF */
     switch (procNo) {
     case 0: case 1: case 2: case 3: /* put, get, rewrite, reset */
@@ -7012,32 +7040,7 @@ tptr t;
             formAndAlign(getHelperProc(54)); /*"P/WOLN"*/
             return;
         }
-    case 12: /* ctor(lvalue, expr0, expr1, ...): struct-constructor assignment.
-                Lvalue (already parsed above) must be of kindStruct; each comma-
-                separated expression is stored at successive word offsets from
-                the lvalue address, using register 9 as the base.  Empty
-                argument positions are allowed and silently skip an offset.
-                indCnt starts at -1 so the FIRST comma encountered (the one
-                between lvalue and expr0) advances it to 0. */
-        if (curVarKind != kindStruct)
-            error(errNeedOtherTypesOfOperands);
-        formOperator(SETREG9);
-        indCnt  =  -1;
-        while (1) {
-            if (SY == COMMA) {
-                ++indCnt;
-                inSymbol();
-            } else if (SY == RPAREN) {
-                break;
-            } else {
-                readNext  =  false;
-                expression();
-                curVal.i  =  indCnt;
-                formOperator(STOREAT9);
-            }
-        }
-        break;
-    case 16: /* besm */
+    case 7: /* besm */
         expression();
         takeConstFromExpr();
         formAndAlign(curVal.i);
@@ -7070,7 +7073,7 @@ tptr t;
         checkSymAndRead(COMMA);
         checkArrayArg();
         doPackUnpack();
-    case 4: case 7: case 8: case 9: case 13: case 14: case 15: case 17: case 18:
+    case 4: case 8: case 9: case 12: case 13: case 14: case 15: case 16: case 17: case 18:
         // unused, listed for completeness
     }
     if (procNo in [0,1,2,3,5,10,11,13,21,22])
@@ -7438,17 +7441,14 @@ tptr temptype;
 int l3var11z;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regSysType(int l4arg1z, tptr l4arg2z) {
-    curIdRec = malloc(offsetof(identrec, szIdent));
-    CTOR(*curIdRec, NIL, l4arg1z, l4arg2z);
-    curIdRec->pck.p.cl  =  TYPEID;
-    addToHashTab(curIdRec);
-} /* regSysType */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysProc(int l4arg1z) {
     curIdRec = malloc(offsetof(identrec, szSys));
-    CTOR(*curIdRec, NIL, l4arg1z, temptype, sysProcNum);
+    with *curIdRec do {
+        pck.next  =  NIL;
+        id  =  l4arg1z;
+        typ  =  temptype;
+        sysnum  =  sysProcNum;
+    }
     curIdRec->pck.p.cl  =  ROUTINEID;
     addToHashTab(curIdRec);
     ++sysProcNum;
@@ -7591,14 +7591,24 @@ void defExtern() {
         value = 0;
     }
      /*=A3 constructing TEXT constants */
-    regSysType('     INT', intType);
-    regSysType('    CHAR', charType);
-    regSysType('    REAL', realType);
-    regSysType('    ALFA', alfaType);
-    regSysType('    VOID', voidType);
+    /* The predefined type names are reserved words carrying their type,
+       not identifiers: they cannot be shadowed, and they are recognized
+       in every lookup mode.  '_' shares the code of '*', cf. '**PACKED'. */
+    SY  =  TYPESY;
+    symType = intType;   regResWord('     INT');
+    symType = charType;  regResWord('    CHAR');
+    symType = realType;  regResWord('   FLOAT');
+    symType = alfaType;  regResWord('  **ALFA');
+    symType = voidType;  regResWord('    VOID');
     temptype = voidPtr;
     curIdRec = malloc(offsetof(identrec, szIdent));
-    CTOR(*curIdRec, NIL, '     NIL', temptype, NIL, 074000U);
+    with *curIdRec do {
+        pck.next  =  NIL;
+        id  =  '     NIL';
+        typ  =  temptype;
+        list  =  NIL;
+        value  =  074000U;
+    }
     curIdRec->pck.p.offset  =  48;
     curIdRec->pck.p.cl  =  ENUMID;
     addToHashTab(curIdRec);
@@ -7650,6 +7660,10 @@ void defExtern() {
     regSysProc('   ROUND');
     regSysProc('    CARD');
     regSysProc('   MINEL');
+    /* The first token of the source is read here, not by the caller: sources
+       usually open with a type keyword (int, void), so the predefined type
+       names must already be registered.  lookupMode is still lookUse. */
+    inSymbol();
     l3var11z  =  30;
     l3var11z  =  l3var11z & halfWord | [24,27,28,29];
     programObj = malloc(offsetof(identrec, szRoutine));
@@ -7821,8 +7835,7 @@ void exitScope(int a) {
     initRegs  =  halfWord | (E48 >> 22);
     flushRegs  =  halfWord | (E48 >> 21);
     if (localSize == 0) {
-        inSymbol();
-        mainProgram();
+        mainProgram();          // reads the first token itself
         return;
     }
     preDefHead  =  irptr(0);
@@ -7840,7 +7853,11 @@ void exitScope(int a) {
             if (isDefined)
                 error(errIdentAlreadyDefined);
             workidr = malloc(offsetof(identrec, szIdent));
-            CTOR(*workidr, symHash[bucket], curIdent, , NIL);
+            with *workidr do {
+                pck.next  =  symHash[bucket];
+                id  =  curIdent;
+                list  =  NIL;
+            }
             workidr->pck.p.offset  =  curFrameRegTemplate;
             workidr->pck.p.cl  =  ENUMID;
             symHash[bucket]  =  workidr;
@@ -7865,13 +7882,13 @@ void exitScope(int a) {
                 // scope 0) reads back as plain IDENT, not TYPESY.
                 // markTypeSym does its own scope-agnostic hash walk to
                 // fix that up -- needed because a declaration can follow
-                // a const group with no 'typedef' keyword of its
-                // own to signal it.
+                // a const group with nothing but its type-spec to
+                // announce it.
                 markTypeSym();
                 // Besides another const name (IDENT, continuing this
                 // group) or a recovery point, a bare type-spec-starting
-                // token (the next var/routine decl, no 'var' keyword
-                // needed) or TYPEDEFSY legitimately ends the const group
+                // token (the next variable or routine declaration) or
+                // TYPEDEFSY legitimately ends the const group
                 // -- not an error.
                 if (! (SY IN (skipToSet | [IDENT, TYPEDEFSY, TYPESY, PACKEDSY, STRUCTSY, ENUMSY]))) {
                     errAndSkip(errBadSymbol, skipToSet | [IDENT]);
@@ -7943,7 +7960,8 @@ void exitScope(int a) {
     // statement is routinely patched by the NEXT one (e.g. 'typedef expr
     // *eptr;' followed later by 'typedef struct {...} expr;'), so this
     // must not fire between every consecutive typedef statement -- only
-    // when the declaration stream actually moves on to var/routine decls.
+    // when the declaration stream actually moves on to variable or
+    // routine declarations.
     if ((SY != TYPEDEFSY) && (typelist != NIL)) {
         while (typelist != NIL) {
             l2var12z  =  typelist->id;
@@ -7966,11 +7984,11 @@ void exitScope(int a) {
     }
     outputObjFile();
     markTypeSym();
-    // C-style: no separate 'var' keyword -- a leading type-spec starts
-    // either a plain variable declarator-list ('TYPE decl, decl;') or a
-    // routine ('TYPE name(params) {...}' / 'TYPE name(params);' /
-    // 'TYPE name(params) extern;'), exactly as real C distinguishes 'int x;' from 'int
-    // f(...);'. Disambiguated right after reading the first declarator:
+    // A leading type-spec starts either a plain variable declarator-list
+    // ('TYPE decl, decl;') or a routine ('TYPE name(params) {...}' /
+    // 'TYPE name(params);' / 'TYPE name(params) extern;'), exactly as C
+    // distinguishes 'int x;' from 'int f(...);'.
+    // Disambiguated right after reading the first declarator:
     // a bare name immediately followed by '(' or ':' is a routine, as is
     // a bare name matching an existing forward-declared routine of
     // matching voidness (redefinition -- e.g. 'void error { ... }'
@@ -8238,9 +8256,8 @@ void exitScope(int a) {
                                  (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY])))));
     // Checked once per programme() call (guarded by curProcNesting==1, so
     // effectively once for the whole compile), not once per do-while
-    // iteration: the C-style grammar's var/typedef sections are each a
-    // single keyword-less declaration, so a var section with N
-    // separate declarations is N do-while iterations, not one -- running
+    // iteration: each variable or typedef declaration stands on its own,
+    // so a run of N of them is N do-while iterations, not one -- running
     // this check inside the loop re-flagged the same not-yet-declared
     // extern names on every iteration, and the resulting flood of
     // errUndefinedExternFile errors tripped error()'s own "too many
@@ -8344,10 +8361,11 @@ void regKeywords() { /*=A3 regKeywords */
     regResWord('      IN');
     SY  =  CONSTSY;
     charClass  =  NOOP;
-    /* CONSTSY..RETURNSY are 20 consecutive reserved words. TYPESY (a runtime
-       marker set by markTypeSym/lookup on a type-name IDENT, not a keyword)
-       sits just before CONSTSY so it is outside this range -- no skip needed;
-       'var'/'function' are gone entirely (free identifiers now). */
+    /* CONSTSY..RETURNSY are 20 consecutive reserved words. TYPESY sits just
+       before CONSTSY so it is outside this range -- no skip needed; the
+       predefined type names are registered as TYPESY keywords later, by
+       mainProgram, and markTypeSym still raises user typedef names to
+       TYPESY. */
     for (idx = 0; idx <= 19; ++idx) {
         regResWord(resWordName[idx]);
         ++SY;

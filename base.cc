@@ -642,11 +642,13 @@ struct KeyWord : public BESM6Obj {
     KeyWord * next;
     Word w;
     Symbol sym;
+    // A TYPESY keyword (int, char, float, __alfa, void) carries its type;
+    // every other keyword carries the character class of its first symbol.
     union {
         Operator op;
-        IdentRecPtr id;
+        TPtr typ;
     };
-    KeyWord() : next(nullptr), w(), sym(NOSY) { id = nullptr; }
+    KeyWord() : next(nullptr), w(), sym(NOSY) { op = NOOP; }
 };
 
 struct StrLabel : public BESM6Obj {
@@ -860,6 +862,7 @@ int64_t curInsnTemplate,
 
 std::string stmtName;
 KeyWord * keyWordHashPtr;
+TPtr symType;                   // the type denoted by the current TYPESY
 Kind curVarKind;
 ExtFileRec * curExternFile;
 char commentModeCH;
@@ -1175,6 +1178,25 @@ int64_t leftAlign(int64_t val)
         val = shl48(val, 6);
     return val;
 }
+
+// File scope (not nested in initTables): the predefined type names are
+// registered as TYPESY keywords by initScalars, once their types exist.
+void regResWord(int64_t l4arg1z) {
+    KeyWord * kw;
+    Word l4var2z;
+    curVal.ii = l4arg1z;
+    curVal.ii = (curVal.ii % 65535) % 128;
+    l4var2z.ii = l4arg1z;
+    kw = new KeyWord;
+    kw->w = l4var2z;
+    kw->sym = SY;
+    if (SY == TYPESY)
+        kw->typ = symType;
+    else
+        kw->op = charClass;
+    kw->next = KeyWordHashTabBase[curVal.ii];
+    KeyWordHashTabBase[curVal.ii] = kw;
+} /* regResWord */
 
 TPtr makeStringType()
 {
@@ -1978,6 +2000,25 @@ struct inSymbol {
 
 void nextCH()
 {
+    // The EOF sentinel has already been handed out and the stream is
+    // exhausted, so this call is a read past the end.  One is normal (the
+    // lexer advances once past the last token), but the parser may also be
+    // skipping for a recovery symbol that will never arrive -- skipSp()
+    // returns false on the sentinel, so endOfLine(), and with it the
+    // second-EOF guard, is never reached again.  Hand out the sentinel
+    // without touching linePos: letting it run off the end of lineBufBase
+    // corrupted the globals behind it, lineCnt among them, which is what
+    // printed " IN -1 LINES".  Past a line's worth of skipping there is
+    // nothing left to recover to, so stop with the same diagnostic.
+    if (CH == 0 and PASINPUT == EOF) {
+        static int64_t overreads;
+        if (maxLineLen < ++overreads) {
+            error(errEOFEncountered);
+            throw 9999;
+        }
+        atEOL = true;
+        return;
+    }
     do {
         atEOL = PASINPUT == '\n' || PASINPUT == EOF;
         CH = PASINPUT == EOF ? 0 : PASINPUT;
@@ -2151,7 +2192,10 @@ L1473:
                 while (keyWordHashPtr != NULL) {
                     if (keyWordHashPtr->w.ii == curToken.ii) {
                         SY = keyWordHashPtr->sym;
-                        charClass = keyWordHashPtr->op;
+                        if (SY == TYPESY)
+                            symType = keyWordHashPtr->typ;
+                        else
+                            charClass = keyWordHashPtr->op;
                         goto exitLexer;
                     }
                     keyWordHashPtr = keyWordHashPtr->next;
@@ -2180,8 +2224,10 @@ L2:                 hashTravPtr = symHash[bucket];
                         if (hashTravPtr->id != curIdent)
                             hashTravPtr = hashTravPtr->next();
                         else {
-                            if (hashTravPtr->pck.cl == TYPEID)
+                            if (hashTravPtr->pck.cl == TYPEID) {
                                 SY = TYPESY;
+                                symType = hashTravPtr->typ;
+                            }
                             goto exitLexer;
                         }
                     }
@@ -5209,8 +5255,10 @@ void markTypeSym()
         hashTravPtr = symHash[bucket];
         while (hashTravPtr != NULL and hashTravPtr->id != curIdent)
             hashTravPtr = hashTravPtr->next();
-        if (hashTravPtr != NULL and hashTravPtr->pck.cl == TYPEID)
+        if (hashTravPtr != NULL and hashTravPtr->pck.cl == TYPEID) {
             SY = TYPESY;
+            symType = hashTravPtr->typ;
+        }
     }
 } /* markTypeSym */
 
@@ -5342,11 +5390,10 @@ std::vector<parseTypeRef*> parseTypeRef::super;
 
 // --- Unified C declarator parsing -----------------------------------
 //
-// One declarator grammar shared by var/typedef/struct-field (grouped:
-// one type-spec, comma-separated declarator list) and function
-// parameters (individual: each comma-separated item carries its own
-// type-spec). No Pascal `name: type` fallback — see the
-// the-idea-is-to-kind-naur plan.
+// One declarator grammar shared by variable/typedef/struct-field
+// declarations (grouped: one type-spec, comma-separated declarator
+// list) and routine parameters (individual: each comma-separated item
+// carries its own type-spec).
 //
 // Placed here (right after parseTypeRef's declaration, ahead of its
 // out-of-line constructor and of parseRecordDecl) so both can call
@@ -5449,10 +5496,11 @@ Declarator parseOneDeclarator(TPtr baseType, bool packedFlag = false,
     return d;
 }
 
-// Parses 'TYPE decl (, decl)* ;' (var/typedef/struct-field grouped
-// form): one type-spec via parseTypeRef, then comma-separated
-// declarators sharing it. Caller supplies `reg` to register each
-// resulting declarator (as a var, typedef name, or field).
+// Parses 'TYPE decl (, decl)* ;' (the grouped form used by variable,
+// typedef and struct-field declarations): one type-spec via
+// parseTypeRef, then comma-separated declarators sharing it. Caller
+// supplies `reg` to register each resulting declarator (as a variable,
+// a typedef name, or a field).
 void parseGroupedDecls(int64_t skipTarget,
                        std::function<void(Declarator&)> reg)
 {
@@ -5791,7 +5839,7 @@ L12247:
             curType = voidPtr;
         } else {
             if (SY == TYPESY) {
-                curType = getPtrType(hashTravPtr->typ);
+                curType = getPtrType(symType);
             } else if (hashTravPtr == NULL) {
                 if (inTypeDef) {
                     if (knownInType(curEnum)) {
@@ -5809,7 +5857,7 @@ L12366:             error(errNotAType);
         }
     } else if (SY == IDENT or SY == TYPESY) {
         if (SY == TYPESY) {
-            curType = hashTravPtr->typ;
+            curType = symType;
         } else if (hashTravPtr == NULL and inTypeDef) {
             // C-style forward-referenced typedef pointer, e.g.
             // 'typedef expr *eptr;' parsed before 'expr' itself is
@@ -6475,7 +6523,7 @@ void Factor::stdCall()
         lookupMode = lookUse;
         inSymbol();
         if (SY == TYPESY) {
-            l5var2z = hashTravPtr->typ;
+            l5var2z = symType;
             inSymbol();
         } else {
             if (stProcNo == fnSIZEOF) {
@@ -6574,7 +6622,7 @@ Factor::Factor()
     wasInCall = inCallArgs;
     inCallArgs = false;
     if (SY == TYPESY) {
-        l4typ11z = hashTravPtr->typ;
+        l4typ11z = symType;
         inSymbol();
         if (SY != LPAREN) error(88 + (int64_t)LPAREN);
         expression();
@@ -7731,9 +7779,9 @@ struct standProc {
         l4bool10z = (SY == LPAREN);
         oldOffset = moduleOffset;
         if (not l4bool10z and
-            has((BitRange(0,5) | Bits(10) | Bits(12) | BitRange(15,28)), procNo))
+            has((BitRange(0,5) | Bits(7,10) | BitRange(15,28)), procNo))
             error(45); /* errNoOpenParenForStandProc */
-        if (has((BitRange(0,5) | Bits(12,15)), procNo)) {
+        if (has((BitRange(0,3) | Bits(5,15)), procNo)) {
             expression();
             if (not has(lvalOpSet, curExpr->op)) {
                 error(27); /* errExpressionWhereVariableExpected */
@@ -7741,7 +7789,7 @@ struct standProc {
             arg1Type = curExpr->vt.typ;
             curVarKind = (Kind)(arg1Type.p.pk);
         }
-        if (has(BitRange(0,6), procNo))
+        if (has((BitRange(0,3) | Bits(5,6)), procNo))
             jumpTarget = getHelperProc(29 + procNo); /* P/PF */
         switch (procNo) {
         case 0: case 1: case 2: case 3: { /* put, get, rewrite, reset */
@@ -7797,32 +7845,7 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
                 return;
             }
         } break;
-        case 12: { /* ctor(lvalue, expr0, expr1, ...): struct-constructor
-                      assignment.  Lvalue (already parsed above) must be
-                      kindStruct; each comma-separated expression is stored at
-                      successive word offsets from the lvalue address, using
-                      register 9 as the base.  Empty argument positions skip an
-                      offset. */
-            if (curVarKind != kindStruct)
-                error(errNeedOtherTypesOfOperands);
-            (void) formOperator(SETREG9);
-            indCnt = 0;
-            inSymbol();          /* consume the comma between lvalue and expr0 */
-            while (true) {
-                if (SY == COMMA) {
-                    indCnt = indCnt + 1;
-                    inSymbol();
-                } else if (SY == RPAREN) {
-                    break;
-                } else {
-                    readNext = false;
-                    expression();
-                    curVal.ii = indCnt;
-                    (void) formOperator(STOREAT9);
-                }
-            }
-        } break;
-        case 16: { /* besm */
+        case 7: { /* besm */
             expression();
             takeConstFromExpr();
             formAndAlign(curVal.ii);
@@ -8270,17 +8293,6 @@ struct initScalars {
     Word l3var11z;
     IdentRecPtr &curIdRec;
 
-    void regSysType(int64_t l4arg1z, TPtr l4arg2z) {
-        curIdRec = besm6_alloc_record<IdentRec>(
-            offsetof(IdentRec, szIdent));
-        // curIdRec@ := [l4arg1z, 0, , l4arg2z, TYPEID];
-        curIdRec->id = l4arg1z;
-        curIdRec->pck.offset = 0;
-        curIdRec->typ = l4arg2z;
-        curIdRec->pck.cl = TYPEID;
-        addToHashTab(curIdRec);
-    } /* regSysType */
-
     void regSysEnum(int64_t l4arg1z, int64_t l4arg2z) {
         curIdRec = besm6_alloc_record<IdentRec>(
             offsetof(IdentRec, szIdent));
@@ -8447,11 +8459,15 @@ initScalars::initScalars() :
     flatMemVar->value() = 0;
 
     smallStringType[6] = AlfaType;
-    regSysType(0515664L /*"     INT"*/, IntegerType);
-    regSysType(043504162L /*"    CHAR"*/, CharType);
-    regSysType(062454154L /*"    REAL"*/, RealType);
-    regSysType(041544641L /*"    ALFA"*/, AlfaType);
-    regSysType(066575144L /*"    VOID"*/, voidType);
+    // The predefined type names are reserved words carrying their type,
+    // not identifiers: they cannot be shadowed, and they are recognized
+    // in every lookup mode.  '_' shares the code of '*', cf. "**PACKED".
+    SY = TYPESY;
+    symType = IntegerType;  regResWord(0515664L      /*"     INT"*/);
+    symType = CharType;     regResWord(043504162L    /*"    CHAR"*/);
+    symType = RealType;     regResWord(04654574164L  /*"   FLOAT"*/);
+    symType = AlfaType;     regResWord(0121241544641L/*"  **ALFA"*/);
+    symType = voidType;     regResWord(066575144L    /*"    VOID"*/);
     temptype = voidPtr;
     regSysEnum(0565154L /*"     NIL"*/, 074000L);
     maxSmallString = 0;
@@ -8504,6 +8520,11 @@ initScalars::initScalars() :
     regSysProc(06257655644L /*"   ROUND"*/);
     regSysProc(043416244L /*"    CARD"*/);
     regSysProc(05551564554L /*"   MINEL"*/);
+
+    // The first token of the source is read here, not by the caller: sources
+    // usually open with a type keyword (int, void), so the predefined type
+    // names must already be registered.  lookupMode is still lookUse.
+    inSymbol();
 
     l3var11z.ii = 30;
     l3var11z.ii = (l3var11z.ii & halfWord) | Bits(24,27,28,29);
@@ -8591,7 +8612,7 @@ void makeExtFile()
 
 // C-style 'individual' form: each comma-separated parameter carries its
 // own full type-spec ('int a, int *p, char c'), unlike the grouped form
-// var/typedef/fields use. No Pascal ROUTINEID (procedure-valued
+// variables/typedefs/fields use. No ROUTINEID (procedure-valued
 // parameter) support -- unexercised by the test corpus; revisit with a
 // concrete failing case if one ever turns up.
 void parseParameters()
@@ -8700,8 +8721,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
     localSize = l2arg1z;
     ceRegs = halfWord | Bits(23);   /* halfWord + [23] */
     if (localSize == 0) {
-        inSymbol();
-        initScalars();
+        initScalars();          // reads the first token itself
         return;
     }
     preDefHead = reinterpret_cast<IdentRec*>(ptr(0));
@@ -8758,13 +8778,13 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     // markTypeSym does its own scope-agnostic hash walk to
                     // fix that up, same as after TYPEDEFSY/routines
                     // below -- needed because a declaration can follow a
-                    // const group with no 'typedef' keyword of its
-                    // own to signal it.
+                    // const group with nothing but its type-spec to
+                    // announce it.
                     markTypeSym();
                     // Besides another const name (IDENT, continuing this
                     // group) or a recovery point, a bare declStartSys
-                    // token (the next var/routine decl, no 'var' keyword
-                    // needed) or TYPEDEFSY (the next typedef) legitimately
+                    // token (the next variable or routine declaration) or
+                    // TYPEDEFSY (the next typedef) legitimately
                     // ends the const group -- not an error.
                     if (!has((skipToSet | Bits(IDENT, TYPEDEFSY)) | declStartSys, SY)) {
                         errAndSkip(errBadSymbol, skipToSet | Bits(IDENT));
@@ -8844,11 +8864,11 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
     // duplicated the file-close block.
     outputObjFile();
     markTypeSym();
-    // C-style: no separate 'var' keyword -- a leading type-spec starts
-    // either a plain variable declarator-list ('TYPE decl, decl;') or a
-    // routine ('TYPE name(params) {...}' / 'TYPE name(params);' /
-    // 'TYPE name(params) extern;'), exactly as real C distinguishes 'int x;' from 'int
-    // f(...);'. Disambiguated right after reading the first declarator:
+    // A leading type-spec starts either a plain variable declarator-list
+    // ('TYPE decl, decl;') or a routine ('TYPE name(params) {...}' /
+    // 'TYPE name(params);' / 'TYPE name(params) extern;'), exactly as C
+    // distinguishes 'int x;' from 'int f(...);'.
+    // Disambiguated right after reading the first declarator:
     // a bare name immediately followed by '(' or ':' is a routine, as is
     // a bare name matching an existing forward-declared routine of
     // matching voidness (redefinition -- e.g. 'void error { ... }'
@@ -9121,9 +9141,8 @@ L23301:
                                       has(declStartSys, SY)))));
     // Checked once per programme() call (guarded by curProcNesting==1, so
     // effectively once for the whole compile), not once per do-while
-    // iteration: the C-style grammar's var/typedef sections are each a
-    // single keyword-less declaration, so a var section
-    // with N separate declarations is N do-while iterations, not one --
+    // iteration: each variable or typedef declaration stands on its own,
+    // so a run of N of them is N do-while iterations, not one --
     // running this check inside the loop re-flagged the same
     // not-yet-declared extern names on every iteration, and the resulting
     // flood of errUndefinedExternFile errors tripped error()'s own
@@ -9226,30 +9245,16 @@ struct initTables {
         opFlags[SHRIGHT] = opfSHIFT;
     } /* initInsnTemplates */
 
-    void regResWord(int64_t l4arg1z) {
-        KeyWord * kw;
-        Word l4var2z;
-        curVal.ii = l4arg1z;
-        curVal.ii = (curVal.ii % 65535) % 128;
-        l4var2z.ii = l4arg1z;
-        kw = new KeyWord;
-        kw->w = l4var2z;
-        kw->sym = SY;
-        kw->op = charClass;
-        kw->next = KeyWordHashTabBase[curVal.ii];
-        KeyWordHashTabBase[curVal.ii] = kw;
-    } /* regResWord */
-
     void regKeyWords() {
         SY = EXPROP;
         charClass = INOP;
         regResWord(toText("IN"));
         SY = CONSTSY;
         charClass = NOOP;
-        // CONSTSY..RETURNSY are 20 consecutive reserved words. TYPESY (a runtime
-        // marker set by markTypeSym/lookup on a type-name IDENT, not a keyword)
-        // sits just before CONSTSY, outside this range -- no skip needed;
-        // 'var'/'function' are not reserved words (they are free identifiers).
+        // CONSTSY..RETURNSY are 20 consecutive reserved words. TYPESY sits just
+        // before CONSTSY, outside this range -- no skip needed; the predefined
+        // type names are registered as TYPESY keywords later, by initScalars,
+        // and markTypeSym still raises user typedef names to TYPESY.
         for (idx = 0; idx <= 19; ++idx) {
             regResWord(resWordNameBase[idx]);
             succ(SY);
@@ -9859,7 +9864,7 @@ int64_t helperNames[93] = { 0L,
 
 // Copied verbatim from base.pas 8796 (systemProcNames: array [0..22]).  The
 // registration loop (regSysProc) only reads indices 0..22; the trailing slots
-// zero-fill.  This is the P2C set (CTOR/BESM/FREE...), NOT the upstream
+// zero-fill.  This is the P2C set (BESM/FREE...), NOT the upstream
 // pascompl set (READ/EXIT/DEBUG/NEW/DISPOSE...).  Index 14 (was RETURN) is now
 // blank: `return` is a reserved keyword (RETURNSY), not a standproc.
 int64_t systemProcNames[30] = {
@@ -9870,16 +9875,16 @@ int64_t systemProcNames[30] = {
         0L                      /*" was NEW"*/,
         044516360576345L        /*"    FREE"*/,
         050415464L              /*"    HALT"*/,
-        0L                      /*"was STOP"*/,
+        042456355L              /*"    BESM, was STOP"*/,
         0L                      /*" was SETUP"*/,
         0L                      /*" was ROLLUP"*/,
 /*10*/  06762516445L            /*"   WRITE"*/,
         067625164455456L        /*" WRITELN"*/,
-        043645762L              /*"    CTOR"*/,
+        0L                      /*" was CTOR"*/,
         0L                      /*"  READLN"*/,
         0L                      /*"was RETURN, now keyword"*/,
         0L                      /*"was LONGJMP"*/,
-        042456355L              /*"    BESM"*/,
+        0L                      /*"BESM moved to slot 7"*/,
         0L                      /*"   MAPIA"*/,
         0L                      /*"   MAPAI"*/,
         0604353L                /*"     PCK"*/,
