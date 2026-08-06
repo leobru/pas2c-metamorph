@@ -9,7 +9,6 @@ const
 //
     S3 = 0;
     S5 = 2;
-    S6 = 3;
     NoStackCheck = 5;
 //
     ASN64 = 0360100;
@@ -61,7 +60,7 @@ const
     MULTMASK =  04000012;
     MAXREAL =   04000013;
     MANTISSA =  04000014;
-    PASFUZZ =   04000015;       // 1.0e-6 for fuzzy comparison of reals (*=R+*)
+//  PASFUZZ =   04000015;       // 1.0e-6 for fuzzy comparison of reals (*=R+*)
     REAL1 =     04000016;
     MINUS1 =    04000017;
     E15TO1 =    04000020;
@@ -124,20 +123,21 @@ const
     I14 =       070000000;      /* temp register */
     SP =        074000000;      /* stack pointer, reg 15 */
 //
-    halfWord  =  077777777U;
-    all1 = 07777777777777777U;
+    halfWord  =  (1 << 24) - 1;
+    all1 = ~0;
     extSymMask  =  043000000U;
     maxLineLen = 130;
     /*=A3*/
     litFortran  =  ' FORTRAN';
     litAssembler = 'ASSEMBLE';
+    litLsb  =  '   **LSB';   // '__lsb': '_' shares the code of '*'
     litOct  =  '     OCT';
     litOutput  =  '*OUTPUT*';
     litInput  =  ' *INPUT*';
     /*=A2*/
     FALSE  =  0U;
     TRUE  =  1U;
-    E48 = 04000000000000000U;
+    E48 = 1 << 47;
     P_RR = 56;
     P_TR = 58;
     P_LDAR = 74;
@@ -199,13 +199,12 @@ typedef enum {
 typedef enum {
     kindVoid, kindReal, kindScalar, kindPtr,
     kindArray, kindStruct,
-    kindCases, kindRoutine
+    kindRoutine
 } kind;
 //
 typedef expr *eptr;
 typedef types *typptr;
-/*=s6*/
-typedef __packed struct {
+typedef __packed __lsb struct {
     typptr rep;
     int:6 bits;
     int:15 psize;
@@ -227,7 +226,7 @@ typedef struct {
     sigptr next;
 } sigrec;
 //
-typedef __packed struct {
+typedef __packed __lsb struct {
         int:6 k;
         int:18 hhh;
         types *ppp;
@@ -291,7 +290,7 @@ typedef union {
     struct { tptr variants;
             irptr fields;
             int flag,
-            pckrec; int szStruct; };
+            lsbord; int szStruct; };
     struct { tptr first,
             next;
             tptr alt; int szCases; };
@@ -343,7 +342,7 @@ typedef struct {
     int defined;
 } numLabel;
 /*=l3*/
-typedef __packed struct {
+typedef __packed __lsb struct {
     irptr   next;
     int:24  offset;
     idclass cl;
@@ -2073,6 +2072,7 @@ int l2int18z, ii, localSize, sizeCount, jj;
 // patches in place, so a declarator '*' applied directly to it must
 // reuse it as-is instead of wrapping it in another pointer.
 int isPacked;
+int lsbOrder;                   // '__packed __lsb': fields fill the word from bit 0
 int isForwardRef;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2759,7 +2759,7 @@ int isSimple;
             } else {
                 l4var5z  =  valueType.p.pk;
                 if (l4var5z < kindArray ||
-                   (l4var5z == kindStruct && s6 in optSflags)) {
+                   (l4var5z == kindStruct && valueType.rep->lsbord)) {
                     isSimple  =  true;
                 } else {
                     isSimple  =  false;
@@ -2923,7 +2923,7 @@ kind l4var7z;
         l4var7z  =  insnList->typ.p.pk;
         l4int1z  =  typeBits(insnList->typ);
         l4bool5z  =  l4var7z < kindArray ||
-                     (l4var7z == kindStruct && (E48 >> S6) & optSflags);
+                     (l4var7z == kindStruct && insnList->typ.rep->lsbord);
         if (l4st6z == stSLICE) {
             l4int2z  =  insnList->shift;
             l4int3z  =  l4int2z + insnList->width;
@@ -4160,7 +4160,7 @@ int needsMater;
                     }
                     case stSLICE: {
                         shift += curIdRec->shift;
-                        if (! (S6 IN optSflags))
+                        if (! curIdRec->uptype.rep->lsbord)
                             shift  =  shift +
                                        typeBits(curIdRec->uptype) - 48;
                         break;
@@ -4855,7 +4855,7 @@ caserec cases1, cases2;
 // recIsPacked saves/restores it around each field's parseTypeRef call;
 // fieldPackedFlag carries the field's own packedness through to
 // parseOneDeclarator (for its array-suffix packing), separately.
-int recIsPacked, fieldPackedFlag;
+int recIsPacked, recIsLsb, fieldPackedFlag;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Assigns curField's offset (and, in a __packed struct, its bit
@@ -4884,7 +4884,7 @@ pair *curSlot;
                     if (curSlot->first >= fieldWidth) {
                         curField->shift  =  48 - curSlot->first;
                         curField->pck.p.offset  =  curSlot->second;
-                        if (! (S6 IN optSflags))
+                        if (! recIsLsb)
                             curField->shift  =  48 - curField->width -
                                                   curField->shift;
                         curSlot->first  =  curSlot->first - fieldWidth;
@@ -4951,6 +4951,7 @@ pair *curSlot;
     // shared isPacked to that field's own packedness each time, which
     // would otherwise wipe this out for packOneField's purposes.
     recIsPacked  =  isPacked;
+    recIsLsb  =  lsbOrder;
     // lookup2 (not just lookupMode) must carry lookField through
     // parseTypeRef's own internal inSymbol() calls -- every inSymbol()
     // resets lookupMode := lookup2 on exit, so a field's declarator name
@@ -4995,6 +4996,7 @@ pair *curSlot;
             // packFieldChain/pckfield just below.
             fieldPackedFlag  =  isPacked;
             isPacked  =  recIsPacked;
+            lsbOrder  =  recIsLsb;
             prevField  =  NULL;
             do {
                 parseOneDeclarator(&curDeclarator, selType, fieldPackedFlag, isForwardRef);
@@ -5073,6 +5075,7 @@ pair *curSlot;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     isPacked  =  false;
+    lsbOrder  =  false;
     isForwardRef  =  false;
 12247:
     if (SY == IDENT)
@@ -5212,6 +5215,15 @@ pair *curSlot;
         if (SY == PACKEDSY) {
             isPacked  =  true;
             inSymbol();
+            /* '__lsb' after '__packed' packs the fields of a struct from the
+               low end of the word (the first one starts at bit 0) instead of
+               from the high end.  Recognized by its spelling, like FORTRAN
+               and ASSEMBLER, so it stays an ordinary identifier elsewhere;
+               the test must precede the markTypeSym at 12247. */
+            if ((SY == IDENT) && (curIdent == litLsb)) {
+                lsbOrder  =  true;
+                inSymbol();
+            }
             goto 12247;
         }
         if (SY IN [STRUCTSY, UNIONSY]) {
@@ -5224,7 +5236,7 @@ pair *curSlot;
                 variants.rep  =  NULL;
                 fields  =  NULL;
                 flag  =  false;
-                pckrec  =  isPacked;
+                lsbord  =  lsbOrder;
             }
             curType.p.psize  =  0;
             curType.p.bits  =  48;

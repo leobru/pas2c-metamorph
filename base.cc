@@ -45,7 +45,6 @@ const int64_t
     S3 = 0,
     S4 = 1,
     S5 = 2,
-    S6 = 3,
     NoStackCheck = 5;
 
 const int64_t
@@ -569,7 +568,7 @@ struct Types : public BESM6Obj {
         struct {                       // kindStruct
             TPtr variants;
             IdentRecPtr fields;
-            int64_t flag, pckrec;      // booleans
+            int64_t flag, lsbord;      // booleans
             int64_t szStruct;
         };
         struct {                       // kindCases
@@ -929,7 +928,7 @@ int64_t leftInsn;
 int64_t curIdent;
 int64_t toAlloc, usedRegs, liveRegs, freeRegs, auxRegs;
 Word optSflags;
-int64_t litOct, litFortran, litAssembler;
+int64_t litOct, litFortran, litAssembler, litLsb;
 ExprPtr uVarPtr, curExpr;
 InsnList *  insnList;
 InternRec * internHead;
@@ -3509,7 +3508,7 @@ void prepLoad()
             } else {
                 l4var5z = (Kind)(valueType.p.pk);
                 if (l4var5z < kindArray or
-                    (l4var5z == kindStruct and has(optSflags.ii, S6))) {
+                    (l4var5z == kindStruct and valueType.rep()->lsbord)) {
                     isSimple = true;
                 } else {
                     isSimple = false;
@@ -3670,7 +3669,7 @@ void prepStore()
         l4var7z = (Kind)(insnList->typ.p.pk);
         l4int1z = typeBits(insnList->typ);
         l4bool5z = (l4var7z < kindArray) or
-            ((l4var7z == kindStruct) and has(optSflags.ii, S6));
+            ((l4var7z == kindStruct) and insnList->typ.rep()->lsbord);
         if (l4st6z == stSLICE) {
             l4int2z = insnList->shift;
             l4int3z = l4int2z + insnList->width;
@@ -4904,7 +4903,7 @@ L10122:
                         break;
                     case stSLICE: {
                         insnList->shift = insnList->shift + curIdRec->shift();
-                        if (not has(optSflags.ii, S6))
+                        if (not curIdRec->uptype().rep()->lsbord)
                             insnList->shift = insnList->shift + typeBits(curIdRec->uptype()) - 48;
                     } break;
                     case stPACKED:
@@ -5414,6 +5413,10 @@ struct parseTypeRef {
 
     int64_t skipTarget;
     bool isPacked;
+    // '__packed __lsb': this struct's fields fill the word from bit 0.  A
+    // per-instance member, so a member's own order cannot leak into its
+    // container (work.p2c saves/restores a global instead).
+    bool lsbOrder;
     // Set when this call resolved its base type via the forward-reference
     // placeholder path below (an undefined name used mid-typedef, e.g.
     // 'typedef expr *eptr;' parsed before 'expr' itself is defined): the
@@ -5639,6 +5642,7 @@ void packOneField(IdentRecPtr fld, TPtr fldType)
 
     parseTypeRef::caserec &cases = parseTypeRef::super.back()->cases;
     bool &isPacked = parseTypeRef::super.back()->isPacked;
+    bool &lsbOrder = parseTypeRef::super.back()->lsbOrder;
 
     fld->typ = fldType;
     if (isPacked) {
@@ -5650,7 +5654,7 @@ L11523:         curSlot = &cases.pairs[pairIdx];
                 if (curSlot->first >= fieldWidth) {
                     fld->shift() = 48 - curSlot->first;
                     fld->pck.offset = curSlot->second;
-                    if (not has(optSflags.ii, S6))
+                    if (not lsbOrder)
                         fld->shift() = 48 - fld->width() - fld->shift();
                     curSlot->first = curSlot->first - fieldWidth;
                     if (curSlot->first == 0) {
@@ -5815,6 +5819,7 @@ parseTypeRef::parseTypeRef(TPtr & newtype, int64_t skipTarget_)
     bool &inTypeDef = programme::super.back()->inTypeDef;
     super.push_back(this);
     isPacked = false;
+    lsbOrder = false;
     isForwardRef = false;
 L12247:
     if (SY == IDENT)
@@ -5954,6 +5959,15 @@ L12366:             error(errNotAType);
         if (SY == PACKEDSY) {
             isPacked = true;
             inSymbol();
+            // '__lsb' after '__packed' packs the fields of a struct from the
+            // low end of the word (the first one starts at bit 0) instead of
+            // from the high end.  Recognized by its spelling, like FORTRAN and
+            // ASSEMBLER, so it stays an ordinary identifier elsewhere; the
+            // test must precede the markTypeSym at L12247.
+            if (SY == IDENT and curIdent == litLsb) {
+                lsbOrder = true;
+                inSymbol();
+            }
             goto L12247;
         }
         if (SY == STRUCTSY or SY == UNIONSY) {
@@ -5966,7 +5980,7 @@ L12366:             error(errNotAType);
             curType.rep()->variants.setRep(NULL);
             curType.rep()->fields = NULL;
             curType.rep()->flag = false;
-            curType.rep()->pckrec = isPacked;
+            curType.rep()->lsbord = lsbOrder;
             curType.p.psize = 0;
             curType.p.bits = 48;
             curType.p.pk = kindStruct;
@@ -9734,6 +9748,7 @@ int main(int argc, char **argv)
     initTables();
     litAssembler = toText("ASSEMBLE");
     litFortran = toText("FORTRAN");
+    litLsb = toText("**LSB");           // '__lsb': '_' shares the code of '*'
     litOct = toText("OCT");
     PASINPUT = ugetc(pasinput);
     try {
