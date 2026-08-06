@@ -1,0 +1,38 @@
+/*=s8,y+,k9,l0*/
+// The null pointer is not predefined any more: a program declares it, and
+// a void pointer constant is compatible with every pointer type.
+typedef void *anyptr;
+const NULL = anyptr(074000);
+//
+typedef struct {
+    int val;
+    node *next;
+} node;
+typedef node *nodeptr;
+//
+nodeptr chain[0..2] = { NULL:3 };
+nodeptr p, q;
+int i;
+//
+int isEmpty(nodeptr n) {
+    return n == NULL;
+}
+//
+{
+    p = NULL;
+    writeln(' P NULL: ', p == NULL:0, ' NOT NULL: ', p != NULL:0);
+    writeln(' ISEMPTY: ', isEmpty(p):0);
+    p = malloc(sizeof(node));
+    p->val = 7;
+    p->next = NULL;
+    writeln(' AFTER MALLOC: ', p == NULL:0, ' VAL=', p->val:0,
+            ' TAIL: ', p->next == NULL:0);
+    writeln(' ISEMPTY: ', isEmpty(p):0);
+    q = p;
+    writeln(' SAME: ', q == p:0);
+    for (i = 0; i <= 2; i = i + 1)
+        write(' ', chain[i] == NULL:0);
+    writeln;
+    chain[1] = p;
+    writeln(' CHAIN1 SET: ', chain[1] != NULL:0, ' VAL=', chain[1]->val:0);
+}

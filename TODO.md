@@ -1,10 +1,7 @@
 # Remains to be done
- - `enum`, allow assigning values to elements
  - optimize !x 
- - increment/decrement (post-)
  - C-style string literals using "" with terminating \0
  - helper routine for printing C-style strings for `write` (`puts`) 
- - C style of function declarations
  - `main` as a regular function
  - starting routine calling `main`
  - function pointers

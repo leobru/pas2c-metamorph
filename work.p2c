@@ -1,5 +1,4 @@
 /*=l1,s8,y+,k9,l1*/
-extern _child_, pasinput, pasinfor, paseofcd;
 //
 const
     boilerplate = ' PASCAL 2 C METAMORPHOSIS (2026)';
@@ -355,7 +354,7 @@ typedef union {
        and a whole-word store clears offset/cl); the packed arm carries
        next(15)/offset(24)/cl in that same word.  Mirrors tptr/pckrep.  Chain
        traversal reads pck.p.next (masked) so a terminator's offset/cl don't
-       spoil the NIL test. */
+       spoil the NULL test. */
     irptr  next;
     idpckp p;
 } idpck;
@@ -391,6 +390,13 @@ typedef enum {DECIMAL, OCTAL, FULLWORD, HEX} NumberFormat;
 typedef irptr hashArray[128];
 typedef int:15 tok;
 typedef struct { int *data; int rest[29]; } ifcb;
+typedef void *anyptr;
+// The null pointer is not predefined: like any program, the compiler says
+// what it means.  anyptr is the compiler's own void-pointer type (getPtrType
+// returns that singleton), which typeCheck accepts on either side of a
+// pointer comparison or assignment.  (It cannot be called voidptr: that
+// collides with the global voidPtr, identifiers being case-insensitive.)
+const NULL = anyptr(074000);
 //
 NumberFormat numFormat;
 setofsys statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
@@ -524,7 +530,7 @@ operator chrClass['\200'] = {
     ['+']=PLUSOP, ['-']=MINUSOP, ['|']=SETOR, ['*']=MUL, ['/']=RDIVOP,
     ['%']=IMODOP, ['^']=SETXOR, ['=']=ASSIGNOP, ['&']=SETAND,
     ['>']=GTOP, ['<']=LTOP, ['!']=NOTOP, ['~']=BITNEGOP, ['?']=CONDOP };
-kword *kwordHash[128] = NIL:128;
+kword *kwordHash[128] = NULL:128;
 symbol charSym['\200'] = {
     NOSY:128,
     ['0']=INTCONST:10, ['A']=IDENT:26, ['Ю']=IDENT:31,
@@ -534,7 +540,7 @@ symbol charSym['\200'] = {
     [',']=COMMA, ['.']=PERIOD, ['^']=EXPROP, ['(']=LPAREN, [')']=RPAREN,
     [';']=SEMICOLON, ['[']=LBRACK, [']']=RBRACK, ['=']=BECOMES,
     [':']=COLON, ['!']=EXPROP, ['~']=EXPROP, ['?']=EXPROP };
-hashArray symHash = NIL:128, fieldHash = NIL:128;
+hashArray symHash = NULL:128, fieldHash = NULL:128;
 int helperMap[1..92] = 0:92;
 /*=A3*/
 int helperNames[1..92] = {
@@ -701,9 +707,10 @@ int constNums[1..500];
 int objBuffer[1..1024];
 char iso2text['\052'..'\177'];
 int maxHeap;
-ifcb fcst, pasinput, _child_, initbuf;
+ifcb fcst, initbuf;
+extern ifcb pasinput, _child_;
 //
-struct {
+typedef struct {
     /*0*/ int listMode;
     /*1*/ int *errors;
     /*2*/ entries *entryptr;
@@ -712,8 +719,9 @@ struct {
     /*7*/ textmap *a3;
  /*8-17*/ int sizes[10];
    /*18*/ int flags;
-} pasinfor;
-__alfa paseofcd;
+} pasinfotyp;
+extern pasinfotyp pasinfor;
+extern __alfa paseofcd;
 //
 // %%%%%%%%%%%% Libc functions %%%%%%%%%%%
 //
@@ -1162,7 +1170,7 @@ inptr icand;
         return intType;
     }
     icand = internHead;
-    while (icand != NIL) {
+    while (icand != NULL) {
         res = icand->ityp;
         if (res.p.pk == kindScalar && res.p.bits == bitWid)
             return res;
@@ -1171,7 +1179,7 @@ inptr icand;
     res.rep = malloc(offsetof(types, szScalar));
     with *(res.rep) do {
         start = -1;
-        enums = NIL;
+        enums = NULL;
         numen = 1 << bitWid;
     }
     res.p.psize  =  1;
@@ -1264,12 +1272,18 @@ int c;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void nextCH() {
+    /* Columns past lineBuf are dropped, not stored: keep reading them until
+       the line ends, so that CH comes back at the line's end and neither
+       linePos nor the stores leave the buffer. */
     do {
         CH  =  fgetc(&PASINPUT);
         atEOL  =  CH == '\n' || CH == 0;
-        ++linePos;
-        lineBuf[linePos]  =  CH;
-    } while ((maxLineLen < linePos) && !atEOL);
+        if (linePos < maxLineLen-1) {
+            ++linePos;
+            lineBuf[linePos]  =  CH;
+            return;
+        } 
+    } while (! atEOL);
 } /* nextCH */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1461,7 +1475,7 @@ void lexer() {
         bucket = mapAI(curVal.a);
         curIdent  =  curToken.i;
         keywordHashPtr  =  kwordHash[bucket];
-        while (keywordHashPtr != NIL) {
+        while (keywordHashPtr != NULL) {
             if (keywordHashPtr->w == curToken.i) {
                 SY  =  keywordHashPtr->sym;
                 if (SY == TYPESY)
@@ -1477,7 +1491,7 @@ void lexer() {
         switch (lookupMode) {
         case lookDef:
             hashTravPtr  =  symHash[bucket];
-            while (hashTravPtr != NIL) {
+            while (hashTravPtr != NULL) {
                 if (hashTravPtr->pck.p.offset == curFrameRegTemplate) {
                     if (hashTravPtr->id != curIdent)
                         hashTravPtr  =  hashTravPtr->pck.p.next;
@@ -1490,13 +1504,13 @@ void lexer() {
             }
             break;
         case lookWith:
-        if (withList != NIL) {
+        if (withList != NULL) {
             withIter  =  withList;
             chain  =  fieldHash[bucket];
-            if (chain != NIL) {
-                while (withIter != NIL) {
+            if (chain != NULL) {
+                while (withIter != NULL) {
                     hashTravPtr  =  chain;
-                    while (hashTravPtr != NIL) {
+                    while (hashTravPtr != NULL) {
                         if ((hashTravPtr->id == curIdent)
                         && (hashTravPtr->uptype ==
                             withIter->expr2->typ))
@@ -1510,7 +1524,7 @@ void lexer() {
         // FALLTHRU
         case lookUse:
             hashTravPtr  =  symHash[bucket];
-            while (hashTravPtr != NIL) {
+            while (hashTravPtr != NULL) {
                 if (hashTravPtr->id != curIdent)
                     hashTravPtr  =  hashTravPtr->pck.p.next;
                 else {
@@ -1524,7 +1538,7 @@ void lexer() {
             break;
         case lookField:
             hashTravPtr  =  fieldHash[bucket];
-            while (hashTravPtr != NIL) {
+            while (hashTravPtr != NULL) {
                 with *hashTravPtr do {
                     if ((id == curIdent) &&
                        (typ121z == uptype))
@@ -1753,7 +1767,7 @@ void lexer() {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         if(setjmp(&jb1473));
 1473:   while(skipsp());
-        hashTravPtr  =  NIL;
+        hashTravPtr  =  NULL;
         SY  =  charSym[CH];
         charClass  =  chrClass[CH];
         lexer();
@@ -1828,13 +1842,13 @@ tptr ret;
             }
         } else
 99:     {
-            ret.rep = NIL;
+            ret.rep = NULL;
             error(errNoConstant);
         }
     } else
         switch (SY) {
         case IDENT:
-            if (hashTravPtr == NIL || hashTravPtr->pck.p.cl != ENUMID)
+            if (hashTravPtr == NULL || hashTravPtr->pck.p.cl != ENUMID)
                 goto 99;
             ret  =  hashTravPtr->typ;
             *litValue  =  hashTravPtr->value;
@@ -1860,7 +1874,7 @@ int l3var1z;
 int l3var2z;
 irptr l3var3z, l3var4z;
 //
-    if (l3arg1z == NIL) {
+    if (l3arg1z == NULL) {
         curVal.i  =  l3arg2z->id & hashMask;
         l3var2z = mapAI(curVal.a);
         l3var1z  =  true;
@@ -1879,7 +1893,7 @@ irptr l3var3z, l3var4z;
         l3var3z  =  l3arg1z;
         while (l3var3z != l3arg2z) {
             l3var4z  =  l3var3z;
-            if (l3var3z != NIL) {
+            if (l3var3z != NULL) {
                 l3var3z  =  l3var3z->pck.p.next;
             } else {
                 return l3arg1z;
@@ -1904,7 +1918,7 @@ int i;
 irptr it;
     it  =  p->argList;
     i  =  0;
-    if (it != NIL)
+    if (it != NULL)
         while (it != p) {
             ++i;
             it  =  it->list;
@@ -1920,24 +1934,24 @@ sigptr newParam, lastParam;
     resultTyp.rep = malloc(offsetof(types, szRtype));
     with *(resultTyp.rep) do {
         rresult  =  routine->typ;
-        rparams  =  NIL;
+        rparams  =  NULL;
         rargc  =  0;
         rflags  =  routine->flags;
     }
     resultTyp.p.psize  =  1;
     resultTyp.p.bits  =  15;
     resultTyp.p.pk  =  kindRoutine;
-    lastParam  =  NIL;
+    lastParam  =  NULL;
     srcParam  =  routine->argList;
-    if (srcParam != NIL)
+    if (srcParam != NULL)
         while (srcParam != routine) {
             newParam = malloc(sizeof(sigrec));
             with *newParam do {
                 pclass  =  srcParam->pck.p.cl;
                 ptyp  =  srcParam->typ;
-                next  =  NIL;
+                next  =  NULL;
             }
-            if (lastParam == NIL)
+            if (lastParam == NULL)
                 resultTyp.rep->rparams  =  newParam;
             else
                 lastParam->next  =  newParam;
@@ -1977,9 +1991,60 @@ kword *kw;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PROGRAMME                 %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Shared by mainProgram's standard-file setup and typed extern declarations.
+void defExtern() {
+int extLine, aligned, toAlloc;
+irptr idRec;
+    extLine  =  0;
+    toAlloc  =  30U | [24,27,28,29];
+    aligned  =  leftAlign(curIdent);
+    if ((curIdent == litInput) || (curIdent == litOutput)) {
+        idRec = malloc(offsetof(identrec, szIdent));
+        with *idRec do {
+            id  =  curIdent;
+            pck.p.offset  =  0;
+            typ  =  textType;
+            pck.p.cl  =  VARID;
+            list  =  NULL;
+        }
+        curVal.i  =  aligned;
+        idRec->value  =  allocExtSymbol(toAlloc);
+        addToHashTab(idRec);
+        if (curIdent == litInput)
+            inputFile  =  idRec;
+        else
+            outputFile  =  idRec;
+        extLine  =  lineCnt;
+    }
+    curExternFile  =  externFileList;
+    while (curExternFile != NULL) {
+        if (curExternFile->id == curIdent) {
+            curExternFile  =  NULL;
+            error(errIdentAlreadyDefined);
+        } else {
+            curExternFile  =  curExternFile->next;
+        }
+    }
+    curExternFile = malloc(sizeof(extFileRec));
+    with *curExternFile do {
+        id  =  curIdent;
+        next  =  externFileList;
+        line  =  extLine;
+        offset  =  aligned;
+    }
+    if (extLine != 0) {
+        if (curIdent == litOutput)
+            fileForOutput  =  curExternFile;
+        else
+            fileForInput  =  curExternFile;
+    }
+    externFileList  =  curExternFile;
+    curExternFile->location  =  512;
+}
+
 void programme(int *retSizePtr, irptr procName, int bodyBlock) { /* programme */
 irptr preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr;
-int isPredefined, l2bool8z, retSeen, inTypeDef, hadParens;
+int isPredefined, l2bool8z, retSeen, inTypeDef, hadParens, externDecl;
 eptr l2var10z;
 int bodyStatSys;
 int l2var12z;
@@ -2029,7 +2094,7 @@ int top;
 // has moved on, so it passes the saved declarator.name explicitly.
 int knownInType(irptr *rec, int name) {
 irptr it;
-    for (it = typelist; it != NIL; it = it->pck.p.next) {
+    for (it = typelist; it != NULL; it = it->pck.p.next) {
         if (it->id == name) {
             *rec = it;
             return true;
@@ -2054,24 +2119,24 @@ sigptr p1, p2;
         return false;
     }
     if (type1.rep->rresult != type2.rep->rresult &&
-        (type1.rep->rresult.rep == NIL || type2.rep->rresult.rep == NIL ||
+        (type1.rep->rresult.rep == NULL || type2.rep->rresult.rep == NULL ||
          ! typeCheck(type1.rep->rresult, type2.rep->rresult))) {
         return false;
     }
     p1  =  type1.rep->rparams;
     p2  =  type2.rep->rparams;
-    while (p1 != NIL && p2 != NIL) {
+    while (p1 != NULL && p2 != NULL) {
         if (p1->pclass != p2->pclass)
             return false;
         if (p1->ptyp != p2->ptyp &&
-            (p1->ptyp.rep == NIL || p2->ptyp.rep == NIL ||
+            (p1->ptyp.rep == NULL || p2->ptyp.rep == NULL ||
              ! typeCheck(p1->ptyp, p2->ptyp))) {
             return false;
         }
         p1  =  p1->next;
         p2  =  p2->next;
     }
-    return p1 == NIL && p2 == NIL;
+    return p1 == NULL && p2 == NULL;
 } /* sameRoutineType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2088,7 +2153,7 @@ sigptr p1, p2;
                 /* Two enums must be identical,
                  * all other combinations are okay.
                  */
-                    if (type1.rep->enums == NIL || type2.rep->enums == NIL) {
+                    if (type1.rep->enums == NULL || type2.rep->enums == NULL) {
                         goto 1;
                     }
                     break;
@@ -2206,14 +2271,14 @@ eptr mkUnaryFold(operator op, tptr resTyp, eptr e) {
         e->typ = resTyp;
         return e;
     }
-    return mkExpr(op, resTyp, e, NIL);
+    return mkExpr(op, resTyp, e, NULL);
 } /* mkUnaryFold */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 eptr flatMemAt(eptr idx) {
     idx->typ = intType;
     return mkExpr(GETELT, charType,
-                  mkExpr(GETVAR, flatMemType, eptr(flatMemVar), NIL), idx);
+                  mkExpr(GETVAR, flatMemType, eptr(flatMemVar), NULL), idx);
 } /* flatMemAt */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2228,7 +2293,7 @@ eptr n;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 eptr mkRef(eptr lval) {
 eptr ret;
-    ret = mkExpr(STANDPROC, voidPtr, lval, NIL);
+    ret = mkExpr(STANDPROC, voidPtr, lval, NULL);
     ret->num2 = fnREF;
     return ret;
 } /* mkRef */
@@ -2267,7 +2332,7 @@ eptr one, rmw;
 operator op;
     op = isInc ? INTPLUS : INTMINUS;
     one = mkIntLit(1);
-    rmw = mkExpr(RMWASSIGN, intType, lval, mkExpr(op, intType, one, NIL));
+    rmw = mkExpr(RMWASSIGN, intType, lval, mkExpr(op, intType, one, NULL));
     if (! isPost)
         return rmw;
     return mkExpr(INTPLUS + INTMINUS - op, intType, rmw, one);
@@ -2312,7 +2377,7 @@ void add2InsnsToBuf(int insn1, int insn2) {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int findLabel() {
     l4inl7z  =  l4inl6z;
-    while (l4inl7z != NIL) {
+    while (l4inl7z != NULL) {
         if (l4inl7z->mode == curInsn) {
             while (l4inl7z->code == macro) {
                 l4inl7z  =  oiptr(l4inl7z->offset);
@@ -2422,16 +2487,16 @@ void processInsn() {
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    if (insnList == NIL)
+    if (insnList == NULL)
          return;
     usedRegs |= insnList->regsused;
     l4oi212z  =  insnList->head;
     l4var9z  =  KNTR+7;
     insnBufIdx  =  1;
-    if (l4oi212z == NIL)
+    if (l4oi212z == NULL)
         return;
-    l4inl6z  =  NIL;
-    while (l4oi212z != NIL) {
+    l4inl6z  =  NULL;
+    while (l4oi212z != NULL) {
         tempInsn  =  l4oi212z->code;
         l4var4z  =  tempInsn -  macro;
         curInsn  =  l4oi212z->offset;
@@ -2494,7 +2559,7 @@ void processInsn() {
                     addInsnToBuf(KXTA+SP);
                 break;
             case mcPUSH:
-                if (l4oi212z != NIL) {
+                if (l4oi212z != NULL) {
                     tempInsn  =  l4oi212z->code;
                     if ((tempInsn & [21:23, 28:35]) == [32]) {
                         l4oi212z->code  =
@@ -2601,8 +2666,8 @@ void processInsn() {
     }
     for (l4var4z = 1; l4var4z <= insnBufIdx; ++l4var4z)
         processInsn();
-    insnList  =  NIL;
-    while (l4inl6z != NIL) {
+    insnList  =  NULL;
+    while (l4inl6z != NULL) {
         with *l4inl6z do
             if (offset == 0) {
                 jumpTarget  =  code;
@@ -2618,13 +2683,13 @@ void addToInsnList(int insn) {
 oiptr elt;
     elt = malloc(sizeof(oneinsn));
     with *elt do {
-        next  =  NIL;
+        next  =  NULL;
         mode  =  0;
         code  =  insn;
         offset  =  0;
     }
     with *insnList do {
-        if (tail == NIL)
+        if (tail == NULL)
             head  =  elt;
         else
             tail->next  =  elt;
@@ -2648,7 +2713,7 @@ oiptr elt;
         code  =  insn;
         offset  =  0;
     }
-    if (insnList->head == NIL) {
+    if (insnList->head == NULL) {
         insnList->tail  =  elt;
     }
     insnList->head  =  elt;
@@ -2834,8 +2899,7 @@ int l4int2z, l4int3z;
 int l4bool4z, l4bool5z;
 state l4st6z;
 kind l4var7z;
-    with *insnList do
-        l4int1z  =  addrmd;
+    l4int1z  =  insnList->addrmd;
     if (15 < l4int1z) {
         /* nothing? */
     } else if (l4int1z == 15) {
@@ -2893,8 +2957,7 @@ kind l4var7z;
 void spillAcc(operator op) {
     addInsnAndOffset(curFrameRegTemplate, localSize);
     curExpr = malloc(sizeof(expr));
-    with *curExpr do
-        typ  =  insnList->typ;
+    curExpr->typ  =  insnList->typ;
     genOneOp();
     curExpr->op  =  op;
     curExpr->num1  =  localSize;
@@ -2909,7 +2972,7 @@ int cnt;
 oiptr cur;
     cnt  =  0;
     cur  =  insnList->head;
-    while (cur != NIL) {
+    while (cur != NULL) {
         cur  =  cur->next;
         ++cnt;
     }
@@ -3401,7 +3464,7 @@ void formThunk() {
                             form1Insn(0);
                         form2Insn(getHelperProc(63/*P/B6*/) + (KVTM-KVJM),
                             allocGlobalObject(l5idr4z) + KUJ);
-                        if (l5idr3z != NIL) {
+                        if (l5idr3z != NULL) {
                             do {
                                 paramClass  =  l5idr3z->pck.p.cl;
                                 if ((paramClass == ROUTINEID) &&
@@ -3425,7 +3488,7 @@ void formThunk() {
     l5exp1z  =  exprToGen->expr1;
     l5idr5z  =  exprToGen->id2;
     isProc  =  l5idr5z->typ == voidType;
-    isDirect  =  l5idr5z->list == NIL;
+    isDirect  =  l5idr5z->list == NULL;
     frameSiz  =  isProc ? 3 : 4;
     calleeFl  =  l5idr5z->flags;
     isFortrn  =  21 in calleeFl;
@@ -3438,8 +3501,8 @@ void formThunk() {
         frameSiz += 2;
     }
     insnList = malloc(sizeof(insnltyp));
-    insnList->head  =  NIL;
-    insnList->tail  =  NIL;
+    insnList->head  =  NULL;
+    insnList->tail  =  NULL;
     insnList->typ  =  l5idr5z->typ;
     insnList->regsused  =  (l5idr5z->flags | [7:15]) & [0:8, 10:15];
     insnList->ilm  =  ilRVAL;
@@ -3452,13 +3515,13 @@ void formThunk() {
         }
     } else {
         firstArg  =  true;
-        if ((! isDirect) && (l5exp1z != NIL)
+        if ((! isDirect) && (l5exp1z != NULL)
             || (isDirect) && (numArgs >= 2)) {
             addToInsnList(KUTM+SP + frameSiz);
         }
     }
     numArgs  =  0;
-    while (l5exp1z != NIL) {
+    while (l5exp1z != NULL) {
         l5exp2z  =  l5exp1z->expr2;
         l5exp1z  =  l5exp1z->expr1;
         l5op21z  =  l5exp2z->op;
@@ -3467,11 +3530,11 @@ void formThunk() {
         if (l5op21z == PCALL || l5op21z == FCALL) {
             l5idr4z  =  l5exp2z->id2;
             insnList = malloc(sizeof(insnltyp));
-            insnList->head  =  NIL;
-            insnList->tail  =  NIL;
+            insnList->head  =  NULL;
+            insnList->tail  =  NULL;
             insnList->regsused  =  0U;
             usedRegs |= l5idr4z->flags;
-            if (l5idr4z->list != NIL) {
+            if (l5idr4z->list != NULL) {
                 addToInsnList(l5idr4z->pck.p.offset + KXTA +
                               l5idr4z->value);
                 if (isFortrn)
@@ -3503,7 +3566,7 @@ void formThunk() {
         if (! firstArg)
             prependToInsnList(macro + mcPUSH);
         firstArg  =  false;
-        if (l5inl20z->tail != NIL) {
+        if (l5inl20z->tail != NULL) {
             l5inl20z->tail->next  =  insnList->head;
             insnList->head  =  l5inl20z->head;
         }
@@ -3580,8 +3643,8 @@ void formThunk() {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void startInsnList(ilmode l5arg1z) {
     insnList = malloc(sizeof(insnltyp));
-    insnList->tail  =  NIL;
-    insnList->head  =  NIL;
+    insnList->tail  =  NULL;
+    insnList->head  =  NULL;
     insnList->typ  =  exprToGen->typ;
     insnList->regsused  =  0U;
     insnList->ilm  =  l5arg1z;
@@ -3609,12 +3672,12 @@ insnltyp *lhsIns, *rhsIns;
         insnList  =  lhsIns;
         prepStore();
         lhsIns  =  insnList;
-        if (rhsIns->tail == NIL) {
+        if (rhsIns->tail == NULL) {
             rhsIns->head  =  lhsIns->head;
         } else {
             rhsIns->tail->next  =  lhsIns->head;
         }
-        if (lhsIns->tail != NIL)
+        if (lhsIns->tail != NULL)
             rhsIns->tail  =  lhsIns->tail;
         rhsIns->regsused  =  rhsIns->regsused | lhsIns->regsused | E48;
         rhsIns->ilm  =  ilRVAL;
@@ -3871,7 +3934,7 @@ insnltyp *condChain, *thenChain;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genRMWAssign() {
-/* Code-gen for RMWASSIGN(lhs, inner-op(rhs, NIL)): a read-modify-write
+/* Code-gen for RMWASSIGN(lhs, inner-op(rhs, NULL)): a read-modify-write
    assignment (compound op-assign such as `lhs += rhs`, or pre-++/--).
    The naked AST lowering ASSIGNOP(lhs, op(lhs, rhs)) evaluates `lhs`
    twice, which is wrong when computing its address has side effects
@@ -3918,8 +3981,8 @@ int needsMater;
         addToInsnList(KITA + 14);
         addToInsnList(macro + mcPUSH);
         genOneOp();
-        insnList = NIL;
-        rmwLhs  =  mkExpr(STKLVAL, lhsExpr->typ, NIL, NIL);
+        insnList = NULL;
+        rmwLhs  =  mkExpr(STKLVAL, lhsExpr->typ, NULL, NULL);
     } else {
         rmwLhs = lhsExpr;
     }
@@ -3931,7 +3994,7 @@ int needsMater;
 } /* genRMWAssign */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    if (exprToGen == NIL)
+    if (exprToGen == NULL)
         return;
     if (exprToGen->op == DEREF && isCharPtr(exprToGen->expr1->typ))
         exprToGen = flatMemAt(exprToGen->expr1);
@@ -3980,7 +4043,7 @@ int needsMater;
                     break;
                 case opfASSN:
                     genCopy();
-                    if (insnList == NIL)
+                    if (insnList == NULL)
                         return;
                     with *insnList do {
                         typ  =  exprToGen->typ;
@@ -4063,8 +4126,8 @@ int needsMater;
             insnList = malloc(sizeof(insnltyp));
             curIdRec  =  exprToGen->id1;
             with *insnList do {
-                tail  =  NIL;
-                head  =  NIL;
+                tail  =  NULL;
+                head  =  NULL;
                 regsused  =  0U;
                 ilm  =  ilLVAL;
                 payload  =  curIdRec->pck.p.offset;
@@ -4139,8 +4202,8 @@ int needsMater;
            for `WTC'. */
         insnList = malloc(sizeof(insnltyp));
         with *insnList do {
-            tail = NIL;
-            head = NIL;
+            tail = NULL;
+            head = NULL;
             typ = exprToGen->typ;
             regsused = [];
             ilm = ilLVAL;
@@ -4239,7 +4302,7 @@ int needsMater;
             insnList = malloc(sizeof(insnltyp));
             with *insnList do {
                 typ  =  exprToGen->expr2->typ;
-                head  =  tail  =  NIL;
+                head  =  tail  =  NULL;
                 regsused  =  0U;
                 ilm  =  ilLVAL;
                 addrmd  =  18;
@@ -4285,9 +4348,9 @@ void fcloseFile(irptr fileSym) {
         return;
     }
     form2Insn(KITS+13, KATX+SP);
-    if (inputFile != NIL)
+    if (inputFile != NULL)
         fcloseFile(inputFile);
-    if (outputFile != NIL)
+    if (outputFile != NULL)
         fcloseFile(outputFile);
     form1Insn(getHelperProc(70)/*"P/IT"*/ + (KUJ-KVJM-I13));
     padToLeft();
@@ -4295,7 +4358,7 @@ void fcloseFile(irptr fileSym) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     rhsMode  =  true;
-    if (errors && l3arg1z != SETREG || curExpr == NIL)
+    if (errors && l3arg1z != SETREG || curExpr == NULL)
         return;
     if (! (l3arg1z IN [FORMOP, STOREAT9, DFLTWDTH, FILEINIT, PCKUNPCK]))
         genFullExpr(curExpr);
@@ -4493,7 +4556,7 @@ void fcloseFile(irptr fileSym) {
    directly rather than lowering it through genFullExpr — the former
    formOperator(LITINSN).  Avoids an insnList allocation per constant. */
 void takeConstFromExpr() {
-    if (errors || curExpr == NIL)
+    if (errors || curExpr == NULL)
         return;
     if (curExpr->op != GETENUM)
         error(errNoConstant);
@@ -4509,9 +4572,9 @@ void markTypeSym() {
         curVal.i  =  curIdent & hashMask;
         bucket = mapAI(curVal.a);
         hashTravPtr  =  symHash[bucket];
-        while ((hashTravPtr != NIL) && (hashTravPtr->id != curIdent))
+        while ((hashTravPtr != NULL) && (hashTravPtr->id != curIdent))
             hashTravPtr  =  hashTravPtr->pck.p.next;
-        if ((hashTravPtr != NIL) && (hashTravPtr->pck.p.cl == TYPEID)) {
+        if ((hashTravPtr != NULL) && (hashTravPtr->pck.p.cl == TYPEID)) {
             SY  =  TYPESY;
             symType  =  hashTravPtr->typ;
         }
@@ -4543,7 +4606,7 @@ inptr icand;
     if (24 < l3int22z)
         makePacked  =  false;
     icand  =  internHead;
-    while (icand != NIL) {
+    while (icand != NULL) {
         arrayType  =  icand->ityp;
         if (arrayType.p.pk == kindArray &&
             arrayType.rep->base == elementType &&
@@ -4608,7 +4671,7 @@ void statement();
 void parseRange(int *aleft, int *aright) {
     freeRegs = ceRegs;
     statement();
-    if (ceTyp.rep != NIL && ceTyp.p.pk == kindScalar) {
+    if (ceTyp.rep != NULL && ceTyp.p.pk == kindScalar) {
         *aleft = ceVal;
         if (SY != COLON) {
 // Handle a single value N as a range 0..N-1
@@ -4618,7 +4681,7 @@ void parseRange(int *aleft, int *aright) {
         }
         inSymbol();
         statement();
-        if (ceTyp.rep != NIL && ceTyp.p.pk == kindScalar) {
+        if (ceTyp.rep != NULL && ceTyp.p.pk == kindScalar) {
             *aright = ceVal;
             return;
         }
@@ -4932,24 +4995,24 @@ pair *curSlot;
             // packFieldChain/pckfield just below.
             fieldPackedFlag  =  isPacked;
             isPacked  =  recIsPacked;
-            prevField  =  NIL;
+            prevField  =  NULL;
             do {
                 parseOneDeclarator(&curDeclarator, selType, fieldPackedFlag, isForwardRef);
                 if (curDeclarator.name != 0) {
-                    if (curDeclarator.foundRec != NIL)
+                    if (curDeclarator.foundRec != NULL)
                         error(errIdentAlreadyDefined);
                     curEnum = malloc(offsetof(identrec, szField));
                     with *curEnum do {
                         id  =  curDeclarator.name;
                         pck.p.next  =  fieldHash[curDeclarator.bucket];
                         pck.p.cl  =  FIELDID;
-                        list  =  NIL;
+                        list  =  NULL;
                         uptype  =  curType;
                         pckfield  =  recIsPacked;
                         typ  =  curDeclarator.typ;
                     }
                     fieldHash[curDeclarator.bucket]  =  curEnum;
-                    if (prevField == NIL) {
+                    if (prevField == NULL) {
                         curField  =  curEnum;
                     } else {
                         prevField->list  =  curEnum;
@@ -4960,8 +5023,8 @@ pair *curSlot;
                 if (moreDecls)
                     inSymbol();
             } while (moreDecls);
-            if (prevField != NIL) {
-                if (curType.rep->fields == NIL) {
+            if (prevField != NULL) {
+                if (curType.rep->fields == NULL) {
                     curType.rep->fields  =  curField;
                 } else {
                     l3idr31z->list  =  curField;
@@ -5000,7 +5063,7 @@ pair *curSlot;
             rectype->p.bits  =  48;
         }
         prevField  =  rectype->p.rep->fields;
-        while (prevField != NIL) {
+        while (prevField != NULL) {
             prevField->uptype  =  *rectype;
             prevField  =  prevField->list;
         }
@@ -5021,7 +5084,7 @@ pair *curSlot;
         nextEnum  =  0;
         hasExplicit  =  false;
         lookupMode  =  lookDef;
-        curField  =  NIL;
+        curField  =  NULL;
         curType.rep = malloc(offsetof(types, szScalar));
         while (SY == IDENT) {
             if (isDefined || (curIdent == litInput) || (curIdent == litOutput))
@@ -5036,7 +5099,7 @@ pair *curSlot;
                 inSymbol();
                 freeRegs  =  ceRegs;
                 statement();
-                if (ceTyp.rep != NIL && ceTyp.p.pk == kindScalar)
+                if (ceTyp.rep != NULL && ceTyp.p.pk == kindScalar)
                     nextEnum  =  ceVal;
                 else
                     error(62); /* errIntNeeded */
@@ -5047,7 +5110,7 @@ pair *curSlot;
                 pck.next  =  symHash[enumBucket];
                 id  =  enumName;
                 typ  =  curType;
-                list  =  NIL;
+                list  =  NULL;
                 value  =  nextEnum;
             }
             curEnum->pck.p.offset  =  curFrameRegTemplate;
@@ -5055,7 +5118,7 @@ pair *curSlot;
             symHash[enumBucket]  =  curEnum;
             ++nextEnum;
             ++span;
-            if (curField == NIL) {
+            if (curField == NULL) {
                 curType.rep->enums  =  curEnum;
             } else {
                 curField->list  =  curEnum;
@@ -5070,7 +5133,7 @@ pair *curSlot;
             }
         }
         checkSymAndRead(ENDSY);
-        if (curField == NIL) {
+        if (curField == NULL) {
             curType  =  boolType;
             error(errNoIdent);
         } else {
@@ -5087,7 +5150,7 @@ pair *curSlot;
             curType.p.bits  =  hasExplicit ? 48 : (48 - minel(span - 1));
             curType.p.pk  =  kindScalar;
             curEnum  =  curType.rep->enums;
-            while (curEnum != NIL) {
+            while (curEnum != NULL) {
                 curEnum->typ  =  curType;
                 curEnum  =  curEnum->list;
             }
@@ -5100,7 +5163,7 @@ pair *curSlot;
         } else {
             if (SY == TYPESY) {
                 curType = getPtrType(symType);
-            } else if (hashTravPtr == NIL) {
+            } else if (hashTravPtr == NULL) {
                 if (inTypeDef) {
                     if (knownInType(&curEnum, curIdent)) {
                         curType  =  curEnum->typ;
@@ -5119,7 +5182,7 @@ pair *curSlot;
     } else if (SY IN [IDENT,TYPESY]) {
         if (SY == TYPESY) {
             curType  =  symType;
-        } else if ((hashTravPtr == NIL) && inTypeDef) {
+        } else if ((hashTravPtr == NULL) && inTypeDef) {
             /* C-style forward-referenced typedef pointer, e.g.
                'typedef expr *eptr;' parsed before 'expr' itself is
                defined (common for mutually-recursive record types).
@@ -5158,8 +5221,8 @@ pair *curSlot;
             typeIsUnion  =  SY == UNIONSY;
             curType.rep = malloc(offsetof(types, szStruct));
             with *(curType.rep) do {
-                variants.rep  =  NIL;
-                fields  =  NIL;
+                variants.rep  =  NULL;
+                fields  =  NULL;
                 flag  =  false;
                 pckrec  =  isPacked;
             }
@@ -5212,7 +5275,7 @@ irptr l3var1z;
     if (l3arg1z.rep->start == 0) {
         l3arg1z.rep->start  =  FcstCnt;
         l3var1z  =  l3arg1z.rep->enums;
-        while (l3var1z != NIL) {
+        while (l3var1z != NULL) {
             curVal.i  =  l3var1z->id;
             l3var1z  =  l3var1z->list;
             toFCST();
@@ -5237,7 +5300,7 @@ int fileAddr, elemSize;
 // with known characteristics (1 word, 8 bits).
     curVal.i  =  fileBufSize * 010000000000 + 0100010;
     form1Insn(KXTS+I8 + getFCSToffset());
-    if (extFileP == NIL) {
+    if (extFileP == NULL) {
         form1Insn(KXTS);
     } else {
         curVal.i  =  extFileP->location;
@@ -5312,9 +5375,9 @@ int l3int1z, frame, l3var3z;
         if (l3var3z)
             form1Insn(KVTM+I8+074001);
         if (hasFiles != 0) {
-            if (inputFile != NIL)
+            if (inputFile != NULL)
                 fopenFile(inputFile, fileForInput);
-            if (outputFile != NIL)
+            if (outputFile != NULL)
                 fopenFile(outputFile, fileForOutput);
             curVal.i  =  hasFiles;
             fixup(2, 49);
@@ -5419,7 +5482,7 @@ kind l4var4z;
         if (l4var4z == kindPtr) {
             l4typ5z  =  ptrBase(l4typ3z);
             if (l4typ5z.p.pk == kindStruct) {
-                curExpr  =  mkExpr(DEREF, l4typ5z, curExpr, NIL);
+                curExpr  =  mkExpr(DEREF, l4typ5z, curExpr, NULL);
                 l4typ3z  =  l4typ5z;
                 goto 55;
             }
@@ -5437,7 +5500,7 @@ kind l4var4z;
             lookupMode  =  3;
             typ121z  =  l4typ3z;
             inSymbol();
-            if (hashTravPtr == NIL) {
+            if (hashTravPtr == NULL) {
                 error(20); /* errDigitGreaterThan7 ??? */
             } else {
                 curExpr  =  mkExpr(GETFIELD, hashTravPtr->typ,
@@ -5479,7 +5542,7 @@ void parseLval() {
         curExpr  =  mkExpr(GETFIELD, hashTravPtr->typ,
                            withIter, eptr(hashTravPtr));
     } else {
-        curExpr  =  mkExpr(GETVAR, hashTravPtr->typ, eptr(hashTravPtr), NIL);
+        curExpr  =  mkExpr(GETVAR, hashTravPtr->typ, eptr(hashTravPtr), NULL);
     }
     inSymbol();
     parsePostfix();
@@ -5518,7 +5581,7 @@ idclass formClass;
     with *subroutine do {
         if (typ != voidType)
             liveRegs &= ~flags;
-        noArgs  =  (list == NIL) && ! (24 in flags);
+        noArgs  =  (list == NULL) && ! (24 in flags);
     }
     callExpr = malloc(sizeof(expr));
     argList  =  callExpr;
@@ -5527,12 +5590,12 @@ idclass formClass;
         typ  =  subroutine->typ;
         op  =  ALNUM;
         id2  =  subroutine;
-        id1  =  NIL;
+        id1  =  NULL;
     }
     if (SY == LPAREN) {
         if (noArgs) {
             curFormal  =  subroutine->argList;
-            if (curFormal == NIL) {
+            if (curFormal == NULL) {
                 inSymbol();
                 if (SY != RPAREN) {
                     error(errTooManyArguments);
@@ -5564,10 +5627,10 @@ idclass formClass;
                         if (formClass == ROUTINEID) {
                             if (curFormal->typ == voidType)
                                 goto 13736
-                        } else if ((curExpr->id2->argList == NIL) &&
+                        } else if ((curExpr->id2->argList == NULL) &&
                            (formClass == VARID)) {
                             curExpr->op  =  ALNUM;
-                            curExpr->expr1  =  NIL;
+                            curExpr->expr1  =  NULL;
                         } else
                             goto 13736;
                     } else if (actualOp IN lvalOpSet) {
@@ -5580,15 +5643,15 @@ idclass formClass;
                     }
                 }
                 arg1Type  =  curExpr->typ;
-                if (arg1Type.rep != NIL) {
+                if (arg1Type.rep != NULL) {
                     if (!typeCheck(arg1Type, curFormal->typ))
                         error(40); /*errIncompatibleArgumentTypes*/
                 }
             } while (false);
             curActual = malloc(sizeof(expr));
             with *curActual do {
-                typ.rep  =  NIL;
-                expr1  =  NIL;
+                typ.rep  =  NULL;
+                expr1  =  NULL;
                 expr2  =  curExpr;
             }
             argList->expr1  =  curActual;
@@ -5772,7 +5835,7 @@ int stProcNo, checkMode, resultValue;
                 error(errNoIdent);
                 resultValue = 0;
             } else {
-                if (hashTravPtr == NIL) {
+                if (hashTravPtr == NULL) {
                     error(errNotDefined);
                     resultValue = 0;
                 } else {
@@ -5830,7 +5893,7 @@ int stProcNo, checkMode, resultValue;
         curExpr->typ = l4typ11z;
         break;
     case IDENT:
-        if (hashTravPtr == NIL) {
+        if (hashTravPtr == NULL) {
             error(errNotDefined);
             curExpr  =  uVarPtr;
             inSymbol();
@@ -5878,7 +5941,7 @@ int stProcNo, checkMode, resultValue;
                     error(errNoCommaOrParenOrTooFewArgs);
                     longjmp(jb8888, 1);
                 }
-                curExpr  =  mkExpr(newOp, routine->typ, NIL, eptr(routine));
+                curExpr  =  mkExpr(newOp, routine->typ, NULL, eptr(routine));
                 break;
             case VARID: case FORMALID: case FIELDID:
                 parseLval();
@@ -6021,7 +6084,7 @@ eptr leftExpr;
                 curExpr = flatMemAt(curExpr);
             else if (arg1Type.p.pk == kindPtr) {
                 curExpr = mkExpr(DEREF, ptrBase(arg1Type),
-                                 curExpr, NIL);
+                                 curExpr, NULL);
             } else {
                 stmtName = 'unary*';
                 error(errWrongVarTypeBefore);
@@ -6048,7 +6111,7 @@ eptr leftExpr;
                            mkIntLit(6)),
                     curExpr->expr2);
             } else {
-                curExpr = mkExpr(STANDPROC, voidPtr, curExpr, NIL);
+                curExpr = mkExpr(STANDPROC, voidPtr, curExpr, NULL);
                 curExpr->num2 = fnREF;
             }
             break;
@@ -6110,7 +6173,7 @@ int match;
                (+=, -=, *=, /=, %=, &=, |=, ^=, <<=, >>=) it carries the
                underlying operation, lexed as SY=BECOMES + charClass=op.
                Plain `=` yields ASSIGNOP(lhs, rhs).  Op-assign yields
-               RMWASSIGN(lhs, inner-op(rhs, NIL)) where inner-op carries
+               RMWASSIGN(lhs, inner-op(rhs, NULL)) where inner-op carries
                the operator (e.g. INTPLUS) and the RHS in expr1; expr2 is
                the don't-care slot.  Codegen for RMWASSIGN walks lhs once,
                materialising its address into a spill slot when needed,
@@ -6123,7 +6186,7 @@ int match;
             if (oper != ASSIGNOP) {
                 /* Reuse bldArithOp/bldBitOp/bldLogOp for operator selection
                    (PLUSOP vs INTPLUS, etc.) and type promotion, then drop
-                   the leftExpr slot of the result so it stores op(rhs, NIL)
+                   the leftExpr slot of the result so it stores op(rhs, NULL)
                    ready for RMWASSIGN.expr2.  RMWASSIGN.expr1 carries the
                    original lvalue subtree, evaluated once at codegen time. */
                 match = typeCheck(arg1Type, arg2Type);
@@ -6144,10 +6207,10 @@ int match;
                     break;
                 }
                 curExpr->expr1 = curExpr->expr2;
-                curExpr->expr2 = NIL;
+                curExpr->expr2 = NULL;
                 arg2Type = curExpr->typ;
             }
-            if (leftExpr != NIL && leftExpr->op == DEREF &&
+            if (leftExpr != NULL && leftExpr->op == DEREF &&
                 isCharPtr(leftExpr->expr1->typ))
                 leftExpr = flatMemAt(leftExpr->expr1);
             if (! typeCheck(arg1Type, arg2Type)) {
@@ -6268,7 +6331,7 @@ eptr loopExpr;
         leave = jumpTarget;
     }
     checkSymAndRead(SEMICOLON);
-    loopExpr = NIL;
+    loopExpr = NULL;
     if (SY != RPAREN) {
         readNext = false;
         expression();
@@ -6278,7 +6341,7 @@ eptr loopExpr;
     setBrCont();
     statement();
     brContTarget();
-    if (loopExpr != NIL) {
+    if (loopExpr != NULL) {
         curExpr = loopExpr;
         formOperator(DOIT);
     }
@@ -6325,7 +6388,7 @@ void reportStmtType() {
 void structBranch() {
 strLabel *curLab;
     curLab  =  strLabList;
-    while (curLab != NIL) {
+    while (curLab != NULL) {
         if (curLab->ident == curIdent) {
             formJump(&curLab->target);
             return;
@@ -6365,10 +6428,10 @@ word minValue, maxValue;
     disableNorm();
     decoder  =  0;
     endOfStmt  =  0;
-    allClauses  =  NIL;
+    allClauses  =  NULL;
     formJump(&decoder);
     checkSymAndRead(BEGINSY);
-    firstType.rep = NIL;
+    firstType.rep = NULL;
     goodMode  =  true;
     do {
         if (! (SY IN [SEMICOLON, ENDSY])) {
@@ -6387,8 +6450,8 @@ word minValue, maxValue;
                 takeConstFromExpr();
                 itemvalue = curVal.i;
                 itemType = curExpr->typ;
-                if (itemtype.rep != NIL) {
-                    if (firstType.rep == NIL) {
+                if (itemtype.rep != NULL) {
+                    if (firstType.rep == NULL) {
                         firstType  =  itemtype;
                     } else {
                         if (! typeCheck(itemtype, firstType))
@@ -6398,7 +6461,7 @@ word minValue, maxValue;
                     clause->value.i  =  itemvalue;
                     clause->offset  =  moduleOffset;
                     curClause  =  allClauses;
-                    while (curClause != NIL) {
+                    while (curClause != NULL) {
                         if (itemvalue == curClause->value.i) {
                             error(73); /* errCaseLabelsIdentical */
                             break;
@@ -6439,11 +6502,11 @@ word minValue, maxValue;
     }
     formJump(&endOfStmt);
     padToLeft();
-    if (allClauses != NIL) {
+    if (allClauses != NULL) {
         expected  =  allClauses->value;
         minValue  =  expected;
         curClause  =  allClauses;
-        while (curClause != NIL) {
+        while (curClause != NULL) {
             if (expected == curClause->value) {
                 maxValue  =  expected;
                 ++expected.i;
@@ -6460,7 +6523,7 @@ word minValue, maxValue;
                     form1Insn(KATX+SP+1);
                 }
                 minValue.i  =  0;
-                while (allClauses != NIL) {
+                while (allClauses != NULL) {
                     if (itemsEnded) {
                         curVal.i  =  minValue.i - allClauses->value.i;
                         form1Insn(getValueOrAllocSymtab(curVal.i) +
@@ -6501,7 +6564,7 @@ word minValue, maxValue;
             decoder = KUJ;
         } else
             decoder = KUZA;
-        while (allClauses != NIL) {
+        while (allClauses != NULL) {
             form1Insn(decoder + allClauses->offset);
             allClauses  =  allClauses->next;
             decoder = KUZA ^ KUJ ^ decoder;
@@ -6556,7 +6619,7 @@ void putInitEntry(int k, int a, int b) {
 // at '=').  formOperator(SETREG9) yields the base-register template with no
 // module/FCST side effect (it builds only into the object buffer).
 void beginInitSeg(irptr var, int designator) {
-    curExpr  =  mkExpr(GETVAR, var->typ, eptr(var), NIL);
+    curExpr  =  mkExpr(GETVAR, var->typ, eptr(var), NULL);
     if (designator)
         parsePostfix();
     putLeft  =  true;
@@ -6769,7 +6832,7 @@ void startWrite() {
     expression();
     l4typ3z  =  curExpr->typ;
     l4exp7z  =  curExpr;
-    if (workExpr == NIL) {
+    if (workExpr == NULL) {
         if (typeSize(l4typ3z) == 30) {
             workExpr  =  curExpr;
         } else {
@@ -6780,8 +6843,8 @@ void startWrite() {
         }
         arg2Type  =  workExpr->typ;
         needR12  =  true;
-        l4exp8z = mkExpr(DEREF, ptrBase(arg2Type), workExpr, NIL);
-        l4exp6z = mkExpr(ASSIGNOP, l4exp8z->typ, l4exp8z, NIL);
+        l4exp8z = mkExpr(DEREF, ptrBase(arg2Type), workExpr, NULL);
+        l4exp6z = mkExpr(ASSIGNOP, l4exp8z->typ, l4exp8z, NULL);
     }
 } /* startWrite */
 //
@@ -6834,7 +6897,7 @@ void checkElement() {
     // An explicit-value enum (start == -1, but still carries enumerators):
     // name printing is suppressed, so print the value as a decimal integer,
     // exactly like int.
-    if (curVarKind == kindScalar && l4typ3z.rep->enums != NIL) {
+    if (curVarKind == kindScalar && l4typ3z.rep->enums != NULL) {
         helperNo  =  36;               /* C/WI */
         defWidth  =  10;
         return;
@@ -6859,13 +6922,13 @@ void checkElement() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void writeProc() {
-    workExpr  =  NIL;
+    workExpr  =  NULL;
     do {
         startWrite();
         if (l4exp7z != workExpr) {
                 checkElement();
-                secondWidth  =  NIL;
-                firstWidth  =  NIL;
+                secondWidth  =  NULL;
+                firstWidth  =  NULL;
                 if (SY == COLON)
                     firstWidth = parseWidthSpecifier();
                 if (SY == COLON) {
@@ -6882,12 +6945,12 @@ void writeProc() {
                     }
                 }
                 noWidth  =  false;
-                if (firstWidth == NIL &&
+                if (firstWidth == NULL &&
                     helperNo IN [38,39,40]) {  /* WC,A6,A7 */
                     helperNo += 5;  /* CW,6A,7A */
                     noWidth  =  true;
                 } else {
-                    if (firstWidth == NIL) {
+                    if (firstWidth == NULL) {
                         curVal.i  =  defWidth | 0xD<<44;
                         formOperator(DFLTWDTH);
                     } else {
@@ -6897,7 +6960,7 @@ void writeProc() {
                     }
                 }
                 if (helperNo == 37) {       /* P/WR */
-                    if (secondWidth == NIL) {
+                    if (secondWidth == NULL) {
                         curVal.i  =  4 | 0xD<<44;
                         form1Insn(KXTS+I8 + getFCSToffset());
                     } else {
@@ -7123,7 +7186,7 @@ tptr t;
         goto 8888;
     switch (SY) {
     case IDENT:
-        if (hashTravPtr == NIL) {
+        if (hashTravPtr == NULL) {
             error(errNotDefined);
             inSymbol();
 8888:       skip(skipToSet | statEndSys);
@@ -7150,7 +7213,7 @@ tptr t;
                 break;
             }
         }
-        /* VARID / FORMALID / FIELDID, or ROUTINEID with non-NIL typ
+        /* VARID / FORMALID / FIELDID, or ROUTINEID with non-NULL typ
            (function call): assignment, function call, or other expression
            used as a statement.  readNext := false keeps the current SY
            (the leading IDENT) for expression() to consume. */
@@ -7239,7 +7302,7 @@ tptr t;
         } else {
             jumpTarget  =  curOffset;
             whileExpr  =  curExpr;
-            curExpr = mkExpr(NOTOP, boolType, whileExpr, NIL);
+            curExpr = mkExpr(NOTOP, boolType, whileExpr, NULL);
             formOperator(BRANCH);
         }
         brContTarget();
@@ -7332,7 +7395,7 @@ int l3var7z;
     l3var1z  =
     lineStartOffset  =  moduleOffset;
     lookup2  =  2;
-    withList  =  NIL;
+    withList  =  NULL;
     arithMode  =  1;
     liveRegs  =  0U;
     // [curProcNesting+1..6];
@@ -7398,8 +7461,7 @@ int l3var7z;
     if (!bool48z && (sizeCount == 3) &&
        (curProcNesting != 1) && (usedRegs & [1:15]) != [1:15]) {
         objBuffer[1]  =  (KNTR+7)<< 24 | KUTC;
-        with *procName do
-            flags |= [25];
+        procName->flags |= [25];
         if (objBufIdx == 2) {
             objBuffer[1]  =  (KUJ+I13) << 24;
             putLeft  =  true;
@@ -7444,7 +7506,7 @@ int l3var11z;
 void regSysProc(int l4arg1z) {
     curIdRec = malloc(offsetof(identrec, szSys));
     with *curIdRec do {
-        pck.next  =  NIL;
+        pck.next  =  NULL;
         id  =  l4arg1z;
         typ  =  temptype;
         sysnum  =  sysProcNum;
@@ -7455,61 +7517,11 @@ void regSysProc(int l4arg1z) {
 } /* registerSysProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void defExtern() {
-    l3var8z  =  0;
-    l3var11z  =  30U | [24,27,28,29];
-    l3var1z  =  leftAlign(curIdent);
-    if ((curIdent == litInput) || (curIdent == litOutput)) {
-        l3var7z = malloc(offsetof(identrec, szIdent));
-        with *l3var7z do {
-            id  =  curIdent;
-            pck.p.offset  =  0;
-            typ  =  textType;
-            pck.p.cl  =  VARID;
-            list  =  NIL;
-        }
-        curVal.i  =  l3var1z;
-        l3var7z->value  =  allocExtSymbol(l3var11z);
-        addToHashTab(l3var7z);
-        if (curIdent == litInput)
-            inputFile  =  l3var7z;
-        else
-            outputFile  =  l3var7z;
-        l3var8z  =  lineCnt;
-    }
-    curExternFile  =  externFileList;
-    while (curExternFile != NIL) {
-        if (curExternFile->id == curIdent) {
-            curExternFile  =  NIL;
-            error(errIdentAlreadyDefined);
-        } else {
-            curExternFile  =  curExternFile->next;
-        }
-    }
-    curExternFile = malloc(sizeof(extFileRec));
-    with *curExternFile do {
-        id  =  curIdent;
-        next  =  externFileList;
-        line  =  l3var8z;
-        offset  =  l3var1z;
-    }
-    if (l3var8z != 0) {
-        if (curIdent == litOutput) {
-            fileForOutput  =  curExternFile;
-        } else {
-            fileForInput  =  curExternFile;
-        }
-    }
-    externFileList  =  curExternFile;
-    curExternFile->location  =  512;
-}
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     boolType.rep = malloc(offsetof(types, szScalar));
     with *(boolType.rep) do {
         numen  =  2;
         start  =  -1;
-        enums  =  NIL;
+        enums  =  NULL;
     }
     boolType.p.psize  =  1;
     boolType.p.bits  =  1;
@@ -7518,7 +7530,7 @@ void defExtern() {
     with *(intType.rep) do {
         numen  =  100000;
         start  =  -1;
-        enums  =  NIL;
+        enums  =  NULL;
     }
     intType.p.psize  =  1;
     intType.p.bits  =  48;
@@ -7527,7 +7539,7 @@ void defExtern() {
     with *(charType.rep) do {
         numen  =  256;
         start  =  -1;
-        enums  =  NIL;
+        enums  =  NULL;
     }
     charType.p.psize  =  1;
     charType.p.bits  =  8;
@@ -7541,16 +7553,12 @@ void defExtern() {
     voidType.p.bits  =  0;
     voidType.p.pk  =  kindVoid;
     voidPtr.rep = malloc(offsetof(types, szPtr));
-    with *(voidPtr.rep) do {
-        base  =  voidType;
-    }
+    voidPtr.rep->base  =  voidType;
     voidPtr.p.psize  =  1;
     voidPtr.p.bits  =  48;
     voidPtr.p.pk  =  kindPtr;
     textType.rep = malloc(offsetof(types, szFile));
-    with *(textType.rep) do {
-        base  =  charType;
-    }
+    textType.rep->base  =  charType;
     textType.p.pad  =  8;
     textType.p.psize  =  30;
     textType.p.bits  =  48;
@@ -7587,7 +7595,7 @@ void defExtern() {
         pck.p.offset = 0;
         typ = flatMemType;
         pck.p.cl = VARID;
-        list = NIL;
+        list = NULL;
         value = 0;
     }
      /*=A3 constructing TEXT constants */
@@ -7600,18 +7608,6 @@ void defExtern() {
     symType = realType;  regResWord('   FLOAT');
     symType = alfaType;  regResWord('  **ALFA');
     symType = voidType;  regResWord('    VOID');
-    temptype = voidPtr;
-    curIdRec = malloc(offsetof(identrec, szIdent));
-    with *curIdRec do {
-        pck.next  =  NIL;
-        id  =  '     NIL';
-        typ  =  temptype;
-        list  =  NIL;
-        value  =  074000U;
-    }
-    curIdRec->pck.p.offset  =  48;
-    curIdRec->pck.p.cl  =  ENUMID;
-    addToHashTab(curIdRec);
     maxSmallString  =  0;
     for (strLen = 2; strLen <= 5; ++strLen)
         smallStringType[strlen] = makeStringType();
@@ -7621,7 +7617,7 @@ void defExtern() {
         pck.p.offset  =  0;
         typ  =  intType;
         pck.p.cl  =  VARID;
-        list  =  NIL;
+        list  =  NULL;
         value  =  7;
     }
     uVarPtr = malloc(sizeof(identrec));
@@ -7633,13 +7629,13 @@ void defExtern() {
     uProcPtr = malloc(offsetof(identrec, szRoutine));
     with *uProcPtr do {
         typ  =  voidType;
-        list  =  NIL;
-        argList  =  NIL;
-        preDefLink  =  NIL;
+        list  =  NULL;
+        argList  =  NULL;
+        preDefLink  =  NULL;
         pos  =  0;
         sigtyp  =  voidType;
     }
-    temptype.rep = NIL;
+    temptype.rep = NULL;
     sysProcNum  =  0;
     for (l3var5z = 0; l3var5z <= 22; ++l3var5z) {
         if (systemProcNames[l3var5z] != 0)
@@ -7681,15 +7677,15 @@ void defExtern() {
     /*=A2 done with TEXT constants */
     fputw((KVTM+I8+074001) << 24 | KUJ+074002, &_CHILD_);
     moduleOffset  =  040001;
-    programObj->argList  =  NIL;
+    programObj->argList  =  NULL;
     programObj->flags  =  0U;
     programObj->sigtyp  =  voidType;
     objBufIdx  =  1;
     lookupMode  =  lookDef;
     outputObjFile();
-    outputFile  =  NIL;
-    inputFile  =  NIL;
-    externFileList  =  NIL;
+    outputFile  =  NULL;
+    inputFile  =  NULL;
+    externFileList  =  NULL;
     lineStartOffset  =  moduleOffset;
     l3var5z  =  1;
     savedIdent  =  curIdent;
@@ -7697,22 +7693,9 @@ void defExtern() {
     defExtern();
     curIdent  =  litInput;
     defExtern();
-    inputFile  =  NIL;
-    fileForInput  =  NIL;
+    inputFile  =  NULL;
+    fileForInput  =  NULL;
     curIdent  =  savedIdent;
-    while (SY == EXTERNSY) {
-        inSymbol();
-        while (SY == IDENT) {
-            if ((curIdent == litInput) || (curIdent == litOutput))
-                error(errIdentAlreadyDefined);
-            else
-                defExtern();
-            inSymbol();
-            if (SY == COMMA)
-                inSymbol();
-        }
-        checkSymAndRead(SEMICOLON);
-    }
     lookupMode  =  lookUse;
     l3var6z  =  40;
     hasFiles  =  0;
@@ -7754,7 +7737,7 @@ int noComma;
     lookup2  =  lookDef;
     lookupMode  =  lookDef;
     inSymbol();
-    l3var2z  =  NIL;
+    l3var2z  =  NULL;
     if (SY == RPAREN) {
         inSymbol();
         lookup2  =  lookUse;
@@ -7780,7 +7763,7 @@ int noComma;
             }
             symHash[curDeclarator.bucket]  =  l3var1z;
             ++l2int18z;
-            if (l3var2z == NIL)
+            if (l3var2z == NULL)
                 curIdRec->argList  =  l3var1z;
             else
                 l3var2z->list  =  l3var1z;
@@ -7819,7 +7802,7 @@ int noComma;
 void exitScope(int a) {
     for (ii = 0; ii < 128; ++ii) {
         workidr  = a ? symHash[ii] : fieldHash[ii];
-        while (workidr != NIL && workidr >= scopeBound)
+        while (workidr != NULL && workidr >= scopeBound)
             workidr  =  workidr->pck.p.next;
         if (a)
             symHash[ii]  =  workidr;
@@ -7840,10 +7823,10 @@ void exitScope(int a) {
     }
     preDefHead  =  irptr(0);
     inTypeDef  =  false;
-    typelist  =  NIL;
+    typelist  =  NULL;
     retSeen  =  false;
     bodyStatSys  =  statBegSys;
-    strLabList  =  NIL;
+    strLabList  =  NULL;
     ++lineNesting;
     labFence  =  numLabTop;
     do {
@@ -7856,7 +7839,7 @@ void exitScope(int a) {
             with *workidr do {
                 pck.next  =  symHash[bucket];
                 id  =  curIdent;
-                list  =  NIL;
+                list  =  NULL;
             }
             workidr->pck.p.offset  =  curFrameRegTemplate;
             workidr->pck.p.cl  =  ENUMID;
@@ -7954,7 +7937,7 @@ void exitScope(int a) {
         markTypeSym();
     }
     inTypeDef  =  false;
-    curExpr  =  NIL;
+    curExpr  =  NULL;
     // Only once we're truly done with typedefs (SY != TYPEDEFSY): a
     // pending forward-ref placeholder from one single-shot 'typedef'
     // statement is routinely patched by the NEXT one (e.g. 'typedef expr
@@ -7962,8 +7945,8 @@ void exitScope(int a) {
     // must not fire between every consecutive typedef statement -- only
     // when the declaration stream actually moves on to variable or
     // routine declarations.
-    if ((SY != TYPEDEFSY) && (typelist != NIL)) {
-        while (typelist != NIL) {
+    if ((SY != TYPEDEFSY) && (typelist != NULL)) {
+        while (typelist != NULL) {
             l2var12z  =  typelist->id;
             curIdRec  =  typelist;
             parseDecls(1);
@@ -7975,7 +7958,7 @@ void exitScope(int a) {
         workidr  =  outputFile;
         curExternFile  =  fileForOutput;
         makeExtFile();
-        if (inputFile != NIL) {
+        if (inputFile != NULL) {
             workidr  =  inputFile;
             curExternFile  =  fileForInput;
             makeExtFile();
@@ -8002,7 +7985,20 @@ void exitScope(int a) {
     // field-group loop condition), so those must be recognized as a
     // declaration start too, or a leading '__packed int x;' would never
     // be seen as one.
-    while (SY IN [TYPESY, PACKEDSY, STRUCTSY, ENUMSY]) {
+    while (SY IN [TYPESY, PACKEDSY, STRUCTSY, ENUMSY, EXTERNSY]) {
+        externDecl  =  SY == EXTERNSY;
+        if (externDecl) {
+            inSymbol();
+            markTypeSym();
+            if (! (SY IN [TYPESY, PACKEDSY, STRUCTSY, ENUMSY])) {
+                error(errBadSymbol);
+                skip(skipToSet | [SEMICOLON]);
+                if (SY == SEMICOLON)
+                    inSymbol();
+                markTypeSym();
+                continue;
+            }
+        }
         l2typ13z = parseTypeRef(skipToSet | [IDENT, LPAREN, COMMA, SEMICOLON]);
         l2bool8z  =  l2typ13z == voidType;
         typedRetType  =  l2typ13z;
@@ -8012,10 +8008,10 @@ void exitScope(int a) {
         } else {
         declBareName  =  curDeclarator.typ == l2typ13z;
         isPredefined  =  false;
-        if (declBareName && (curDeclarator.foundRec != NIL) &&
+        if (declBareName && (curDeclarator.foundRec != NULL) &&
             (curDeclarator.foundRec->pck.p.cl == ROUTINEID) &&
-            (curDeclarator.foundRec->list == NIL) &&
-            (curDeclarator.foundRec->preDefLink != NIL) &&
+            (curDeclarator.foundRec->list == NULL) &&
+            (curDeclarator.foundRec->preDefLink != NULL) &&
             ((curDeclarator.foundRec->typ == voidType) == l2bool8z)) {
             isPredefined  =  true;
         } else if (declBareName && curDeclarator.wasDefined &&
@@ -8029,18 +8025,33 @@ void exitScope(int a) {
         // (there is no parenthesis-free 'RETTYPE name;' form), so no
         // lookahead past ';' is needed to disambiguate.
         declIsRoutine  =  declBareName && ((SY == LPAREN) || (SY == COLON) || isPredefined);
+        if (externDecl && declIsRoutine) {
+            error(errBadSymbol);
+            skip(skipToSet | [SEMICOLON]);
+            if (SY == SEMICOLON)
+                inSymbol();
+            markTypeSym();
+            continue;
+        }
         if (! declIsRoutine) {
             /* ---- variable declarator list ---- */
             lookupMode  =  lookUse;
             moreDecls  =  true;
             while (moreDecls) {
+                if (externDecl && (curProcNesting == 1)) {
+                    curIdent  =  curDeclarator.name;
+                    if ((curIdent == litInput) || (curIdent == litOutput))
+                        error(errIdentAlreadyDefined);
+                    else
+                        defExtern();
+                }
                 curIdRec = malloc(offsetof(identrec, szIdent));
                 with *curIdRec do {
                     id  =  curDeclarator.name;
                     pck.p.offset  =  curFrameRegTemplate;
                     pck.p.next  =  symHash[curDeclarator.bucket];
                     pck.p.cl  =  VARID;
-                    list  =  NIL;
+                    list  =  NULL;
                     typ  =  curDeclarator.typ;
                 }
                 if (curDeclarator.wasDefined)
@@ -8053,7 +8064,7 @@ void exitScope(int a) {
                     l2var12z  =  curDeclarator.name;
                     curVal.i  =  jj;
                     toAlloc  =  curVal.i & halfWord | [24,27,28,29];
-                    while (l2bool8z && (curExternFile != NIL)) {
+                    while (l2bool8z && (curExternFile != NULL)) {
                         if (curExternFile->id == l2var12z) {
                             l2bool8z  =  false;
                             if (curExternFile->line == 0) {
@@ -8076,7 +8087,7 @@ void exitScope(int a) {
                                 jj:5 oct, 'B');
                     }
                     localSize += jj;
-                    curExternFile  =  NIL;
+                    curExternFile  =  NULL;
                 }
                 if (SY == BECOMES) {
                     if (curProcNesting != 1)
@@ -8110,10 +8121,10 @@ void exitScope(int a) {
                     typ  =  voidType;
                     symHash[bucket]  =  curIdRec;
                     pck.p.cl  =  ROUTINEID;
-                    list  =  NIL;
+                    list  =  NULL;
                     value  =  0;
-                    argList  =  NIL;
-                    preDefLink  =  NIL;
+                    argList  =  NULL;
+                    preDefLink  =  NULL;
                     sigtyp  =  voidType;
                     flags  =  declEntry ? [0:15,22] : [0:15];
                     pos  =  0;
@@ -8158,9 +8169,9 @@ void exitScope(int a) {
                         workidr->preDefLink  =  hashTravPtr->preDefLink;
                     }
                 }
-                hashTravPtr->preDefLink  =  NIL;
+                hashTravPtr->preDefLink  =  NULL;
                 curIdRec  =  hashTravPtr->argList;
-                if (curIdRec != NIL) {
+                if (curIdRec != NULL) {
                     while (curIdRec != hashTravPtr) {
                         addToHashTab(curIdRec);
                         curIdRec  =  curIdRec->list;
@@ -8169,21 +8180,21 @@ void exitScope(int a) {
                 curIdRec  =  hashTravPtr;
                 scopeBound = irptr(setup());
                 hadParens  =  false;
-                if ((SY == LPAREN) && (curIdRec->argList == NIL)) {
+                if ((SY == LPAREN) && (curIdRec->argList == NULL)) {
                     hadParens  =  true;
                     inSymbol();
                     checkSymAndRead(RPAREN);
                 }
             }
             if (SY == BEGINSY) {
-                if (curIdRec->argList == NIL && ! hadParens)
+                if (curIdRec->argList == NULL && ! hadParens)
                     error(42); /* errNoParamList */
                 scopeBound = irptr(setup());
                 inSymbol();
                 programme(&l2int18z, curIdRec, true);
                 curIdRec->sigtyp  =  makeRoutineType(curIdRec);
                 /* Forget interned types allocated above the arena mark being rolled up. */
-                while (internHead != NIL && int(internHead) >= int(scopeBound))
+                while (internHead != NULL && int(internHead) >= int(scopeBound))
                     internHead  =  internHead->inext;
                 myrollup(int(scopeBound));
                 exitScope(0);
@@ -8219,9 +8230,9 @@ void exitScope(int a) {
                 }
             }
 23301:      workidr  =  curIdRec->argList;
-            if (workidr != NIL) {
+            if (workidr != NULL) {
                 while (workidr != curIdRec) {
-                    scopeBound = hash(NIL, workidr);
+                    scopeBound = hash(NULL, workidr);
                     workidr  =  workidr->list;
                 }
             }
@@ -8231,7 +8242,7 @@ void exitScope(int a) {
         markTypeSym();
         }
     }
-    if (curProcNesting == 1 && curExpr != NIL) {
+    if (curProcNesting == 1 && curExpr != NULL) {
         hasFiles  =  1;
     } else if (curProcNesting == 1) {
         hasFiles  =  0;
@@ -8264,7 +8275,7 @@ void exitScope(int a) {
     // errors" abort path (skipToEnd()) mid-file.
     if (curProcNesting == 1) {
         curExternFile  =  externFileList;
-        while (curExternFile != NIL) {
+        while (curExternFile != NULL) {
             if (curExternFile->line == 0) {
                 error(80); /* errUndefinedExternFile */
                 printTextWord(curExternFile->id);
@@ -8383,7 +8394,7 @@ void regKeywords() { /*=A3 regKeywords */
     for (jdx = 1; jdx <= 10; ++jdx)
         fputw(0, &_CHILD_);
     regKeywords();
-    internHead  =  NIL;
+    internHead  =  NULL;
     numLabTop  =  0;
     totalErrors  =  0;
     heapCallsCnt  =  0;

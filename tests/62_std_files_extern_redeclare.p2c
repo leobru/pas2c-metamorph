@@ -1,0 +1,5 @@
+/*=s8,y+,k9,l0*/
+typedef struct { int *data; int rest[29]; } ifcb;
+extern ifcb _input_, _output_;
+{
+}

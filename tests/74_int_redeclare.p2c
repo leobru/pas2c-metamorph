@@ -1,0 +1,6 @@
+/*=s8,y+,k9,l0*/
+// 'int' is a reserved word now: it cannot be redeclared as a variable.
+int int;
+{
+    writeln('UNREACHABLE');
+}

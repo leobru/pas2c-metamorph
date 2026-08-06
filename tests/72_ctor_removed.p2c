@@ -1,0 +1,6 @@
+int CTOR(int value) {
+    return value + 1;
+}
+{
+    writeln('CTOR=', CTOR(41):0);
+}

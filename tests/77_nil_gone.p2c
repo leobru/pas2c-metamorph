@@ -1,0 +1,11 @@
+/*=s8,y+,k9,l0*/
+// NIL is no longer predefined: a program that expects it must declare its
+// own null pointer constant (see 76_null_constant).
+typedef struct {
+    int val;
+} node;
+node *p;
+{
+    p = NIL;
+    writeln('UNREACHABLE');
+}

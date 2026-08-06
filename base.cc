@@ -1028,12 +1028,67 @@ std::string Expr::p()
     return buf;
 }
 
+// The source compiler's defExtern is lexically visible to both mainProgram
+// and programme.  The C++ mirror represents mainProgram as initScalars, so
+// provide the same shared path for prefix external variable declarations.
+int64_t leftAlign(int64_t val);
+void addToHashTab(IdentRecPtr arg);
+void error(int64_t errNo);
+int64_t allocExtSymbol(int64_t newSym);
+
+void defExtern()
+{
+    int64_t line = 0;
+    Word aligned;
+    IdentRecPtr idRec;
+
+    aligned.ii = leftAlign(curIdent);
+    if (curIdent == litInput || curIdent == litOutput) {
+        idRec = besm6_alloc_record<IdentRec>(offsetof(IdentRec, szIdent));
+        idRec->id = curIdent;
+        idRec->pck.offset = 0;
+        idRec->typ = textType;
+        idRec->pck.cl = VARID;
+        idRec->list() = NULL;
+        curVal = aligned;
+        idRec->value() = allocExtSymbol(047000000 | 30);
+        addToHashTab(idRec);
+        if (curIdent == litInput)
+            inputFile = idRec;
+        else
+            outputFile = idRec;
+        line = lineCnt;
+    }
+    curExternFile = externFileList;
+    while (curExternFile != NULL) {
+        if (curExternFile->id == curIdent) {
+            curExternFile = NULL;
+            error(errIdentAlreadyDefined);
+        } else {
+            curExternFile = curExternFile->next;
+        }
+    }
+    curExternFile = new ExtFileRec;
+    curExternFile->id = curIdent;
+    curExternFile->next = externFileList;
+    curExternFile->line = line;
+    curExternFile->offset = aligned.ii;
+    if (line != 0) {
+        if (curIdent == litOutput)
+            fileForOutput = curExternFile;
+        else
+            fileForInput = curExternFile;
+    }
+    externFileList = curExternFile;
+    curExternFile->location = 512;
+}
+
 struct programme {
     programme(int64_t & l2arg1z, IdentRecPtr l2idr2z_, bool bodyBlock_ = false);
 
     IdentRecPtr procName;
     IdentRecPtr preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr;
-    bool isPredefined, l2bool8z, inTypeDef;
+    bool isPredefined, l2bool8z, inTypeDef, externDecl;
     bool done, retSeen, hadParens, typedefPending;
     ExprPtr l2var10z;
     int64_t l2var12z;
@@ -1972,9 +2027,10 @@ static int ugetc(FILE * fin)
 
 void readToPos80()
 {
-    // work.p2c readToPos80: fill lineBuf to column 81, no endOfLine (adding one
-    // here trips the second-EOF guard on the final flush).  Map host EOF (-1)
-    // to the zero-byte sentinel stored by the work compiler.
+    // work.p2c readToPos80: pad the last line to column 81 without ending it
+    // (an endOfLine() here would list a phantom line past the end of the
+    // source and count it).  Map host EOF (-1) to the zero-byte sentinel
+    // stored by the work compiler.
     while (linePos < 81) {
         linePos = linePos + 1;
         lineBufBase[linePos] = PASINPUT == EOF ? 0 : PASINPUT;
@@ -2000,32 +2056,42 @@ struct inSymbol {
 
 void nextCH()
 {
-    // The EOF sentinel has already been handed out and the stream is
-    // exhausted, so this call is a read past the end.  One is normal (the
-    // lexer advances once past the last token), but the parser may also be
-    // skipping for a recovery symbol that will never arrive -- skipSp()
-    // returns false on the sentinel, so endOfLine(), and with it the
-    // second-EOF guard, is never reached again.  Hand out the sentinel
-    // without touching linePos: letting it run off the end of lineBufBase
-    // corrupted the globals behind it, lineCnt among them, which is what
-    // printed " IN -1 LINES".  Past a line's worth of skipping there is
-    // nothing left to recover to, so stop with the same diagnostic.
-    if (CH == 0 and PASINPUT == EOF) {
+    // The end of pasinput has already been reported as CH = 0, so this call
+    // is a read past the end.  One is normal (the lexer advances once past
+    // the last token), but the parser may also be skipping for a recovery
+    // symbol that will never arrive -- skipSp() returns false on the
+    // sentinel, so endOfLine(), and with it the second-EOF guard, is never
+    // reached again.  Past a line's worth of skipping there is nothing left
+    // to recover to; without this the compile never ended, and the runaway
+    // linePos corrupted the globals behind lineBufBase, lineCnt among them,
+    // which is what printed " IN -1 LINES".
+    if (CH == 0) {
         static int64_t overreads;
         if (maxLineLen < ++overreads) {
             error(errEOFEncountered);
             throw 9999;
         }
         atEOL = true;
+        // The column still advances -- requiredSymErr() reports only when
+        // linePos has moved past the last error.
+        if (linePos < maxLineLen)
+            linePos = linePos + 1;
         return;
     }
+    // Columns past lineBufBase are dropped, not stored: keep reading them
+    // until the line ends, so that CH comes back at the line's end and
+    // neither linePos nor the stores leave the buffer.  (lineBufBase is
+    // 1-based here, so the last column it holds is maxLineLen itself.)
     do {
         atEOL = PASINPUT == '\n' || PASINPUT == EOF;
         CH = PASINPUT == EOF ? 0 : PASINPUT;
         PASINPUT = ugetc(pasinput);
-        linePos = linePos + 1;
-        lineBufBase[linePos] = CH;
-    } while (not ((maxLineLen >= linePos) or atEOL));
+        if (linePos < maxLineLen) {
+            linePos = linePos + 1;
+            lineBufBase[linePos] = CH;
+            return;
+        }
+    } while (not atEOL);
 } /* nextCH */
 
 struct parseComment {
@@ -8293,19 +8359,6 @@ struct initScalars {
     Word l3var11z;
     IdentRecPtr &curIdRec;
 
-    void regSysEnum(int64_t l4arg1z, int64_t l4arg2z) {
-        curIdRec = besm6_alloc_record<IdentRec>(
-            offsetof(IdentRec, szIdent));
-        // curIdRec@ := [l4arg1z, 48, , temptype, ENUMID, NIL, l4arg2z];
-        curIdRec->id = l4arg1z;
-        curIdRec->pck.offset = 48;
-        curIdRec->typ = temptype;
-        curIdRec->pck.cl = ENUMID;
-        curIdRec->list() = NULL;
-        curIdRec->value() = l4arg2z;
-        addToHashTab(curIdRec);
-    } /* regSysEnum */
-
     void regSysProc(int64_t l4arg1z) {
         curIdRec = besm6_alloc_record<IdentRec>(
             offsetof(IdentRec, szSys));
@@ -8319,57 +8372,8 @@ struct initScalars {
         sysProcNum = sysProcNum + 1;
     } /* registerSysProc */
 
-    void defExtern();
     initScalars();
 };
-
-void initScalars::defExtern()
-{
-    int64_t l = 0;
-    l3var1z.ii = leftAlign(curIdent);
-    if (curIdent == litInput || curIdent == litOutput) {
-        l3var7z = besm6_alloc_record<IdentRec>(
-            offsetof(IdentRec, szIdent));
-        l3var7z->id = curIdent;
-        l3var7z->pck.offset = 0;
-        l3var7z->typ = textType;
-        l3var7z->pck.cl = VARID;
-        l3var7z->list() = NULL;
-        curVal = l3var1z;
-        l3var7z->value() = allocExtSymbol(l3var11z.ii);
-        addToHashTab(l3var7z);
-        if (curIdent == litInput)
-            inputFile = l3var7z;
-        else
-            outputFile = l3var7z;
-        l = lineCnt;
-    }
-    curExternFile = externFileList;
-    while (curExternFile != NULL) {
-        if (curExternFile->id == curIdent) {
-            curExternFile = NULL;
-            error(errIdentAlreadyDefined);
-        } else {
-            curExternFile = curExternFile->next;
-        }
-    }
-    curExternFile = new ExtFileRec;
-    curExternFile->id = curIdent;
-    curExternFile->next = externFileList;
-    curExternFile->line = l;
-    curExternFile->offset = l3var1z.ii;
-    if (l != 0) {
-        if (curIdent == litOutput) {
-            fileForOutput = curExternFile;
-        } else {
-            fileForInput = curExternFile;
-        }
-    }
-    externFileList = curExternFile;
-    l3var6z = l3var5z;
-    l3var5z = l3var5z + 1;
-    curExternFile->location = 512;
-} /* defExtern */
 
 initScalars::initScalars() :
     curIdRec(programme::super.back()->curIdRec)
@@ -8468,8 +8472,6 @@ initScalars::initScalars() :
     symType = RealType;     regResWord(04654574164L  /*"   FLOAT"*/);
     symType = AlfaType;     regResWord(0121241544641L/*"  **ALFA"*/);
     symType = voidType;     regResWord(066575144L    /*"    VOID"*/);
-    temptype = voidPtr;
-    regSysEnum(0565154L /*"     NIL"*/, 074000L);
     maxSmallString = 0;
     for (strLen = 2; strLen <= 5; ++strLen)
         smallStringType[strLen] = makeStringType();
@@ -8569,19 +8571,6 @@ initScalars::initScalars() :
         fileForInput = NULL;
     }
     curIdent = savedIdent.ii;
-    while (SY == EXTERNSY) {
-        inSymbol();
-        while (SY == IDENT) {
-            if (curIdent == litInput || curIdent == litOutput)
-                error(errIdentAlreadyDefined);
-            else
-                defExtern();
-            inSymbol();
-            if (SY == COMMA)
-                inSymbol();
-        }
-        checkSymAndRead(SEMICOLON);
-    } /* while SY = EXTERNSY */
     lookupMode = lookUse;
     l3var6z = 40;
     hasFiles = 0;
@@ -8740,7 +8729,8 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
     // be seen as one. Declared here (above the do-while, not inside it)
     // so it's visible both in the loop body and in the do-while's own
     // trailing condition below, whose scope excludes the body's locals.
-    int64_t declStartSys = Bits(TYPESY, PACKEDSY, STRUCTSY) | Bits(ENUMSY);
+    int64_t declStartSys = Bits(TYPESY, PACKEDSY, STRUCTSY) | Bits(ENUMSY) |
+                           Bits(EXTERNSY);
     do {
         if (SY == CONSTSY) {
             parseDecls(0);
@@ -8880,6 +8870,19 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
     while (has(declStartSys, SY)) {
         TPtr baseTy{};
         bool packedFlag, forwardRef;
+        externDecl = (SY == EXTERNSY);
+        if (externDecl) {
+            inSymbol();
+            markTypeSym();
+            if (not has(Bits(TYPESY, PACKEDSY, STRUCTSY) | Bits(ENUMSY), SY)) {
+                error(errBadSymbol);
+                skip(skipToSet | Bits(SEMICOLON));
+                if (SY == SEMICOLON)
+                    inSymbol();
+                markTypeSym();
+                continue;
+            }
+        }
         // lookup2 (not just lookupMode) must carry lookDef through
         // parseTypeRef's own internal inSymbol() calls, all the way to
         // the declarator name read by parseOneDeclarator below.
@@ -8916,11 +8919,26 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         // (there is no parenthesis-free 'RETTYPE name;' form), so no
         // lookahead past ';' is needed to disambiguate.
         bool isRoutine = bareName and (SY == LPAREN or SY == COLON or isPredefined);
+        if (externDecl and isRoutine) {
+            error(errBadSymbol);
+            skip(skipToSet | Bits(SEMICOLON));
+            if (SY == SEMICOLON)
+                inSymbol();
+            markTypeSym();
+            continue;
+        }
         if (not isRoutine) {
             /* ---- variable declarator list ---- */
             lookupMode = lookUse;
             bool moreDecls = true;
             while (moreDecls) {
+                if (externDecl and curProcNesting == 1) {
+                    curIdent = d.name;
+                    if (curIdent == litInput or curIdent == litOutput)
+                        error(errIdentAlreadyDefined);
+                    else
+                        defExtern();
+                }
                 curIdRec = besm6_alloc_record<IdentRec>(
                     offsetof(IdentRec, szIdent));
                 curIdRec->id = d.name;
