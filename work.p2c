@@ -807,8 +807,8 @@ tptr res;
         pck  =  true;
         perword  =  6;
         pcksize  =  8;
-        aleft  =  1;
-        aright  =  strLen;
+        aleft  =  0;
+        aright  =  strLen - 1;
     }
     res.p.pk  =  kindArray;
     return res;
@@ -7588,8 +7588,8 @@ void regSysProc(int l4arg1z) {
         pck  =  true;
         perword  =  6;
         pcksize  =  8;
-        aleft  =  1;
-        aright  =  6;
+        aleft  =  0;
+        aright  =  5;
     }
     alfaType.p.psize  =  1;
     alfaType.p.bits  =  48;

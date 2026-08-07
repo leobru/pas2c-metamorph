@@ -1271,8 +1271,8 @@ TPtr makeStringType()
         r.pck = true;
         r.perword = 6;
         r.pcksize = 8;
-        r.aleft = 1;
-        r.aright = strLen;
+        r.aleft = 0;
+        r.aright = strLen - 1;
         return res;
     }
 }
@@ -8452,8 +8452,8 @@ initScalars::initScalars() :
     AlfaType.rep()->pck = true;
     AlfaType.rep()->perword = 6;
     AlfaType.rep()->pcksize = 8;
-    AlfaType.rep()->aleft = 1;
-    AlfaType.rep()->aright = 6;
+    AlfaType.rep()->aleft = 0;
+    AlfaType.rep()->aright = 5;
     AlfaType.p.psize = 1;
     AlfaType.p.bits = 48;
     AlfaType.p.pk = kindArray;
