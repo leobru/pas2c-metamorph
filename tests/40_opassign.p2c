@@ -2,7 +2,7 @@
 int a, b;
 int arr[4];
 int k;
-{
+void main() {
 a = 10;
 b = 3;
 a += b;     writeln(' add ', a:0);

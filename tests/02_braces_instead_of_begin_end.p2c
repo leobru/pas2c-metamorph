@@ -1,7 +1,7 @@
 /*=s8,y+,k9,l0*/
 //
 int i;
-{
+void main() {
     // C-style braces instead of begin/end
     i = 10;
     {

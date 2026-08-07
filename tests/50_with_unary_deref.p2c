@@ -10,7 +10,7 @@ typedef struct {
 ppoint p;
 point obj;
 holder h;
-{
+void main() {
     p = &obj;
     with *p do {
         x = 11;

@@ -10,7 +10,7 @@ void later() {
     forward = 42;
 }
 //
-{
+void main() {
     later();
     writeln('FORWARD=', forward:0);
 }

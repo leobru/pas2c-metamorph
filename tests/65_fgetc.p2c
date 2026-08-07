@@ -14,7 +14,7 @@ int fgetc(fileblk *fcb) assembler;
 fileblk f;
 int a, b, c;
 //
-{
+void main() {
     fopen(&f, 010000100010, 0);
     rewrite(f);
     *f.data = 'A';

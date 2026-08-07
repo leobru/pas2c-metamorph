@@ -1,7 +1,7 @@
 /*=s8,y+,k9,l0*/
 //
 __packed char s1[1..6], s2[1..6];
-{
+void main() {
     s1 = 'HELLO ';
     s2 = 'HELLO ';
     

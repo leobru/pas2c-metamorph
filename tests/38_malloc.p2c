@@ -3,7 +3,7 @@
 typedef int *intptr;
 intptr p, q;
 int n;
-{
+void main() {
     p = MALLOC(1);
     *p = 42;
     n = 2;

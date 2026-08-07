@@ -3,7 +3,7 @@
 typedef int *intptr;
 intptr p;
 int x;
-{
+void main() {
     x = 42;
     p = &x;
     writeln('Value through pointer: ', *p:0);

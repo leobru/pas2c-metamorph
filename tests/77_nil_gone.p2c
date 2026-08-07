@@ -5,7 +5,7 @@ typedef struct {
     int val;
 } node;
 node *p;
-{
+void main() {
     p = NIL;
     writeln('UNREACHABLE');
 }

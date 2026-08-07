@@ -16,7 +16,7 @@ int early_void(int x) {
     return x + 100;
 }
 //
-{
+void main() {
     writeln('sq(5)=', square(5):0);
     writeln('sq(9)=', square(9):0);
     writeln('cl(7,1,5)=', clamp(7, 1, 5):0);

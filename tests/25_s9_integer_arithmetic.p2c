@@ -1,7 +1,7 @@
 /*=s8,y+,m+,l0*/
 //
 int a, b, c;
-{
+void main() {
     a = 10;
     b = 3;
     c = a + b;

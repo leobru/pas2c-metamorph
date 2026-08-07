@@ -223,7 +223,7 @@ int tdense() {
 }
 
 //
-{
+void main() {
     grdval = 100;
     arspan = 12;
     writeln('packed int:<bits> tests arspan=', arspan:0);

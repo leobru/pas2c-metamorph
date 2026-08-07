@@ -9,7 +9,7 @@ fchar a, b;
 nested ff;
 holder h;
 fchar arr[2];
-{
+void main() {
     b = a;
     h.x = 52;
     writeln('file restrictions ', h.x:0);

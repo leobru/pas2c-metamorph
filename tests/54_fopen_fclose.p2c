@@ -12,7 +12,7 @@ void fclose(fileblk *fcb) assembler;
 //
 fileblk f, a, b, c;
 //
-{
+void main() {
     fopen(&f, 010000100010, 0);
     writeln('open ',
             f.w18:0, ' ',

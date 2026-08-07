@@ -2,7 +2,7 @@
 //
 typedef enum { RED, GREEN, BLUE } color;
 color c;
-{
+void main() {
     c = GREEN;
     if (c == GREEN) {
         writeln('Color is GREEN');

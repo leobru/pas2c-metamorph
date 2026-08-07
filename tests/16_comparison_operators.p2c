@@ -1,7 +1,7 @@
 /*=s8,y+,k9,l0*/
 //
 int a, b;
-{
+void main() {
     a = 10;
     b = 20;
     

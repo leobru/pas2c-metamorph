@@ -1,7 +1,7 @@
 /*=s8,y+,k9,l0*/
 //
 int ok;
-{
+void main() {
     writeln(' ', '\101':3 oct,
             ' ', '\7':3 oct,
             ' ', '\a':3 oct,

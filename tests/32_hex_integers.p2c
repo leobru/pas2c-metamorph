@@ -1,7 +1,7 @@
 /*=s8,y+,k9,l0*/
 //
 int i;
-{
+void main() {
     i = 0X0;
     writeln(' 0X0      = ', i:0);
     i = 0XA;

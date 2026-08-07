@@ -5,7 +5,7 @@ void rollup(int mark) assembler;
 typedef int *intptr;
 int mark;
 intptr p, q;
-{
+void main() {
     mark = setup();
     p = malloc(1);
     *p = 111;

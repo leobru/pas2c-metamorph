@@ -16,7 +16,7 @@ pch1 c;
 pch2 d;
 mat1 m;
 mat2 n;
-{
+void main() {
     p = malloc(1);
     q = malloc(1);
     *p = 7;

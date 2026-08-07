@@ -12,7 +12,7 @@ typedef struct {
 } tagged;
 numunion n;
 tagged t;
-{
+void main() {
     n.i = 42;
     writeln('union i = ', n.i:0);
     writeln('sizeof union = ', sizeof(numunion):0);

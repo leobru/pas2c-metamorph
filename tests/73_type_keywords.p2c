@@ -19,7 +19,7 @@ void show(float x, int n) {
     writeln(' SHOW ', x:8:2, ' ', n:0);
 }
 //
-{
+void main() {
     g = 5;
     f = 2.5;
     a = 'ALFA!!';

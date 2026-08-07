@@ -15,7 +15,7 @@ void addto(intptr p, int delta) {
     *p = *p + delta;
 }
 //
-{
+void main() {
     g = 10;
     ping();
     writeln('ADD=', add(2, 3):0);

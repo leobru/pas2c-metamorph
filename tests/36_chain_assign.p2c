@@ -1,7 +1,7 @@
 /*=s8,y+,k9,l0*/
 //
 int a, b, c, d;
-{
+void main() {
     c = 42;
     a = b = c;
     writeln('two ', a:0, ' ', b:0, ' ', c:0);

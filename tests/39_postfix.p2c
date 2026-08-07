@@ -11,7 +11,7 @@ ptpr getp() {
     return p;
 }
 //
-{
+void main() {
     p = &obj;
     p->x = 7;
     p->y = 8;

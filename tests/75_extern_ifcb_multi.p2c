@@ -6,7 +6,7 @@ int i;
 void fopen(ifcb *fcb, int sizes, int name) assembler;
 void fclose(ifcb *fcb) assembler;
 
-{
+void main() {
     fopen(&_child_, 010000100000, '*CHILD* ');
     rewrite(_child_);
     for (i = 0; i < 3; i = i + 1) {

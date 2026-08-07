@@ -15,6 +15,6 @@ int outer(int base) {
     return total;
 }
 //
-{
+void main() {
     writeln('blocks ', outer(5):0);
 }

@@ -1,7 +1,7 @@
 /*=s8,y+,k9,l0*/
 //
 int x;
-{
+void main() {
     x = 1;
     writeln('Outer: x = ', x:0);
     {

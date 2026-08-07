@@ -4,7 +4,7 @@
 typedef int *intptr;
 intptr p;
 int x, value;
-{
+void main() {
     x = 42;
     p = &x;
     value = *p;                // Pointer dereference → st2 → P/LDARIN

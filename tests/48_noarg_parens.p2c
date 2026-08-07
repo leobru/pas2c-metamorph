@@ -14,7 +14,7 @@ void later() {
     writeln('LATER');
 }
 //
-{
+void main() {
     ping();
     writeln('ANSWER=', answer():0);
     later();

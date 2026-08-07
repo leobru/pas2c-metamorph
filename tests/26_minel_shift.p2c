@@ -1,7 +1,7 @@
 /*=s8,y+,k9,l0*/
 //
 int i, j;
-{
+void main() {
     for (j = 2; j < 10000; j = j * 2) {
     i  = minel(j & (~0));
     write(' ', i:0);

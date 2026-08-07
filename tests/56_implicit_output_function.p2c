@@ -4,6 +4,6 @@ int f() {
     return 12345;
 }
 //
-{
+void main() {
     writeln(f());
 }

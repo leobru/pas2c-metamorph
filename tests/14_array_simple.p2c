@@ -2,7 +2,7 @@
 //
 int arr[1..5];
 int i;
-{
+void main() {
     arr[1] = 10;
     arr[2] = 20;
     arr[3] = 30;

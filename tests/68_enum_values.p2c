@@ -9,7 +9,7 @@ enum { X = 5, Y = X + 3 } e2;
 enum { RED, GREEN, BLUE } color;
 enum { LO = -2, MID, HI } ev;
 int val;
-{
+void main() {
     val = A; writeln(' A=', val:0);
     val = B; writeln(' B=', val:0);
     val = C; writeln(' C=', val:0);

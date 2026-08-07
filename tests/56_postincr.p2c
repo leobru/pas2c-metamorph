@@ -8,7 +8,7 @@ int arr[1..4];
 intptr p;
 recptr rp;
 rec r;
-{
+void main() {
     /* simple postfix */
     i = 5;
     j = i++;

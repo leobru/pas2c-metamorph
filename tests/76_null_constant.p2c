@@ -18,7 +18,7 @@ int isEmpty(nodeptr n) {
     return n == NULL;
 }
 //
-{
+void main() {
     p = NULL;
     writeln(' P NULL: ', p == NULL:0, ' NOT NULL: ', p != NULL:0);
     writeln(' ISEMPTY: ', isEmpty(p):0);

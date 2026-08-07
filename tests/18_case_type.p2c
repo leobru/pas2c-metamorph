@@ -1,7 +1,7 @@
 /*=s8,y+,k9*/
 typedef int:10 tenbit;
 tenbit c1, c2;
-{
+void main() {
 c2 = 1;
 c1 = 256;
 switch (c1 << 10 | c2) {

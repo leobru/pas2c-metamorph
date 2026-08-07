@@ -43,7 +43,7 @@ void readchild() {
     writeln(i:0);
 }
 //
-{
+void main() {
     writechild();
     readchild();
 }

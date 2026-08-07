@@ -44,8 +44,7 @@ const int64_t
 const int64_t
     S3 = 0,
     S4 = 1,
-    S5 = 2,
-    NoStackCheck = 5;
+    S5 = 2;
 
 const int64_t
     errBooleanNeeded = 0,
@@ -928,7 +927,7 @@ int64_t leftInsn;
 int64_t curIdent;
 int64_t toAlloc, usedRegs, liveRegs, freeRegs, auxRegs;
 Word optSflags;
-int64_t litOct, litFortran, litAssembler, litLsb;
+int64_t litOct, litFortran, litAssembler, litLsb, litMain;
 ExprPtr uVarPtr, curExpr;
 InsnList *  insnList;
 InternRec * internHead;
@@ -2148,7 +2147,7 @@ parseComment::parseComment()
                 curVal.ii = readOptVal(8);
                 if (curVal.ii == 3)
                     lineCnt = 1;
-                else if (4 <= curVal.ii && curVal.ii <= 8)
+                else if (4 <= curVal.ii && curVal.ii <= 7)
                     optSflags.ii = optSflags.ii | Bits(curVal.ii - 3);
             } break;
             case 'F': case 'f':
@@ -8292,8 +8291,6 @@ void defineRoutine(bool bodyBlock = false)
             l3idr5z = l3idr5z->list();
         }
     } /* 21105 */
-    if (not has(optSflags.ii, NoStackCheck))
-        fixup(-1, 88); /* P/SC */
     l3var2z.ii = lineNesting;
     if (bodyBlock) {
         while (SY != ENDSY and CH != 0)
@@ -8302,24 +8299,32 @@ void defineRoutine(bool bodyBlock = false)
             requiredSymErr(ENDSY);
         else
             inSymbol();
+    } else if (curProcNesting == 1) {
+        // The level 1 block is not written, it is generated: a call of the
+        // routine named MAIN, if the program has one.  Anything left over
+        // here -- an explicit block above all -- is a bad symbol where a
+        // declaration was expected.
+        if (CH != 0 or SY != NOSY) {
+            error(errBadSymbol);
+            skipToEnd();
+        }
+        bucket = litMain % 65535 % 128;
+        l3idr5z = symHash[bucket];
+        while (l3idr5z != NULL and l3idr5z->id != litMain)
+            l3idr5z = l3idr5z->next();
+        if (l3idr5z != NULL and l3idr5z->pck.cl == ROUTINEID
+            and l3idr5z->pck.offset != 0) {
+            // The call node parseCallArgs would have built for 'main()',
+            // with no arguments: op ALNUM, the routine in id2.
+            curExpr = mkExpr(ALNUM, l3idr5z->typ, NULL, (ExprPtr) l3idr5z);
+            (void) formOperator(DOIT);
+        }
     } else if (CH != 0) {
         do {
             Statement();
-            if (curProcNesting == 1) {
-                if (CH == 0 and SY != NOSY)
-                    error(errBadSymbol);
-                done = CH == 0;
-            } else
-                done = has(blockBegSys, SY) or (SY == TYPESY) or (CH == 0);
-            if (not done) {
-                if (curProcNesting == 1) {
-                    error(errBadSymbol);
-                    if (CH != 0)
-                        inSymbol();
-                } else {
-                    errAndSkip(errBadSymbol, skipToSet);
-                }
-            }
+            done = has(blockBegSys, SY) or (SY == TYPESY) or (CH == 0);
+            if (not done)
+                errAndSkip(errBadSymbol, skipToSet);
         } while (not done);
     }
     procName->flags() = (usedRegs & BitRange(0,15)) | (procName->flags() & ~ l3var7z.ii);
@@ -9575,7 +9580,7 @@ void initOptions(int argc, char **argv)
             }
             if (curVal.ii == 3) {
                 lineCnt = 1;
-            } else if (4 <= curVal.ii && curVal.ii <= 9) {
+            } else if (4 <= curVal.ii && curVal.ii <= 7) {
                 optSflags.ii = optSflags.ii | Bits(curVal.ii - 3);
             }
             continue;
@@ -9749,6 +9754,7 @@ int main(int argc, char **argv)
     litAssembler = toText("ASSEMBLE");
     litFortran = toText("FORTRAN");
     litLsb = toText("**LSB");           // '__lsb': '_' shares the code of '*'
+    litMain = toText("MAIN");           // the entry point, called by the level 1 block
     litOct = toText("OCT");
     PASINPUT = ugetc(pasinput);
     try {

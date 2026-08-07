@@ -8,6 +8,6 @@ int fact(int n) {
     }
 }
 //
-{
+void main() {
     writeln(' 5! = ', fact(5):0);
 }

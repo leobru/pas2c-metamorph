@@ -4,6 +4,6 @@ void greet(int x) {
     writeln('Hello, number ', x:0);
 }
 //
-{
+void main() {
     greet(42);
 }

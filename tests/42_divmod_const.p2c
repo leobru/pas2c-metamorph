@@ -28,7 +28,7 @@
  * does not overstrike successive lines.
  */
 int a, b, q, r, n;
-{
+void main() {
     /* ---------- A. constant folding (path 1) ---------- */
     q = 100 / 7;          writeln(' A01 ', q:0);
     r = 100 % 7;          writeln(' A02 ', r:0);

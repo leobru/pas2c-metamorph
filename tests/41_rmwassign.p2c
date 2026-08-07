@@ -17,7 +17,7 @@ recptr rp;
 rec r;
 int n;
 int i, j;
-{
+void main() {
     /* simple array element via variable index */
     arr[1] = 10; arr[2] = 20; arr[3] = 30; arr[4] = 40;
     i = 2;
