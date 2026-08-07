@@ -185,7 +185,7 @@ typedef enum {
 typedef enum {
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
     SETREG9,  STOREAT9,  DOIT,  SETREG12,  DFLTWDTH,
-    FRACWIDTH, gen11, gen12, FILEACCESS, FILEINIT,
+    FRACWIDTH, gen11, gen12,
     BRANCH, PCKUNPCK
 } opgen;
 //
@@ -2341,6 +2341,36 @@ operator op;
 } /* bldIncDec */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void formFileInit() {
+int fileAddr;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void fcloseFile(irptr fileSym) {
+    fileAddr  =  fileSym->value;
+    if (fileAddr < 074000) {
+        form1Insn(getValueOrAllocSymtab(fileAddr) + KUTC + I7);
+        fileAddr  =  0;
+    }
+    form1Insn(KVTM+I14 + fileAddr);
+    form1Insn(KITS+14);
+    formAndAlign(getHelperProc(61)); /*"FCLOSE   "*/
+}
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    if ((E48 >> S5) & optSflags) {
+        formAndAlign(KUJ+I13);
+        return;
+    }
+    form2Insn(KITS+13, KATX+SP);
+    if (inputFile != NULL)
+        fcloseFile(inputFile);
+    if (outputFile != NULL)
+        fcloseFile(outputFile);
+    form1Insn(getHelperProc(70)/*"P/IT"*/ + (KUJ-KVJM-I13));
+    padToLeft();
+} /* formFileInit */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void formOperator(opgen l3arg1z) { /* formOperator */
 int l3int1z, l3int2z, l3int3z;
 int nextInsn;
@@ -4326,40 +4356,10 @@ int needsMater;
 } /* genFullExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formFileInit() {
-int fileAddr;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void fcloseFile(irptr fileSym) {
-    fileAddr  =  fileSym->value;
-    if (fileAddr < 074000) {
-        form1Insn(getValueOrAllocSymtab(fileAddr) + KUTC + I7);
-        fileAddr  =  0;
-    }
-    form1Insn(KVTM+I14 + fileAddr);
-    form1Insn(KITS+14);
-    formAndAlign(getHelperProc(61)); /*"FCLOSE   "*/
-}
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    if ((E48 >> S5) & optSflags) {
-        formAndAlign(KUJ+I13);
-        return;
-    }
-    form2Insn(KITS+13, KATX+SP);
-    if (inputFile != NULL)
-        fcloseFile(inputFile);
-    if (outputFile != NULL)
-        fcloseFile(outputFile);
-    form1Insn(getHelperProc(70)/*"P/IT"*/ + (KUJ-KVJM-I13));
-    padToLeft();
-} /* formFileInit */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     rhsMode  =  true;
     if (errors && l3arg1z != SETREG || curExpr == NULL)
         return;
-    if (! (l3arg1z IN [FORMOP, STOREAT9, DFLTWDTH, FILEINIT, PCKUNPCK]))
+    if (! (l3arg1z IN [FORMOP, STOREAT9, DFLTWDTH, PCKUNPCK]))
         genFullExpr(curExpr);
     switch (l3arg1z) {
     case DOIT:
@@ -4454,14 +4454,6 @@ void fcloseFile(irptr fileSym) {
             prependToInsnList(macro + mcPUSH);
         genOneOp();
         usedRegs |= [12];
-        break;
-    case FILEACCESS:
-        setAddrTo(12);
-        genOneOp();
-        formAndAlign(jumpTarget);
-        break;
-    case FILEINIT:
-        formFileInit();
         break;
     case LOAD:
         prepLoad();
@@ -7067,7 +7059,8 @@ tptr t;
             formOperator(LOAD);
             formAndAlign(getHelperProc(90)); /*"P/RE"*/
         } else {
-            formOperator(FILEACCESS);
+            formOperator(SETREG12);
+            formAndAlign(jumpTarget);
         }
         break;
     case 5: /* free */
@@ -7395,7 +7388,7 @@ int l3var7z;
     bool48z  =  ((E48 >> 22) & procName->flags) >> 25;
     if (hasFiles != 0) {
         hasFiles  =  moduleOffset;
-        formOperator(FILEINIT);
+        formFileInit();
     }
     l3var1z  =
     lineStartOffset  =  moduleOffset;

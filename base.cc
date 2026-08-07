@@ -214,7 +214,7 @@ enum Operator {
 enum OpGen {
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
     SETREG9,  STOREAT9,  DOIT,  SETREG12,  DFLTWDTH,
-    FRACWIDTH, gen11, gen12, FILEACCESS, FILEINIT,
+    FRACWIDTH, gen11, gen12,
     BRANCH, PCKUNPCK
 };
 
@@ -5103,7 +5103,6 @@ formOperator::formOperator(OpGen op)
     if (op != FORMOP &&
         op != STOREAT9 &&
         op != DFLTWDTH &&
-        op != FILEINIT &&
         op!=PCKUNPCK)
         (void) genFullExpr(curExpr);
     switch (op) {
@@ -5199,14 +5198,6 @@ formOperator::formOperator(OpGen op)
         genOneOp();
         usedRegs = usedRegs | Bits(12);
     } break;
-    case FILEACCESS: {
-        setAddrTo(12);
-        genOneOp();
-        formAndAlign(jumpTarget);
-    } break;
-    case FILEINIT:
-        formFileInit();
-        break;
     case LOAD: {
         prepLoad();
         genOneOp();
@@ -7877,7 +7868,8 @@ struct standProc {
                 (void) formOperator(LOAD);
                 formAndAlign(getHelperProc(90)); /*"P/RE"*/
             } else {
-                (void) formOperator(FILEACCESS);
+                (void) formOperator(SETREG12);
+                formAndAlign(jumpTarget);
             }
         } break;
         case 5: { /* free */
@@ -8250,7 +8242,7 @@ void defineRoutine(bool bodyBlock = false)
     bool48z = has(procName->flags(), 22);
     if (hasFiles != 0) {
         hasFiles = moduleOffset;
-        (void) formOperator(FILEINIT);
+        formFileInit();
     }
     lineStartOffset = moduleOffset;
     l3var1z.ii = moduleOffset;    /* l3var1z := ; (accumulator = moduleOffset) */
@@ -8857,9 +8849,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         }
         hasFiles = 0;
     }
-    // base.pas just sets hasFiles := 0 here; the file-init code is emitted once,
-    // by defineRoutine's formOperator(FILEINIT). The upstream extra call here
-    // duplicated the file-close block.
+    // The file-init code is emitted once, by defineRoutine's formFileInit call.
     outputObjFile();
     markTypeSym();
     // A leading type-spec starts either a plain variable declarator-list
