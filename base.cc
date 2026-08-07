@@ -206,7 +206,7 @@ enum Operator {
     IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
     RMWASSIGN,  op37,       GETENUM,    GETFIELD,   DEREF,
-    FILEPTR,    STKLVAL,    ALNUM,      PCALL,      FCALL,
+    STKLVAL,    ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
     STANDPROC,  NOOP
 };
@@ -544,7 +544,6 @@ struct Types : public BESM6Obj {
     void * operator new(size_t) = delete;
 
     union {
-        struct { int64_t szReal; };
         struct {                       // kindArray
             TPtr base;
             int64_t pck;               // boolean
@@ -559,10 +558,6 @@ struct Types : public BESM6Obj {
         struct {                       // kindPtr
             TPtr sbase;
             int64_t szPtr;
-        };
-        struct {                       // file-like kindPtr
-            TPtr fbase;
-            int64_t szFile;
         };
         struct {                       // kindStruct
             TPtr variants;
@@ -904,7 +899,6 @@ TPtr voidType, voidPtr;
 Operator intOpMap[64];
 int64_t opPrec[64];
 TPtr BooleanType;
-TPtr textType;
 TPtr IntegerType;
 TPtr RealType;
 TPtr CharType;
@@ -996,7 +990,7 @@ std::string Expr::p()
         "IDIVOP","IMODOP","PLUSOP","MINUSOP","OROP","NEOP","EQOP","LTOP",
         "GEOP","GTOP","LEOP","INOP","IMULOP","INTPLUS","INTMINUS","CONDOP",
         "ALTERN","INCROP","DECROP","ASSIGNOP","GETELT","GETVAR","RMWASSIGN",
-        "op37","GETENUM","GETFIELD","DEREF","FILEPTR","STKLVAL","ALNUM","PCALL","FCALL",
+        "op37","GETENUM","GETFIELD","DEREF","STKLVAL","ALNUM","PCALL","FCALL",
         "TOREAL","NOTOP","INEGOP","RNEGOP","BITNEGOP","STANDPROC","NOOP"
     };
     char buf[256];
@@ -1045,7 +1039,13 @@ void defExtern()
         idRec = besm6_alloc_record<IdentRec>(offsetof(IdentRec, szIdent));
         idRec->id = curIdent;
         idRec->pck.offset = 0;
-        idRec->typ = textType;
+        /* An FCB is 30 opaque words.  Its size is all the compiler needs
+           of the type -- that is how put/get/reset/rewrite and write's
+           leading file argument recognize a file -- and no operator
+           applies to it, so it is a void of 30 words. */
+        idRec->typ.word = 0;
+        idRec->typ.setRep(NULL);        // ord(NULL) == 074000, as in work.p2c
+        idRec->typ.p.psize = 30;
         idRec->pck.cl = VARID;
         idRec->list() = NULL;
         curVal = aligned;
@@ -1280,8 +1280,8 @@ TPtr makeStringType()
 /* An ordinary pointer type encoded wholly in the tptr word: rep, psize
  * and bits carry the ultimate non-pointer base, pad packs depth*8 plus
  * the base kind.  Base kind 0 is never encoded (pointer-to-void is the
- * voidPtr singleton), so textType (pk=kindPtr, pad=8) is not mistaken
- * for a compact pointer. */
+ * voidPtr singleton), so a heap-allocated pointer descriptor, whose pad
+ * is 0, is not mistaken for a compact pointer. */
 bool isCompactP(TPtr t)
 {
     return t.p.pk == kindPtr and (t.p.pad & 7) != 0;
@@ -1414,7 +1414,7 @@ TPtr getPtrType(TPtr toType)
         return t;
     }
     /* Fallback: heap-allocated pointer descriptor, for bases the compact
-       form cannot carry (nonzero pad, e.g. textType; depth overflow). */
+       form cannot carry, i.e. pointer depth overflowing the pad field. */
     t.setRep(besm6_alloc_record<Types>(offsetof(Types, szPtr)));
     t.rep()->base = toType;
     t.p.psize = 1;
@@ -4867,7 +4867,7 @@ L10122:
                 insnList->tail->mode = l3int3z;
         }
     } else { /* 10125 */
-        if (curOP <= FILEPTR) {
+        if (curOP <= DEREF) {
             if (curOP == GETVAR) {
                 insnList = new InsnList;
                 curIdRec = exprToGen->id1;
@@ -4921,7 +4921,7 @@ L10122:
             } else /* 10244 */
             if (curOP == GETELT)
                 genGetElt();
-            else if (curOP == DEREF || curOP == FILEPTR) {
+            else if (curOP == DEREF) {
                 genFullExpr(exprToGen->expr1);
                 genDeref();
             } else if (curOP == op37) {
@@ -6041,8 +6041,6 @@ void dumpEnumNames(TPtr l3arg1z)
 void fopenFile(IdentRecPtr fileSym, ExtFileRec * extFileP)
 {
     int64_t fileAddr;
-    // fileBase := fileSym@.typ.rep@.base and elemSize := fileSym@.typ.p.pad
-    // are computed but never used in base.pas; omitted here.
     fileAddr = fileSym->value();
     if (fileAddr < 074000) {
         form1Insn(getValueOrAllocSymtab(fileAddr) +
@@ -7670,14 +7668,11 @@ struct standProc {
                 workExpr = curExpr;
             } else {
                 workExpr = new Expr;
-                workExpr->vt.typ = textType;
+                workExpr->vt.typ = outputFile->typ;
                 workExpr->op = GETVAR;
                 workExpr->id1 = outputFile;
             }
-            arg2Type = workExpr->vt.typ;
             needR12 = true;
-            l4exp8z = mkExpr(DEREF, ptrBase(arg2Type), workExpr, NULL);
-            l4exp6z = mkExpr(ASSIGNOP, l4exp8z->vt.typ, l4exp8z, NULL);
         }
     } /* startWrite */
 
@@ -8424,13 +8419,14 @@ initScalars::initScalars() :
     CharType.p.bits = 8;
     CharType.p.pk = kindScalar;
 
+    /* kindReal and kindVoid carry no payload: no descriptor record. */
     RealType.setRep(NULL);
     RealType.p.psize = 1;
     RealType.p.bits = 48;
     RealType.p.pk = kindReal;
 
     voidType.setRep(NULL);
-    voidType.p.psize = 1;
+    voidType.p.psize = 1;      // sizeof(void) is 1, as in GNU C
     voidType.p.bits = 48;
     voidType.p.pk = kindVoid;
 
@@ -8439,13 +8435,6 @@ initScalars::initScalars() :
     voidPtr.p.psize = 1;
     voidPtr.p.bits = 15;
     voidPtr.p.pk = kindPtr;
-
-    textType.setRep(besm6_alloc_record<Types>(offsetof(Types, szFile)));
-    textType.rep()->base = CharType;
-    textType.p.pad = 8;
-    textType.p.psize = 30;
-    textType.p.bits = 48;
-    textType.p.pk = kindPtr;
 
     AlfaType.setRep(besm6_alloc_record<Types>(offsetof(Types, szArray)));
     AlfaType.rep()->base = CharType;
@@ -9635,7 +9624,7 @@ int main(int argc, char **argv)
         | Bits(WHILESY, FORSY, WITHSY, GOTOSY)
         | Bits(BREAKSY, CONTSY, RETURNSY, SEMICOLON);
     statEndSys = Bits(SEMICOLON, ENDSY, ELSESY, WHILESY);
-    lvalOpSet = Bits(GETELT, GETVAR, op37, GETFIELD) | Bits(DEREF, FILEPTR);
+    lvalOpSet = Bits(GETELT, GETVAR, op37, GETFIELD) | Bits(DEREF);
 
     funcInsn[fnABS] = KAMX;
     funcInsn[fnTRUNC] = KADD+ZERO;

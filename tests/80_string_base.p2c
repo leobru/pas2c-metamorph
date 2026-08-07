@@ -1,0 +1,22 @@
+/*=s8,y+,k9,l0*/
+//
+// String constants and __alfa use the same zero-based packed-char type.
+__alfa a;
+char s[6];
+int i;
+
+void main() {
+    a = 'ABCDEF';
+    s[0] = 'A';
+    s[5] = 'F';
+
+    writeln(' ALFA ', a[0], ' ', a[5],
+            ' SIZE ', sizeof(a):0, ' ', sizeof('ABCDEF'):0);
+
+    i = 0;
+    write(' VAR ', a[i]);
+    i = 5;
+    writeln(' ', a[i]);
+
+    writeln(' CHAR ', s[0], ' ', s[5], ' SIZE ', sizeof(s):0);
+}

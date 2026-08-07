@@ -177,7 +177,7 @@ typedef enum {
     IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
     RMWASSIGN,  op37,       GETENUM,    GETFIELD,   DEREF,
-    FILEPTR,    STKLVAL,    ALNUM,      PCALL,      FCALL,
+    STKLVAL,    ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
     STANDPROC,  NOOP
 } operator;
@@ -276,7 +276,6 @@ typedef struct {
 } insnltyp;
 //
 typedef union {
-    int szReal;
     struct { tptr abase;
             int pck;
             int perword,
@@ -285,7 +284,6 @@ typedef union {
             int numen,
             start; int szScalar; };
     struct { tptr base; int szPtr; };
-    struct { tptr fbase; int szFile; };
     struct { tptr variants;
             irptr fields;
             int flag,
@@ -404,7 +402,7 @@ setofsys statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
                   SWITCHSY, DOSY, WHILESY, FORSY, WITHSY, GOTOSY,
                   BREAKSY, CONTSY, RETURNSY, SEMICOLON],
     skipToSet,
-    lvalOpSet = [GETELT, GETVAR, op37, GETFIELD, DEREF, FILEPTR];
+    lvalOpSet = [GETELT, GETVAR, op37, GETFIELD, DEREF];
 int inCallArgs, bool48z, forValue;
 int jumpType;
 int jumpTarget;
@@ -465,7 +463,6 @@ extfilerec *externFileList;
 tptr typ121z,
     voidType, voidPtr,
     boolType;
-tptr textType;
 tptr intType;
 tptr realType;
 tptr charType;
@@ -1023,8 +1020,8 @@ int isCompactP(tptr t) {
 /* An ordinary pointer type encoded wholly in the tptr word: rep, psize
  * and bits carry the ultimate non-pointer base, pad packs depth*8 plus
  * the base kind.  Base kind 0 is never encoded (pointer-to-void is the
- * voidPtr singleton), so textType (pk=kindPtr, pad=8) is not mistaken
- * for a compact pointer. */
+ * voidPtr singleton), so a heap-allocated pointer descriptor, whose pad
+ * is 0, is not mistaken for a compact pointer. */
     return t.p.pk == kindPtr && (t.p.pad & 7) != 0;
 } /* isCompactP */
 //
@@ -2001,7 +1998,13 @@ irptr idRec;
         with *idRec do {
             id  =  curIdent;
             pck.p.offset  =  0;
-            typ  =  textType;
+            /* An FCB is 30 opaque words.  Its size is all the compiler needs
+               of the type -- that is how put/get/reset/rewrite and write's
+               leading file argument recognize a file -- and no operator
+               applies to it, so it is a void of 30 words.  Assigning the
+               whole-word arm clears bits/psize/pad and leaves pk kindVoid. */
+            typ.rep  =  NULL;
+            typ.p.psize  =  30;
             pck.p.cl  =  VARID;
             list  =  NULL;
         }
@@ -2316,7 +2319,7 @@ tptr t;
         return t;
     }
     /* Fallback: heap-allocated pointer descriptor, for bases the compact
-       form cannot carry (nonzero pad, e.g. textType; depth overflow). */
+       form cannot carry, i.e. pointer depth overflowing the pad field. */
     t.rep = malloc(offsetof(types, szPtr));
     t.rep->base = toType;
     t.p.psize = 1;
@@ -4120,7 +4123,7 @@ int needsMater;
                 } /* switch 10122 */
 10122:          insnList->tail->mode  =  l3int3z;
         }
-    } else if (FILEPTR >= curOP) {
+    } else if (DEREF >= curOP) {
         if (curOP == GETVAR) {
             insnList = malloc(sizeof(insnltyp));
             curIdRec  =  exprToGen->id1;
@@ -4179,7 +4182,7 @@ int needsMater;
             }
         } else if (curOP == GETELT)
             genGetElt();
-        else if (curOP == DEREF || curOP == FILEPTR) {
+        else if (curOP == DEREF) {
             genFullExpr(exprToGen->expr1);
             genDeref();
         } else if (curOP == op37) {
@@ -4324,10 +4327,7 @@ int needsMater;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void formFileInit() {
-extfilerec *extFileP;
-tptr fileBase;
-irptr fileSym;
-int fileAddr, elemSize;
+int fileAddr;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void fcloseFile(irptr fileSym) {
@@ -5296,11 +5296,8 @@ irptr l3var1z;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void fopenFile(irptr fileSym, extfilerec *extFileP) {
-tptr fileBase;
-int fileAddr, elemSize;
+int fileAddr;
     fileAddr  =  fileSym->value;
-    fileBase  =  fileSym->typ.rep->base;
-    elemSize  =  fileSym->typ.p.pad;
     if (fileAddr < 074000) {
         form1Insn(getValueOrAllocSymtab(fileAddr) + KUTC + I7);
         fileAddr  =  0;
@@ -5654,7 +5651,7 @@ idclass formClass;
                     }
                 }
                 arg1Type  =  curExpr->typ;
-                if (arg1Type.rep != NULL) {
+                if (arg1Type != voidType) {
                     if (!typeCheck(arg1Type, curFormal->typ))
                         error(40); /*errIncompatibleArgumentTypes*/
                 }
@@ -6848,14 +6845,11 @@ void startWrite() {
             workExpr  =  curExpr;
         } else {
             workExpr = malloc(sizeof(expr));
-            workExpr->typ  =  textType;
+            workExpr->typ  =  outputFile->typ;
             workExpr->op  =  GETVAR;
             workExpr->id1  =  outputFile;
         }
-        arg2Type  =  workExpr->typ;
         needR12  =  true;
-        l4exp8z = mkExpr(DEREF, ptrBase(arg2Type), workExpr, NULL);
-        l4exp6z = mkExpr(ASSIGNOP, l4exp8z->typ, l4exp8z, NULL);
     }
 } /* startWrite */
 //
@@ -7563,25 +7557,20 @@ void regSysProc(int l4arg1z) {
     charType.p.psize  =  1;
     charType.p.bits  =  8;
     charType.p.pk  =  kindScalar;
-    realType.rep = malloc(offsetof(types, szReal));
+    /* kindReal and kindVoid carry no payload: no descriptor record. */
+    realType.rep = NULL;
     realType.p.psize  =  1;
     realType.p.bits  =  48;
     realType.p.pk  =  kindReal;
-    voidType.rep = malloc(offsetof(types, szReal));
-    voidType.p.psize  =  0;
-    voidType.p.bits  =  0;
+    voidType.rep = NULL;
+    voidType.p.psize  =  1;      // sizeof(void) is 1, as in GNU C
+    voidType.p.bits  =  48;
     voidType.p.pk  =  kindVoid;
     voidPtr.rep = malloc(offsetof(types, szPtr));
     voidPtr.rep->base  =  voidType;
     voidPtr.p.psize  =  1;
     voidPtr.p.bits  =  48;
     voidPtr.p.pk  =  kindPtr;
-    textType.rep = malloc(offsetof(types, szFile));
-    textType.rep->base  =  charType;
-    textType.p.pad  =  8;
-    textType.p.psize  =  30;
-    textType.p.bits  =  48;
-    textType.p.pk  =  kindPtr;
     alfaType.rep = malloc(offsetof(types, szArray));
     with *(alfaType.rep) do {
         base  =  charType;
