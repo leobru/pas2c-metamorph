@@ -1,0 +1,11 @@
+/*=s8,y+,k9,l0*/
+// `put`, `rewrite` and `reset` are no longer standard procedures, so the
+// names are ordinary identifiers.  Word output goes through fputw, a file
+// is prepared for writing with ftruncate and rewound with frewind.
+int put, rewrite, reset;
+void main() {
+    put = 7;
+    rewrite = 9;
+    reset = 11;
+    writeln(' PUT=', put:0, ' REWRITE=', rewrite:0, ' RESET=', reset:0);
+}

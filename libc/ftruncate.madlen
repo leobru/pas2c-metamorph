@@ -1,0 +1,10 @@
+ ftruncat:       , name,
+C===========================================================
+C ftruncat(fcb)
+C   Calls P/TF (truncate), Pascal rewrite.
+C===========================================================
+ p/tf  :        , subp,
+                , ntr , 7      . ABI requirement
+                , ati , 12     . M12 := fcb
+                , uj  , p/tf
+                , end ,

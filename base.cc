@@ -7851,9 +7851,9 @@ struct standProc {
         l4bool10z = (SY == LPAREN);
         oldOffset = moduleOffset;
         if (not l4bool10z and
-            has((BitRange(0,5) | Bits(7,10) | BitRange(15,28)), procNo))
+            has((Bits(1,4,5) | Bits(7,10) | BitRange(15,28)), procNo))
             error(45); /* errNoOpenParenForStandProc */
-        if (has((BitRange(0,3) | Bits(5,15)), procNo)) {
+        if (has((Bits(1) | Bits(5,15)), procNo)) {
             expression();
             if (not has(lvalOpSet, curExpr->op)) {
                 error(27); /* errExpressionWhereVariableExpected */
@@ -7861,23 +7861,14 @@ struct standProc {
             arg1Type = curExpr->vt.typ;
             curVarKind = (Kind)(arg1Type.p.pk);
         }
-        if (has((BitRange(0,3) | Bits(5,6)), procNo))
+        if (has((Bits(1) | Bits(5,6)), procNo))
             jumpTarget = getHelperProc(29 + procNo); /* P/PF */
         switch (procNo) {
-        case 0: case 1: case 2: case 3: { /* put, get, rewrite, reset */
+        case 1: { /* get */
             if (typeSize(arg1Type) != 30)
                 error(47); /* errNoVarOfFileType */
-            if (procNo == 3 and SY == COMMA) {
-                (void) formOperator(SETREG12);
-                expression();
-                if (not typeCheck(IntegerType, curExpr->vt.typ))
-                    error(14); /* errExprIsNotInteger */
-                (void) formOperator(LOAD);
-                formAndAlign(getHelperProc(90)); /*"P/RE"*/
-            } else {
-                (void) formOperator(SETREG12);
-                formAndAlign(jumpTarget);
-            }
+            (void) formOperator(SETREG12);
+            formAndAlign(jumpTarget);
         } break;
         case 5: { /* free */
             if (curVarKind != kindPtr)
@@ -7953,7 +7944,7 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
             doPackUnpack();
         } break;
         }
-        if (has((Bits(0,1,2,3) | Bits(5,10,11,13) | Bits(21,22)), procNo))
+        if (has((Bits(1) | Bits(5,10,11,13) | Bits(21,22)), procNo))
             arithMode = 1;
         checkSymAndRead(RPAREN);
     }
@@ -9893,10 +9884,10 @@ int64_t helperNames[93] = { 0L,
 // pascompl set (READ/EXIT/DEBUG/NEW/DISPOSE...).  Index 14 (was RETURN) is now
 // blank: `return` is a reserved keyword (RETURNSY), not a standproc.
 int64_t systemProcNames[30] = {
-/*0*/   0606564L                /*"     PUT"*/,
+/*0*/   0L                      /*" was PUT"*/,
         0474564L                /*"     GET"*/,
-        062456762516445L        /*" REWRITE"*/,
-        06245634564L            /*"   RESET"*/,
+        0L                      /*" was REWRITE"*/,
+        0L                      /*" was RESET"*/,
         0L                      /*" was NEW"*/,
         044516360576345L        /*"    FREE"*/,
         050415464L              /*"    HALT"*/,

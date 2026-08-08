@@ -1,0 +1,15 @@
+ FREOPEN:,NAME,
+C===========================================================
+C freopen(location, f) - reopen file (for reading) at location.
+C
+C Calling convention for a two-argument ASSEMBLER routine:
+C   ACC        = f (pointer to the FCB)
+C   [SP-1]     = location
+C
+C P/RE expects M12 to address the FCB and ACC to contain the
+C new file location.  It is already an ENTRY in p_sys.asm.
+C===========================================================
+ P/RE:          ,SUBP,
+                ,STI ,12     . M12 := f; ACC := value
+                ,UJ  ,P/RE   . tail call to reset(f, location)
+                ,END ,

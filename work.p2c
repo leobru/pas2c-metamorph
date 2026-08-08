@@ -649,9 +649,9 @@ int opPrec[SHLEFT..ALTERN] = {
 int symTab[074000 .. 075500];
 /*=A3*/
 int systemProcNames[23] = {
-/*0*/   '     PUT',
+/*0*/   '        ',  // was PUT
         '     GET',
-        ' REWRITE',
+        '        ',  // was REWRITE
         '   RESET',
         '        ',  // was NEW
         '    FREE',
@@ -728,6 +728,8 @@ void rollup(int addr) assembler;
 typedef ifcb *pfcb;
 void fopen(pfcb fcb, int sizes, int name) assembler;
 void fclose(pfcb fcb) assembler;
+void ftruncate(pfcb fcb) assembler;
+void frewind(pfcb fcb) assembler;
 int feof(pfcb fcb) assembler;
 int fgetc(pfcb fcb) assembler;
 void fputw(int value, pfcb f) assembler;
@@ -6724,7 +6726,7 @@ int rec;
 } /* putDataRec */
 //
     fopen(&F, 010000100000, 0);
-    reset(INITBUF);
+    frewind(&INITBUF);
     dsize  =  FcstCnt;
     setcount  =  0;
     length  =  0;
@@ -6775,7 +6777,7 @@ int rec;
         ck  =  nk;  ca  =  na;  cb  =  nb;
         curEnd  =  nextEnd;
     }
-    reset(F);
+    frewind(&F);
     while (! feof(&F)) {
         fputw(*F.data, &FCST);
         get(F);
@@ -7043,19 +7045,22 @@ tptr t;
     l4bool10z  =  (SY == LPAREN);
     oldOffset  =  moduleOffset;
     if (! l4bool10z &&
-       (procNo IN [0:5,7,10,15:28]))
+       (procNo IN [1,3:5,7,10,15:28]))
         error(45); /* errNoOpenParenForStandProc */
-    if (procNo IN [0,1,2,3,5,15]) {
+    if (procNo IN [1,3,5,15]) {
         expression();
         if (! (curExpr->op IN lvalOpSet))
             error(27); /* errExpressionWhereVariableExpected */
         arg1Type  =  curExpr->typ;
         curVarKind  =  arg1Type.p.pk;
     }
-    if (procNo IN [0:3,5,6])
+    if (procNo IN [1,3,5,6])
         jumpTarget  =  getHelperProc(29 + procNo); /* P/PF */
     switch (procNo) {
-    case 0: case 1: case 2: case 3: /* put, get, rewrite, reset */
+    // Slot 2 (retired REWRITE) is listed only to keep the dispatch range
+    // contiguous, which is 14 words cheaper; procNo 2 cannot occur, as its
+    // name is not registered.
+    case 1: case 2: case 3: /* get, reset */
         if (typeSize(arg1Type) != 30)
             error(47); /* errNoVarOfFileType */
         if (procNo == 3 && SY == COMMA) { // reset with file location
@@ -7141,10 +7146,8 @@ tptr t;
         checkSymAndRead(COMMA);
         checkArrayArg();
         doPackUnpack();
-    case 4: case 8: case 9: case 12: case 13: case 14: case 15: case 16: case 17: case 18:
-        // unused, listed for completeness
     }
-    if (procNo in [0,1,2,3,5,10,11,13,21,22])
+    if (procNo in [1,3,5,10,11,13,21,22])
         arithMode  =  1;
     checkSymAndRead(RPAREN);
 } /* standProc */
@@ -8398,7 +8401,7 @@ void regKeywords() { /*=A3 regKeywords */
     skipToSet  =  blockBegSys | statBegSys & (~[SWITCHSY]);
     unpack(*pasinfor.a3, iso2text, '\052'); /* '*' */
     iso2text['_'] = iso2text['*'];
-    rewrite(_CHILD_);
+    ftruncate(&_CHILD_);
     for (jdx = 1; jdx <= 10; ++jdx)
         fputw(0, &_CHILD_);
     regKeywords();
@@ -8428,7 +8431,7 @@ int sizes[10];
     sizes[9]  =  lookupMode;
     curVal.i  =  moduleOffset - 040000;
     symTab[074001]  =  [24,29] | curVal.i;
-    reset(FCST);
+    frewind(&FCST);
     while (! feof(&FCST)) {
         fputw(*FCST.data, &_CHILD_);
         get(FCST);
