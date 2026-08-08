@@ -1,0 +1,62 @@
+/*=s8,y+,k9,l0*/
+//
+// A `with` whose base address costs more than one instruction is spilled to a
+// frame slot.  Calls whose callee clobbers the index register holding the base
+// force the body to re-address the record from that slot, and the base must
+// stay the one computed on entry even when the index changes inside the body.
+//
+typedef struct {
+    int a, b;
+} inner;
+typedef struct {
+    inner pt;
+    int tag;
+} outer;
+outer arr[0..3];
+int i, j, k;
+int probe;
+//
+// Both callees hold a `with` base of their own, so their clobber masks cover
+// the index register the caller's `with` is using.
+//
+void proc() {
+    k = 3;
+    with arr[k].pt do {
+        b = b + 1;
+    }
+    probe = probe + 1;
+}
+//
+int func(int n) {
+    k = 3;
+    with arr[k].pt do {
+        b = b + 1;
+    }
+    return n * 2;
+}
+//
+void main() {
+    i = 1;
+    j = 2;
+    arr[1].tag = 100;
+    arr[3].tag = 300;
+    with arr[i].pt do {
+        a = 10;
+        proc();
+        b = a + 5;
+        i = 3;
+        a = a + func(1);
+        b = b + a;
+        with arr[j].pt do {
+            a = 70;
+            proc();
+            b = a + 1;
+        }
+        probe = probe + 100;
+        b = b + 1;
+    }
+    writeln(' A1=', arr[1].pt.a:0, ' B1=', arr[1].pt.b:0);
+    writeln(' A2=', arr[2].pt.a:0, ' B2=', arr[2].pt.b:0);
+    writeln(' A3=', arr[3].pt.a:0, ' B3=', arr[3].pt.b:0);
+    writeln(' TAGS=', arr[1].tag:0, ' ', arr[3].tag:0, ' PROBE=', probe:0);
+}

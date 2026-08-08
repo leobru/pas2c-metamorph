@@ -176,7 +176,7 @@ typedef enum {
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
     IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
-    RMWASSIGN,  op37,       GETENUM,    GETFIELD,   DEREF,
+    RMWASSIGN,  GETENUM,    GETFIELD,   DEREF,
     STKLVAL,    ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
     STANDPROC,  NOOP
@@ -402,7 +402,7 @@ setofsys statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
                   SWITCHSY, DOSY, WHILESY, FORSY, WITHSY, GOTOSY,
                   BREAKSY, CONTSY, RETURNSY, SEMICOLON],
     skipToSet,
-    lvalOpSet = [GETELT, GETVAR, op37, GETFIELD, DEREF];
+    lvalOpSet = [GETELT, GETVAR, GETFIELD, DEREF];
 int inCallArgs, bool48z, forValue;
 int jumpType;
 int jumpTarget;
@@ -2986,19 +2986,6 @@ kind l4var7z;
 } /* prepStore */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void spillAcc(operator op) {
-    addInsnAndOffset(curFrameRegTemplate, localSize);
-    curExpr = malloc(sizeof(expr));
-    curExpr->typ  =  insnList->typ;
-    genOneOp();
-    curExpr->op  =  op;
-    curExpr->num1  =  localSize;
-    ++localSize;
-    if (sizeCount < localSize)
-        sizeCount  =  localSize;
-} /* spillAcc */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int insnCount() {
 int cnt;
 oiptr cur;
@@ -3658,6 +3645,21 @@ void formThunk() {
         (! isDirect || [20, 21] & calleeFl)) {
         addToInsnList(KVTM+040074001);
     }
+    /* A `with` base that lives in a frame slot outlives a call that clobbers
+       the register holding it: reload the register right here, so that every
+       path reaching the clobber also reaches the restore and the body can go
+       on addressing the record through the register.  WTC takes the saved
+       address from the slot into C, VTM then lands it in the register --
+       neither touches the accumulator, which may hold a function result. */
+    l5exp2z  =  withList;
+    while (l5exp2z != NULL) {
+        if ((l5exp2z->typ.p.psize != 0) &&
+            ((E48 >> l5exp2z->typ.p.pad) & calleeFl) != 0U) {
+            addInsnAndOffset(curFrameRegTemplate + KWTC, l5exp2z->typ.p.psize - 1);
+            addToInsnList(KVTM + indexreg[l5exp2z->typ.p.pad]);
+        }
+        l5exp2z  =  l5exp2z->expr1;
+    }
     usedRegs  =  (usedRegs | calleeFl) & [1:15];
     if (isFortrn) {
         addToInsnList(checkFortran ? getHelperProc(86) /* "P/FM" */
@@ -3673,22 +3675,15 @@ void formThunk() {
 } /* genEntry */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void startInsnList(ilmode l5arg1z) {
+void startInsnList() {
     insnList = malloc(sizeof(insnltyp));
     insnList->tail  =  NULL;
     insnList->head  =  NULL;
     insnList->typ  =  exprToGen->typ;
     insnList->regsused  =  0U;
-    insnList->ilm  =  l5arg1z;
-    if (l5arg1z == ilCONST) {
-        insnList->payload  =  exprToGen->num1;
-        insnList->addrmd  =  exprToGen->num2;
-    } else {
-        insnList->st  =  stWORD;
-        insnList->addrmd  =  18;
-        insnList->payload  =  curFrameRegTemplate;
-        insnList->disp  =  exprToGen->num1;
-    }
+    insnList->ilm  =  ilCONST;
+    insnList->payload  =  exprToGen->num1;
+    insnList->addrmd  =  exprToGen->num2;
 } /* startInsnList */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4215,11 +4210,8 @@ int needsMater;
         else if (curOP == DEREF) {
             genFullExpr(exprToGen->expr1);
             genDeref();
-        } else if (curOP == op37) {
-            startInsnList(ilLVAL);
-            genDeref();
         } else if (curOP == GETENUM)
-            startInsnList(ilCONST);
+            startInsnList();
     } else if (curOP == STKLVAL) {
         /* Synthetic lvalue produced by genRMWAssign.  The address
            of the real lvalue has been pushed onto the BESM-6 stack
@@ -4329,8 +4321,10 @@ int needsMater;
             goto 10122;
         }
     } else if (curOP == NOOP) {
-        curVal.tp  =  exprToGen->typ;
-        if (curVal.i IN liveRegs) {
+        curVal.i  =  exprToGen->typ.p.pad;
+        /* A spilled base is reloaded into its register after every call that
+           clobbers it, so it needs no liveness test. */
+        if ((exprToGen->typ.p.psize != 0) || (curVal.i IN liveRegs)) {
             insnList = malloc(sizeof(insnltyp));
             with *insnList do {
                 typ  =  exprToGen->expr2->typ;
@@ -4343,8 +4337,7 @@ int needsMater;
                 st  =  stWORD;
             }
         } else {
-            curVal.i  =  14;
-            exprToGen->typ  =  curVal.tp;
+            exprToGen->typ.p.pad  =  14;
             exprToGen  =  exprToGen->expr2;
             goto 7567;
         }
@@ -4372,6 +4365,13 @@ int needsMater;
             helpExpr->expr1  =  withList;
             withList  =  helpExpr;
             helpExpr->op  =  NOOP;
+            /* The entry holds the index register carrying the record address
+               in typ.p.pad, and -- when that address was too costly to
+               recompute and went to a frame slot -- the slot number plus one
+               in typ.p.psize.  genEntry reloads the register from that slot
+               after every call that clobbers it, so a spilled entry's
+               register is valid throughout the body. */
+            helpExpr->typ.p.psize  =  0;
             switch (st) {
             case stWORD:
                 if (l3int3z == 0) {
@@ -4386,7 +4386,12 @@ int needsMater;
                     if (l3int3z != 1) {
                         setAddrTo(l3int2z);
                         addToInsnList(KITA + l3int2z);
-                        spillAcc(op37);
+                        addInsnAndOffset(curFrameRegTemplate, localSize);
+                        genOneOp();
+                        helpExpr->typ.p.psize  =  localSize + 1;
+                        ++localSize;
+                        if (sizeCount < localSize)
+                            sizeCount  =  localSize;
                     } else if (l3int2z != 14) {
                         setAddrTo(l3int2z);
                         genOneOp();
@@ -4397,11 +4402,11 @@ int needsMater;
                     liveRegs |= l3var11z;
                 }
                 curVal.i  =  l3int2z;
-                helpExpr->typ  =  curVal.tp;
+                helpExpr->typ.p.pad  =  l3int2z;
                 break;
             case stSLICE:
                 curVal.i  =  14;
-                helpExpr->typ  =  curVal.tp;
+                helpExpr->typ.p.pad  =  14;
                 break;
             case stPACKED:
                 error(errVarTooComplex);
@@ -6356,17 +6361,17 @@ eptr loopExpr;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void withStatement() {
 eptr oldWith;
-int oldRegs, usedRegs;
+int oldRegs, withRegs;
 int oldSize;
     oldWith  =  withList;
     oldSize  =  localSize;
     oldRegs  =  freeRegs;
-    usedRegs  =  0U;
+    withRegs  =  0U;
     do {
             expression();
             if (curExpr->typ.p.pk == kindStruct) {
                 formOperator(SETREG);
-                usedRegs  =  (usedRegs | (E48 >> curVal.i)) & auxRegs;
+                withRegs  =  (withRegs | (E48 >> curVal.i)) & auxRegs;
             } else {
                 error(71); /* errWithOperatorNotOfARecord */
             }
@@ -6376,7 +6381,9 @@ int oldSize;
     withList  =  oldWith;
     localSize  =  oldSize;
     freeRegs  =  oldRegs;
-    usedRegs |= usedRegs;
+    // The index registers this `with` claimed are clobbered as far as our
+    // callers are concerned: they must reach the routine's flags mask.
+    usedRegs |= withRegs;
 } /* withStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
