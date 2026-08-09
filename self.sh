@@ -23,6 +23,7 @@ cat << EOF > tmp$$
 *libra:22
 *call pashelp
 P 2 0 1000440000B .
+*call ficmemory
 *call *pascom
 *copy:20,270000,670000
 *table:exclude(pascontr)

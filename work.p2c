@@ -1,4 +1,4 @@
-/*=l1,s8,y+,k9,l1*/
+/*=l1,s8,y+,k8,l1*/
 //
 const
     boilerplate = ' PASCAL 2 C METAMORPHOSIS (2026)';
@@ -424,6 +424,7 @@ int curFrameRegTemplate;
 int curProcNesting;
 int totalErrors;
 int lineCnt;
+int maxSP, maxSPline, maxSPwho;
 int bucket;
 int strLen;
 int heapCallsCnt;
@@ -2080,6 +2081,15 @@ int lsbOrder;                   // '__packed __lsb': fields fill the word from b
 int isForwardRef;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void spWatch(int who) {
+int loc;
+    if (int(&loc) > maxSP) {
+        maxSP  =  int(&loc);
+        maxSPline  =  lineCnt;
+        maxSPwho  =  who;
+    }
+}
+//
 void myrollup(int addr) {
 int top;
     top = setup();
@@ -4028,6 +4038,7 @@ int needsMater;
     if (exprToGen->op == DEREF && isCharPtr(exprToGen->expr1->typ))
         exprToGen = flatMemAt(exprToGen->expr1);
 7567:
+    spWatch(2);
     curOP  =  exprToGen->op;
     if (curOP == CONDOP) {
         genCondOp();
@@ -4351,6 +4362,7 @@ int needsMater;
 } /* genFullExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    spWatch(1);
     rhsMode  =  true;
     if (errors && l3arg1z != SETREG || curExpr == NULL)
         return;
@@ -7153,6 +7165,7 @@ tptr t;
 } /* standProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    spWatch(3);
     if (freeRegs != ceRegs && SY == SEMICOLON) {
         inSymbol();
         return;
@@ -8395,6 +8408,7 @@ void regKeywords() { /*=A3 regKeywords */
 } /*=A2 regKeywords */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    writeln(' ini sp = ', &idx:5 oct);
     FcstCnt  =  0;
     FcstCount  =  0;
     initInsnTemplates();
@@ -8419,6 +8433,7 @@ void regKeywords() { /*=A3 regKeywords */
 void finalize() {
 int idx, cnt;
 int sizes[10];
+    writeln(' fin sp = ', &idx:5 oct);
     sizes[0]  =  1;
     sizes[1]  =  symTabPos - 074000 - 1;
     sizes[4]  =  longSymCnt;
@@ -8508,6 +8523,7 @@ void main() {
     fopen(&FCST, 010000100000, 0);
     fopen(&INITBUF, 010000100000, 0);
     programme(&curInsnTemplate, hashTravPtr, false);
+    writeln(' MAXSP = ', maxSP:5 oct, ' WHO ', maxSPwho:0, ' LINE ', maxSPline:0);
     if (errors) {
 9999:   writeln(' IN ', (lineCnt-1):0, ' LINES ',
             totalErrors:0, ' ERRORS');
