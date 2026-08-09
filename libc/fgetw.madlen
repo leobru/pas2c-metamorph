@@ -1,0 +1,35 @@
+ FGETW:,NAME,
+C===========================================================
+C fgetw(fcb) - read one word and advance the file.
+C
+C Calling convention (single argument, in ACC):
+C   ACC = pointer to the 30-word FILE control block
+C   M13 = return link
+C
+C Result:
+C   ACC = the current element f^; zero at EOF.
+C
+C The word counterpart of FGETC.  A word file has no line
+C structure, so none of FGETC's end-of-line translation applies
+C and the element is taken straight from f^.  P/GF owns all
+C cursor movement and buffer/refill state and its Pascal
+C interface aborts when called at EOF, so FILE[2] is tested
+C first, exactly as in FGETC: the XOR both detects the EOF
+C marker and leaves the zero word that C expects as the
+C sentinel.  Save the result and the caller's M13 while P/GF
+C advances to the next element.
+C===========================================================
+ P/GF:          ,SUBP,
+                ,STI ,12     . M12 := fcb
+            12  ,XTA ,2      . FILE[2] carries the EOF marker
+             1  ,AEX ,8
+            13  ,UZA ,       . C EOF sentinel is a zero word
+            12  ,WTC ,       . WT := FILE[0] (current cursor)
+                ,XTA ,       . ACC := current f^ word
+                ,ITS ,13     . push result; ACC := caller's M13
+            15  ,ATX ,       . push caller's M13
+            13  ,VJM ,P/GF   . advance/refill using Pascal runtime
+            15  ,XTA ,       . pop caller's M13
+                ,STI ,13     . pop saved word result
+            13  ,UJ  ,       . return it
+                ,END ,
