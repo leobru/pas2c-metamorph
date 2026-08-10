@@ -37,7 +37,7 @@ C   the per-word ordering test on the first differing word.
  ,UJ,*0003B                 . all words equal -> TRUE (*0003B)
  *0011B:12,XTA,             . differing word: ACC := mem[M12] (A's word)
  1,AEX,24B                  . ACC ^= [M1+20] (~0U): one's-complement of A's word
- 14,ARX,                    . cyclic-add mem[M14] (B's word): forms B - A
- ,U1A,*0004B                . sign of B - A selects the FALSE tail (*0004B)
+ 14,ARX,                    . cyclic-add mem[M14] (B's word): forms raw B - A
+ ,U1A,*0004B                . ARX mode: branch when ACC bit 48 is clear
  ,UJ,*0003B                 . otherwise the TRUE tail (*0003B)
  ,END,

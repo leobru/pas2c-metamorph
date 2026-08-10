@@ -23,10 +23,10 @@ C===========================================================
  P/CW:,SUBP,                 . print one character (ACC in low
 C                              6 bits = ISO code)
  ,ATI,14                     . M14 := V (the requested index)
- ,UTC,*0024B.=:7777 7777 7777 74   . C := mask clearing the low 8 bits
+ ,UTC,*0024B.=:7777 7777 7777 74   . C := address of mask clearing low 8 bits
  ,AAX,                       . ACC := V with its low 8 bits cleared
  ,UZA,*0005B                 . V fits in 8 bits (0..255) -> table-lookup path
- ,UTC,*0004B.=TEXT*NOTSCA*   . else load the "*NOTSCA*" text
+ ,UTC,*0004B.=TEXT*NOTSCA*   . else C := address of "*NOTSCA*" text
  ,XTA,
  ,UJ,*0007B                  . and print it via P/WXD
  *0004B:,TEXT,8H*NOTSCA*     . the diagnostic text (8 chars)
@@ -40,7 +40,7 @@ C===========================================
  *0007B:,ITS,13              . push the word to print; ACC := caller's M13
  ,ITS,8                      . push M13; ACC := caller's M8
  15,ATX,                     . push caller's M8
- ,UTC,*0023B.=I8             . load constant 8
+ ,UTC,*0023B.=I8             . C := address of constant 8
  ,XTA,
  ,NTR,3                      . R := 3 (suppress normalise/round)
  15,A-X,-4                   . ACC := 8 - field_width (A-X; field width at SP-4)

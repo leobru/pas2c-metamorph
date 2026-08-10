@@ -29,11 +29,11 @@ C===========================================================
  9,XTS,                      . push; ACC := mem[M9] = P/STACK
  ,ITS,13                     . push; ACC := M13 (entry link)
  12,VTM,-6                   . M12 := -6 (count of saved index registers)
- *0005B:12,ITS,7             . loop: push ACC; ACC := M7
+ *0005B:12,ITS,7             . push ACC; ACC := M[M12+7] (M1 through M6)
  12,VLM,*0005B               . VLM: repeat for all six registers
  ,XTS,                       . push
  ,ITS,10                     . push; ACC := M10
- ,UTC,*0025B.=10 0000        . C := 0o100000
+ ,UTC,*0025B.=10 0000        . C := address of 0o100000 mask
  ,AOX,                       . ACC |= that bit (mark the frame)
  9,ATX,                      . P/STACK := ACC (record the stack base)
  ,NTR,3                      . R := 3 (suppress normalise/round)
@@ -50,7 +50,7 @@ C   registers into it.  `1,VTM,P/1D` is where M1 is established.
  1,MTJ,7                     . M7 := M1 (mirror the base into M7)
  13,UJ,                      . return via M13
  *0015B:9,VTM,P/STACK        . M9 := &P/STACK
- 9,WTC,                      . C := P/STACK
+ 9,WTC,                      . C := low 15 bits of mem[P/STACK]
  15,VTM,13B                  . M15 := 13B
  12,VTM,7                    . M12 := 7 (save 7 registers)
  15,XTA,                     . ACC := mem[SP]

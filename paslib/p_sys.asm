@@ -65,14 +65,14 @@ C   - a CRLF (P/WOLN -> P/WL).
 C If a post-mortem-dump entry was installed at PASPMDAD it is
 C called with M13 := STOP*; otherwise we jump straight to STOP*.
 C===========================================================
- ABORT:,UTC,*0751B.=60     . load constant 0o60 = ASCII '0'
+ ABORT:,UTC,*0751B.=60     . C := address of ASCII '0' constant
  ,XTA,
- ,UTC,PASZERO*              . re-seed PASZERO* (in case it moved)
+ ,UTC,PASZERO*              . C := address of PASZERO* destination
  ,ATX,
  10,MTJ,11                  . M11 := M10 (caller's error-msg ptr)
  11,UTM,2                   . skip ,ISO, header words
  13,VJM,P/PRINT             . print the error string
- ,UTC,*0756B.=I12           . load constant 12 = field width
+ ,UTC,*0756B.=I12           . C := address of field-width constant 12
  ,XTA,
  12,XTS,32B                 . push width=12; ACC := FILE[26]=name
  15,ATX,                    . push the ext name as P/WXD argument
@@ -162,7 +162,7 @@ C needed.  *0135B path handles capacity-decrement on subsequent
 C calls; the main body computes the buffer layout, packed-mode
 C bit-step constants and stashes M11/SP into FILE[3]/[4]/[5] and
 C runtime scratch slots [M1+3..5].
- ,NTR,3                     . normalize ACC tag
+ ,NTR,3                     . R := 3 (suppress normalization and rounding)
  1,ATX,3                    . [M1+3] := caller's FCST literal
  12,ATX,32B                 . FILE[26] := ext name (LLLLNNZZZZ designator)
  ,ITA,13                    . ACC := M13 (return addr)
@@ -172,7 +172,7 @@ C runtime scratch slots [M1+3..5].
  1,A-X,10B                  . ACC -= [M1+8] = 1U
  12,ATX,33B                 . FILE[27] := --capacity
  12,XTA,33B                 . re-read for sign test
- ,U1A,*0632B                . underflow -> P/IT trap
+ ,U1A,*0632B                . decremented capacity is non-zero -> P/IT
 C===========================================
  P/RE1:,ENTRY,
 C===========================================
@@ -211,7 +211,7 @@ C  (FILE[4]=0) and write-side (FILE[4]!=0) prep paths.
  12,XTA,11B                 . ACC := FILE[9]
  1,A-X,10B                  . ACC -= 1
  1,AOX,11B                  . re-tag as integer
- ,UTC,*0754B.=2             . WT := constant 2
+ ,UTC,*0754B.=2             . C := address of constant 2
  ,XTS,                      . push ACC, ACC := 2
  12,A-X,25B                 . ACC -= FILE[21]
  1,AOX,11B
@@ -335,7 +335,7 @@ C ---- *0147B: common tail used by both setup branches ----
  12,ATX,23B                 . FILE[19] := SP (current cursor)
  12,ATX,                    . FILE[0]  := SP
  12,XTA,27B                 . ACC := FILE[23]
- ,UTC,*0026B                . WT := *0026B (bit-1 mask)
+ ,UTC,*0026B                . C := address of bit-1 mask *0026B
  ,AAX,
  ,U1A,*0106B                . stdin/stdout -> minimal layout
  15,UTM,36B                 . else reserve 30 buffer words
@@ -405,7 +405,7 @@ C  read and forks into the disk-read helper (*0421B = PASINBUF).
  13,VTM,*0220B              . link return through *0220B
  ,UJ,*0421B                 . jump to PASINBUF
  *0215B:13,VJM,READLINE       . text-mode fetch + EOF check
- ,UTC,*0753B.=120           . WT := constant 0o120
+ ,UTC,*0753B.=120           . C := address of constant 0o120
  ,XTA,
  12,ATX,11B                 . FILE[9] := 0o120
  *0220B:,XTA,
@@ -481,7 +481,7 @@ C  "NO LOCFILE TRAKCS" if the local pool is exhausted.
  12,XTA,3                   . check FILE[3]
  ,UZA,CHKTRACK
  *0241B:12,XTA,6            . ACC := FILE[6] (lane mask)
- ,UTC,*0760B.=7 6000        . constant 0o76000
+ ,UTC,*0760B.=7 6000        . C := address of constant 0o76000
  ,AEX,                      . sentinel test
  GETTRACK:13,UZA,             . if no work, return via M13
  12,XTA,4
@@ -497,7 +497,7 @@ C  "NO LOCFILE TRAKCS" if the local pool is exhausted.
  1,ARX,10B                  . ACC += 1U  ([M1+8])
  12,ATX,5                   . FILE[5] += 1
  12,A-X,4                   . compare to FILE[4]
- 13,U1A,                    . overflow -> return
+ 13,U1A,                    . FILE[5]+1-FILE[4] < 0 -> return
  :10,VTM,*0254B.=6H NO EX
  ,UJ,ABORT
  *0254B:,ISO,18H NO EXTFILE TRAKCS
@@ -546,18 +546,18 @@ C===========================================
 C===========================================
 C P/GF - get next element of FILE @ M12 into f^ at [M1+8].
 C
-C Errors out "GET(F) EOF=TRUE" if FILE[2] (pending flag) is
-C clear; otherwise either advances the in-window bit cursor
-C (packed mode) or refills from disk via PASINBUF/READLINE.
+C FILE[2] non-zero selects the "GET(F) EOF=TRUE" error.
+C FILE[2] zero selects in-window cursor advance (packed mode) or
+C refill from disk via PASINBUF/READLINE.
  ,NTR,3
- 12,XTA,2                   . ACC := FILE[2] (pending flag)
- ,U1A,*0306B                . zero -> EOF abort
+ 12,XTA,2                   . ACC := FILE[2] (EOF marker)
+ ,U1A,*0306B                . non-zero -> EOF abort
  12,XTA,10B                 . ACC := FILE[8] (f^)
  12,AEX,11B                 . XOR with FILE[9]
  ,UZA,*0330B                . stdin path / EOLN handling
  12,XTA,10B
- 1,ARX,10B                  . ACC |= 1U (caller-bit mask)
- 12,ATX,10B                 . FILE[8] := f^ | 1U
+ 1,ARX,10B                  . ACC += 1U with end-around carry
+ 12,ATX,10B                 . FILE[8] := f^ + 1U (OR if bit 1 was clear)
  *0317B:12,XTA,22B          . ACC := FILE[18] (elem width)
  ,UZA,*0345B                . text mode -> *0345B
  12,XTA,                    . packed: ACC := FILE[0] (bit ptr)
@@ -569,13 +569,13 @@ C (packed mode) or refills from disk via PASINBUF/READLINE.
  1,ARX,10B
  12,ATX,23B                 . FILE[19] += 1
  12,AEX,15B                 . compare to FILE[13]
- ,U1A,*0351B                . overflow -> unpack via P/RACPAK
+ ,U1A,*0351B                . FILE[19] != FILE[13] -> unpack via P/RACPAK
  12,XTA,2
  ,UZA,*0421B                . if pending cleared -> PASINBUF
  *0326B:14,VJM,CLOSEWIN       . else flush via CLOSEWIN (P/TF helper)
  13,UJ,                     . return via M13
  *0330B:12,XTA,27B          . ACC := FILE[23] (I/O kind bits)
- ,UTC,*0026B                . WT  := bit-1 mask
+ ,UTC,*0026B                . C := address of bit-1 mask
  ,AAX,
  ,UZA,*0336B                . not stdin/out -> *0336B
  12,XTA,30B                 . ACC := FILE[24] (EOLN flag)
@@ -603,7 +603,7 @@ C (packed mode) or refills from disk via PASINBUF/READLINE.
  12,ARX,21B                 . ACC += FILE[17]
  12,ATX,                    . FILE[0] := ACC
  12,AEX,15B                 . compare with FILE[13]
- 13,U1A,                    . no overflow -> return
+ 13,U1A,                    . FILE[0] != FILE[13] -> return
  12,XTA,2
  ,UZA,*0421B
  ,UJ,*0326B
@@ -692,7 +692,7 @@ C  the *70 syscall path instead, not from here.)
  ,ATI,8                     . restore M8
  12,WTC,14B
  ,XTA,
- ,UTC,PASEOFCD              . compare to EOF sentinel
+ ,UTC,PASEOFCD              . C := address of EOF sentinel for following AEX
  ,AEX,
  ,U1A,*0417B
  *0415B:1,XTA,10B           . on EOF: reset f^
@@ -723,7 +723,7 @@ C  claim more tracks.
  *0425B:12,WTC,7
  ,XTA,1
  ,ATI,9
- 9,UTM,1777B                . M9 := 1023 (zone size - 1)
+ 9,UTM,1777B                . M9 += 01777 (zone size - 1)
  12,XTA,5
  12,ATX,17B                 . FILE[15] := FILE[5]
  12,XTA,6
@@ -760,7 +760,7 @@ C  claim more tracks.
  *0450B:15,XTA,1
  12,ATX,5
  ,ITA,13
- ,ITS,14                    . push M14, ACC := M13
+ ,ITS,14                    . push M13; ACC := M14
  1,XTS,10B
  13,VJM,GETTRACK              . request more tracks
  15,XTA,
@@ -777,7 +777,7 @@ C  the buffer using [M1+29B] (saved cursor) and [M1+30B]
 C  (working pointer) to walk the touched range.  Final pass
 C  at *0471B fires off the disk write through ZONEIO.
  FLUSHBUF:12,XTA,7            . ACC := FILE[7]
- 13,U1A,                    . FILE[7]=0 -> nothing to do
+ 13,U1A,                    . FILE[7]!=0 -> return via M13
  ,ITA,13                    . ACC := M13 (link)
  1,XTS,36B                  . push link, ACC := [M1+30B]
  ,U1A,*0501B                . non-zero -> resume mid-flush
@@ -917,7 +917,7 @@ C  Errors "PUT(F) EOF=FALSE" if FILE[2] is already clear.
  *0563B:12,WTC,7
  ,XTA,1
  ,ATI,9
- 9,UTM,1777B                . M9 := 1023
+ 9,UTM,1777B                . M9 += 01777
  12,XTA,23B
  ,ATI,13
  12,XTA,13B
@@ -940,7 +940,7 @@ C  page-eject case at *0600B/*0617B for the line-printer.
  FLUSHLIN:12,XTA,27B          . ACC := FILE[23]
  1,AAX,10B
  ,U1A,*0600B
- ,UTC,PASEOLSY              . ACC := LF char
+ ,UTC,PASEOLSY              . C := address of LF character
  ,XTA,
  12,WTC,                    . WT := FILE[0]
  ,ATX,                      . buffer[FILE[0]] := LF
@@ -1034,7 +1034,7 @@ C  flag so the first GET will trigger PASINBUF/*0421B.
  ,UZA,*0652B
  12,XTA,15B
  12,ATX,                    . FILE[0]  := FILE[13]
- *0652B:,UTC,*0760B.=7 6000 . WT := 0o76000 (lane mask)
+ *0652B:,UTC,*0760B.=7 6000 . C := address of 0o76000 lane mask
  ,XTA,
  12,ATX,6                   . FILE[6]  := lane mask
  1,XTA,10B
@@ -1065,7 +1065,7 @@ C  flag so the first GET will trigger PASINBUF/*0421B.
  *0671B:12,XTA,7
  ,UZA,*0632B
  12,XTA,6
- ,UTC,*0760B.=7 6000        . check FILE[6] vs lane mask
+ ,UTC,*0760B.=7 6000        . C := address of lane mask for following AEX
  ,AEX,
  ,UZA,*0632B
  13,VJM,ZONEIO
@@ -1132,7 +1132,7 @@ C  uses [M1+37B] as the next-instruction's address operand).
  ,XTA,
  12,ATX,11B                 . FILE[9]  := 0
  12,ATX,12B                 . FILE[10] := 0
- ,UTC,*0760B.=7 6000        . lane mask again
+ ,UTC,*0760B.=7 6000        . C := address of lane mask
  ,XTA,
  12,ATX,6                   . FILE[6]  := lane mask
  14,VJM,ADVANCE

@@ -49,10 +49,10 @@ C Caller: M13 = VJM link; M14 = thunk address.
 C Returns: tagged closure word in ACC via `13,UJ`.
 C===========================================================
  ,ITA,14                      . ACC := M14 (raw thunk address)
- ,ITS,7                       . push M7 (activation-chain head)
+ ,ITS,7                       . push raw thunk address; ACC := M7
  ,ASN,64-15                   . ACC <<= 15 (install Pascal descriptor
                               .   bits above the bare address)
- 15,AEX,                      . exchange with caller's stack slot
+ 15,AEX,                      . pop raw address and XOR it with (M7 << 15)
  13,UJ,                       . return tagged word in ACC
 C===========================================================
 C P/B7 - closure untagger for indirect calls (helper #65).
@@ -68,11 +68,11 @@ C the working tag so the indirect jump can proceed.
 C===========================================================
  P/B7:,ENTRY,
  ,ITA,13                      . ACC := M13
- ,ITS,7                       . push M7
- 10,XTS,                      . push M10
+ ,ITS,7                       . push M13; ACC := M7
+ 10,XTS,                      . push M7; ACC := mem[M10]
  ,ASN,64+15                   . ACC >>= 15 (strip descriptor bits)
  15,ATX,                      . push ACC
- 10,WTC,                      . restore working tag from saved M10
+ 10,WTC,                      . C := low 15 bits of mem[M10] (jump target)
  ,UJ,                         . return
 C===========================================================
 C P/B6 - thunk tail trampoline (helper #63).
@@ -121,7 +121,7 @@ C     FORMAL PROC CALL ERROR FOR PARAMETR CALL FROM <n>
 C on OUTPUT and HALTs through P/HT (*0047B).
 C===========================================================
  P/BP:,ENTRY,
- 12,VTM,1                     . M12 := M1 (constant table base)
+ 12,VTM,1                     . M12 := 1
  15,J+M,9                     . add to M9 frame offset
  9,MTJ,11                     . M11 := M9
  *0013B:10,XTA,                . ACC := closure[0] (descriptor tag)
@@ -145,9 +145,9 @@ C===========================================================
  ,ITS,11
  ,ITS,12
  ,ITS,13
- 9,UTC,2                      . WT += 2 (skip saved-link word)
- 10,VTM,                       . M10 := SP
- 10,XTS,                      . push closure pointer
+ 9,UTC,2                      . C := M9 + 2 (closure-pointer slot)
+ 10,VTM,                       . M10 := M9 + 2
+ 10,XTS,                      . push M13; ACC := closure pointer at mem[M10]
  13,VJM,P/RSR                 . walk static link; fix M7 (see p_rsr)
  10,WTC,
  ,XTA,4                       . inspect closure[4] (must be zero here)
@@ -163,9 +163,9 @@ C===========================================================
  15,XTA,10B                    . ACC := closure[2] (alternate entry)
  15,UTM,-64                   . drop the 64-word frame
  ,UJ,*0041B                   . return to synthesized thunk glue
- *0040B:9,WTC,2                . full-header path: WT += 2
+ *0040B:9,WTC,2                . C := low 15 bits of mem[M9+2]
  ,XTA,
- *0041B:11,ATX,2              . push closure[2] (code address)
+ *0041B:11,ATX,2              . mem[M11+2] := closure[2] code address
  11,UTM,1
  12,UTM,1
  10,UTM,1

@@ -17,8 +17,8 @@ C --- fast path: try to bump-allocate by advancing HEAPPTR ---
 ,ITS,14              . push old ACC (=HEAPPTR); ACC := M14 (size)
 1,ARX,27B            . ACC := size + HEAPPTR = proposed new top
 1,ATX,27B            . HEAPPTR := new top (provisional)
-1,ARX,30B            . ACC += HEAPLIM (= ~SP); sets overflow flag if past limit
-,U1A,*0004B          . overflow ⇒ slow path (rollback + free list / OOM)
+1,ARX,30B            . raw end-around sum with HEAPLIM (= ~SP); mode becomes multiplicative
+,U1A,*0004B          . ARX mode: branch when ACC bit 48 is clear
 15,XTA,              . else: ACC := top-of-stack = old HEAPPTR (saved by ITS)
 13,UJ,               . return ACC = address of allocated block
 
@@ -35,11 +35,11 @@ C --- slow path: bump failed, walk the free-list looking for a fit ---
 C --- *0010B: free-list scan loop. M11 = cursor, M12 = prev. ---
 *0010B:11,VZM,*0040B . if M11 == 0 (end of free-list) ⇒ *0040B (NO GLOBAL MEMORY)
 11,XTA,              . ACC := M[M11]  (header word: [reserved:18 | SIZE:15 | NEXT:15])
-,ASN,64+15           . shift right 15: SIZE field [bits 18..32] now at bits [33..47]
+,ASN,64+15           . shift right 15: SIZE bits 30..16 move to bits 15..1
 10,AAX,              . ACC &= mask0 (low-15)  ⇒  ACC = blockSize
 15,ATX,1             . save blockSize at SP+1
-1,A-X,3              . ACC := blockSize - requestedSize
-,U1A,*0027B          . if blockSize >= requestedSize (non-negative) ⇒ fits, jump
+1,A-X,3              . ACC := blockSize - requestedSize; mode becomes additive
+,U1A,*0027B          . branch when the difference is negative (block too small)
 11,MTJ,12            . prev := cursor  (M12 := M11)
 11,WTC,              . WTC: address modifier = M[M11]
 11,VTM,              . M11 := M[M11] & low-15 ⇒ next-pointer (advance cursor)
@@ -60,19 +60,20 @@ C --- *0020B: unlink the block at M11 from the free-list (mid-list case) ---
 15,AEX,              . ACC ^= top-of-stack  ⇒  prev_reserved+SIZE | cur_next
 12,ATX,              . M[M12] := ACC  (prev->next := cur->next; cur unlinked)
 ,ASN,64+15           . right-shift 15 (extract SIZE field of new header)
-,ATI,14              . M14 := scratch (re-set to M11 by caller)
+,ATI,14              . M14 := extracted SIZE (low 15 bits)
 12,XTA,              . ACC := M[M12] again
 14,UTC,-1            . UTC: next-instruction operand = M14 - 1
 12,ATX,              . M[M12 + (M14-1)] := ACC  (mirror header at block tail)
 9,UJ,                . return through M9
 
-C --- *0027B: split path. Block at M11 fits; either exact-fit or carve a tail ---
+C --- *0027B: reached by the negative comparison at *0010B; the following
+C code handles M11 as the exact-fit/split candidate. ---
 *0027B:,ITA,14       . ACC := M14 (requested size)
 15,AEX,1             . ACC ^= savedBlockSize at SP+1
 ,UZA,*0046B          . XOR == 0  ⇒  exact fit: take *0046B (unlink whole block)
 15,XTA,1             . else: ACC := blockSize (saved at SP+1)
 1,A-X,3              . ACC := blockSize - requestedSize  (= remaining size)
-,ASN,64-15           . left-shift 15: move remaining-size into bits [18..32]
+,ASN,64-15           . left-shift 15: move remaining-size into bits 30..16
 11,XTS,              . push ACC; ACC := M[M11] (current header)
 10,AAX,1             . ACC &= mask1 (non-SIZE)  ⇒  reserved + NEXT (no SIZE)
 15,AEX,              . ACC ^= top-of-stack  ⇒  reserved | newSize | NEXT
@@ -126,4 +127,3 @@ C===========================================
 1,ATX,31B            . FREELST := 0    (empty free-list)
 13,UJ,               . return
 ,END,
-

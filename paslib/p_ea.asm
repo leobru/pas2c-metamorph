@@ -34,7 +34,7 @@ C          address P/EA must hand to the FORTRAN convention.
 C
 C Success path: verify the closure is a plain FORTRAN-compatible
 C descriptor (no Pascal thunk metadata in the high bits), fetch
-C `closure[3]`, retag it as an integer address, return in ACC via
+C `closure[3]`, mask it to a plain 15-bit address, return in ACC via
 C `13,UJ`.
 C
 C Failure path: if the high descriptor bits are non-zero the
@@ -57,13 +57,13 @@ C ---- Main entry (FORTRAN formal proc-actual adapter) ----------
  ,U1A,*0004B                  . non-zero -> Pascal closure -> error
  14,XTA,3                     . ACC := closure[3] (entry address;
                               .   same offset genEntry uses for ROUTINEID)
- ,UTC,*0017B.=7 7777          . load integer-tag mask ([M1+16])
- ,AAX,                        . retag ACC as a plain integer address
- 13,UJ,                       . indirect return; tagged entry in ACC
+ ,UTC,*0017B.=7 7777          . C := address of the low-15-bit mask
+ ,AAX,                        . keep the plain 15-bit entry address
+ 13,UJ,                       . return via M13 with plain entry address in ACC
 C ---- Error: Pascal formal cannot satisfy FORTRAN actual ------
  *0004B:11,VTM,*0010B.=6H NOT P
                               . M11 := start of ISO error text
- 10,VTM,51B                   . M10 := 24 octal = char count for P/7A
+ 10,VTM,51B                   . M10 := 051B (=41) characters for P/7A
  12,VTM,*OUTPUT*              . M12 := OUTPUT file block
  13,VJM,P/7A                  . write the message fragment
  13,VJM,P/WL                  . terminate the OUTPUT line

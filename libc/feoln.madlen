@@ -3,7 +3,7 @@ C===========================================================
 C "End-of-Line" predicate, returns Pascal eoln(f).
 C
 C Caller convention:
-C   M12  = FILE record base (the f argument)
+C   ACC  = FILE record base (the f argument); ATI copies it to M12
 C   M13  = link from VJM
 C
 C Result:

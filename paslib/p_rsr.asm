@@ -27,20 +27,20 @@ C
 C The routine also contains a restore loop at *0010B that puts
 C back M1/M9 state saved on the stack while unwinding.
 C===========================================================
- 13,UZA,                       . skip initial save if M13 = 0
+ 13,UZA,                       . conditional return to M13 according to ACC/omega
  ,ATI,7                        . M7 := ACC (seed display register)
- ,ITS,1                        . push M1 (constant-table pointer)
- 15,AEX,                       . ACC <-> top of stack
+ ,ITS,1                        . push prior ACC; ACC := M1
+ 15,AEX,                       . pop saved ACC and XOR it with M1
  13,UZA,
  7,MTJ,9                       . M9 := M7 (start of link walk)
- 14,VTM,2                      . M14 := 2 (walk two nesting levels)
+ 14,VTM,2                      . M14 := 2 (a positive VLM counter)
 C ---- Walk up the static-link chain -------------------------
- *0004B:,ITA,1                 . M1 := ACC (preserve across step)
+ *0004B:,ITA,1                 . ACC := M1
  9,AEX,2                       . ACC ^= mem[M9+2] (test link word)
  ,UZA,*0007B                   . zero -> target frame found
  9,XTA,2                       . ACC := mem[M9+2] (parent static link)
  ,ATI,9                        . M9 := ACC (move to parent frame)
- 14,VLM,*0004B                 . M14 -= 1; repeat until M14 = 0
+ 14,VLM,*0004B                 . if M14 != 0: increment M14 and branch
  *0007B:7,MTJ,9                . M7 := M9 (install resolved display)
 C ---- Restore saved M1/M9 while popping stack slots ----------
  *0010B:,ITA,9

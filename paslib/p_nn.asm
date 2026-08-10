@@ -19,9 +19,9 @@ C===========================================================
  P/EN:,SUBP,                 . External: set M1 := P/1D constant base
  8,VTM,*0036B.=0             . M8 := &scratch block
  8,ATX,                      . [M8+0] := ACC (save the entry accumulator)
- ,UTC,P/STACK                . C := P/STACK
+ ,UTC,P/STACK                . C := address of P/STACK
  ,XTA,                       . ACC := P/STACK
- ,UTC,*0045B.=10 0000        . C := 0o100000
+ ,UTC,*0045B.=10 0000        . C := address of 0o100000 mask
  ,AAX,                       . ACC &= 0o100000 (the "initialised" bit)
  ,UZA,*0005B                 . bit clear -> first entry, *0005B
  8,XTA,                      . else ACC := [M8+0] (restore entry ACC)
@@ -46,7 +46,7 @@ C --- *0005B: first external entry: one-time runtime init ---
 C --- *0016B: copy the final argument, then enter the body ---
  *0016B:8,XTA,3              . ACC := [M8+3] (function flag)
  ,U1A,*0033B                 . function -> skip (result handled separately)
- ,WTC,P/STACK                . C := P/STACK
+ ,WTC,P/STACK                . C := low 15 bits of mem[P/STACK]
  10,VTM,                     . M10 := stack base
  10,WTC,                     . C := mem[M10] (source pointer)
  11,VTM,                     . M11 := source pointer
@@ -56,8 +56,8 @@ C --- *0016B: copy the final argument, then enter the body ---
  ,UJ,*0033B                  . done
 C --- *0023B: copy a multi-word argument onto the Pascal stack ---
  *0023B:8,WTC,3              . C := [M8+3] (this argument's word count)
- 15,UTM,3                    . SP += 3 (reserve frame slots)
- ,WTC,P/STACK                . C := P/STACK
+ 15,UTM,3                    . SP += wordCount + 3 (C contributes to UTM)
+ ,WTC,P/STACK                . C := low 15 bits of mem[P/STACK]
  10,VTM,                     . M10 := stack base
  10,WTC,                     . C := mem[M10] (source pointer)
  11,VTM,                     . M11 := source pointer

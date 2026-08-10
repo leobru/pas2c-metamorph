@@ -17,8 +17,9 @@ C        state word so that the eventual frame-return jumps to
 C        STOP* (the runtime's final exit).  This is NOT self-
 C        modifying code - mem[M7+1] is a *data* slot in the
 C        activation frame, never an instruction in program text.
-C    4.  Branches to P/E ("end - clean") or P/EF ("end - forced")
-C        depending on whether the patched word came out zero.
+C    4.  STX stores the patched word and pops the saved high part;
+C        UZA selects P/E for a zero saved cleanup/opcode part and
+C        P/EF ("end - forced") for a non-zero part.
 C
 C  Caller convention:  M13 = link from VJM,  M1 = constant base
 C  (P/RC uses the saved M1 to recognise the outermost frame),
@@ -40,15 +41,15 @@ C                              P/RC: it stops when M7 == saved M13)
  14,VJM,P/RC                 . unwind the activation chain
  7,XTA,1                     . ACC := mem[M7+1] = outer frame's
 C                              state/return-link word
- ,UTC,*0011B.=77 7770 0000   . WT  := high-bits mask
+ ,UTC,*0011B.=77 7770 0000   . C := address of high-bits mask
  ,AAX,                       . ACC &= mask (clear address field,
 C                              keep cleanup/opcode bits)
  14,VTM,STOP*                . M14 := STOP* (runtime exit addr)
  ,ITS,14                     . push STOP* onto the BESM-6 stack
  15,AOX,-1                   . ACC |= mem[SP-1] = STOP*
 C                              (install STOP* as the new addr part)
- 7,STX,1                     . mem[M7+1] := patched return-link
- ,UZA,P/E                    . if patched word came out zero -> P/E
+ 7,STX,1                     . store patched link; pop saved high part into ACC
+ ,UZA,P/E                    . saved cleanup/opcode part zero -> P/E
  ,UJ,P/EF                    . else hand off to P/EF
  *0011B:,LOG,77 7770 0000    . high-bits mask (clears addr field)
  ,END,

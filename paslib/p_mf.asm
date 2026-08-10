@@ -17,19 +17,19 @@ C===========================================================
  1,ATX,3                     . [M1+3] := ACC (save the Pascal accumulator)
  ,ITA,15                     . ACC := M15 (the Pascal SP)
  ,XTS,17B                    . push SP; ACC := slot 17B (saved SP)
- ,UTC,*0023B.=:7777 7777 777 . C := high-33-bits mask
+ ,UTC,*0023B.=:7777 7777 777 . C := address of high-33-bits mask
  ,AAX,                       . keep the high part of slot 17B
  15,AOX,                     . OR in the low part of the popped SP
  ,ATX,17B                    . slot 17B := merged FORTRAN stack pointer
  9,VTM,P/STACK               . M9 := &P/STACK
  1,XTA,1                     . ACC := [M1+1] (runtime link)
- 9,WTC,                      . C := P/STACK
+ 9,WTC,                      . C := low 15 bits of mem[P/STACK]
  ,ATX,13B                    . slot 13B := link (stash in the new frame)
- 9,WTC,                      . C := P/STACK
+ 9,WTC,                      . C := low 15 bits of mem[P/STACK]
  ,WTC,                       . C := mem[C] (chase the P/STACK link)
  15,VTM,                     . M15 := that frame (switch SP)
  9,XTA,                      . ACC := P/STACK
- ,UTC,*0022B.=7777 7777 7767 7777 . C := ~0o100000
+ ,UTC,*0022B.=7777 7777 7767 7777 . C := address of ~0o100000 mask
  ,AAX,                       . clear the "in-Pascal" flag
  9,ATX,                      . P/STACK := ACC
  1,XTA,3                     . ACC := [M1+3] (restore accumulator)
@@ -43,10 +43,10 @@ C P/FM - return side: restore the Pascal stack and re-enter Pascal.
  15,VTM,                     . M15 := that SP (restore the Pascal stack)
  9,VTM,P/STACK               . M9 := &P/STACK
  9,XTA,                      . ACC := P/STACK
- ,UTC,*0021B.=10 0000        . C := 0o100000
+ ,UTC,*0021B.=10 0000        . C := address of 0o100000 mask
  ,AOX,                       . set the "in-Pascal" flag
  9,ATX,                      . P/STACK := ACC
- ,WTC,P/STACK                . C := P/STACK
+ ,WTC,P/STACK                . C := low 15 bits of mem[P/STACK]
  ,XTA,13B                    . ACC := slot 13B (saved link)
  1,ATX,1                     . [M1+1] := link (restore runtime link)
  1,XTA,3                     . ACC := [M1+3] (restore accumulator)

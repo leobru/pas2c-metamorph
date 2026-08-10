@@ -53,14 +53,14 @@ C   [SP-2] = elements-per-buffer (bufLen / FILE[17] [* mul])
 C   [SP-1] = unused
 C   [SP+0] = scratch top, used by *0042B
 C===========================================================
- ,NTR,3                       . normalize-tag mode 3
+ ,NTR,3                       . R := 3 (suppress normalization and rounding)
  9,VTM,*0104B                 . M9 -> small literal table
                               .   *0104B = 2
                               .   *0105B = 0o1777
                               .   *0106B = 0o76001
  1,AAX,14B                    . untag N: ACC &= [M1+12]
                               .   (positive-mantissa mask)
- ,ITS,13                      . push M13 (caller link)
+ ,ITS,13                      . push N; ACC := M13 (caller link)
  ,XTS,                        . push ACC = N (untagged)
  15,UTM,6                     . SP += 6 -> reserve scratch
                               .   slots [SP-5..SP+0]
@@ -78,7 +78,7 @@ C  bit-offset := N * FILE[17]; multiplier for *0012B+5 = 1U.  .
  15,XTA,-8                    . ACC := caller's N (working)
  1,AOX,11B                    . tag as integer
  12,A*X,21B                   . ACC *= FILE[17] (bit step)
- ,YTA,30B                     . keep low 30 bits of product
+ ,YTA,30B                     . take Y mantissa; exponent adjustment is 030B-0100B
 C ---- Common tail: bounds check + buffer-zone resolution ----
 *0012B:15,ATX,-5              . [SP-5] := bit-offset of N
  12,XTA,15B                   . ACC := FILE[13] (buffer end)
@@ -93,7 +93,7 @@ C ---- Common tail: bounds check + buffer-zone resolution ----
  15,ATX,-2                    . [SP-2] := elements-per-buffer
  12,XTA,11B                   . ACC := FILE[9] (file element ct)
  15,A-X,-8                    . ACC -= caller N
- ,U1A,*0062B                  . N >= count -> "PASGENF GT" abort
+ ,U1A,*0062B                  . count-N < 0, i.e. N > count -> abort
 C ---- Decide which buffer-zone holds element N --------------
  15,XTA,-8                    . ACC := N
  15,XTS,-2                    . push, ACC := elemsPerBuf
@@ -106,7 +106,7 @@ C ---- Decide which buffer-zone holds element N --------------
  ,UZA,*0042B                  . same zone -> *0042B (just seek)
 C ---- Different zone: walk the track-list -------------------
  15,XTA,-5                    . ACC := bit-offset of N
- ,ASN,-1                      . shift right 1 -> word index
+ ,ASN,-1                      . low 7 bits are 0177: shift right 63
  ,ATI,14                      . M14 := count of links to walk
  12,ATX,5                     . FILE[5] := count
  12,XTA,4                     . ACC := FILE[4] (open mode)

@@ -26,9 +26,9 @@ C===========================================================
  P/TR:,SUBP,                 . External: digit / number sub-formatter
  P/A7:,SUBP,                 . External: number sub-formatter
  P/WI:,SUBP,                 . External: print an integer field
-C --- prologue: take |value|, save state, base M14 on the constants ---
+C --- prologue: apply AVX using mem[0], save state, base M14 on constants ---
  ,NTR,                       . R := 0
- ,AVX,                       . absolute value / capture the sign
+ ,AVX,                       . negate ACC iff mem[0] has sign bit 41 set
  ,NTR,3                      . R := 3 (suppress normalise/round)
  ,ITS,13                     . push value; ACC := M13 (save return link)
  ,XTS,                       . reserve a frame slot
