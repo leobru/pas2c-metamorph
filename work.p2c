@@ -648,30 +648,19 @@ int opPrec[SHLEFT..ALTERN] = {
 //
 int symTab[074000 .. 075500];
 /*=A3*/
-int systemProcNames[23] = {
-/*0*/   '        ',  // was PUT
-        '        ',  // was GET
-        '        ',  // was REWRITE
-        '        ',  // was RESET
-        '        ',  // was NEW
+// A name's index in this table is its procNo, which several helper numbers
+// are derived from: pck/unpck take helper procNo+13, pack/unpack helper
+// procNo+69, free/halt helper procNo+30.
+int systemProcNames[9] = {
+/*0*/   '     PCK',
+        '   UNPCK',
+        '    PACK',
+        '  UNPACK',
         '    FREE',
         '    HALT',
         '    BESM',  // was STOP
-        '        ',
-        '        ',
-/*10*/  '   WRITE',
-        ' WRITELN',
-        '        ',  // was CTOR
-        '        ',  // was READLN
-        '        ',  // was RETURN, now a keyword
-        '        ',
-        '        ',  // BESM moved to slot 7
-        '        ',  // was MAPIA, unused
-        '        ',  // was MAPAI, unused
-        '     PCK',
-/*20*/  '   UNPCK',
-        '    PACK',
-        '  UNPACK' };
+        '   WRITE',
+        ' WRITELN' };
 int resWordName[20] = {
         '   CONST',
         ' TYPEDEF',
@@ -2652,7 +2641,7 @@ void processInsn() {
             case mcMALLOC:
                 /* MALLOC(N): N is in ACC (placed there by prepLoad).
                    Move N to register 14 and invoke the heap-allocator
-                   helper P/PF + 4 (helper #33), which returns the newly
+                   helper #33, which returns the newly
                    allocated pointer in ACC.  Same calling convention as
                    the NEW system procedure. */
                 add2InsnsToBuf(KATI+14, getHelperProc(33));
@@ -6999,7 +6988,7 @@ void writeProc() {
                 callHelperWithArg();
         }
     } while (SY == COMMA);
-    if (procNo == 11) {
+    if (procNo == 8) {
         helperNo  =  46;                 /* P/WL */
         callHelperWithArg();
     }
@@ -7033,7 +7022,7 @@ tptr t;
        (l4typ1z.rep->base.p.pk != kindScalar))
         error(errNeedOtherTypesOfOperands);
     curExpr = malloc(sizeof(expr));
-    curExpr->typ.rep  =  typptr(procNo + 50);
+    curExpr->typ.rep  =  typptr(procNo + 69);
     curExpr->expr1  =  l4exp7z;
     curExpr->expr2  =  l4exp6z;
     formOperator(PCKUNPCK);
@@ -7045,19 +7034,19 @@ tptr t;
     l4bool10z  =  (SY == LPAREN);
     oldOffset  =  moduleOffset;
     if (! l4bool10z &&
-       (procNo IN [4,5,7,10,15:28]))
+       (procNo IN [0:4,6,7]))
         error(45); /* errNoOpenParenForStandProc */
-    if (procNo IN [5,15]) {
+    if (procNo == 4) {
         expression();
         if (! (curExpr->op IN lvalOpSet))
             error(27); /* errExpressionWhereVariableExpected */
         arg1Type  =  curExpr->typ;
         curVarKind  =  arg1Type.p.pk;
     }
-    if (procNo IN [5,6])
-        jumpTarget  =  getHelperProc(29 + procNo); /* P/PF */
+    if (procNo IN [4,5])
+        jumpTarget  =  getHelperProc(30 + procNo);
     switch (procNo) {
-    case 5: /* free */
+    case 4: /* free */
         if (curVarKind != kindPtr)
             error(13); /* errVarIsNotPointer */
         ++heapCallsCnt;
@@ -7081,13 +7070,13 @@ tptr t;
         }
         formAndAlign(jumpTarget);
         break;
-    case 6: /* halt */
+    case 5: /* halt */
         formAndAlign(jumpTarget);
         return;
-    case 10: /* write */
+    case 7: /* write */
         writeProc();
         break;
-    case 11: /* writeln */
+    case 8: /* writeln */
         if (SY == LPAREN) {
             writeProc();
             break;
@@ -7095,25 +7084,25 @@ tptr t;
             formAndAlign(getHelperProc(54)); /*"P/WOLN"*/
             return;
         }
-    case 7: /* besm */
+    case 6: /* besm */
         expression();
         takeConstFromExpr();
         formAndAlign(curVal.i);
         break;
-    case 19: case 20: /* pck, unpck */
+    case 0: case 1: /* pck, unpck */
         inSymbol();
         verifyType(charType);
         checkSymAndRead(COMMA);
         formOperator(SETREG12);
         verifyType(alfaType);
-        if (procNo == 20) {
+        if (procNo == 1) {
             formOperator(LOAD);
         }
-        formAndAlign(getHelperProc(procNo - 6));
-        if (procNo == 19)
+        formAndAlign(getHelperProc(procNo + 13));
+        if (procNo == 0)
             formOperator(STORE);
         break;
-    case 21: /* pack */
+    case 2: /* pack */
         inSymbol();
         checkArrayArg();
         checkSymAndRead(COMMA);
@@ -7121,7 +7110,7 @@ tptr t;
         l4exp6z  =  curExpr;
         doPackUnpack();
         break;
-    case 22: /* unpack */
+    case 3: /* unpack */
         inSymbol();
         verifyType(voidType);
         l4exp6z  =  curExpr;
@@ -7129,7 +7118,7 @@ tptr t;
         checkArrayArg();
         doPackUnpack();
     }
-    if (procNo in [5,10,11,13,21,22])
+    if (procNo in [2:4,7,8])
         arithMode  =  1;
     checkSymAndRead(RPAREN);
 } /* standProc */
@@ -7630,7 +7619,7 @@ void regSysProc(int l4arg1z) {
     }
     temptype.rep = NULL;
     sysProcNum  =  0;
-    for (l3var5z = 0; l3var5z <= 22; ++l3var5z) {
+    for (l3var5z = 0; l3var5z <= 8; ++l3var5z) {
         if (systemProcNames[l3var5z] != 0)
             regSysProc(systemProcNames[l3var5z]);
         else

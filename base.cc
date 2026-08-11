@@ -958,7 +958,7 @@ int64_t helperMap[93];
 extern int64_t helperNames[93]; // array [1..92] of int64_t;
 
 int64_t symTab[SYMTAB_LIMIT + 1]; // array [74000B..75500B] of int64_t;
-extern int64_t systemProcNames[30];
+extern int64_t systemProcNames[9];
 extern int64_t resWordNameBase[20];
 int64_t longSymCnt;
 int64_t longSymTabBase[91];
@@ -3298,7 +3298,7 @@ L3556:
                 case mcMALLOC:
                 /* MALLOC(N): N is in ACC (placed there by prepLoad).
                    Move N to register 14 and invoke the heap-allocator
-                   helper P/PF + 4 (helper #33), which returns the newly
+                   helper #33, which returns the newly
                    allocated pointer in ACC.  Same calling convention as
                    the NEW system procedure. */
                     add2InsnsToBuf(KATI+14, getHelperProc(33));
@@ -7801,7 +7801,7 @@ struct standProc {
                 callHelperWithArg();
             }
         } while (SY == COMMA);
-        if (procNo == 11) {
+        if (procNo == 8) {
             helperNo = 46;                 /* P/WL */
             callHelperWithArg();
         }
@@ -7834,7 +7834,7 @@ struct standProc {
             l4typ1z.rep()->base.p.pk != kindScalar)
             error(errNeedOtherTypesOfOperands);
         curExpr = new Expr;
-        curExpr->vt.ii = procNo + 50;   /* curExpr@.vt.c := chr(procNo + 50) */
+        curExpr->vt.ii = procNo + 69;   /* the P/PK / P/KC helper number */
         curExpr->expr1 = l4exp7z;
         curExpr->expr2 = l4exp6z;
         (void) formOperator(PCKUNPCK);
@@ -7850,9 +7850,9 @@ struct standProc {
         l4bool10z = (SY == LPAREN);
         oldOffset = moduleOffset;
         if (not l4bool10z and
-            has((Bits(4,5) | Bits(7,10) | BitRange(15,28)), procNo))
+            has((BitRange(0,4) | Bits(6,7)), procNo))
             error(45); /* errNoOpenParenForStandProc */
-        if (has(Bits(5,15), procNo)) {
+        if (procNo == 4) {
             expression();
             if (not has(lvalOpSet, curExpr->op)) {
                 error(27); /* errExpressionWhereVariableExpected */
@@ -7860,10 +7860,10 @@ struct standProc {
             arg1Type = curExpr->vt.typ;
             curVarKind = (Kind)(arg1Type.p.pk);
         }
-        if (has(Bits(5,6), procNo))
-            jumpTarget = getHelperProc(29 + procNo); /* P/PF */
+        if (has(Bits(4,5), procNo))
+            jumpTarget = getHelperProc(30 + procNo);
         switch (procNo) {
-        case 5: { /* free */
+        case 4: { /* free */
             if (curVarKind != kindPtr)
                 error(13); /* errVarIsNotPointer */
             heapCallsCnt = heapCallsCnt + 1;
@@ -7887,14 +7887,14 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
             }
             formAndAlign(jumpTarget);
         } break;
-        case 6: { /* halt */
+        case 5: { /* halt */
             formAndAlign(jumpTarget);
             return;
         } break;
-        case 10: { /* write */
+        case 7: { /* write */
             writeProc();
         } break;
-        case 11: { /* writeln */
+        case 8: { /* writeln */
             if (SY == LPAREN) {
                 writeProc();
             } else {
@@ -7902,25 +7902,25 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
                 return;
             }
         } break;
-        case 7: { /* besm */
+        case 6: { /* besm */
             expression();
             takeConstFromExpr();
             formAndAlign(curVal.ii);
         } break;
-        case 19: case 20: { /* pck, unpck */
+        case 0: case 1: { /* pck, unpck */
             inSymbol();
             verifyType(CharType);
             checkSymAndRead(COMMA);
             (void) formOperator(SETREG12);
             verifyType(AlfaType);
-            if (procNo == 20) {
+            if (procNo == 1) {
                 (void) formOperator(LOAD);
             }
-            formAndAlign(getHelperProc(procNo - 6));
-            if (procNo == 19)
+            formAndAlign(getHelperProc(procNo + 13));
+            if (procNo == 0)
                 (void) formOperator(STORE);
         } break;
-        case 21: { /* pack */
+        case 2: { /* pack */
             inSymbol();
             checkArrayArg();
             checkSymAndRead(COMMA);
@@ -7928,7 +7928,7 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
             l4exp6z = curExpr;
             doPackUnpack();
         } break;
-        case 22: { /* unpack */
+        case 3: { /* unpack */
             inSymbol();
             verifyType(voidType);
             l4exp6z = curExpr;
@@ -7937,7 +7937,7 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
             doPackUnpack();
         } break;
         }
-        if (has((Bits(5,10,11,13) | Bits(21,22)), procNo))
+        if (has((BitRange(2,4) | Bits(7,8)), procNo))
             arithMode = 1;
         checkSymAndRead(RPAREN);
     }
@@ -8494,7 +8494,7 @@ initScalars::initScalars() :
 
     temptype.setRep(NULL);
     sysProcNum = 0;
-    for (l3var5z = 0; l3var5z <= 22; ++l3var5z) {
+    for (l3var5z = 0; l3var5z <= 8; ++l3var5z) {
         if (systemProcNames[l3var5z] != 0)
             regSysProc(systemProcNames[l3var5z]);
         else
@@ -8524,7 +8524,7 @@ initScalars::initScalars() :
     programObj = besm6_alloc_record<IdentRec>(
         offsetof(IdentRec, szRoutine));
     symTabPos = 074004;
-    programObj->pck.cl = ROUTINEID; // cl left as heap garbage in base.pas
+    programObj->pck.cl = ROUTINEID; 
     curVal.ii = 06041634357556054L; /* PASCOMPL */
     programObj->id = curVal.ii;
     programObj->pos() = 0;
@@ -9878,32 +9878,17 @@ int64_t helperNames[93] = { 0L,
         04317635054000000L      /*"C/SHL   "*/,
         04317635062000000L      /*"C/SHR   "*/};
 
-// Copied verbatim from base.pas 8796 (systemProcNames: array [0..22]).  The
-// registration loop (regSysProc) only reads indices 0..22; the trailing slots
-// zero-fill.  This is the P2C set (BESM/FREE...), NOT the upstream
-// pascompl set (READ/EXIT/DEBUG/NEW/DISPOSE...).  Index 14 (was RETURN) is now
-// blank: `return` is a reserved keyword (RETURNSY), not a standproc.
-int64_t systemProcNames[30] = {
-/*0*/   0L                      /*" was PUT"*/,
-        0L                      /*" was GET"*/,
-        0L                      /*" was REWRITE"*/,
-        0L                      /*" was RESET"*/,
-        0L                      /*" was NEW"*/,
+// A name's index in this table is its procNo, which several helper numbers
+// are derived from: pck/unpck take helper procNo+13, pack/unpack helper
+// procNo+69, free/halt helper procNo+30.  This is the P2C set
+// (BESM/FREE/PACK...).
+int64_t systemProcNames[9] = {
+/*0*/   0604353L                /*"     PCK"*/,
+        06556604353L            /*"   UNPCK"*/,
+        060414353L              /*"    PACK"*/,
+        0655660414353L          /*"  UNPACK"*/,
         044516360576345L        /*"    FREE"*/,
         050415464L              /*"    HALT"*/,
         042456355L              /*"    BESM, was STOP"*/,
-        0L                      /*" was SETUP"*/,
-        0L                      /*" was ROLLUP"*/,
-/*10*/  06762516445L            /*"   WRITE"*/,
-        067625164455456L        /*" WRITELN"*/,
-        0L                      /*" was CTOR"*/,
-        0L                      /*"  READLN"*/,
-        0L                      /*"was RETURN, now keyword"*/,
-        0L                      /*"was LONGJMP"*/,
-        0L                      /*"BESM moved to slot 7"*/,
-        0L                      /*"   MAPIA"*/,
-        0L                      /*"   MAPAI"*/,
-        0604353L                /*"     PCK"*/,
-/*20*/  06556604353L            /*"   UNPCK"*/,
-        060414353L              /*"    PACK"*/,
-        0655660414353L          /*"  UNPACK"*/};
+        06762516445L            /*"   WRITE"*/,
+        067625164455456L        /*" WRITELN"*/};
