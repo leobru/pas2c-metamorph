@@ -214,7 +214,7 @@ enum Operator {
 enum OpGen {
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
     SETREG9,  STOREAT9,  DOIT,  SETREG12,  DFLTWDTH,
-    FRACWIDTH, gen11, gen12, FILEACCESS, FILEINIT,
+    FRACWIDTH, SETREG11, PUSHSET11, FILEACCESS, FILEINIT,
     BRANCH, PCKUNPCK
 };
 
@@ -447,14 +447,13 @@ struct Alfa {
         c ^= (*this)[i];
         val = (val ^ (uint64_t(c) << (48-8*i))) & 0xFFFFFFFFFFFFL;
     }
-    // Mimics BESM-6 exactly, but is not transitive: the list of literals can have repetitions.
+    // Mimics the BESM-6 comparison exactly.  Its end-around carry ordering is
+    // not transitive, so a binary-search table can admit repeated literals.
     bool operator<(const Alfa & x) const {
         uint64_t tmp = val + (x.val ^ 0xFFFFFFFFFFFFL);
         tmp = (tmp + (tmp >> 48)) & 0xFFFFFFFFFFFFL;
         return tmp >> 47;
     }
-    // Better use
-    // bool operator<(const Alfa & x) const { return val < x; }
 
     std::string print() const;
 };
@@ -880,6 +879,7 @@ bool atEOL,
     fixMult,
     bool110z,
     allowCompat,
+    sortFcst,
     checkFortran;
 
 int verbose;
@@ -1611,6 +1611,13 @@ void toFCST()
     FcstCnt = FcstCnt + 1;
 }
 
+bool fcstLess(const Word &left, const Word &right)
+{
+    if (sortFcst)
+        return left.a.val < right.a.val;
+    return left.a < right.a;
+}
+
 int64_t addCurValToFCST()
 {
     int64_t ret;
@@ -1631,14 +1638,14 @@ int64_t addCurValToFCST()
             if (curVal.ii == constVals[mid].ii) {
               return constNums[mid];
             }
-            if (curVal.a < constVals[mid].a)
+            if (fcstLess(curVal, constVals[mid]))
                 high = mid - 1;
             else
                 low = mid + 1;
         } while (low <= high);
         ret = FcstCnt;
         if (FcstTotal != MAXLIT) {
-            if (curVal.a < constVals[mid].a)
+            if (fcstLess(curVal, constVals[mid]))
                 high = mid;
             else
                 high = mid + 1;
@@ -3714,19 +3721,6 @@ void spillAcc(Operator op)
         sizeCount = localSize;
 }
 
-int64_t insnCount()
-{
-    int64_t cnt;
-    OneInsnPtr cur;
-    cnt = 0;
-    cur = insnList->head;
-    while (cur != NULL) {
-        cur = cur->next;
-        cnt = cnt + 1;
-    }
-    return cnt;
-}
-
 /* Rotate a 48-bit set left/right by `amt` (negative = left). Matches
    base.pas `shift`; the exp-normalization of `amt` there is a host no-op. */
 int64_t shift(int64_t val, int64_t amt)
@@ -4967,7 +4961,7 @@ L10122:
                     l3int3z = 1;
                     goto L10122;
                 } else {
-                    addToInsnList(KAVX+MINUS1);
+                    addToInsnList(KAVX+ALLONES);
                     if (curOP == RNEGOP)
                         l3int3z = 3;
                     else
@@ -5113,7 +5107,12 @@ formOperator::formOperator(OpGen op)
         genOneOp();
         break;
     case SETREG: {
-        l3int3z = insnCount();
+        if (insnList->head == NULL)
+            l3int3z = 0;
+        else if (insnList->head == insnList->tail)
+            l3int3z = 1;
+        else
+            l3int3z = 2;
         helpExpr = new Expr;
         helpExpr->expr1 = withList;
         withList = helpExpr;
@@ -5192,9 +5191,9 @@ formOperator::formOperator(OpGen op)
         prependToInsnList(macro + mcPUSH);
         genOneOp();
     } break;
-    case gen11: case gen12: {
+    case SETREG11: case PUSHSET11: {
         setAddrTo(11);
-        if (op == gen12)
+        if (op == PUSHSET11)
             prependToInsnList(macro + mcPUSH);
         genOneOp();
         usedRegs = usedRegs | Bits(12);
@@ -5272,7 +5271,7 @@ formOperator::formOperator(OpGen op)
     case PCKUNPCK: {
         helpExpr = curExpr;
         curExpr = curExpr->expr1;
-        (void) formOperator(gen11);
+        (void) formOperator(SETREG11);
         genFullExpr(helpExpr->expr2);
         if (has(insnList->regsused, 11))
             error(44); /* errIncorrectUsageOfStandProcOrFunc */
@@ -7783,13 +7782,13 @@ struct standProc {
                 curExpr = l4exp7z;
                 if (noWidth) {
                     if (helperNo == 45)     /* P/7A */
-                        opToForm = gen11;
+                        opToForm = SETREG11;
                     else
                         opToForm = LOAD;
                 } else {
                     if (helperNo == 40 or       /* P/A7 */
                         helperNo == 81)     /* P/WA */
-                        opToForm = gen12;
+                        opToForm = PUSHSET11;
                     else
                         opToForm = FRACWIDTH;
                 }
@@ -9423,6 +9422,7 @@ void usage ()
     printf("                        -d8: Invoke Pascal Debugger\n");
     printf("    -e- -e+             Make procedures external (-e+) or local (-e-)\n");
     printf("    -f- -f+             Compile procedures as Pascal (-f-) or Fortran (-f+)\n");
+    printf("    -F                  Sort FCST literals by their unsigned 48-bit values\n");
     printf("    -Hooooo             Set first host heap address in octal (9 zones)\n");
     printf("    -i                  Enable automatic fopen/fclose for *INPUT*\n");
     printf("    -k0 -k1 ... -k23    Heap size in 1024-word chunks (default -k4)\n");
@@ -9477,6 +9477,7 @@ void initOptions(int argc, char **argv)
     enableStdInput = false;
     errors = false;
     allowCompat = false;
+    sortFcst = false;
     fileBufSize = 1;
     charEncoding = 2;
     longSymCnt = 0;
@@ -9487,7 +9488,7 @@ void initOptions(int argc, char **argv)
     progname = progname ? progname+1 : argv[0];
 
     for (;;) {
-        switch (getopt(argc, argv, "vVhiH:e:c:r:m:y:u:f:a:d:k:b:s:l:")) {
+        switch (getopt(argc, argv, "vVhiFH:e:c:r:m:y:u:f:a:d:k:b:s:l:")) {
         case EOF:
             break;
         case 'a':
@@ -9520,6 +9521,9 @@ void initOptions(int argc, char **argv)
             continue;
         case 'f':
             checkFortran = (optarg[0] == '+');
+            continue;
+        case 'F':
+            sortFcst = true;
             continue;
         case 'H': {
             const char *end = optarg;
@@ -9687,6 +9691,8 @@ int main(int argc, char **argv)
     charSymTabBase['^'] = EXPROP;
     charSymTabBase['('] = LPAREN;
     charSymTabBase[')'] = RPAREN;
+    charSymTabBase['{'] = BEGINSY;
+    charSymTabBase['}'] = ENDSY;
     charSymTabBase[';'] = SEMICOLON;
     charSymTabBase['['] = LBRACK;
     charSymTabBase[']'] = RBRACK;

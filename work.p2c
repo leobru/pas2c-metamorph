@@ -1,4 +1,4 @@
-/*=l1,s8,y+,k9,l1*/
+/*=l1,s8,y+,k8,l1*/
 //
 const
     boilerplate = ' PASCAL 2 C METAMORPHOSIS (2026)';
@@ -52,23 +52,23 @@ const
     mcPCKSTORE = 22;
 //
 // Some locations are only used by runtime, here for reference
-    ASCII0 =    04000007;
+//  ASCII0 =    04000007;
     E1 =        04000010;
     ZERO =      04000011;
-    MULTMASK =  04000012;
-    MAXREAL =   04000013;
-    MANTISSA =  04000014;
+//  MULTMASK =  04000012;
+//  MAXREAL =   04000013;
+//  MANTISSA =  04000014;
 //  PASFUZZ =   04000015;       // 1.0e-6 for fuzzy comparison of reals (*=R+*)
-    REAL1 =     04000016;
-    MINUS1 =    04000017;
-    E15TO1 =    04000020;
-    PLUS1 =     04000021;
-    BITS15 =    04000022;
+//  REAL1 =     04000016;
+//  MINUS1 =    04000017;
+//  E15TO1 =    04000020;
+//  PLUS1 =     04000021;
+//  BITS15 =    04000022;
     REAL05 =    04000023;
     ALLONES =   04000024;
     MSB =       04000025;
-    E40TO7 =    04000026;       // mask for P/IN
-    HEAPPTR =   04000027;
+//  E40TO7 =    04000026;       // mask for P/IN
+//  HEAPPTR =   04000027;
 //
     KATX =      0000000;
 //   KSTX =      0010000;
@@ -85,8 +85,8 @@ const
     KAOX =      0150000;
     KDIV =      0160000;
     KMUL =      0170000;
-    KAPX =      0200000;
-    KAUX =      0210000;
+//  KAPX =      0200000;
+//  KAUX =      0210000;
     KACX =      0220000;
     KANX =      0230000;
     KYTA =      0310000;
@@ -98,7 +98,7 @@ const
     KITS =      0430000;
     KMTJ =      0440000;
     KMADDJ =    0450000;
-    KE74 =      0740000;
+//    KE74 =      0740000;
     KUTC =      02200000;
     KWTC =      02300000;
     KVTM =      02400000;
@@ -163,7 +163,7 @@ typedef enum {
 //
 typedef enum {
         TYPEID,     ENUMID,     ROUTINEID,  VARID,
-        FORMALID,   FIELDID,    SYSID
+        FORMALID,   FIELDID
 } idclass;
 //
 typedef int setofsys; // set of symbol
@@ -185,7 +185,7 @@ typedef enum {
 typedef enum {
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
     SETREG9,  STOREAT9,  DOIT,  SETREG12,  DFLTWDTH,
-    FRACWIDTH, gen11, gen12, FILEACCESS, FILEINIT,
+    FRACWIDTH, SETREG11, PUSHSET11, FILEACCESS, FILEINIT,
     BRANCH, PCKUNPCK
 } opgen;
 //
@@ -4237,7 +4237,7 @@ int needsMater;
                 l3int3z = 1;
                 goto 10122;
              } else {
-                addToInsnList(KAVX+MINUS1);
+                addToInsnList(KAVX+ALLONES);
                 l3int3z  =  (curOP == RNEGOP) ? 3 : 1;
                 goto 10122;
             }
@@ -4448,9 +4448,9 @@ void fcloseFile(irptr fileSym) {
         prependToInsnList(macro + mcPUSH);
         genOneOp();
         break;
-    case gen11: case gen12:
+    case SETREG11: case PUSHSET11:
         setAddrTo(11);
-        if (l3arg1z == gen12)
+        if (l3arg1z == PUSHSET11)
             prependToInsnList(macro + mcPUSH);
         genOneOp();
         usedRegs |= [12];
@@ -4527,7 +4527,7 @@ void fcloseFile(irptr fileSym) {
     case PCKUNPCK:
         helpExpr  =  curExpr;
         curExpr  =  curExpr->expr1;
-        formOperator(gen11);
+        formOperator(SETREG11);
         genFullExpr(helpExpr->expr2);
         if ((E48 >> 11) & insnList->regsused)
             error(44); /* errIncorrectUsageOfStandProcOrFunc */
@@ -6364,17 +6364,17 @@ eptr loopExpr;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void withStatement() {
 eptr oldWith;
-int oldRegs, usedRegs;
+int oldRegs, locRegs;
 int oldSize;
     oldWith  =  withList;
     oldSize  =  localSize;
     oldRegs  =  freeRegs;
-    usedRegs  =  0U;
+    locRegs  =  0U;
     do {
             expression();
             if (curExpr->typ.p.pk == kindStruct) {
                 formOperator(SETREG);
-                usedRegs  =  (usedRegs | (E48 >> curVal.i)) & auxRegs;
+                locRegs  =  (locRegs | (E48 >> curVal.i)) & auxRegs;
             } else {
                 error(71); /* errWithOperatorNotOfARecord */
             }
@@ -6384,7 +6384,7 @@ int oldSize;
     withList  =  oldWith;
     localSize  =  oldSize;
     freeRegs  =  oldRegs;
-    usedRegs |= usedRegs;
+    usedRegs |= locRegs;
 } /* withStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6977,13 +6977,13 @@ void writeProc() {
                 curExpr  =  l4exp7z;
                 if (noWidth) {
                     if (helperNo == 45)      /* P/7A */
-                        opToForm  =  gen11;
+                        opToForm  =  SETREG11;
                     else
                         opToForm  =  LOAD;
                 } else {
                     if (helperNo == 40 ||       /* P/A7 */
                         helperNo == 81)      /* P/WA */
-                        opToForm  =  gen12;
+                        opToForm  =  PUSHSET11;
                     else
                         opToForm  =  FRACWIDTH;
                 }
