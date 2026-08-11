@@ -205,7 +205,7 @@ enum Operator {
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
     IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
-    RMWASSIGN,  op37,       GETENUM,    GETFIELD,   DEREF,
+    RMWASSIGN,  GETENUM,    GETFIELD,   DEREF,
     STKLVAL,    ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
     STANDPROC,  NOOP
@@ -214,7 +214,7 @@ enum Operator {
 enum OpGen {
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
     SETREG9,  STOREAT9,  DOIT,  SETREG12,  DFLTWDTH,
-    FRACWIDTH, SETREG11, PUSHSET11, FILEACCESS, FILEINIT,
+    FRACWIDTH, SETREG11, PUSHSET11,
     BRANCH, PCKUNPCK
 };
 
@@ -990,7 +990,7 @@ std::string Expr::p()
         "IDIVOP","IMODOP","PLUSOP","MINUSOP","OROP","NEOP","EQOP","LTOP",
         "GEOP","GTOP","LEOP","INOP","IMULOP","INTPLUS","INTMINUS","CONDOP",
         "ALTERN","INCROP","DECROP","ASSIGNOP","GETELT","GETVAR","RMWASSIGN",
-        "op37","GETENUM","GETFIELD","DEREF","STKLVAL","ALNUM","PCALL","FCALL",
+        "GETENUM","GETFIELD","DEREF","STKLVAL","ALNUM","PCALL","FCALL",
         "TOREAL","NOTOP","INEGOP","RNEGOP","BITNEGOP","STANDPROC","NOOP"
     };
     char buf[256];
@@ -3705,22 +3705,6 @@ void prepStore()
     }
 } /* prepStore */
 
-void spillAcc(Operator op)
-{
-    int64_t & localSize = programme::super.back()->localSize;
-    int64_t & sizeCount = programme::super.back()->sizeCount;
-
-    addInsnAndOffset(curFrameRegTemplate, localSize);
-    curExpr = new Expr;
-    curExpr->vt.typ = insnList->typ;
-    genOneOp();
-    curExpr->op = op;
-    curExpr->num1 = localSize;
-    localSize = localSize + 1;
-    if (sizeCount < localSize)
-        sizeCount = localSize;
-}
-
 /* Rotate a 48-bit set left/right by `amt` (negative = left). Matches
    base.pas `shift`; the exp-normalization of `amt` there is a host no-op. */
 int64_t shift(int64_t val, int64_t amt)
@@ -4518,6 +4502,22 @@ genEntry::genEntry()
         and (not l5bool9z or ((Bits(20, 21) & l5var12z.ii) != Bits()))) {
         addToInsnList(KVTM+040074001);
     }
+    /* A `with` base that lives in a frame slot outlives a call that clobbers
+       the register holding it: reload the register right here, so that every
+       path reaching the clobber also reaches the restore and the body can go
+       on addressing the record through the register.  WTC takes the saved
+       address from the slot into C, VTM then lands it in the register --
+       neither touches the accumulator, which may hold a function result. */
+    l5exp2z = withList;
+    while (l5exp2z != NULL) {
+        if (l5exp2z->vt.typ.p.psize != 0
+            and (Bits(l5exp2z->vt.typ.p.pad) & l5var12z.ii) != Bits()) {
+            addInsnAndOffset(curFrameRegTemplate + KWTC,
+                             l5exp2z->vt.typ.p.psize - 1);
+            addToInsnList(KVTM + indexreg[l5exp2z->vt.typ.p.pad]);
+        }
+        l5exp2z = l5exp2z->expr1;
+    }
     usedRegs = (usedRegs | l5var12z.ii) & BitRange(1,15);
     if (l5bool10z) {
         if (not checkFortran)
@@ -4537,7 +4537,7 @@ genEntry::genEntry()
     /* 7237 */
 } /* genEntry */
 
-void startInsnList(ilmode l5arg1z)
+void startInsnList()
 {
     ExprPtr & exprToGen = genFullExpr::super.back()->exprToGen;
     insnList = new InsnList;
@@ -4545,16 +4545,9 @@ void startInsnList(ilmode l5arg1z)
     insnList->head = NULL;
     insnList->typ = exprToGen->vt.typ;
     insnList->regsused = Bits();
-    insnList->ilm = l5arg1z;
-    if (l5arg1z == ilCONST) {
-        insnList->payload.ii = exprToGen->num1;
-        insnList->addrmd = exprToGen->num2;
-    } else {
-        insnList->st = stWORD;
-        insnList->addrmd = 18;
-        insnList->payload.ii = curFrameRegTemplate;
-        insnList->disp = exprToGen->num1;
-    }
+    insnList->ilm = ilCONST;
+    insnList->payload.ii = exprToGen->num1;
+    insnList->addrmd = exprToGen->num2;
 }
 
 void genCopy()
@@ -4918,11 +4911,8 @@ L10122:
             else if (curOP == DEREF) {
                 genFullExpr(exprToGen->expr1);
                 genDeref();
-            } else if (curOP == op37) {
-                startInsnList(ilLVAL);
-                genDeref();
             } else if (curOP == GETENUM)
-                startInsnList(ilCONST);
+                startInsnList();
         } else if (curOP == STKLVAL) {
             /* Synthetic lvalue produced by genRMWAssign: the real lvalue
                address has been pushed onto the BESM-6 stack twice; each
@@ -5033,8 +5023,11 @@ L10122:
             }
         } else { /* 10621 */
             if (curOP == NOOP) {
-                curVal = exprToGen->vt;
-                if (has(liveRegs, curVal.ii)) {
+                curVal.ii = exprToGen->vt.typ.p.pad;
+                /* A spilled base is reloaded into its register after every
+                   call that clobbers it, so it needs no liveness test. */
+                if (exprToGen->vt.typ.p.psize != 0
+                    or has(liveRegs, curVal.ii)) {
                     insnList = new InsnList;
                     insnList->typ = exprToGen->expr2->vt.typ;
                     insnList->tail = NULL;
@@ -5046,8 +5039,7 @@ L10122:
                     insnList->disp = 0;
                     insnList->st = stWORD;
                 } else {
-                    curVal.ii = 14;
-                    exprToGen->vt = curVal;
+                    exprToGen->vt.typ.p.pad = 14;
                     exprToGen = exprToGen->expr2;
                     goto L7567;
                 };
@@ -5090,6 +5082,9 @@ void formFileInit()
 
 formOperator::formOperator(OpGen op)
 { /* formOperator */
+    int64_t & localSize = programme::super.back()->localSize;
+    int64_t & sizeCount = programme::super.back()->sizeCount;
+
     super.push_back(this);
     rhsMode = true;
     if ((errors and (op != SETREG)) or curExpr == NULL)
@@ -5097,7 +5092,6 @@ formOperator::formOperator(OpGen op)
     if (op != FORMOP &&
         op != STOREAT9 &&
         op != DFLTWDTH &&
-        op != FILEINIT &&
         op!=PCKUNPCK)
         (void) genFullExpr(curExpr);
     switch (op) {
@@ -5117,6 +5111,13 @@ formOperator::formOperator(OpGen op)
         helpExpr->expr1 = withList;
         withList = helpExpr;
         helpExpr->op = NOOP;
+        /* The entry holds the index register carrying the record address
+           in vt.typ.p.pad, and -- when that address was too costly to
+           recompute and went to a frame slot -- the slot number plus one
+           in vt.typ.p.psize.  genEntry reloads the register from that slot
+           after every call that clobbers it, so a spilled entry's
+           register is valid throughout the body. */
+        helpExpr->vt.typ.p.psize = 0;
         switch (insnList->st) {
         case stWORD: {
             if (l3int3z == 0)  {
@@ -5131,7 +5132,12 @@ formOperator::formOperator(OpGen op)
                 if (l3int3z != 1) {
                     (void) setAddrTo(l3int2z);
                     addToInsnList(KITA + l3int2z);
-                    spillAcc(op37);
+                    addInsnAndOffset(curFrameRegTemplate, localSize);
+                    genOneOp();
+                    helpExpr->vt.typ.p.psize = localSize + 1;
+                    localSize = localSize + 1;
+                    if (sizeCount < localSize)
+                        sizeCount = localSize;
                 } else if (l3int2z != 14) {
                     (void) setAddrTo(l3int2z);
                     genOneOp();
@@ -5142,11 +5148,11 @@ formOperator::formOperator(OpGen op)
                 liveRegs = liveRegs | l3var11z.ii;
             }
             curVal.ii = l3int2z;
-            helpExpr->vt = curVal;
+            helpExpr->vt.typ.p.pad = l3int2z;
         } break;
         case stSLICE: {
             curVal.ii = 14;
-            helpExpr->vt = curVal;
+            helpExpr->vt.typ.p.pad = 14;
         } break;
         case stPACKED:
             error(errVarTooComplex);
@@ -5198,14 +5204,6 @@ formOperator::formOperator(OpGen op)
         genOneOp();
         usedRegs = usedRegs | Bits(12);
     } break;
-    case FILEACCESS: {
-        setAddrTo(12);
-        genOneOp();
-        formAndAlign(jumpTarget);
-    } break;
-    case FILEINIT:
-        formFileInit();
-        break;
     case LOAD: {
         prepLoad();
         genOneOp();
@@ -7852,9 +7850,9 @@ struct standProc {
         l4bool10z = (SY == LPAREN);
         oldOffset = moduleOffset;
         if (not l4bool10z and
-            has((BitRange(0,5) | Bits(7,10) | BitRange(15,28)), procNo))
+            has((Bits(4,5) | Bits(7,10) | BitRange(15,28)), procNo))
             error(45); /* errNoOpenParenForStandProc */
-        if (has((BitRange(0,3) | Bits(5,15)), procNo)) {
+        if (has(Bits(5,15), procNo)) {
             expression();
             if (not has(lvalOpSet, curExpr->op)) {
                 error(27); /* errExpressionWhereVariableExpected */
@@ -7862,23 +7860,9 @@ struct standProc {
             arg1Type = curExpr->vt.typ;
             curVarKind = (Kind)(arg1Type.p.pk);
         }
-        if (has((BitRange(0,3) | Bits(5,6)), procNo))
+        if (has(Bits(5,6), procNo))
             jumpTarget = getHelperProc(29 + procNo); /* P/PF */
         switch (procNo) {
-        case 0: case 1: case 2: case 3: { /* put, get, rewrite, reset */
-            if (typeSize(arg1Type) != 30)
-                error(47); /* errNoVarOfFileType */
-            if (procNo == 3 and SY == COMMA) {
-                (void) formOperator(SETREG12);
-                expression();
-                if (not typeCheck(IntegerType, curExpr->vt.typ))
-                    error(14); /* errExprIsNotInteger */
-                (void) formOperator(LOAD);
-                formAndAlign(getHelperProc(90)); /*"P/RE"*/
-            } else {
-                (void) formOperator(FILEACCESS);
-            }
-        } break;
         case 5: { /* free */
             if (curVarKind != kindPtr)
                 error(13); /* errVarIsNotPointer */
@@ -7953,7 +7937,7 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
             doPackUnpack();
         } break;
         }
-        if (has((Bits(0,1,2,3) | Bits(5,10,11,13) | Bits(21,22)), procNo))
+        if (has((Bits(5,10,11,13) | Bits(21,22)), procNo))
             arithMode = 1;
         checkSymAndRead(RPAREN);
     }
@@ -8249,7 +8233,7 @@ void defineRoutine(bool bodyBlock = false)
     bool48z = has(procName->flags(), 22);
     if (hasFiles != 0) {
         hasFiles = moduleOffset;
-        (void) formOperator(FILEINIT);
+        formFileInit();
     }
     lineStartOffset = moduleOffset;
     l3var1z.ii = moduleOffset;    /* l3var1z := ; (accumulator = moduleOffset) */
@@ -8856,9 +8840,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         }
         hasFiles = 0;
     }
-    // base.pas just sets hasFiles := 0 here; the file-init code is emitted once,
-    // by defineRoutine's formOperator(FILEINIT). The upstream extra call here
-    // duplicated the file-close block.
+    // The file-init code is emitted once, by defineRoutine's formFileInit call.
     outputObjFile();
     markTypeSym();
     // A leading type-spec starts either a plain variable declarator-list
@@ -9628,7 +9610,7 @@ int main(int argc, char **argv)
         | Bits(WHILESY, FORSY, WITHSY, GOTOSY)
         | Bits(BREAKSY, CONTSY, RETURNSY, SEMICOLON);
     statEndSys = Bits(SEMICOLON, ENDSY, ELSESY, WHILESY);
-    lvalOpSet = Bits(GETELT, GETVAR, op37, GETFIELD) | Bits(DEREF);
+    lvalOpSet = Bits(GETELT, GETVAR, GETFIELD) | Bits(DEREF);
 
     funcInsn[fnABS] = KAMX;
     funcInsn[fnTRUNC] = KADD+ZERO;
@@ -9902,10 +9884,10 @@ int64_t helperNames[93] = { 0L,
 // pascompl set (READ/EXIT/DEBUG/NEW/DISPOSE...).  Index 14 (was RETURN) is now
 // blank: `return` is a reserved keyword (RETURNSY), not a standproc.
 int64_t systemProcNames[30] = {
-/*0*/   0606564L                /*"     PUT"*/,
-        0474564L                /*"     GET"*/,
-        062456762516445L        /*" REWRITE"*/,
-        06245634564L            /*"   RESET"*/,
+/*0*/   0L                      /*" was PUT"*/,
+        0L                      /*" was GET"*/,
+        0L                      /*" was REWRITE"*/,
+        0L                      /*" was RESET"*/,
         0L                      /*" was NEW"*/,
         044516360576345L        /*"    FREE"*/,
         050415464L              /*"    HALT"*/,

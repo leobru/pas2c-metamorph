@@ -1,13 +1,13 @@
 Identifiers must be unique by the first 8 characters, case-insensitive.
 
-Do not use git
+Do not do "git commit"
 
 Grep only in files *.p2c and *.cc
 
 Do not look into any subdirectory except tests/
 
-base.pas is retired: work.p2c is the compiler source, base.cc is its
-host-native mirror. Change them together; do not modify base.pas.
+work.p2c is the compiler source, base.cc is its
+host-native mirror. Change them together.
 
 In work.p2c, use constants false and true for int variables with Boolean meaning.
 
@@ -19,7 +19,7 @@ The input language is case-insensitive.
 
 Do not increase time limits in shell scripts.
 
-Do not commit compiler changes until `make check` (self-host fixpoint) and
+Do not claim success on compiler changes until `make check` (self-host fixpoint) and
 ./runtests.sh -work pass.
 
 Before modifying work.p2c or base.cc, save the known good state for ease of

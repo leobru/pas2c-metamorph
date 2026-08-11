@@ -176,7 +176,7 @@ typedef enum {
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
     IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
-    RMWASSIGN,  op37,       GETENUM,    GETFIELD,   DEREF,
+    RMWASSIGN,  GETENUM,    GETFIELD,   DEREF,
     STKLVAL,    ALNUM,      PCALL,      FCALL,
     TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
     STANDPROC,  NOOP
@@ -185,7 +185,7 @@ typedef enum {
 typedef enum {
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
     SETREG9,  STOREAT9,  DOIT,  SETREG12,  DFLTWDTH,
-    FRACWIDTH, SETREG11, PUSHSET11, FILEACCESS, FILEINIT,
+    FRACWIDTH, SETREG11, PUSHSET11,
     BRANCH, PCKUNPCK
 } opgen;
 //
@@ -385,7 +385,7 @@ typedef struct {
 typedef enum {DECIMAL, OCTAL, FULLWORD, HEX} NumberFormat;
 typedef irptr hashArray[128];
 typedef int:15 tok;
-typedef struct { int *data; int rest[29]; } ifcb;
+typedef struct { int rest[30]; } ifcb;
 typedef void *anyptr;
 // The null pointer is not predefined: like any program, the compiler says
 // what it means.  anyptr is the compiler's own void-pointer type (getPtrType
@@ -402,7 +402,7 @@ setofsys statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
                   SWITCHSY, DOSY, WHILESY, FORSY, WITHSY, GOTOSY,
                   BREAKSY, CONTSY, RETURNSY, SEMICOLON],
     skipToSet,
-    lvalOpSet = [GETELT, GETVAR, op37, GETFIELD, DEREF];
+    lvalOpSet = [GETELT, GETVAR, GETFIELD, DEREF];
 int inCallArgs, bool48z, forValue;
 int jumpType;
 int jumpTarget;
@@ -649,10 +649,10 @@ int opPrec[SHLEFT..ALTERN] = {
 int symTab[074000 .. 075500];
 /*=A3*/
 int systemProcNames[23] = {
-/*0*/   '     PUT',
-        '     GET',
-        ' REWRITE',
-        '   RESET',
+/*0*/   '        ',  // was PUT
+        '        ',  // was GET
+        '        ',  // was REWRITE
+        '        ',  // was RESET
         '        ',  // was NEW
         '    FREE',
         '    HALT',
@@ -728,8 +728,11 @@ void rollup(int addr) assembler;
 typedef ifcb *pfcb;
 void fopen(pfcb fcb, int sizes, int name) assembler;
 void fclose(pfcb fcb) assembler;
+void ftruncate(pfcb fcb) assembler;
+void frewind(pfcb fcb) assembler;
 int feof(pfcb fcb) assembler;
 int fgetc(pfcb fcb) assembler;
+int fgetw(pfcb fcb) assembler;
 void fputw(int value, pfcb f) assembler;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2341,6 +2344,36 @@ operator op;
 } /* bldIncDec */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void formFileInit() {
+int fileAddr;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void fcloseFile(irptr fileSym) {
+    fileAddr  =  fileSym->value;
+    if (fileAddr < 074000) {
+        form1Insn(getValueOrAllocSymtab(fileAddr) + KUTC + I7);
+        fileAddr  =  0;
+    }
+    form1Insn(KVTM+I14 + fileAddr);
+    form1Insn(KITS+14);
+    formAndAlign(getHelperProc(61)); /*"FCLOSE   "*/
+}
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    if ((E48 >> S5) & optSflags) {
+        formAndAlign(KUJ+I13);
+        return;
+    }
+    form2Insn(KITS+13, KATX+SP);
+    if (inputFile != NULL)
+        fcloseFile(inputFile);
+    if (outputFile != NULL)
+        fcloseFile(outputFile);
+    form1Insn(getHelperProc(70)/*"P/IT"*/ + (KUJ-KVJM-I13));
+    padToLeft();
+} /* formFileInit */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void formOperator(opgen l3arg1z) { /* formOperator */
 int l3int1z, l3int2z, l3int3z;
 int nextInsn;
@@ -2954,19 +2987,6 @@ kind l4var7z;
         }
     }
 } /* prepStore */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void spillAcc(operator op) {
-    addInsnAndOffset(curFrameRegTemplate, localSize);
-    curExpr = malloc(sizeof(expr));
-    curExpr->typ  =  insnList->typ;
-    genOneOp();
-    curExpr->op  =  op;
-    curExpr->num1  =  localSize;
-    ++localSize;
-    if (sizeCount < localSize)
-        sizeCount  =  localSize;
-} /* spillAcc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int insnCount() {
@@ -3628,6 +3648,21 @@ void formThunk() {
         (! isDirect || [20, 21] & calleeFl)) {
         addToInsnList(KVTM+040074001);
     }
+    /* A `with` base that lives in a frame slot outlives a call that clobbers
+       the register holding it: reload the register right here, so that every
+       path reaching the clobber also reaches the restore and the body can go
+       on addressing the record through the register.  WTC takes the saved
+       address from the slot into C, VTM then lands it in the register --
+       neither touches the accumulator, which may hold a function result. */
+    l5exp2z  =  withList;
+    while (l5exp2z != NULL) {
+        if ((l5exp2z->typ.p.psize != 0) &&
+            ((E48 >> l5exp2z->typ.p.pad) & calleeFl) != 0U) {
+            addInsnAndOffset(curFrameRegTemplate + KWTC, l5exp2z->typ.p.psize - 1);
+            addToInsnList(KVTM + indexreg[l5exp2z->typ.p.pad]);
+        }
+        l5exp2z  =  l5exp2z->expr1;
+    }
     usedRegs  =  (usedRegs | calleeFl) & [1:15];
     if (isFortrn) {
         addToInsnList(checkFortran ? getHelperProc(86) /* "P/FM" */
@@ -3643,22 +3678,15 @@ void formThunk() {
 } /* genEntry */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void startInsnList(ilmode l5arg1z) {
+void startInsnList() {
     insnList = malloc(sizeof(insnltyp));
     insnList->tail  =  NULL;
     insnList->head  =  NULL;
     insnList->typ  =  exprToGen->typ;
     insnList->regsused  =  0U;
-    insnList->ilm  =  l5arg1z;
-    if (l5arg1z == ilCONST) {
-        insnList->payload  =  exprToGen->num1;
-        insnList->addrmd  =  exprToGen->num2;
-    } else {
-        insnList->st  =  stWORD;
-        insnList->addrmd  =  18;
-        insnList->payload  =  curFrameRegTemplate;
-        insnList->disp  =  exprToGen->num1;
-    }
+    insnList->ilm  =  ilCONST;
+    insnList->payload  =  exprToGen->num1;
+    insnList->addrmd  =  exprToGen->num2;
 } /* startInsnList */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4185,11 +4213,8 @@ int needsMater;
         else if (curOP == DEREF) {
             genFullExpr(exprToGen->expr1);
             genDeref();
-        } else if (curOP == op37) {
-            startInsnList(ilLVAL);
-            genDeref();
         } else if (curOP == GETENUM)
-            startInsnList(ilCONST);
+            startInsnList();
     } else if (curOP == STKLVAL) {
         /* Synthetic lvalue produced by genRMWAssign.  The address
            of the real lvalue has been pushed onto the BESM-6 stack
@@ -4299,8 +4324,10 @@ int needsMater;
             goto 10122;
         }
     } else if (curOP == NOOP) {
-        curVal.tp  =  exprToGen->typ;
-        if (curVal.i IN liveRegs) {
+        curVal.i  =  exprToGen->typ.p.pad;
+        /* A spilled base is reloaded into its register after every call that
+           clobbers it, so it needs no liveness test. */
+        if ((exprToGen->typ.p.psize != 0) || (curVal.i IN liveRegs)) {
             insnList = malloc(sizeof(insnltyp));
             with *insnList do {
                 typ  =  exprToGen->expr2->typ;
@@ -4313,8 +4340,7 @@ int needsMater;
                 st  =  stWORD;
             }
         } else {
-            curVal.i  =  14;
-            exprToGen->typ  =  curVal.tp;
+            exprToGen->typ.p.pad  =  14;
             exprToGen  =  exprToGen->expr2;
             goto 7567;
         }
@@ -4326,40 +4352,10 @@ int needsMater;
 } /* genFullExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formFileInit() {
-int fileAddr;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void fcloseFile(irptr fileSym) {
-    fileAddr  =  fileSym->value;
-    if (fileAddr < 074000) {
-        form1Insn(getValueOrAllocSymtab(fileAddr) + KUTC + I7);
-        fileAddr  =  0;
-    }
-    form1Insn(KVTM+I14 + fileAddr);
-    form1Insn(KITS+14);
-    formAndAlign(getHelperProc(61)); /*"FCLOSE   "*/
-}
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    if ((E48 >> S5) & optSflags) {
-        formAndAlign(KUJ+I13);
-        return;
-    }
-    form2Insn(KITS+13, KATX+SP);
-    if (inputFile != NULL)
-        fcloseFile(inputFile);
-    if (outputFile != NULL)
-        fcloseFile(outputFile);
-    form1Insn(getHelperProc(70)/*"P/IT"*/ + (KUJ-KVJM-I13));
-    padToLeft();
-} /* formFileInit */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     rhsMode  =  true;
     if (errors && l3arg1z != SETREG || curExpr == NULL)
         return;
-    if (! (l3arg1z IN [FORMOP, STOREAT9, DFLTWDTH, FILEINIT, PCKUNPCK]))
+    if (! (l3arg1z IN [FORMOP, STOREAT9, DFLTWDTH, PCKUNPCK]))
         genFullExpr(curExpr);
     switch (l3arg1z) {
     case DOIT:
@@ -4372,6 +4368,13 @@ void fcloseFile(irptr fileSym) {
             helpExpr->expr1  =  withList;
             withList  =  helpExpr;
             helpExpr->op  =  NOOP;
+            /* The entry holds the index register carrying the record address
+               in typ.p.pad, and -- when that address was too costly to
+               recompute and went to a frame slot -- the slot number plus one
+               in typ.p.psize.  genEntry reloads the register from that slot
+               after every call that clobbers it, so a spilled entry's
+               register is valid throughout the body. */
+            helpExpr->typ.p.psize  =  0;
             switch (st) {
             case stWORD:
                 if (l3int3z == 0) {
@@ -4386,7 +4389,12 @@ void fcloseFile(irptr fileSym) {
                     if (l3int3z != 1) {
                         setAddrTo(l3int2z);
                         addToInsnList(KITA + l3int2z);
-                        spillAcc(op37);
+                        addInsnAndOffset(curFrameRegTemplate, localSize);
+                        genOneOp();
+                        helpExpr->typ.p.psize  =  localSize + 1;
+                        ++localSize;
+                        if (sizeCount < localSize)
+                            sizeCount  =  localSize;
                     } else if (l3int2z != 14) {
                         setAddrTo(l3int2z);
                         genOneOp();
@@ -4397,11 +4405,11 @@ void fcloseFile(irptr fileSym) {
                     liveRegs |= l3var11z;
                 }
                 curVal.i  =  l3int2z;
-                helpExpr->typ  =  curVal.tp;
+                helpExpr->typ.p.pad  =  l3int2z;
                 break;
             case stSLICE:
                 curVal.i  =  14;
-                helpExpr->typ  =  curVal.tp;
+                helpExpr->typ.p.pad  =  14;
                 break;
             case stPACKED:
                 error(errVarTooComplex);
@@ -4454,14 +4462,6 @@ void fcloseFile(irptr fileSym) {
             prependToInsnList(macro + mcPUSH);
         genOneOp();
         usedRegs |= [12];
-        break;
-    case FILEACCESS:
-        setAddrTo(12);
-        genOneOp();
-        formAndAlign(jumpTarget);
-        break;
-    case FILEINIT:
-        formFileInit();
         break;
     case LOAD:
         prepLoad();
@@ -6364,17 +6364,17 @@ eptr loopExpr;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void withStatement() {
 eptr oldWith;
-int oldRegs, locRegs;
+int oldRegs, withRegs;
 int oldSize;
     oldWith  =  withList;
     oldSize  =  localSize;
     oldRegs  =  freeRegs;
-    locRegs  =  0U;
+    withRegs  =  0U;
     do {
             expression();
             if (curExpr->typ.p.pk == kindStruct) {
                 formOperator(SETREG);
-                locRegs  =  (locRegs | (E48 >> curVal.i)) & auxRegs;
+                withRegs  =  (withRegs | (E48 >> curVal.i)) & auxRegs;
             } else {
                 error(71); /* errWithOperatorNotOfARecord */
             }
@@ -6384,7 +6384,9 @@ int oldSize;
     withList  =  oldWith;
     localSize  =  oldSize;
     freeRegs  =  oldRegs;
-    usedRegs |= locRegs;
+    // The index registers this `with` claimed are clobbered as far as our
+    // callers are concerned: they must reach the routine's flags mask.
+    usedRegs |= withRegs;
 } /* withStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6725,7 +6727,7 @@ int rec;
 } /* putDataRec */
 //
     fopen(&F, 010000100000, 0);
-    reset(INITBUF);
+    frewind(&INITBUF);
     dsize  =  FcstCnt;
     setcount  =  0;
     length  =  0;
@@ -6734,16 +6736,16 @@ int rec;
     base  =  0;
     curEnd  =  feof(&INITBUF);
     if (! curEnd) {
-        ck  =  *INITBUF.data;  get(INITBUF);
-        ca  =  *INITBUF.data;  get(INITBUF);
-        cb  =  *INITBUF.data;  get(INITBUF);
+        ck  =  fgetw(&INITBUF);
+        ca  =  fgetw(&INITBUF);
+        cb  =  fgetw(&INITBUF);
     }
     while (! curEnd) {
         nextEnd  =  feof(&INITBUF);
         if (! nextEnd) {
-            nk  =  *INITBUF.data;  get(INITBUF);
-            na  =  *INITBUF.data;  get(INITBUF);
-            nb  =  *INITBUF.data;  get(INITBUF);
+            nk  =  fgetw(&INITBUF);
+            na  =  fgetw(&INITBUF);
+            nb  =  fgetw(&INITBUF);
         }
         if (ck == 0) {
             base  =  ca;
@@ -6776,10 +6778,9 @@ int rec;
         ck  =  nk;  ca  =  na;  cb  =  nb;
         curEnd  =  nextEnd;
     }
-    reset(F);
+    frewind(&F);
     while (! feof(&F)) {
-        fputw(*F.data, &FCST);
-        get(F);
+        fputw(fgetw(&F), &FCST);
     }
     lookup2  =  FcstCnt - dsize;
     FcstCnt  =  dsize;
@@ -7044,32 +7045,18 @@ tptr t;
     l4bool10z  =  (SY == LPAREN);
     oldOffset  =  moduleOffset;
     if (! l4bool10z &&
-       (procNo IN [0:5,7,10,15:28]))
+       (procNo IN [4,5,7,10,15:28]))
         error(45); /* errNoOpenParenForStandProc */
-    if (procNo IN [0,1,2,3,5,15]) {
+    if (procNo IN [5,15]) {
         expression();
         if (! (curExpr->op IN lvalOpSet))
             error(27); /* errExpressionWhereVariableExpected */
         arg1Type  =  curExpr->typ;
         curVarKind  =  arg1Type.p.pk;
     }
-    if (procNo IN [0:3,5,6])
+    if (procNo IN [5,6])
         jumpTarget  =  getHelperProc(29 + procNo); /* P/PF */
     switch (procNo) {
-    case 0: case 1: case 2: case 3: /* put, get, rewrite, reset */
-        if (typeSize(arg1Type) != 30)
-            error(47); /* errNoVarOfFileType */
-        if (procNo == 3 && SY == COMMA) { // reset with file location
-            formOperator(SETREG12);
-            expression();
-            if (! typeCheck(intType, curExpr->typ))
-                error(14); /* errExprIsNotInt */
-            formOperator(LOAD);
-            formAndAlign(getHelperProc(90)); /*"P/RE"*/
-        } else {
-            formOperator(FILEACCESS);
-        }
-        break;
     case 5: /* free */
         if (curVarKind != kindPtr)
             error(13); /* errVarIsNotPointer */
@@ -7141,10 +7128,8 @@ tptr t;
         checkSymAndRead(COMMA);
         checkArrayArg();
         doPackUnpack();
-    case 4: case 8: case 9: case 12: case 13: case 14: case 15: case 16: case 17: case 18:
-        // unused, listed for completeness
     }
-    if (procNo in [0,1,2,3,5,10,11,13,21,22])
+    if (procNo in [5,10,11,13,21,22])
         arithMode  =  1;
     checkSymAndRead(RPAREN);
 } /* standProc */
@@ -7395,7 +7380,7 @@ int l3var7z;
     bool48z  =  ((E48 >> 22) & procName->flags) >> 25;
     if (hasFiles != 0) {
         hasFiles  =  moduleOffset;
-        formOperator(FILEINIT);
+        formFileInit();
     }
     l3var1z  =
     lineStartOffset  =  moduleOffset;
@@ -8398,7 +8383,7 @@ void regKeywords() { /*=A3 regKeywords */
     skipToSet  =  blockBegSys | statBegSys & (~[SWITCHSY]);
     unpack(*pasinfor.a3, iso2text, '\052'); /* '*' */
     iso2text['_'] = iso2text['*'];
-    rewrite(_CHILD_);
+    ftruncate(&_CHILD_);
     for (jdx = 1; jdx <= 10; ++jdx)
         fputw(0, &_CHILD_);
     regKeywords();
@@ -8428,10 +8413,9 @@ int sizes[10];
     sizes[9]  =  lookupMode;
     curVal.i  =  moduleOffset - 040000;
     symTab[074001]  =  [24,29] | curVal.i;
-    reset(FCST);
+    frewind(&FCST);
     while (! feof(&FCST)) {
-        fputw(*FCST.data, &_CHILD_);
-        get(FCST);
+        fputw(fgetw(&FCST), &_CHILD_);
     }
     curVal.i  =  (symTabPos - 070000) << 24;
     for (cnt = 1; cnt <= longSymCnt; ++cnt) {

@@ -1,0 +1,12 @@
+ FREWIND:,NAME,
+C===========================================================
+C frewind(f) - rewind file for reading
+C
+C   Calling convention (single arg, in ACC):
+C     ACC = fcb     (pointer to the file's FCB)
+C
+C===========================================================
+ P/RF:          ,SUBP,
+                ,ATI ,12     . M12 := f
+                ,UJ  ,P/RF   . tail call to reset(f)
+                ,END ,
