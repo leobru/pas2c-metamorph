@@ -91,9 +91,9 @@ const int64_t
     mcPCKSTORE = 22;
 
 const int64_t
-    P_RR = 56,
-    P_TR = 58,
-    P_LDAR = 74;
+    P_RR = 32,
+    P_TR = 33,
+    P_LDAR = 46;
 
 const int64_t
     ASN64 = 0360100,
@@ -954,8 +954,8 @@ KeyWord * KeyWordHashTabBase[128]; // array [0..127] of @KeyWord;
 Symbol charSymTabBase[256]; // array ['_000'..'_177'] of Symbol;
 IdentRecPtr symHash[128]; // array [0..127] of IdentRecPtr;
 IdentRecPtr fieldHash[128]; //array [0..127] of IdentRecPtr;
-int64_t helperMap[93];
-extern int64_t helperNames[93]; // array [1..92] of int64_t;
+int64_t helperMap[58];
+extern int64_t helperNames[58]; // array [1..57] of int64_t;
 
 int64_t symTab[SYMTAB_LIMIT + 1]; // array [74000B..75500B] of int64_t;
 extern int64_t systemProcNames[9];
@@ -3256,7 +3256,7 @@ L3556:
                     add2InsnsToBuf(KATI+14, KUTC+I14);
                     break;
                 case mcMULTI: {
-                    addInsnToBuf(getHelperProc(12));        /* P/MI */
+                    addInsnToBuf(getHelperProc(8));        /* P/MI */
                 } break;
                 case mcADDSTK2REG:
                     add2InsnsToBuf(KWTC+SP, KUTM+indexreg[curInsn.ii]);
@@ -3282,7 +3282,7 @@ L3556:
                     add2InsnsToBuf(KATX+SP+1, KUTM+SP + curInsn.ii);
                 } break;
                 case 18:
-                    add2InsnsToBuf(KVTM+I10, getHelperProc(65)); /* P/B7 */
+                    add2InsnsToBuf(KVTM+I10, getHelperProc(40)); /* P/B7 */
                     break;
                 case mcPOP2ADDR: {
                     addInsnToBuf(KVTM+I14);
@@ -3301,7 +3301,7 @@ L3556:
                    helper #33, which returns the newly
                    allocated pointer in ACC.  Same calling convention as
                    the NEW system procedure. */
-                    add2InsnsToBuf(KATI+14, getHelperProc(33));
+                    add2InsnsToBuf(KATI+14, getHelperProc(17));
                     break;
                 }; /* case */
             } else { /* 4003 */
@@ -3699,7 +3699,7 @@ void prepStore()
                 prependToInsnList(InsnTemp[YTA]);
                 prependToInsnList(ASN64 - l4int1z);
             }
-            addToInsnList(getHelperProc(77)); /* "P/STAR" */
+            addToInsnList(getHelperProc(48)); /* "P/STAR" */
             insnList->tail->mode = 1;
         }
     }
@@ -4252,7 +4252,7 @@ void genGetElt()
                         curVal.ii = 7;
                     curVal.ii = shl48(curVal.ii, 24);
                     addToInsnList(allocSymtab(  /* P/00C */
-                        helperNames[76] | curVal.ii)+(KVTM+I11));
+                        helperNames[47] | curVal.ii)+(KVTM+I11));
                     insnCopy.addrmd = 16;
                     insnCopy.shift = 0;
                     saved->tail->next = insnCopy.head;
@@ -4330,7 +4330,7 @@ genEntry::genEntry()
     } else if (l5bool10z) {     // isFortrn
         l5bool8z = not l5bool7z;
         if (checkFortran) {
-            addToInsnList(getHelperProc(85)); /* "P/MF" */
+            addToInsnList(getHelperProc(53)); /* "P/MF" */
         }
     } else {
         l5bool8z = true;
@@ -4358,7 +4358,7 @@ genEntry::genEntry()
                 addToInsnList(l5idr4z->pck.offset + InsnTemp[XTA] +
                               l5idr4z->value());
                 if (l5bool10z)
-                    addToInsnList(getHelperProc(19)); /* "P/EA" */
+                    addToInsnList(getHelperProc(12)); /* "P/EA" */
             } else
                 /*(a) */         { /* 6636 */
                 if (l5idr4z->value() == 0) {
@@ -4378,7 +4378,7 @@ genEntry::genEntry()
                         form3Insn(KVTM+I10+ 4+moduleOffset,
                                   KVTM+I9 + l5var15z,
                                   KVTM+I8 + 074001);
-                        formAndAlign(getHelperProc(62)); /* "P/BP" */
+                        formAndAlign(getHelperProc(37)); /* "P/BP" */
                         l5var15z = l5var17z.ii + 2 + l5var15z;
                         form1Insn(KXTA+SP + l5var15z);
                         if ((1) < l5var17z.ii)
@@ -4386,7 +4386,7 @@ genEntry::genEntry()
                         else
                             form1Insn(0);
                         form2Insn(
-                            getHelperProc(63/*P/B6*/) - 0500000,
+                            getHelperProc(38/*P/B6*/) - 0500000,
                             allocGlobalObject(l5idr4z) + KUJ);
                         // If a routine is passed as an actual parameter,
                         // its (rough) prototype is stored for checking
@@ -4409,7 +4409,7 @@ genEntry::genEntry()
                 if (has(l5idr4z->flags(), 21))
                     addToInsnList(KITA+14);
                 else
-                    addToInsnList(getHelperProc(64)); /* "P/PB" */
+                    addToInsnList(getHelperProc(39)); /* "P/PB" */
               exit_a:;
             }; /* 6765 */
             if (l5op21z == PCALL)
@@ -4523,7 +4523,7 @@ genEntry::genEntry()
         if (not checkFortran)
             addToInsnList(KNTR+7);
         else
-            addToInsnList(getHelperProc(86));    /* "P/FM" */
+            addToInsnList(getHelperProc(54));    /* "P/FM" */
         insnList->tail->mode = 2;
     } /* 7226 */
     // NB: base.pas 3486 has no `else` here -- a non-Fortran function returns
@@ -4632,7 +4632,7 @@ void genComparison()
             saved = insnList;
             insnList = otherIns;
             otherIns = saved;
-            nextInsn = 66;      /* P/IN */
+            nextInsn = 41;      /* P/IN */
             genFullExpr::super.back()->genHelper();
             insnList->ilm = ilRVAL;
         }
@@ -4652,7 +4652,7 @@ void genComparison()
         if (size != 1) {
             genFullExpr::super.back()->prepMultiWord();
             addInsnAndOffset(KVTM+I11, 1 - size);
-            addToInsnList(getHelperProc(82 + l3int3z)); /* P/EQ */
+            addToInsnList(getHelperProc(50 + l3int3z)); /* P/EQ */
             insnList->ilm = ilRVAL;
             negate = not negate;
         } else if (l3int3z == 0) {
@@ -4987,7 +4987,7 @@ L10122:
                     break;
                 case fnMALLOC:
                     addToInsnList(KVTM+I14+getValueOrAllocSymtab(arg1Val.ii));
-                    addToInsnList(getHelperProc(33)); /*"P/NW"*/
+                    addToInsnList(getHelperProc(17)); /*"P/NW"*/
                     insnList->ilm = ilRVAL;
                     insnList->regsused = insnList->regsused | Bits(0);
                     insnList->typ = exprToGen->vt.typ;
@@ -5064,7 +5064,7 @@ void formFileInit()
         }
         form1Insn(KVTM+I14 + fileAddr);
         form1Insn(KITS+14);
-        formAndAlign(getHelperProc(61)); /*"FCLOSE"*/
+        formAndAlign(getHelperProc(36)); /*"FCLOSE"*/
     };
 
     if (has(optSflags.ii, S5)) {
@@ -5076,7 +5076,7 @@ void formFileInit()
         fcloseFile(inputFile);
     if (outputFile != NULL)
         fcloseFile(outputFile);
-    form1Insn(getHelperProc(70)/*"P/IT"*/ + (KUJ-KVJM-I13));
+    form1Insn(getHelperProc(42)/*"P/IT"*/ + (KUJ-KVJM-I13));
     padToLeft();
 } /* formFileInit */
 
@@ -5281,7 +5281,7 @@ formOperator::formOperator(OpGen op)
                   (KVTM+I10+64) - arg1Type.rep()->pcksize);
         l3int3z = helpExpr->vt.typ.p.rep;
         l3int1z = arg1Type.rep()->perword;
-        if (l3int3z == 72)          /* P/KC */
+        if (l3int3z == 44)          /* P/KC */
             l3int1z = 1 - l3int1z;
         form1Insn(getValueOrAllocSymtab(l3int1z) + (KVTM+I9));
         l3int1z = InsnTemp[XTA];
@@ -6059,7 +6059,7 @@ void fopenFile(IdentRecPtr fileSym, ExtFileRec * extFileP)
             curVal.ii = extFileP->offset;
         form1Insn(KXTS+I8 + getFCSToffset());
     }
-    formAndAlign(getHelperProc(60)); /*"FOPEN"*/
+    formAndAlign(getHelperProc(35)); /*"FOPEN"*/
 } /* fopenFile */
 
 void parseDecls(int64_t l3arg1z)
@@ -6110,13 +6110,13 @@ void parseDecls(int64_t l3arg1z)
         }
         if (l3var3z)
             form2Insn((KVTM+I14) + l3arg1z + (frame.ii - 3) * 01000,
-                      getHelperProc(87 /*"P/NN"*/) - 010000000);
+                      getHelperProc(55 /*"P/NN"*/) - 010000000);
         if (1 < l3arg1z) {
             frame.ii = getValueOrAllocSymtab(-(frame.ii+l3arg1z));
         }
         if (has(optSflags.ii, S5) and
             curProcNesting == 1)
-            l3int1z = 59;  /* P/LV */
+            l3int1z = 34;  /* P/LV */
         else
             l3int1z = curProcNesting;
         l3int1z = getHelperProc(l3int1z) - (-04000000);
@@ -6149,7 +6149,7 @@ void parseDecls(int64_t l3arg1z)
                 heapSize = 4;
             if (not l3var3z) {
                 form2Insn(KVTM+I14+getValueOrAllocSymtab(heapSize*02000),
-                          getHelperProc(26 /*"P/GD"*/));
+                          getHelperProc(14 /*"P/GD"*/));
                 padToLeft();
             }
         }
@@ -7629,7 +7629,7 @@ void returnOp() {
         }
     } else if (procName->typ != voidType)
         error(errNeedOtherTypesOfOperands);
-    form1Insn(getHelperProc(27) + (KUJ-KVJM-I13));
+    form1Insn(getHelperProc(15) + (KUJ-KVJM-I13));
 } /* returnOp */
 
 struct standProc {
@@ -7695,36 +7695,36 @@ struct standProc {
     void checkElementForReadWrite() {
         usedRegs = usedRegs & ~ Bits(12);
         curVarKind = (Kind)(l4typ3z.p.pk);
-        helperNo = 36;                   /* C/WI */
+        helperNo = 20;                   /* C/WI */
         if (l4typ3z == IntegerType or l4typ3z == BooleanType)
             defWidth = 10;
         else if (l4typ3z == RealType) {
-            helperNo = 37;               /* P/WR */
+            helperNo = 21;               /* P/WR */
             defWidth = 14;
         } else if (l4typ3z == CharType) {
-            helperNo = 38;               /* P/WC */
+            helperNo = 22;               /* P/WC */
             defWidth = 1;
         } else if (curVarKind == kindScalar
                    and l4typ3z.rep()->start != -1) {
-            helperNo = 41;               /* P/WX */
+            helperNo = 25;               /* P/WX */
             dumpEnumNames(l4typ3z);
             defWidth = 8;
         } else if (curVarKind == kindScalar
                    and l4typ3z.rep()->enums != NULL) {
             // Explicit-value enum (start == -1): name printing suppressed,
             // so print the value as a decimal integer, exactly like int.
-            helperNo = 36;               /* C/WI */
+            helperNo = 20;               /* C/WI */
             defWidth = 10;
         } else if (isCharArray(l4typ3z)) {
             defWidth = l4typ3z.rep()->aright - l4typ3z.rep()->aleft + 1;
             if (not l4typ3z.rep()->pck)
-                helperNo = 81;            /* P/WA */
+                helperNo = 49;            /* P/WA */
             else if (6 >= defWidth)
-                helperNo = 39;            /* P/A6 */
+                helperNo = 23;            /* P/A6 */
             else
-                helperNo = 40;           /* P/A7 */
+                helperNo = 24;           /* P/A7 */
         } else if (typeSize(l4typ3z) == 1) {
-            helperNo = 42;               /* P/WO */
+            helperNo = 26;               /* P/WO */
             defWidth = (typeBits(l4typ3z) + 5) / 3;
         } else {
             error(34); /* errTypeIsNotAFileElementType */
@@ -7743,10 +7743,10 @@ struct standProc {
                     firstWidth = parseWidthSpecifier();
                 if (SY == COLON) {
                     secondWidth = parseWidthSpecifier();
-                    if (helperNo != 37)    /* P/WR */
+                    if (helperNo != 21)    /* P/WR */
                         error(35); /* errSecondSpecifierForWriteOnlyForReal */
                 } else if (curToken.ii == litOct) {
-                    helperNo = 42; /* P/WO */
+                    helperNo = 26; /* P/WO */
                     defWidth = 17;
                     if (typeSize(l4typ3z) != 1)
                         error(34); /* errTypeIsNotAFileElementType */
@@ -7754,7 +7754,7 @@ struct standProc {
                 }
                 noWidth = false;
                 if (firstWidth == NULL and
-                    has(BitRange(38,40), helperNo)) {  /* WC,A6,A7 */
+                    has(BitRange(22,24), helperNo)) {  /* WC,A6,A7 */
                     helperNo = helperNo + 5;       /* CW,6A,7A */
                     noWidth = true;
                 } else {
@@ -7767,7 +7767,7 @@ struct standProc {
                         form1Insn(KAOX+ZERO);
                     }
                 }
-                if (helperNo == 37) {       /* P/WR */
+                if (helperNo == 21) {       /* P/WR */
                     if (secondWidth == NULL) {
                         curVal.ii = 4 | 0xDLL << 44;
                         form1Insn(KXTS+I8 + getFCSToffset());
@@ -7779,30 +7779,30 @@ struct standProc {
                 }
                 curExpr = l4exp7z;
                 if (noWidth) {
-                    if (helperNo == 45)     /* P/7A */
+                    if (helperNo == 29)     /* P/7A */
                         opToForm = SETREG11;
                     else
                         opToForm = LOAD;
                 } else {
-                    if (helperNo == 40 or       /* P/A7 */
-                        helperNo == 81)     /* P/WA */
+                    if (helperNo == 24 or       /* P/A7 */
+                        helperNo == 49)     /* P/WA */
                         opToForm = PUSHSET11;
                     else
                         opToForm = FRACWIDTH;
                 }
                 (void) formOperator(opToForm);
-                if (has(Bits(39,40,44,45), helperNo) or /* A6,A7,6A,7A */
-                    helperNo == 81)
+                if (has(Bits(23,24,28,29), helperNo) or /* A6,A7,6A,7A */
+                    helperNo == 49)
                     form1Insn(KVTM+I10 + defWidth);
                 else {
-                    if (helperNo == 41) /* P/WX */
+                    if (helperNo == 25) /* P/WX */
                         form1Insn(KVTM+I11 + l4typ3z.rep()->start);
                 }
                 callHelperWithArg();
             }
         } while (SY == COMMA);
         if (procNo == 8) {
-            helperNo = 46;                 /* P/WL */
+            helperNo = 30;                 /* P/WL */
             callHelperWithArg();
         }
         usedRegs = usedRegs | Bits(12);
@@ -7834,7 +7834,7 @@ struct standProc {
             l4typ1z.rep()->base.p.pk != kindScalar)
             error(errNeedOtherTypesOfOperands);
         curExpr = new Expr;
-        curExpr->vt.ii = procNo + 69;   /* the P/PK / P/KC helper number */
+        curExpr->vt.ii = procNo + 41;   /* the P/PK / P/KC helper number */
         curExpr->expr1 = l4exp7z;
         curExpr->expr2 = l4exp6z;
         (void) formOperator(PCKUNPCK);
@@ -7861,7 +7861,7 @@ struct standProc {
             curVarKind = (Kind)(arg1Type.p.pk);
         }
         if (has(Bits(4,5), procNo))
-            jumpTarget = getHelperProc(30 + procNo);
+            jumpTarget = getHelperProc(14 + procNo); /* P/DS, P/HT */
         switch (procNo) {
         case 4: { /* free */
             if (curVarKind != kindPtr)
@@ -7898,7 +7898,7 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
             if (SY == LPAREN) {
                 writeProc();
             } else {
-                formAndAlign(getHelperProc(54)); /*"P/WOLN"*/
+                formAndAlign(getHelperProc(31)); /*"P/WOLN"*/
                 return;
             }
         } break;
@@ -7916,7 +7916,7 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
             if (procNo == 1) {
                 (void) formOperator(LOAD);
             }
-            formAndAlign(getHelperProc(procNo + 13));
+            formAndAlign(getHelperProc(procNo + 9));
             if (procNo == 0)
                 (void) formOperator(STORE);
         } break;
@@ -8262,7 +8262,7 @@ void defineRoutine(bool bodyBlock = false)
                     form3Insn(KVTM+I14 + l3int4z,
                               KVTM+I12 + l3var2z.ii,
                               KVTM+I11 + l3idr5z->value());
-                    formAndAlign(getHelperProc(73)); /* "P/LNGPAR" */
+                    formAndAlign(getHelperProc(45)); /* "P/LNGPAR" */
                 }
             }
             l3int4z = l3int4z + 1;
@@ -8327,9 +8327,9 @@ void defineRoutine(bool bodyBlock = false)
         }
     } else /* 21220 */ {
         if (hasFiles != 0)
-            jj = 28;   /* C/EF */
+            jj = 16;   /* C/EF */
         else
-            jj = 27;    /* C/E */
+            jj = 15;    /* C/E */
         form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
         if (curProcNesting == 1) {
             parseDecls(2);
@@ -8573,7 +8573,7 @@ initScalars::initScalars() :
     flushInitializers();
     readToPos80();
     curVal.ii = l3var6z;
-    symTab[074003] = (helperNames[25] | Bits(24,27,28,29)) |
+    symTab[074003] = (helperNames[13] | Bits(24,27,28,29)) |
                      (curVal.ii & halfWord);
 } /* initScalars */
 
@@ -9230,8 +9230,8 @@ struct initTables {
         }
         opToInsn[MUL] = InsnTemp[AMULX];
         opToInsn[RDIVOP] = InsnTemp[ADIVX];
-        opToInsn[IDIVOP] = 17; /* P/DI */
-        opToInsn[IMODOP] = 11; /* P/MD */
+        opToInsn[IDIVOP] = 11; /* P/DI */
+        opToInsn[IMODOP] = 7; /* P/MD */
         opToInsn[PLUSOP] = InsnTemp[ADD];
         opToInsn[MINUSOP] = InsnTemp[SUB];
         opToInsn[IMULOP] = InsnTemp[AMULX];
@@ -9240,8 +9240,8 @@ struct initTables {
         opToInsn[SETOR] = InsnTemp[AOX];
         opToInsn[INTPLUS] = InsnTemp[ADD];
         opToInsn[INTMINUS] = InsnTemp[SUB];
-        opToInsn[SHLEFT] = 91;
-        opToInsn[SHRIGHT] = 92;
+        opToInsn[SHLEFT] = 56;
+        opToInsn[SHRIGHT] = 57;
         opFlags[ANDOP] = opfAND;
         opFlags[IDIVOP] = opfDIV;
         opFlags[OROP] = opfOR;
@@ -9278,7 +9278,7 @@ struct initTables {
             for (jdx=1; jdx <= l3var2z; ++jdx)
                 frameRestore[idx][jdx] = 0;
         }
-        for (idx=1; idx <= 92; ++idx)
+        for (idx=1; idx <= 57; ++idx)
             helperMap[idx] = 0;
     } /* initArrays */
 
@@ -9784,97 +9784,62 @@ int64_t resWordNameBase[20] = {
         06556515756L             /*"   UNION"*/,
         0624564656256L           /*"  RETURN"*/};
 
-int64_t helperNames[93] = { 0L,
+int64_t helperNames[58] = { 0L,
         06017210000000000L      /*"P/1     "*/,
         06017220000000000L      /*"P/2     "*/,
         06017230000000000L      /*"P/3     "*/,
         06017240000000000L      /*"P/4     "*/,
         06017250000000000L      /*"P/5     "*/,
         06017260000000000L      /*"P/6     "*/,
-        06017434100000000L      /*"P/CA    "*/,
-        0L                      /*"P/EO obs"*/,
-        0L                      /*"P/SS obs"*/,
-/*10*/  0L                      /*"P/EL obs"*/,
         04317554400000000L      /*"C/MD    "*/,
         06017555100000000L      /*"P/MI    "*/,
         06017604100000000L      /*"P/PA    "*/,
-        06017655600000000L      /*"P/UN    "*/,
-        06017436000000000L      /*"P/CP    "*/,
-        06017414200000000L      /*"P/AB    "*/,
+/*10*/  06017655600000000L      /*"P/UN    "*/,
         04317445100000000L      /*"C/DI    "*/,
-        04317624300000000L      /*"C/RC    "*/,
         06017454100000000L      /*"P/EA    "*/,
-/*20*/  06017564100000000L      /*"P/NA    "*/,
-        06017424100000000L      /*"P/BA    "*/,
-        06017515100000000L      /*"P/II   u"*/,
-        06017626200000000L      /*"P/RR    "*/,
-        06017625100000000L      /*"P/RI    "*/,
         06017214400000000L      /*"P/1D    "*/,
         06017474400000000L      /*"P/GD    "*/,
         04317450000000000L      /*"C/E     "*/,
         04317454600000000L      /*"C/EF    "*/,
-        06017604600000000L      /*"P/PF    "*/,
-/*30*/  06017474600000000L      /*"P/GF    "*/,
-        06017644600000000L      /*"P/TF    "*/,
-        06017624600000000L      /*"P/RF    "*/,
         06017566700000000L      /*"P/NW    "*/,
         06017446300000000L      /*"P/DS    "*/,
         06017506400000000L      /*"P/HT    "*/,
-        04317675100000000L      /*"C/WI    "*/,
+/*20*/  04317675100000000L      /*"C/WI    "*/,
         06017676200000000L      /*"P/WR    "*/,
         06017674300000000L      /*"P/WC    "*/,
         06017412600000000L      /*"P/A6    "*/,
-/*40*/  06017412700000000L      /*"P/A7    "*/,
+        06017412700000000L      /*"P/A7    "*/,
         06017677000000000L      /*"P/WX    "*/,
         06017675700000000L      /*"P/WO    "*/,
         06017436700000000L      /*"P/CW    "*/,
         06017264100000000L      /*"P/6A    "*/,
         06017274100000000L      /*"P/7A    "*/,
-        06017675400000000L      /*"P/WL    "*/,
-        06017624451000000L      /*"P/RDI   "*/,
-        06017624462000000L      /*"P/RDR   "*/,
-        06017624443000000L      /*"P/RDC   "*/,
-/*50*/  06017624126000000L      /*"P/RA6   "*/,
-        06017624127000000L      /*"P/RA7   "*/,
-        06017627000000000L      /*"P/RX   u"*/,
-        06017625400000000L      /*"P/RL    "*/,
+/*30*/  06017675400000000L      /*"P/WL    "*/,
         06017675754560000L      /*"P/WOLN  "*/,
-        06017625154560000L      /*"P/RILN  "*/,
         06017626200000000L      /*"P/RR    "*/,
-        06017434500000000L      /*"P/CE    "*/,
         06017646200000000L      /*"P/TR    "*/,
         06017546600000000L      /*"P/LV    "*/,
-/*60*/  04657604556000000L      /*"FOPEN   "*/,
+        04657604556000000L      /*"FOPEN   "*/,
         04643545763450000L      /*"FCLOSE  "*/,
         06017426000000000L      /*"P/BP    "*/,
         06017422600000000L      /*"P/B6    "*/,
         06017604200000000L      /*"P/PB    "*/,
-        06017422700000000L      /*"P/B7    "*/,
+/*40*/  06017422700000000L      /*"P/B7    "*/,
         06017515600000000L      /*"P/IN    "*/,
-        06017516300000000L      /*"P/IS    "*/,
-        06017444100000000L      /*"P/DA    "*/,
-        06017435700000000L      /*"P/CO    "*/,
-/*70*/  06017516400000000L      /*"P/IT    "*/,
+        06017516400000000L      /*"P/IT    "*/,
         06017435300000000L      /*"P/CK    "*/,
         06017534300000000L      /*"P/KC    "*/,
         06017545647604162L      /*"P/LNGPAR"*/,
         06017544441620000L      /*"P/LDAR  "*/,
-        06017544441625156L      /*"P/LDARIN"*/,
         06017202043000000L      /*"P/00C   "*/,
         06017636441620000L      /*"P/STAR  "*/,
-        06017605544634564L      /*"P/PMDSET"*/,
-        06017435100000000L      /*"P/CI    "*/,
-/*80*/  06041514200000000L      /*"PAIB    "*/,
         06017674100000000L      /*"P/WA    "*/,
-        06017456100000000L      /*"P/EQ    "*/,
-        06017624100000000L      /*"P/RA    "*/,
+/*50*/  06017456100000000L      /*"P/EQ    "*/,
+        06017624100000000L      /*"P/RA    "*/,  // placeholder: keeps the compare family contiguous
         06017474500000000L      /*"P/GE    "*/,
         06017554600000000L      /*"P/MF    "*/,
         06017465500000000L      /*"P/FM    "*/,
         06017565600000000L      /*"P/NN    "*/,
-        06017634300000000L      /*"P/SC    "*/,
-        06017444400000000L      /*"P/DD    "*/,
-/*90*/  06017624500000000L      /*"P/RE    "*/,
         04317635054000000L      /*"C/SHL   "*/,
         04317635062000000L      /*"C/SHR   "*/};
 
@@ -9889,6 +9854,6 @@ int64_t systemProcNames[9] = {
         0655660414353L          /*"  UNPACK"*/,
         044516360576345L        /*"    FREE"*/,
         050415464L              /*"    HALT"*/,
-        042456355L              /*"    BESM, was STOP"*/,
+        042456355L              /*"    BESM"*/,
         06762516445L            /*"   WRITE"*/,
         067625164455456L        /*" WRITELN"*/};
