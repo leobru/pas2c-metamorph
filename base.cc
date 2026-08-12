@@ -2159,6 +2159,9 @@ parseComment::parseComment()
             case 'F': case 'f':
                 readOptFlag(checkFortran);
                 break;
+            case 'I': case 'i':
+                readOptFlag(enableStdInput);
+                break;
             case 'L': case 'l':
                 PASINFOR.listMode = readOptVal(3);
                 break;
@@ -5063,8 +5066,10 @@ void formFileInit()
         return;
     }
     form2Insn(KITS+13, KATX+SP);
-    if (inputFile != NULL)
+    if (inputFile != NULL) {
         fcloseFile(inputFile);
+        form1Insn(KXTA+SP);  // remove FCLOSE's stacked FCB argument
+    }
     if (outputFile != NULL)
         fcloseFile(outputFile);
     form1Insn(getHelperProc(42)/*"P/IT"*/ + (KUJ-KVJM-I13));

@@ -11,6 +11,7 @@ if [ $# -ne 1 ]; then
 fi
 
 src="$1"
+input_file="${src%.p2c}.input"
 lun=41
 
 rm -f tmpbin.bin tmpbin.txt tmpbin.o tmpbin.raw.o tmpbin.bin
@@ -37,6 +38,11 @@ cat << EOF > tmp$$
 *perso:43,cont
 *no load list
 *execute
+EOF
+if [ -f "$input_file" ]; then
+    cat "$input_file" >> tmp$$
+fi
+cat << EOF >> tmp$$
 *end file
 EOF
 if [ "$debug" = 1 ]; then ln -f tmp$$ runhotest.dub ; fi

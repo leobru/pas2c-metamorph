@@ -1,0 +1,10 @@
+/*=i+,c-*/
+char fgetc(int fcb[30]) assembler;
+
+void main() {
+    writeln(fgetc(_input_));
+    writeln(fgetc(_input_));
+    writeln(fgetc(_input_));
+    writeln(fgetc(_input_));
+    writeln(fgetc(_input_));
+}

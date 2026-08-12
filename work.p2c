@@ -450,6 +450,7 @@ int prevInsn,
     isDefined, putLeft, readNext,
     errors,
     declEntry,
+    enableStdInput,
     fixMult,
     abort,
     allowCompat,
@@ -1286,6 +1287,7 @@ void readOptFlag(int *res) {
                 optSflags  |=  E48 >> (curVal.i - 3);
             break;
         case 'F': readOptFlag(&checkFortran); break;
+        case 'I': readOptFlag(&enableStdInput); break;
         case 'L': PASINFOR.listMode = readOptVal(3); break;
         case 'A': charEncoding = readOptVal(3); break;
         case 'C': readOptFlag(&checkTypes); break;
@@ -2318,8 +2320,10 @@ void fcloseFile(irptr fileSym) {
         return;
     }
     form2Insn(KITS+13, KATX+SP);
-    if (inputFile != NULL)
+    if (inputFile != NULL) {
         fcloseFile(inputFile);
+        form1Insn(KXTA+SP);  // remove FCLOSE's stacked FCB argument
+    }
     if (outputFile != NULL)
         fcloseFile(outputFile);
     form1Insn(getHelperProc(42)/*"P/IT"*/ + (KUJ-KVJM-I13));
@@ -7639,8 +7643,10 @@ void regSysProc(int l4arg1z) {
     defExtern();
     curIdent  =  litInput;
     defExtern();
-    inputFile  =  NULL;
-    fileForInput  =  NULL;
+    if (! enableStdInput) {
+        inputFile  =  NULL;
+        fileForInput  =  NULL;
+    }
     curIdent  =  savedIdent;
     lookupMode  =  lookUse;
     l3var6z  =  40;
@@ -8395,6 +8401,7 @@ void initOptions() {
     checkTypes  =  true;
     fixMult  =  true;
     declEntry  =
+    enableStdInput  =
     errors  =
     allowCompat  =  false;
     fileBufSize  =  1;

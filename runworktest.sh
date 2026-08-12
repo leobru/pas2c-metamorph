@@ -1,7 +1,9 @@
 #!/bin/sh
 work_module=${WORK_MODULE:-work}
+src=$1
+input_file="${src%.p2c}.input"
 rm -f tmpsrc.bin tmpsrc.txt
-sed 's/{/<:/g;s/}/:>/g' < $1 > tmpsrc.utxt
+sed 's/{/<:/g;s/}/:>/g' < "$src" > tmpsrc.utxt
 echo '                                                                                 ' >> tmpsrc.utxt
 cat << EOF > tmp$$
 *NAME work
@@ -22,9 +24,14 @@ P 2 0 1000440000B .
 *copy:0,000000,000000
 *no load list
 *execute
+EOF
+if [ -f "$input_file" ]; then
+    cat "$input_file" >> tmp$$
+fi
+cat << EOF >> tmp$$
 *end file
 EOF
-if [ "$1" = "-d" ]; then ln -f tmp$$ run.dub ; fi
+if [ "$src" = "-d" ]; then ln -f tmp$$ run.dub ; fi
 ulimit -t 3
 dubna tmp$$ | tail -n +41 | tee runwork.lst
 if [ $? -ne 0 ]; then
