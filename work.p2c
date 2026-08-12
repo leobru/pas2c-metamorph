@@ -490,7 +490,6 @@ eptr curExpr;
 insnltyp *insnList;
 inptr internHead;
 extfilerec *fileForOutput, *fileForInput;
-int hasFiles;
 int maxSmallString;
 tptr smallStringType[2..6];
 int symTabCnt;
@@ -2003,7 +2002,7 @@ irptr idRec;
 void programme(int *retSizePtr, irptr procName, int bodyBlock) { /* programme */
 irptr preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr;
 int isPredefined, l2bool8z, retSeen, inTypeDef, hadParens, externDecl;
-eptr l2var10z;
+int fileExit;
 int bodyStatSys;
 int l2var12z;
 tptr l2typ13z, l2typ14z, typedRetType, ceTyp;
@@ -5336,12 +5335,12 @@ int l3int1z, frame, l3var3z;
             form1Insn(0);
         if (l3var3z)
             form1Insn(KVTM+I8+074001);
-        if (hasFiles != 0) {
+        if (curProcNesting == 1) {
             if (inputFile != NULL)
                 fopenFile(inputFile, fileForInput);
             if (outputFile != NULL)
                 fopenFile(outputFile, fileForOutput);
-            curVal.i  =  hasFiles;
+            curVal.i  =  fileExit;
             fixup(2, 49);
         }
         if (curProcNesting == 1) {
@@ -7332,8 +7331,8 @@ int l3var7z;
     objBuffer[objBufIdx]  =  0U;
     curInsnTemplate  =  KXTA;
     bool48z  =  ((E48 >> 22) & procName->flags) >> 25;
-    if (hasFiles != 0) {
-        hasFiles  =  moduleOffset;
+    if (curProcNesting == 1) {
+        fileExit  =  moduleOffset;
         formFileInit();
     }
     l3var1z  =
@@ -7428,7 +7427,7 @@ int l3var7z;
             form1Insn(KUJ + indexreg[curVal.i]);
         }
     } else {
-        jj = hasFiles == 0 ? 15 /* C/E */ : 16; /* C/EF */
+        jj = curProcNesting == 1 ? 16 /* C/EF */ : 15; /* C/E */
         form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
         if (curProcNesting == 1) {
             parseDecls(2);
@@ -7645,7 +7644,6 @@ void regSysProc(int l4arg1z) {
     curIdent  =  savedIdent;
     lookupMode  =  lookUse;
     l3var6z  =  40;
-    hasFiles  =  0;
     do {
         programme(&l3var6z, programObj, false);
     } while (CH != '\0');
@@ -7658,11 +7656,6 @@ void regSysProc(int l4arg1z) {
     symTab[074003]  =  (helperNames[13] | [24,27,28,29]) |
                         (curVal.i & halfWord);
 } /* mainProgram */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void makeExtFile() {
-    curExpr  =  mkExpr(NOOP, tptr(curExternFile), curExpr, eptr(workidr));
-} /* makeExtFile */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // C-style: each comma-separated parameter carries its own full type-spec
@@ -7900,17 +7893,6 @@ void exitScope(int a) {
             error(79); /* errNotFullyDefined */
             typelist  =  typelist->pck.p.next;
         }
-    }
-    if (curProcNesting == 1) {
-        workidr  =  outputFile;
-        curExternFile  =  fileForOutput;
-        makeExtFile();
-        if (inputFile != NULL) {
-            workidr  =  inputFile;
-            curExternFile  =  fileForInput;
-            makeExtFile();
-        }
-        hasFiles  =  0;
     }
     outputObjFile();
     markTypeSym();
@@ -8188,11 +8170,6 @@ void exitScope(int a) {
         }
         markTypeSym();
         }
-    }
-    if (curProcNesting == 1 && curExpr != NULL) {
-        hasFiles  =  1;
-    } else if (curProcNesting == 1) {
-        hasFiles  =  0;
     }
     markTypeSym();
     if (CH == '\0' && bodyBlock) {

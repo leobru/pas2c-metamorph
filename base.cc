@@ -926,7 +926,6 @@ ExprPtr uVarPtr, curExpr;
 InsnList *  insnList;
 InternRec * internHead;
 ExtFileRec * fileForOutput, * fileForInput;
-int64_t hasFiles;
 int64_t maxSmallString;
 
 TPtr smallStringType[7]; // [2..6]
@@ -1088,7 +1087,7 @@ struct programme {
     IdentRecPtr preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr;
     bool isPredefined, l2bool8z, inTypeDef, externDecl;
     bool done, retSeen, hadParens, typedefPending;
-    ExprPtr l2var10z;
+    int64_t fileExit;
     int64_t l2var12z;
     TPtr l2typ13z, l2typ14z, typedRetType, ceTyp;
     Word ceVal;
@@ -2916,14 +2915,6 @@ void hash(IdentRecPtr & l3arg1z, IdentRecPtr l3arg2z)
         l3var4z->pck.nidx = l3arg2z->pck.nidx;
     }
 } /* hash */
-
-// NOTE: base.pas has no isFileType; the sole caller lives in the still-upstream
-// programme routine-declaration section and will be revisited with that
-// transplant. Reconciled to the compact model here only so base.cc compiles.
-bool isFileType(TPtr typtr)
-{
-    return (typtr.p.pk == kindStruct) and typtr.rep()->flag;
-}
 
 // name defaults to curIdent (the original, Pascal '^Name' call sites,
 // where the lexer is still sitting on Name); C-style forward-referenced
@@ -6071,6 +6062,7 @@ void parseDecls(int64_t l3arg1z)
     IdentRecPtr &procName = programme::super.back()->procName;
     IdentRecPtr &curIdRec = programme::super.back()->curIdRec;
     int64_t &l2var12z = programme::super.back()->l2var12z;
+    int64_t &fileExit = programme::super.back()->fileExit;
 
     switch (l3arg1z) {
     case 0: {
@@ -6131,12 +6123,12 @@ void parseDecls(int64_t l3arg1z)
             form1Insn(0);
         if (l3var3z)
             form1Insn(KVTM+I8+074001);
-        if (hasFiles != 0) {
+        if (curProcNesting == 1) {
             if (inputFile != NULL)
                 fopenFile(inputFile, fileForInput);
             if (outputFile != NULL)
                 fopenFile(outputFile, fileForOutput);
-            curVal.ii = hasFiles;
+            curVal.ii = fileExit;
             fixup(2, 49);
         }
         if (curProcNesting == 1) {
@@ -8226,13 +8218,14 @@ void defineRoutine(bool bodyBlock = false)
     int64_t &jj = programme::super.back()->jj;
     int64_t &localSize = programme::super.back()->localSize;
     bool &done = programme::super.back()->done;
+    int64_t &fileExit = programme::super.back()->fileExit;
 
     objBufIdx = 1;
     objBuffer[objBufIdx] = 0;
     curInsnTemplate = InsnTemp[XTA];
     bool48z = has(procName->flags(), 22);
-    if (hasFiles != 0) {
-        hasFiles = moduleOffset;
+    if (curProcNesting == 1) {
+        fileExit = moduleOffset;
         formFileInit();
     }
     lineStartOffset = moduleOffset;
@@ -8325,11 +8318,8 @@ void defineRoutine(bool bodyBlock = false)
             }
             form1Insn(InsnTemp[UJ] + indexreg[curVal.ii]);
         }
-    } else /* 21220 */ {
-        if (hasFiles != 0)
-            jj = 16;   /* C/EF */
-        else
-            jj = 15;    /* C/E */
+    } else {
+        jj = curProcNesting == 1 ? 16 /* C/EF */ : 15; /* C/E */
         form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
         if (curProcNesting == 1) {
             parseDecls(2);
@@ -8340,10 +8330,10 @@ void defineRoutine(bool bodyBlock = false)
         curVal.ii = sizeCount;
         if (curProcNesting != 1) {
             curVal.ii = curVal.ii - 2;
-            l3var7z.ii = curVal.ii << 24;               /* besm(ASN64-24) */
+            l3var7z.ii = curVal.ii << 24;
             objBuffer[savedObjIdx] |= l3var7z.ii | int64_t(KUTM+SP) << 24;
         }
-    } /* 21261 */
+    } 
     outputObjFile();
 } /* defineRoutine */
 
@@ -8564,7 +8554,6 @@ initScalars::initScalars() :
     curIdent = savedIdent.ii;
     lookupMode = lookUse;
     l3var6z = 40;
-    hasFiles = 0;
     do {
         programme(l3var6z, programObj, false);
     } while (CH != 0);
@@ -8576,19 +8565,6 @@ initScalars::initScalars() :
     symTab[074003] = (helperNames[13] | Bits(24,27,28,29)) |
                      (curVal.ii & halfWord);
 } /* initScalars */
-
-void makeExtFile()
-{
-    ExprPtr &l2var10z = programme::super.back()->l2var10z;
-    IdentRecPtr &workidr = programme::super.back()->workidr;
-    l2var10z = new Expr;
-    // base.pas smuggles the ExtFileRec pointer through the type word
-    // ((*=c-*) mkExpr(NOOP, curExternFile, ...)); store its arena ordinal.
-    l2var10z->vt.ii = ord(curExternFile);
-    l2var10z->id2 = workidr;
-    l2var10z->expr1 = curExpr;
-    curExpr = l2var10z;
-}
 
 // C-style 'individual' form: each comma-separated parameter carries its
 // own full type-spec ('int a, int *p, char c'), unlike the grouped form
@@ -8827,19 +8803,6 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         } /* TYPEDEFSY */
         inTypeDef = false;
         curExpr = NULL;
-    if (curProcNesting == 1) {
-        if (outputFile != NULL) {
-            workidr = outputFile;
-            curExternFile = fileForOutput;
-            makeExtFile();
-        }
-        if (inputFile != NULL) {
-            workidr = inputFile;
-            curExternFile = fileForInput;
-            makeExtFile();
-        }
-        hasFiles = 0;
-    }
     // The file-init code is emitted once, by defineRoutine's formFileInit call.
     outputObjFile();
     markTypeSym();
@@ -8967,10 +8930,6 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     }
                     localSize = localSize + jj;
                     curExternFile = NULL;
-                }
-                if (isFileType(d.type)) {
-                    workidr = curIdRec;
-                    makeExtFile();
                 }
                 if (SY == BECOMES) {
                     if (curProcNesting != 1)
@@ -9124,11 +9083,6 @@ L23301:
         }
         markTypeSym();
     } /* 23320 */
-    if (curProcNesting == 1 and curExpr != NULL) {
-        hasFiles = 1;
-    } else if (curProcNesting == 1) {
-        hasFiles = 0;
-    }
     markTypeSym();
     if (CH == 0 and bodyBlock_) {
         requiredSymErr(ENDSY);
