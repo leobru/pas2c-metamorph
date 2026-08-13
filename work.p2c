@@ -680,14 +680,16 @@ int setjmp(int *jmpbuf) assembler;
 int setup() assembler;
 void rollup(int addr) assembler;
 typedef ifcb *pfcb;
-void fopen(pfcb fcb, int sizes, int name) assembler;
-void fclose(pfcb fcb) assembler;
-void ftruncate(pfcb fcb) assembler;
-void frewind(pfcb fcb) assembler;
-int feof(pfcb fcb) assembler;
-int fgetc(pfcb fcb) assembler;
-int fgetw(pfcb fcb) assembler;
-void fputw(int value, pfcb f) assembler;
+// An external has no body to name its parameters from, so these leave the
+// declarators abstract -- the types alone are what the call sites check.
+void fopen(pfcb, int, int) assembler;
+void fclose(pfcb) assembler;
+void ftruncate(pfcb) assembler;
+void frewind(pfcb) assembler;
+int feof(pfcb) assembler;
+int fgetc(pfcb) assembler;
+int fgetw(pfcb) assembler;
+void fputw(int, pfcb) assembler;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
@@ -4679,6 +4681,12 @@ int declOpCount;
 // do-while cannot declare locals of its own.
 declarator curDeclarator;
 int moreDecls;
+// Set by parseParameters (and by nobody else) around its parseOneDeclarator
+// call: in a parameter list the declarator may be abstract, i.e. carry no
+// name at all.  Passed through a global rather than as a fifth argument to
+// parseOneDeclarator so the four other call sites, none of which can accept
+// an abstract declarator, stay untouched.
+int nameOptional;
 // Scratch for the unified TYPESY/PACKEDSY/STRUCTSY/ENUMSY declaration-
 // dispatch loop in programme's own body: same reasoning as above.
 int declBareName;
@@ -4710,6 +4718,12 @@ rangeRec r;
              ((curIdent == litInput) || (curIdent == litOutput)));
         d->foundRec  =  hashTravPtr;
         inSymbol();
+    } else if (nameOptional && (SY IN [RPAREN, COMMA, LBRACK])) {
+        /* Abstract declarator: a formal parameter's name is optional
+           ('int', 'int *', 'int [0..2]').  curDeclarator is a global, so
+           the fields the name would have filled must be cleared here
+           rather than left over from the previous declarator. */
+        with *d do { name = bucket = wasDefined = 0; foundRec  =  NULL; }
     } else {
         error(errNoIdent);
         d->name  =  0;
@@ -7693,30 +7707,39 @@ int noComma;
     do {
         paramType = parseTypeRef(skipToSet | [IDENT,RPAREN,COMMA]);
         packedFlag  =  isPacked;
+        /* Set only here, and only once parseTypeRef is done, so that a
+           struct spelled out in the parameter's own type-spec still holds
+           its fields to the usual "every declarator is named" rule. */
+        nameOptional  =  true;
         parseOneDeclarator(&curDeclarator, paramType, packedFlag, isForwardRef);
+        nameOptional  =  false;
+        l3var1z = malloc(offsetof(identrec, szIdent));
+        with *l3var1z do {
+            id  =  curDeclarator.name;
+            pck.p.offset  =  curFrameRegTemplate;
+            pck.p.cl  =  VARID;
+            pck.p.next  =  NULL;
+            typ  =  curDeclarator.typ;
+            list  =  curIdRec;
+            value  =  l2int18z;
+        }
+        /* An unnamed parameter takes its argument slot like any other, but
+           is never entered in the symbol table, so the body has no way to
+           name it. */
         if (curDeclarator.name != 0) {
             if (curDeclarator.wasDefined)
                 error(errIdentAlreadyDefined);
-            l3var1z = malloc(offsetof(identrec, szIdent));
-            with *l3var1z do {
-                id  =  curDeclarator.name;
-                pck.p.offset  =  curFrameRegTemplate;
-                pck.p.cl  =  VARID;
-                pck.p.next  =  symHash[curDeclarator.bucket];
-                typ  =  curDeclarator.typ;
-                list  =  curIdRec;
-                value  =  l2int18z;
-            }
+            l3var1z->pck.p.next  =  symHash[curDeclarator.bucket];
             symHash[curDeclarator.bucket]  =  l3var1z;
-            ++l2int18z;
-            if (l3var2z == NULL)
-                curIdRec->argList  =  l3var1z;
-            else
-                l3var2z->list  =  l3var1z;
-            l3var2z  =  l3var1z;
-            if (typeSize(curDeclarator.typ) != 1)
-                extraWords  =  extraWords + typeSize(curDeclarator.typ);
         }
+        ++l2int18z;
+        if (l3var2z == NULL)
+            curIdRec->argList  =  l3var1z;
+        else
+            l3var2z->list  =  l3var1z;
+        l3var2z  =  l3var1z;
+        if (typeSize(curDeclarator.typ) != 1)
+            extraWords  =  extraWords + typeSize(curDeclarator.typ);
         noComma  =  (SY != COMMA);
         if (! noComma) {
             lookupMode  =  lookDef;

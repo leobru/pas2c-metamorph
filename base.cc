@@ -5487,6 +5487,13 @@ struct DclOp {
     rangeRec range;
 };
 
+// Set by parseParameters (and by nobody else) around its parseOneDeclarator
+// call: in a parameter list the declarator may be abstract, i.e. carry no
+// name at all.  Passed through a global rather than as a further argument to
+// parseOneDeclarator so the other call sites, none of which can accept an
+// abstract declarator, stay untouched.
+bool nameOptional = false;
+
 // '*'* ('(' declarator ')' | IDENT) ('[' range ']')*
 // Collects pointer/array operators while descending; the caller applies
 // them in reverse so precedence matches C: `int *a[10]` is an array of
@@ -5512,6 +5519,15 @@ void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
              (curIdent == litInput || curIdent == litOutput)) */;
         d.foundRec = hashTravPtr;
         inSymbol();
+    } else if (nameOptional and has(Bits(RPAREN, COMMA, LBRACK), SY)) {
+        // Abstract declarator: a formal parameter's name is optional
+        // ('int', 'int *', 'int [0..2]').  work.p2c's curDeclarator is a
+        // global, so it clears the fields the name would have filled;
+        // mirrored here although Declarator is fresh per call.
+        d.name = 0;
+        d.bucket = 0;
+        d.wasDefined = false;
+        d.foundRec = NULL;
     } else {
         error(errNoIdent);
         d.name = 0;
@@ -8608,29 +8624,38 @@ void parseParameters()
             parseTypeRef paramTypeParser(paramType, skipToSet | Bits(IDENT, RPAREN, COMMA));
             packedFlag = paramTypeParser.isPacked;
         }
+        // Set only here, and only once parseTypeRef is done, so that a
+        // struct spelled out in the parameter's own type-spec still holds
+        // its fields to the usual "every declarator is named" rule.
+        nameOptional = true;
         Declarator d = parseOneDeclarator(paramType, packedFlag);
+        nameOptional = false;
+        IdentRecPtr np = besm6_alloc_record<IdentRec>(
+            offsetof(IdentRec, szIdent));
+        np->id = d.name;
+        np->pck.offset = curFrameRegTemplate;
+        np->pck.cl = VARID;
+        np->typ = d.type;
+        np->list() = curIdRec;
+        np->value() = l2int18z;
+        // An unnamed parameter takes its argument slot like any other, but
+        // is never entered in the symbol table, so the body has no way to
+        // name it.  besm6_alloc_record zero-fills, and nidx == 0 already
+        // reads back as NULL, so the link simply stays unset.
         if (d.name != 0) {
             if (d.wasDefined)
                 error(errIdentAlreadyDefined);
-            IdentRecPtr np = besm6_alloc_record<IdentRec>(
-                offsetof(IdentRec, szIdent));
-            np->id = d.name;
-            np->pck.offset = curFrameRegTemplate;
-            np->pck.cl = VARID;
             np->pck.nidx = ord(symHash[d.bucket]);
-            np->typ = d.type;
-            np->list() = curIdRec;
-            np->value() = l2int18z;
             symHash[d.bucket] = np;
-            l2int18z = l2int18z + 1;
-            if (l3var2z == NULL)
-                curIdRec->argList() = np;
-            else
-                l3var2z->list() = np;
-            l3var2z = np;
-            if (typeSize(d.type) != 1)
-                extraWords = extraWords + typeSize(d.type);
         }
+        l2int18z = l2int18z + 1;
+        if (l3var2z == NULL)
+            curIdRec->argList() = np;
+        else
+            l3var2z->list() = np;
+        l3var2z = np;
+        if (typeSize(d.type) != 1)
+            extraWords = extraWords + typeSize(d.type);
         noComma = (SY != COMMA);
         if (not noComma) {
             lookupMode = lookDef;

@@ -1,9 +1,6 @@
 # Remains to be done
- - optimize !x 
  - C-style string literals using "" with terminating \0
  - helper routine for printing C-style strings for `write` (`puts`) 
- - `main` as a regular function
- - starting routine calling `main`
  - function pointers
  - operations on pointers to words
  - `char *`, operations of `char *`
