@@ -1,0 +1,24 @@
+/*=s8,y+,k9,l0*/
+// A formal parameter's name is optional: the declarator in a parameter list
+// may be abstract ('int', 'int *', 'int [0..2]').  An unnamed parameter takes
+// its argument slot, so the named parameters keep their offsets, and the body
+// has no way to refer to it.
+typedef int triple[0..2];
+triple arr = { 11, 22, 33 };
+int cell;
+
+// Only the middle parameter is named.
+int second(int, int b, int) { return b; }
+
+// An unnamed pointer parameter.
+int two(int *) { return 2; }
+
+// An unnamed multi-word by-value parameter ahead of a named one.
+int tail(triple, int c) { return c; }
+
+void main() {
+    cell = 5;
+    writeln(' SECOND=', second(1, 2, 3):0);
+    writeln(' TWO=', two(&cell):0);
+    writeln(' TAIL=', tail(arr, 7):0);
+}

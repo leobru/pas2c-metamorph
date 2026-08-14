@@ -1,0 +1,23 @@
+/*=s8,y+,k9,l0*/
+// A definition of a previously declared routine restates the whole header,
+// the way C requires.  The parameter list is matched against the
+// declaration's, and the body sees the names the definition gives.
+int add(int a, int b);
+int scaled(int, int);            // declared with no names at all
+void greet();                    // no parameters
+int total;
+
+// Same names as the declaration.
+int add(int a, int b) { return a + b; }
+
+// Names of the definition's own choosing.
+int scaled(int v, int by) { return v * by; }
+
+void greet() { writeln(' GREET'); }
+
+void main() {
+    total = add(3, 4);
+    writeln(' ADD=', total:0);
+    writeln(' SCALED=', scaled(6, 7):0);
+    greet();
+}

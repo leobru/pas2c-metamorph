@@ -1134,6 +1134,8 @@ const char * pasmitxt(int64_t errNo)
     case 23: return "Type ID instead of a variable";
     case 29: return "Index out of bounds";
     case 33: return "Illegal types for assignment";
+    case 39: return "Argument kind mismatch in call";
+    case 40: return "Argument type mismatch in call";
     case 37: return "Missing INPUT file in program header";
     case 44: return "Incorrect usage of a standard procedure or a function";
     case 49: return "Too many instructions in a block";
@@ -5489,9 +5491,8 @@ struct DclOp {
 
 // Set by parseParameters (and by nobody else) around its parseOneDeclarator
 // call: in a parameter list the declarator may be abstract, i.e. carry no
-// name at all.  Passed through a global rather than as a further argument to
-// parseOneDeclarator so the other call sites, none of which can accept an
-// abstract declarator, stay untouched.
+// name at all.  A global, so parseOneDeclarator's other call sites, none of
+// which can accept an abstract declarator, stay as they are.
 bool nameOptional = false;
 
 // '*'* ('(' declarator ')' | IDENT) ('[' range ']')*
@@ -5522,8 +5523,8 @@ void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
     } else if (nameOptional and has(Bits(RPAREN, COMMA, LBRACK), SY)) {
         // Abstract declarator: a formal parameter's name is optional
         // ('int', 'int *', 'int [0..2]').  work.p2c's curDeclarator is a
-        // global, so it clears the fields the name would have filled;
-        // mirrored here although Declarator is fresh per call.
+        // global and clears the fields the name would have filled; mirrored
+        // here, where Declarator is fresh per call.
         d.name = 0;
         d.bucket = 0;
         d.wasDefined = false;
@@ -8592,7 +8593,14 @@ initScalars::initScalars() :
 // variables/typedefs/fields use. No ROUTINEID (procedure-valued
 // parameter) support -- unexercised by the test corpus; revisit with a
 // concrete failing case if one ever turns up.
-void parseParameters()
+// matchTo == NULL builds the argument list from scratch, for a routine's
+// first declaration.  A non-NULL matchTo walks the records an earlier
+// declaration built (terminated by curIdRec, per the argList convention, so
+// an empty list arrives as curIdRec itself) while this definition restates
+// the list.  Those records are reused, keeping their offsets, the routine's
+// multi-word flag and the saved level; the types are checked and the names
+// this definition gives are installed.
+void parseParameters(IdentRecPtr matchTo)
 {
     IdentRecPtr l3var2z;
     int64_t extraWords;
@@ -8609,6 +8617,8 @@ void parseParameters()
     inSymbol();
     l3var2z = NULL;
     if (SY == RPAREN) {
+        if (matchTo != NULL and matchTo != curIdRec)
+            error(errNoCommaOrParenOrTooFewArgs);
         inSymbol();
         lookup2 = lookUse;
         lookupMode = lookUse;
@@ -8630,6 +8640,26 @@ void parseParameters()
         nameOptional = true;
         Declarator d = parseOneDeclarator(paramType, packedFlag);
         nameOptional = false;
+        if (matchTo != NULL) {
+            if (matchTo == curIdRec)
+                error(errTooManyArguments);
+            else {
+                // Exact identity: typeCheck's assignment compatibility
+                // would let a 'char' definition complete an 'int'
+                // declaration.
+                if (matchTo->typ != d.type)
+                    error(40); /* errIncompatibleArgumentTypes */
+                // A name given here reaches the symbol table.  Either
+                // side may leave the parameter unnamed.
+                if (d.name != 0) {
+                    if (d.wasDefined)
+                        error(errIdentAlreadyDefined);
+                    matchTo->id = d.name;
+                    addToHashTab(matchTo);
+                }
+                matchTo = matchTo->list();
+            }
+        } else {
         IdentRecPtr np = besm6_alloc_record<IdentRec>(
             offsetof(IdentRec, szIdent));
         np->id = d.name;
@@ -8638,10 +8668,10 @@ void parseParameters()
         np->typ = d.type;
         np->list() = curIdRec;
         np->value() = l2int18z;
-        // An unnamed parameter takes its argument slot like any other, but
-        // is never entered in the symbol table, so the body has no way to
-        // name it.  besm6_alloc_record zero-fills, and nidx == 0 already
-        // reads back as NULL, so the link simply stays unset.
+        // An unnamed parameter takes its argument slot like any other.  It
+        // never enters the symbol table, so the body has no way to name it.
+        // besm6_alloc_record zero-fills and nidx == 0 reads back as NULL, so
+        // the link stays unset.
         if (d.name != 0) {
             if (d.wasDefined)
                 error(errIdentAlreadyDefined);
@@ -8656,6 +8686,7 @@ void parseParameters()
         l3var2z = np;
         if (typeSize(d.type) != 1)
             extraWords = extraWords + typeSize(d.type);
+        }
         noComma = (SY != COMMA);
         if (not noComma) {
             lookupMode = lookDef;
@@ -8663,7 +8694,12 @@ void parseParameters()
         }
     } while (!noComma);
     /* 22276 */
-    if (extraWords != 0) {
+    if (matchTo != NULL) {
+        // The declaration already ran the fix-up below and stashed the
+        // resulting offset counter in level, so nothing here may move it.
+        if (matchTo != curIdRec)
+            error(errNoCommaOrParenOrTooFewArgs);
+    } else if (extraWords != 0) {
         curIdRec->flags() = (curIdRec->flags() | Bits(23));
         int64_t base = l2int18z;
         l2int18z = l2int18z + extraWords;
@@ -8841,13 +8877,11 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
     // 'TYPE name(params);' / 'TYPE name(params) extern;'), exactly as C
     // distinguishes 'int x;' from 'int f(...);'.
     // Disambiguated right after reading the first declarator:
-    // a bare name immediately followed by '(' or ':' is a routine, as is
-    // a bare name matching an existing forward-declared routine of
-    // matching voidness (redefinition -- e.g. 'void error { ... }'
-    // completing an earlier 'void error(int errno);', which
-    // needs no parens at all). Everything else -- a '*'/'[]' on the
-    // declarator, a ',', or a bare ';' that doesn't match a pending
-    // forward routine -- is a variable.
+    // a bare name immediately followed by '(' or ':' is a routine. A
+    // definition completing an earlier declaration is one too: it restates
+    // the whole header, parameter list included ('int add(int a, int b);'
+    // ... 'int add(int a, int b) { ... }'). Everything else -- a '*'/'[]'
+    // on the declarator, a ',', or a bare ';' -- is a variable.
     //
     while (has(declStartSys, SY)) {
         TPtr baseTy{};
@@ -8876,6 +8910,10 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             forwardRef = typeParser.isForwardRef;
         }
         done = baseTy == voidType;
+        // Set here, ahead of the declarator: the redefinition test below
+        // compares it against the declaration's return type.  work.p2c sets
+        // it at the same point.
+        typedRetType = baseTy;
         Declarator d = parseOneDeclarator(baseTy, packedFlag, forwardRef);
         lookup2 = lookUse;
         if (d.name == 0) {
@@ -8885,22 +8923,36 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         }
         bool bareName = (d.type == baseTy);
         isPredefined = false;
-        if (bareName and d.foundRec != NULL and
+        // A definition restates the whole header, so a redefinition is a
+        // name already in the symbol table and followed by its parameter
+        // list.  The id check proves foundRec is this name's record: a
+        // lookup that found nothing can leave a neighbour there, and a
+        // plain 'TYPE name;' would then reach here.
+        if (bareName and SY == LPAREN and d.foundRec != NULL and
+            d.foundRec->id == d.name and
             d.foundRec->pck.cl == ROUTINEID and
             d.foundRec->list() == NULL and
             d.foundRec->preDefLink() != NULL and
-            ((d.foundRec->typ == voidType) == done)) {
+            // The whole header is restated, so the return type must agree.
+            // A disagreement falls through to the "previous declaration was
+            // not a forward declaration" arm below.
+            (d.foundRec->typ == typedRetType)) {
             isPredefined = true;
-        } else if (bareName and d.wasDefined and (SY == LPAREN or SY == COLON)) {
+        } else if (bareName and SY == LPAREN and d.foundRec != NULL and
+                   d.foundRec->id == d.name and
+                   // A routine record.  A name may shadow an enum constant
+                   // or a variable of an outer scope, and identifiers
+                   // collide at 8 characters (standProc the routine and the
+                   // STANDPROC operator).
+                   d.foundRec->pck.cl == ROUTINEID) {
             error(errIdentAlreadyDefined);
             printErrMsg(82); /* errPrevDeclWasNotForward */
         }
-        // A bare name (no '*'/'[]') is a routine only when followed by '(' or
-        // ':', or when it completes a predefined forward routine; otherwise
-        // it is a plain variable. Every routine carries explicit parens
-        // (there is no parenthesis-free 'RETTYPE name;' form), so no
-        // lookahead past ';' is needed to disambiguate.
-        bool isRoutine = bareName and (SY == LPAREN or SY == COLON or isPredefined);
+        // A bare name (no '*'/'[]') is a routine when followed by '(' or
+        // ':', and a plain variable otherwise. Every routine carries explicit
+        // parens, a definition completing an earlier declaration included, so
+        // no lookahead past ';' is needed.
+        bool isRoutine = bareName and (SY == LPAREN or SY == COLON);
         if (externDecl and isRoutine) {
             error(errBadSymbol);
             skip(skipToSet | Bits(SEMICOLON));
@@ -8979,7 +9031,6 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             bucket = d.bucket;
             isDefined = d.wasDefined;
             hashTravPtr = d.foundRec;
-            typedRetType = baseTy;
             if (not isPredefined) {
                 if (curFrameRegTemplate == 7) {
                     error(81); /* errProcNestingTooDeep */
@@ -9012,7 +9063,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     error(81); /* errProcNestingTooDeep */
                 hadParens = (SY == LPAREN);
                 if (hadParens)
-                    parseParameters();
+                    parseParameters(NULL);
                 if (not done) {
                     if (typedRetType != voidType) {
                         /* New C-style: return type stashed at the loop head;
@@ -9044,24 +9095,20 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     workidr->preDefLink() = hashTravPtr->preDefLink();
                 }
                 hashTravPtr->preDefLink() = NULL;
-                curIdRec = hashTravPtr->argList();
-                if (curIdRec != NULL) {
-                    while (curIdRec != hashTravPtr) {
-                        addToHashTab(curIdRec);
-                        curIdRec = curIdRec->list();
-                    }
-                }
                 curIdRec = hashTravPtr;
+                // The definition restates the parameter list; it is matched
+                // against the declaration's, whose records are reused.
+                // parseParameters puts the names in the symbol table.
+                workidr = curIdRec->argList();
+                if (workidr == NULL)
+                    workidr = curIdRec;
+                hadParens = (SY == LPAREN);
+                if (hadParens)
+                    parseParameters(workidr);
                 setup(scopeBound);
-                hadParens = false;
-                if (SY == LPAREN and curIdRec->argList() == NULL) {
-                    hadParens = true;
-                    inSymbol();
-                    checkSymAndRead(RPAREN);
-                }
             } /* 23224 */
             if (SY == BEGINSY) {
-                if (curIdRec->argList() == NULL and not hadParens)
+                if (not hadParens)
                     error(42); /* errNoParamList */
                 setup(scopeBound);
                 inSymbol();
