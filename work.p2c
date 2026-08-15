@@ -3,9 +3,9 @@
 const
     boilerplate = ' PASCAL 2 C METAMORPHOSIS (2026)';
 //
-    fnABS = 0; fnTRUNC = 1; fnSIZEOF = 2; fnOFFSETOF = 3;
-    fnMALLOC = 4; fnROUND = 5; fnCARD = 6; fnMINEL = 7;
-    fnREF = 8; fnABSI = 9;
+    fnABS = 0; fnSIZEOF = 1; fnOFFSETOF = 2; fnMALLOC = 3;
+    fnCARD = 4; fnMINEL = 5;
+    fnREF = 6; fnABSI = 7;
 //
     S5 = 2;
 //
@@ -44,7 +44,6 @@ const
     mcADDSTK2REG = 8;
     mcADDACC2REG = 9;
     mcDUMMY = 10;
-    mcROUND = 11;
     mcMALLOC = 12;
     mcMINEL = 15;
     mcPOP2ADDR = 19;
@@ -64,7 +63,7 @@ const
 //  E15TO1 =    04000020;
 //  PLUS1 =     04000021;
 //  BITS15 =    04000022;
-    REAL05 =    04000023;
+//  REAL05 =    04000023;
     ALLONES =   04000024;
     MSB =       04000025;
 //  E40TO7 =    04000026;       // mask for P/IN
@@ -138,7 +137,7 @@ const
     TRUE  =  1U;
     E48 = 1 << 47;
     P_RR = 32;
-    P_TR = 33;
+    C_TR = 33;
     P_LDAR = 46;
 //
     lookDef = 0;
@@ -169,17 +168,16 @@ typedef enum {
 typedef int setofsys; // set of symbol
 //
 typedef enum {
-    SHLEFT,     SHRIGHT,
-    SETAND,     SETXOR,     SETOR,
+    SHLEFT,     SHRIGHT,    SETAND,    SETXOR,     SETOR,
     MUL,        RDIVOP,     ANDOP,     IDIVOP,     IMODOP,
     PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
     LTOP,       GEOP,       GTOP,       LEOP,       INOP,
     IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
-    RMWASSIGN,  GETENUM,    GETFIELD,   DEREF,
-    STKLVAL,    ALNUM,      PCALL,      FCALL,
-    TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
-    STANDPROC,  NOOP
+    RMWASSIGN,  GETENUM,    GETFIELD,   DEREF,      STKLVAL,
+    ALNUM,      PCALL,      FCALL,      TOREAL,     TOINT,
+    NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,   STANDPROC,
+    NOOP
 } operator;
 //
 typedef enum {
@@ -505,10 +503,8 @@ int indexreg[1..15];
 int opToInsn[SHLEFT..STKLVAL];
 int opToMode[SHLEFT..STKLVAL];
 opflg opFlags[SHLEFT..STKLVAL];
-int funcInsn[10] = {
+int funcInsn[8] = {
     [fnABS]    = KAMX,
-    [fnTRUNC]  = KADD+ZERO,
-    [fnROUND]  = macro + mcROUND,
     [fnCARD]   = KACX,
     [fnMINEL]  = macro + mcMINEL,
     [fnMALLOC] = macro + mcMALLOC,
@@ -571,7 +567,7 @@ int helperNames[1..57] = {
 /*30*/  'P/WL    ',
         'P/WOLN  ',
         'P/RR    ',
-        'P/TR    ',
+        'C/TR    ',
         'P/LV    ',
         'FOPEN   ',
         'FCLOSE  ',
@@ -2224,7 +2220,8 @@ eptr mkUnaryFold(operator op, tptr resTyp, eptr e) {
         v.i = e->num1;
         switch (op) {
         case TOREAL:   v.r = v.i; break;
-        case NOTOP:    v.i = ! v.i; break;
+        case TOINT:    v.i = v.r; break;
+        case NOTOP:    v.i = !v.i; break;
         case RNEGOP:   v.r = -v.r; break;
         case INEGOP:   v.i = -v.i; break;
         case BITNEGOP: v.i = ~v.i; break;
@@ -2575,10 +2572,6 @@ void processInsn() {
                 break;
             case mcADDACC2REG:
                 add2InsnsToBuf(KATI+14, KMADDJ+I14 + curInsn);
-                break;
-            case mcROUND:
-                addInsnToBuf(KADD+REAL05);                /* round */
-                add2InsnsToBuf(KNTR+7, KADD+ZERO);
                 break;
             case 14:
                 add2InsnsToBuf(indexreg[curInsn] + KVTM,
@@ -4216,6 +4209,12 @@ int needsMater;
                 addToInsnList(KAVX);
                 l3int3z  =  3;
                 goto 10122;
+            } else if (curOP == TOINT) {
+                /* Real to integer truncates toward zero, in C/TR (libc);
+                   the helper returns with the machine in integer mode. */
+                l3int3z  =  2;
+                addToInsnList(getHelperProc(C_TR));
+                goto 10122;
             } else if (curOP == BITNEGOP) {
                 addToInsnList(KAEX+ALLONES);
                 l3int3z = 1;
@@ -4240,8 +4239,6 @@ int needsMater;
         if (arg1Const) {
             switch (work) {
             case fnABS:   arg1Val.r  =  abs(arg1Val.r); break;
-            case fnTRUNC: arg1Val.i  =  trunc(arg1Val.r); break;
-            case fnROUND: arg1Val.i  =  round(arg1Val.r); break;
             case fnCARD:  arg1Val.i  =  card(arg1Val.i); break;
             case fnMINEL: arg1Val.i  =  minel(arg1Val.i); break;
             case fnABSI:  arg1Val.i  =  abs(arg1Val.i); break;
@@ -4267,11 +4264,6 @@ int needsMater;
             }
         } else {
             prepLoad();
-            if (work == fnTRUNC) {
-                l3int3z  =  2;
-                addToInsnList(getHelperProc(P_TR));
-                goto 10122;
-            }
             if (work == fnCARD) {
                 l3int3z  =  0;
             } else if (work == fnABS)
@@ -5535,6 +5527,28 @@ void castToReal(eptr *value) {
 } /* castToReal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* C's assignment conversions between integer and real, applied wherever a
+   value is assigned to a destination of the other type: plain assignment,
+   an actual passed by value to a formal, and return.  Widening goes through
+   castToReal; narrowing drops the fraction, the way the retired standard
+   function TRUNC did.  Returns false if the mismatch is not one of those,
+   leaving the caller to report it. */
+int castArith(tptr dest, eptr *value) {
+eptr arg;
+    arg  =  *value;
+    if (dest == realType && typeCheck(intType, arg->typ)) {
+        castToReal(value);
+        return true;
+    }
+    if ((arg->typ != realType) || ! typeCheck(intType, dest))
+        return false;
+    /* mkUnaryFold folds a constant real in place, the way it does for
+       castToReal's TOREAL. */
+    *value = mkUnaryFold(TOINT, intType, arg);
+    return true;
+} /* castArith */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int areTypesCompatible(eptr *l4arg1z) {
     if (arg1Type == realType) {
         if (typeCheck(intType, arg2Type)) {
@@ -5622,7 +5636,11 @@ idclass formClass;
                 }
                 arg1Type  =  curExpr->typ;
                 if (arg1Type != voidType) {
-                    if (!typeCheck(arg1Type, curFormal->typ))
+                    /* A by-value formal converts its actual as an assignment
+                       would; a formal taken by address must match exactly. */
+                    if (!typeCheck(arg1Type, curFormal->typ) &&
+                       ! (formClass == VARID &&
+                          castArith(curFormal->typ, &curExpr)))
                         error(40); /*errIncompatibleArgumentTypes*/
                 }
             } while (false);
@@ -5832,7 +5850,7 @@ int stProcNo, checkMode, resultValue;
     arg1Type  =  curExpr->typ;
     argKind  =  arg1Type.p.pk;
     if (arg1Type == realType)
-        checkMode  =  [fnABS:fnTRUNC, fnROUND];
+        checkMode  =  [fnABS];
     else if (arg1Type == intType)
         checkMode  =  [fnABS, fnMALLOC, fnCARD, fnMINEL];
     else if ((arg1Type == charType) || (argKind == kindScalar) || (argKind == kindPtr))
@@ -6192,10 +6210,9 @@ int match;
                 isCharPtr(leftExpr->expr1->typ))
                 leftExpr = flatMemAt(leftExpr->expr1);
             if (! typeCheck(arg1Type, arg2Type)) {
-                if (arg1Type == realType
-                    && typeCheck(intType, arg2Type))
-                    castToReal(&curExpr);
-                else if (isCharPtr(arg1Type) &&
+                if (castArith(arg1Type, &curExpr)) {
+                    /* int <-> real, converted as C does */
+                } else if (isCharPtr(arg1Type) &&
                          isCharPtr(arg2Type))
                     curExpr = curExpr;
                 else
@@ -6769,10 +6786,9 @@ void returnOp() {
             expression();
             if (typeCheck(procName->typ, curExpr->typ)) {
                 /* OK */
-            } else if (procName->typ == realType &&
-                    typeCheck(intType, curExpr->typ))
-                castToReal(&curExpr);
-            else
+            } else if (castArith(procName->typ, &curExpr)) {
+                /* int <-> real, converted as C does */
+            } else
                 error(33); /* errIllegalTypesForAssignment */
             formOperator(LOAD);
         }
@@ -7610,13 +7626,11 @@ void regSysProc(int l4arg1z) {
     temptype  =  realType;
     regSysProc('     ABS');
     temptype  =  intType;
-    regSysProc('   TRUNC');
     regSysProc('  SIZEOF');
     regSysProc('OFFSETOF');
     temptype  =  voidPtr;
     regSysProc('  MALLOC');
     temptype  =  intType;
-    regSysProc('   ROUND');
     regSysProc('    CARD');
     regSysProc('   MINEL');
     /* The first token of the source is read here, not by the caller: sources
@@ -7927,6 +7941,13 @@ void exitScope(int a) {
                         pck.p.cl  =  TYPEID;
                     }
                 }
+                /* definePtrType parks lineCnt in offset so error 79 can
+                   name the line of an unresolved forward reference.  The
+                   record is a real symbol now, and lookDef stops its walk at
+                   the first entry whose offset is not the frame template, so
+                   anything hashing behind a leftover line number would be
+                   invisible to it. */
+                curIdRec->pck.p.offset  =  curFrameRegTemplate;
                 curIdRec->pck.p.next  =  symHash[curDeclarator.bucket];
                 symHash[curDeclarator.bucket]  =  curIdRec;
             }
@@ -8059,8 +8080,6 @@ void exitScope(int a) {
                     list  =  NULL;
                     typ  =  curDeclarator.typ;
                 }
-                if (curDeclarator.wasDefined)
-                    error(errIdentAlreadyDefined);
                 symHash[curDeclarator.bucket]  =  curIdRec;
                 jj  =  typeSize(curDeclarator.typ);
                 l2bool8z  =  true;

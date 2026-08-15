@@ -1,0 +1,25 @@
+ C/TR:,NAME,
+C===========================================================
+C C/TR - convert a real to an integer, truncating toward zero
+C
+C   Calling convention (single arg, in ACC):
+C     ACC = real value    ->    ACC = integer value
+C
+C Subtracting the integer zero aligns the mantissa to the
+C integer scale, so the fraction is shifted out; AMX does it on
+C the absolute value and AVX puts the sign back, which is what
+C makes the truncation go toward zero.  This is the Pascal
+C runtime's P/TR (paslib/p_tr.dtran) plus the closing AEX: an
+C integer word here carries no exponent, so the one left behind
+C by the alignment has to be stripped.  That AEX also leaves the
+C mode register at 7 - normalization and rounding suppressed,
+C omega logical - which is what compiled code expects of an
+C integer result on return.
+C===========================================================
+                ,NTR ,3      . suppress normalization and rounding
+            15  ,ATX ,       . save the value for its sign
+            1   ,AMX ,11B    . =I0  ACC = |value|, fraction gone
+            15  ,AVX ,       . negate if the value was negative
+            1   ,AEX ,11B    . =I0  strip the integer exponent
+            13  ,UJ  ,
+                ,END ,

@@ -1,0 +1,59 @@
+/*=s8,y+,k9,l0*/
+//
+// Assigning a real to an integer converts, the way the retired standard
+// function TRUNC did.  The same conversion applies to an actual passed by
+// value to an integer formal and to a returned value; the widening
+// direction (integer to real) is accepted in all three places too.
+// Truncation goes toward zero, in the libc helper C/TR.  TRUNC and ROUND
+// are both gone as standard functions, so the names are ordinary
+// identifiers now; rounding belongs in a library routine.
+float r;
+int i, trunc, round;
+
+int takeInt(int n) {
+    return n;
+}
+
+float takeReal(float x) {
+    return x;
+}
+
+int retInt(float x) {
+    return x;
+}
+
+float retReal(int n) {
+    return n;
+}
+
+void main() {
+    r = 3.75;
+    i = r;
+    writeln(' POS=', i:0);
+    r = -3.75;
+    i = r;
+    writeln(' NEG=', i:0);
+    // Constant reals fold at construction; the folded value must agree
+    // with what the run-time conversion above produces.
+    i = 3.75;
+    writeln(' CPOS=', i:0);
+    i = -3.75;
+    writeln(' CNEG=', i:0);
+    writeln(' ARGC=', takeInt(6.25):0);
+    r = 6.25;
+    writeln(' ARGV=', takeInt(r):0);
+    writeln(' RET=', retInt(9.75):0);
+    // Widening: integer actual, integer returned, integer assigned.
+    r = takeReal(4);
+    writeln(' WARG=', r:6:2);
+    r = retReal(7);
+    writeln(' WRET=', r:6:2);
+    i = 5;
+    r = i;
+    writeln(' WASN=', r:6:2);
+    // Neither TRUNC nor ROUND is a standard function, so both spellings
+    // are plain identifiers.
+    trunc = 42;
+    round = 17;
+    writeln(' NAME=', trunc:0, ' ', round:0);
+}

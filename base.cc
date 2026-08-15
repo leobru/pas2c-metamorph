@@ -37,9 +37,9 @@ const int SYMTAB_MAX = 80;
 const int OBJBUF_SIZE = 8192;    // initially 1024
 
 const int64_t
-    fnABS = 0, fnTRUNC = 1, fnSIZEOF = 2, fnOFFSETOF = 3,
-    fnMALLOC = 4, fnROUND = 5, fnCARD = 6, fnMINEL = 7,
-    fnREF = 8, fnABSI = 9;
+    fnABS = 0, fnSIZEOF = 1, fnOFFSETOF = 2, fnMALLOC = 3,
+    fnCARD = 4, fnMINEL = 5,
+    fnREF = 6, fnABSI = 7;
 
 const int64_t
     S3 = 0,
@@ -83,7 +83,6 @@ const int64_t
     mcADDSTK2REG = 8,
     mcADDACC2REG = 9,
     mcDUMMY = 10,
-    mcROUND = 11,
     mcMALLOC = 12,
     mcMINEL = 15,
     mcPOP2ADDR = 19,
@@ -92,7 +91,7 @@ const int64_t
 
 const int64_t
     P_RR = 32,
-    P_TR = 33,
+    C_TR = 33,
     P_LDAR = 46;
 
 const int64_t
@@ -105,7 +104,7 @@ const int64_t
     MINUS1 =    04000017,
     PLUS1 =     04000021,
     BITS15 =    04000022,
-    REAL05 =    04000023,
+//  REAL05 =    04000023,
     ALLONES =   04000024,
     MSB =       04000025,
     HEAPPTR =   04000027,
@@ -207,8 +206,8 @@ enum Operator {
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
     RMWASSIGN,  GETENUM,    GETFIELD,   DEREF,
     STKLVAL,    ALNUM,      PCALL,      FCALL,
-    TOREAL,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,
-    STANDPROC,  NOOP
+    TOREAL,     TOINT,      NOTOP,      INEGOP,     RNEGOP,
+    BITNEGOP,   STANDPROC,  NOOP
 };
 
 enum OpGen {
@@ -939,7 +938,7 @@ int64_t indexreg[16];
 int64_t opToInsn[48];
 int64_t opToMode[48];
 OpFlg opFlags[48]; // array [MUL..op44] of OpFlg;
-int64_t funcInsn[10];
+int64_t funcInsn[8];
 int64_t InsnTemp[48];
 
 int64_t frameRegTemplate = 04000000,
@@ -990,7 +989,8 @@ std::string Expr::p()
         "GEOP","GTOP","LEOP","INOP","IMULOP","INTPLUS","INTMINUS","CONDOP",
         "ALTERN","INCROP","DECROP","ASSIGNOP","GETELT","GETVAR","RMWASSIGN",
         "GETENUM","GETFIELD","DEREF","STKLVAL","ALNUM","PCALL","FCALL",
-        "TOREAL","NOTOP","INEGOP","RNEGOP","BITNEGOP","STANDPROC","NOOP"
+        "TOREAL","TOINT","NOTOP","INEGOP","RNEGOP","BITNEGOP","STANDPROC",
+        "NOOP"
     };
     char buf[256];
     const char * nm = (op >= 0 && op <= NOOP) ? opName[op] : "??";
@@ -2810,7 +2810,7 @@ ExprPtr mkExprFold(Operator op, TPtr resTyp, ExprPtr e1, ExprPtr e2)
 }
 
 /* Unary counterpart of mkExprFold.  Only ever called with a foldable unary
-   operator (INEGOP/RNEGOP/BITNEGOP/boolean NOTOP/TOREAL), so a GETENUM operand
+   operator (INEGOP/RNEGOP/BITNEGOP/boolean NOTOP/TOREAL/TOINT), so a GETENUM
    is always folded — mutated in place and reused. */
 ExprPtr mkUnaryFold(Operator op, TPtr resTyp, ExprPtr e)
 {
@@ -2818,6 +2818,7 @@ ExprPtr mkUnaryFold(Operator op, TPtr resTyp, ExprPtr e)
         Word &arg = e->lit;
         switch (op) {
         case TOREAL:   arg.r = arg.ii; break;
+        case TOINT:    arg = i64ToRawInt(int64_t(arg.r)); break;
         case NOTOP:    arg.b = not arg.b; break;
         case RNEGOP:   arg.r = -arg.r; break;
         case INEGOP:   arg = foldRawInt1(op, arg); break;
@@ -3260,10 +3261,6 @@ L3556:
                 case mcADDACC2REG:
                     add2InsnsToBuf(KATI+14, KMADDJ+I14 + curInsn.ii);
                     break;
-                case mcROUND: {
-                    addInsnToBuf(KADD+REAL05);                /* round */
-                    add2InsnsToBuf(KNTR+7, KADD+ZERO);
-                } break;
                 case 14:
                     add2InsnsToBuf(indexreg[curInsn.ii] + KVTM, KITA + curInsn.ii);
                     break;
@@ -4942,6 +4939,13 @@ L10122:
                     addToInsnList(InsnTemp[AVX]);
                     l3int3z = 3;
                     goto L10122;
+                } else if (curOP == TOINT) {
+                    /* Real to integer truncates toward zero, in C/TR
+                       (libc); the helper returns with the machine in
+                       integer mode. */
+                    l3int3z = 2;
+                    addToInsnList(getHelperProc(C_TR));
+                    goto L10122;
                 } else if (curOP == BITNEGOP) {
                     addToInsnList(KAEX+ALLONES);
                     l3int3z = 1;
@@ -4971,10 +4975,6 @@ L10122:
                 switch (work) {
                 case fnABS:   arg1Val.r = fabs(arg1Val.r);
                     break;
-                case fnTRUNC: arg1Val.ii = int64_t(trunc(arg1Val.r));
-                    break;
-                case fnROUND: arg1Val.ii = int64_t(round(arg1Val.r));
-                    break;
                 case fnCARD:  arg1Val.ii = card(arg1Val.ii);
                     break;
                 case fnMINEL: arg1Val.ii = minel(arg1Val.ii);
@@ -5002,11 +5002,6 @@ L10122:
                 insnList->regsused = insnList->regsused | Bits(0);
             } else {
                 prepLoad();
-                if (work == fnTRUNC) {
-                    l3int3z = 2;
-                    addToInsnList(getHelperProc(P_TR));
-                    goto L10122;
-                }
                 if (work == fnCARD) {
                     l3int3z = 0;
                 } else if (work == fnABS)
@@ -5468,12 +5463,14 @@ void parseConstDeclValue(TPtr &typ, Word &value);
 struct Declarator {
     int64_t name = 0;
     int64_t bucket = 0;
-    // wasDefined mirrors isDefined, meaningful only under lookDef (var/
-    // typedef/param namespaces): inSymbol's case 0 sets isDefined when an
-    // entry already exists at the current scope. lookField (struct
-    // fields) never sets isDefined at all -- its own match check instead
-    // leaves hashTravPtr pointing at the match (or NULL), captured below
-    // as foundRec (foundRec != NULL is the field "already defined" signal).
+    // wasDefined mirrors isDefined, meaningful only under lookDef, which is
+    // the typedef and parameter namespaces: inSymbol's case 0 sets isDefined
+    // when an entry already exists at the current scope. The plain variable
+    // and routine declaration loop runs in lookUse, so wasDefined is false
+    // throughout it. lookField (struct fields) never sets isDefined at all --
+    // its own match check leaves hashTravPtr pointing at the match (or NULL),
+    // captured below as foundRec (foundRec != NULL is the field "already
+    // defined" signal).
      bool wasDefined = false;
     // The matched symbol-table entry itself (NULL if none), so a caller
     // merging routine/variable dispatch (see the unified TYPESY
@@ -6340,6 +6337,26 @@ void castToReal(ExprPtr & value)
     value = mkUnaryFold(TOREAL, RealType, value);
 } /* castToReal */
 
+/* C's assignment conversions between integer and real, applied wherever a
+   value is assigned to a destination of the other type: plain assignment,
+   an actual passed by value to a formal, and return.  Widening goes through
+   castToReal; narrowing drops the fraction, the way the retired standard
+   function TRUNC did.  Returns false if the mismatch is not one of those,
+   leaving the caller to report it. */
+bool castArith(TPtr dest, ExprPtr & value)
+{
+    if (dest == RealType and typeCheck(IntegerType, value->vt.typ)) {
+        castToReal(value);
+        return true;
+    }
+    if (value->vt.typ != RealType or not typeCheck(IntegerType, dest))
+        return false;
+    /* mkUnaryFold folds a constant real in place, the way it does for
+       castToReal's TOREAL. */
+    value = mkUnaryFold(TOINT, IntegerType, value);
+    return true;
+} /* castArith */
+
 bool areTypesCompatible(ExprPtr & other)
 {
     if (arg1Type == RealType) {
@@ -6427,7 +6444,11 @@ L13736:                 error(39); /*errIncompatibleArgumentKinds*/
                 }
                 arg1Type = curExpr->vt.typ;
                 if (arg1Type != voidType) {
-                    if (not typeCheck(arg1Type, curFormal->typ))
+                    /* A by-value formal converts its actual as an assignment
+                       would; a formal taken by address must match exactly. */
+                    if (not typeCheck(arg1Type, curFormal->typ) and
+                        not (formClass == VARID and
+                             castArith(curFormal->typ, curExpr)))
                         error(40); /*errIncompatibleArgumentTypes*/
                 }
             }
@@ -6680,7 +6701,7 @@ void Factor::stdCall()
     asint64_t = Bits(stProcNo);
     if (stProcNo != fnSIZEOF and
         not (((checkMode == chkREAL) and
-              (subset(asint64_t, (BitRange(fnABS,fnTRUNC) | Bits(fnREF, fnROUND)))))
+              (subset(asint64_t, Bits(fnABS, fnREF))))
           or ((checkMode == chkINT) and
               (subset(asint64_t, (Bits(fnABS,fnMALLOC,fnREF,fnCARD) |
                            Bits(fnMINEL)))))
@@ -7037,10 +7058,9 @@ void parsePrc(int64_t minPrec)
             }
             leftExpr = cpDsLval(leftExpr);
             if (not typeCheck(arg1Type, arg2Type)) {
-                if (arg1Type == RealType and
-                    typeCheck(IntegerType, arg2Type))
-                    castToReal(curExpr);
-                else if (isCharPtr(arg1Type) and
+                if (castArith(arg1Type, curExpr)) {
+                    /* int <-> real, converted as C does */
+                } else if (isCharPtr(arg1Type) and
                          isCharPtr(arg2Type))
                     curExpr = curExpr;
                 else
@@ -7634,9 +7654,8 @@ void returnOp() {
             expression();
             if (typeCheck(procName->typ, curExpr->vt.typ)) {
                 /* OK */
-            } else if (procName->typ == RealType and
-                       typeCheck(IntegerType, curExpr->vt.typ)) {
-                castToReal(curExpr);
+            } else if (castArith(procName->typ, curExpr)) {
+                /* int <-> real, converted as C does */
             } else
                 error(33); /* errIllegalTypesForAssignment */
             (void) formOperator(LOAD);
@@ -8516,13 +8535,11 @@ initScalars::initScalars() :
     temptype = RealType;
     regSysProc(0414263L /*"     ABS"*/);
     temptype = IntegerType;
-    regSysProc(06462655643L /*"   TRUNC"*/);
     regSysProc(0635172455746L /*"  SIZEOF"*/);
     regSysProc(05746466345645746L /*"OFFSETOF"*/);
     temptype = voidPtr;
     regSysProc(0554154545743L /*"  MALLOC"*/);
     temptype = IntegerType;
-    regSysProc(06257655644L /*"   ROUND"*/);
     regSysProc(043416244L /*"    CARD"*/);
     regSysProc(05551564554L /*"   MINEL"*/);
 
@@ -8861,6 +8878,13 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                         curIdRec->typ = d.type;
                         curIdRec->pck.cl = TYPEID;
                     }
+                    // definePtrType parks lineCnt in offset so error 79 can
+                    // name the line of an unresolved forward reference.  The
+                    // record is a real symbol now, and lookDef stops its walk
+                    // at the first entry whose offset is not the frame
+                    // template, so anything hashing behind a leftover line
+                    // number would be invisible to it.
+                    curIdRec->pck.offset = curFrameRegTemplate;
                     curIdRec->pck.nidx = ord(symHash[d.bucket]);
                     symHash[d.bucket] = curIdRec;
                 });
@@ -8899,11 +8923,6 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 continue;
             }
         }
-        // lookup2 (not just lookupMode) must carry lookDef through
-        // parseTypeRef's own internal inSymbol() calls, all the way to
-        // the declarator name read by parseOneDeclarator below.
-        lookup2 = lookDef;
-        lookupMode = lookDef;
         {
             parseTypeRef typeParser(baseTy, skipToSet | Bits(IDENT, MUL, LPAREN, COMMA) | Bits(SEMICOLON));
             packedFlag = typeParser.isPacked;
@@ -8915,9 +8934,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         // it at the same point.
         typedRetType = baseTy;
         Declarator d = parseOneDeclarator(baseTy, packedFlag, forwardRef);
-        lookup2 = lookUse;
         if (d.name == 0) {
-            lookupMode = lookUse;
             markTypeSym();
             continue;
         }
@@ -8981,8 +8998,6 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 curIdRec->pck.cl = VARID;
                 curIdRec->list() = NULL;
                 curIdRec->typ = d.type;
-                if (d.wasDefined)
-                    error(errIdentAlreadyDefined);
                 symHash[d.bucket] = curIdRec;
                 jj = typeSize(d.type);
                 l2bool8z = true;
@@ -9644,8 +9659,6 @@ int main(int argc, char **argv)
     lvalOpSet = Bits(GETELT, GETVAR, GETFIELD) | Bits(DEREF);
 
     funcInsn[fnABS] = KAMX;
-    funcInsn[fnTRUNC] = KADD+ZERO;
-    funcInsn[fnROUND] = macro + mcROUND;
     funcInsn[fnCARD] = KACX;
     funcInsn[fnMINEL] = macro + mcMINEL;
     funcInsn[fnMALLOC] = macro + mcMALLOC;
@@ -9848,7 +9861,7 @@ int64_t helperNames[58] = { 0L,
 /*30*/  06017675400000000L      /*"P/WL    "*/,
         06017675754560000L      /*"P/WOLN  "*/,
         06017626200000000L      /*"P/RR    "*/,
-        06017646200000000L      /*"P/TR    "*/,
+        04317646200000000L      /*"C/TR    "*/,
         06017546600000000L      /*"P/LV    "*/,
         04657604556000000L      /*"FOPEN   "*/,
         04643545763450000L      /*"FCLOSE  "*/,

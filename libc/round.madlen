@@ -1,0 +1,28 @@
+ ROUND:,NAME,
+C===========================================================
+C round(x) - real to integer, the compiler's retired ROUND
+C
+C Calling convention (single argument, in ACC):
+C   ACC = the real value
+C   M13 = return link
+C
+C   int round(float) assembler;
+C
+C The call pushes the argument as well as passing it in the ACC
+C (1,XTS,arg then 13,VJM,ROUND), so the pushed word is dropped
+C on the way in; UTM touches neither the ACC nor the mode.
+C
+C The sequence the mcROUND macro emitted: add a half, then let
+C the alignment against the integer zero shift the fraction out,
+C which floors.  The closing AEX strips the exponent the
+C alignment leaves behind, an integer word here carrying none;
+C it also leaves the mode register at 7, the integer mode
+C compiled code expects on return.
+C===========================================================
+            15  ,UTM ,-1    . drop the word the call pushed
+                ,NTR ,7      . suppress normalization and rounding
+            1   ,A+X ,23B    . =R0.5
+            1   ,A+X ,11B    . =I0  align: the fraction is gone
+            1   ,AEX ,11B    . =I0  strip the integer exponent
+            13  ,UJ  ,
+                ,END ,
