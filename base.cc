@@ -163,7 +163,6 @@ const int64_t
     maxLineLen = 130,
     lookDef = 0,
     lookUse = 1,
-    lookWith = 2,
     lookField = 3,
     BACKSLASH = 035;            // char '\035' in the internal 6-bit code
 
@@ -173,12 +172,11 @@ enum Symbol {
 /*10B*/ RPAREN,     RBRACK,     COMMA,      SEMICOLON,
         PERIOD,     ARROW,      COLON,      BECOMES,
 /*20B*/ BEGINSY,    ENDSY,      TYPESY,     CONSTSY,
-        TYPEDEFSY,  ENUMSY,
-/*30B*/ PACKEDSY,   STRUCTSY,   IFSY,       SWITCHSY,
-        WHILESY,    FORSY,      WITHSY,     GOTOSY,
-/*40B*/ ELSESY,     DOSY,
-        EXTERNSY,   BREAKSY,    CONTSY,     CASESY,
-/*50B*/ DEFAULTSY,  UNIONSY,    RETURNSY,   NOSY
+        TYPEDEFSY,  ENUMSY,     PACKEDSY,   STRUCTSY,
+/*30B*/ IFSY,       SWITCHSY,   WHILESY,    FORSY,
+        GOTOSY,     ELSESY,     DOSY,       EXTERNSY,
+/*40B*/ BREAKSY,    CONTSY,     CASESY,     DEFAULTSY,
+        UNIONSY,    RETURNSY,   NOSY
 };
 
 enum IdClass {
@@ -834,7 +832,10 @@ int64_t savedObjIdx,
         entryPtCnt,
         fileBufSize;
 
-ExprPtr withIter, withList;
+// Pointers pinned in index registers by the register declarations of the
+// blocks now open, innermost first; genEntry reloads a spilled one after a
+// call that clobbers its register.
+ExprPtr pinList;
 
 int64_t curInsnTemplate,
         linePos,
@@ -958,7 +959,7 @@ extern int64_t helperNames[58]; // array [1..57] of int64_t;
 
 int64_t symTab[SYMTAB_LIMIT + 1]; // array [74000B..75500B] of int64_t;
 extern int64_t systemProcNames[9];
-extern int64_t resWordNameBase[20];
+extern int64_t resWordNameBase[19];
 int64_t longSymCnt;
 int64_t longSymTabBase[91];
 int64_t longSyms[91]; // array [1..90] of int64_t;
@@ -1109,73 +1110,130 @@ std::vector<programme *> programme::super;
 
 const char *progname;
 
+/* The host mirror of the runtime's PASMITXT table, which lives in
+   build-pascom.dub -- see that file for the numbering.  Every error number the
+   compiler can raise has a case here; anything left over falls through to
+   "Dunno", which now means a genuinely unknown number rather than a gap in the
+   table.  Errors 200 and up never reach this function: printErrMsg reports
+   them as internal errors.  */
 const char * pasmitxt(int64_t errNo)
 {
     switch (errNo) {
     case errBooleanNeeded: return "Boolean required";
+    case 1: return "No comma nor semicolon";
     case errIdentAlreadyDefined: return "Identifier already defined";
     case errNoIdent: return "Missing identifier";
     case errNotAType: return "Not a type";
+    case 5: return "Simple type required";
     case errNoConstant: return "Missing constant";
     case errConstOfOtherTypeNeeded: return "Constant of other type required";
+    case 8: return "Missing index type";
     case errTypeMustNotBeFile: return "Type must not be a file type";
     case errNotDefined: return "Unknown identifier";
     case errBadSymbol: return "Bad symbol";
-    case errNeedOtherTypesOfOperands: return "Other types of operands required";
-    case errNumberTooLarge: return "Number too large";
-    case errNoCommaOrParenOrTooFewArgs: return "No comma or parenthesis, or too few args";
-//    errWrongVarTypeBefore = 22,
-    case errUsingVarAfterIndexingPackedArray: return "Using a variable after indexing packed array";
-//    errTooManyArguments = 38,
-//    errVarTooComplex = 48,
-//    errFirstDigitInCharLiteralGreaterThan3 = 60;
-    case 1: return "No comma nor semicolon";
-    case 5: return "Simple type required";
+    case 13: return "Variable is not a pointer";
+    case 14: return "Expression is not of integer type";
     case 16: return "Label not defined in block";
+    case 17: return "Label already defined in line";
+    case 18: return "Label not defined";
+    case errNeedOtherTypesOfOperands: return "Other types of operands required";
+    case errWrongVarTypeBefore: return "Illegal type of variable preceding";
     case 23: return "Type ID instead of a variable";
+    case 24: return "Expression in set constructor of incompatible type";
+    case 25: return "Expression is not a discriminant of scalar type";
+    case 27: return "Variable needed before expression";
+    case errUsingVarAfterIndexingPackedArray: return "Using a variable after indexing packed array";
     case 29: return "Index out of bounds";
     case 33: return "Illegal types for assignment";
+    case 34: return "Type does not fit the file element type";
+    case 35: return "2nd write spec is only for real";
+    case 36: return "Too few parameters";
+    case 37: return "Missing INPUT file in program header";
+    case errTooManyArguments: return "Too many parameters";
     case 39: return "Argument kind mismatch in call";
     case 40: return "Argument type mismatch in call";
-    case 37: return "Missing INPUT file in program header";
+    case errNoCommaOrParenOrTooFewArgs: return "No comma or parenthesis, or too few args";
+    case 42: return "Missing parameter list";
+    case errNumberTooLarge: return "Number too large";
     case 44: return "Incorrect usage of a standard procedure or a function";
+    case 45: return "Missing open parenthesis for a standard procedure";
+    case errVarTooComplex: return "Too complex variable";
     case 49: return "Too many instructions in a block";
     case 50: return "Symbol table overflow";
     case 51: return "Long symbol overflow";
-    case 52: return "EOF encountered";
+    case errEOFEncountered: return "EOF encountered";
     case 54: return "Error in pseudo-comment";
     case 55: return "More than 16 digits in a number";
+    case 56: return "No mantissa after the dot";
+    case 57: return "No exponent after E";
+    case 58: return "Exponent above 18";
+    case 59: return "EOLN true within a line";
+    case errFirstDigitInCharLiteralGreaterThan3: return "First digit of a char literal is above 3";
     case 61: return "Empty string";
     case 62: return "Integer needed";
     case 63: return "Bad base type for set";
+    case 64: return "Error in range type definition";
     case 68: return "Using a procedure in an expression";
+    case 69: return "Minus applies to neither real nor integer";
+    case 71: return "Register pointer is not a pointer to a struct";
+    case 73: return "Two equal case labels";
+    case 74: return "Different types of case labels and expression";
     case 77: return "Missing OUTPUT file in program header";
+    case 78: return "Predefined identifier used as a pointer";
     case 79: return "Unknown identifier in type definition";
+    case 80: return "External file not defined";
     case 81: return "Procedure nesting is too deep";
     case 82: return "Previous declaration was not a forward declaration";
+    case 83: return "Redefinition of a predefined identifier";
     case 84: return "Error in declarations";
     case 85: return "Routines left undefined";
     case 86: return "Required token not found: ";
-    case 88: return "Different types of case labels and expression";
-    case 89: return "integer";
+    case 87: return "Too many procedure entry points";
     /* Token names for "Required token not found" errors.  requiredSymErr(sym)
-       reports error(sym + 88), so these labels must track the Symbol enum.
-       They were previously hard-coded to the pre-compaction enum values and had
-       drifted -- e.g. SEMICOLON (now 11 -> 99) hit no case and printed "Dunno",
-       and the others printed a neighbour's name. */
-    case LPAREN + 88:    return "LPAREN";
-    case LBRACK + 88:    return "LBRACK";
-    case RPAREN + 88:    return "RPAREN";
-    case RBRACK + 88:    return "RBRACK";
+       reports error(sym + 88), so these labels are spelled `SYM + 88` and track
+       the Symbol enum by construction -- they were once hard-coded to the
+       pre-compaction values and had silently drifted onto their neighbours.
+       The list runs IDENT..RETURNSY, i.e. the whole enum bar NOSY, because
+       checkSymAndRead takes any symbol.  Keep the names identical to the
+       runtime's, so the two compilers report a missing token the same way. */
+    case IDENT + 88:     return "IDENTIFIER";
+    case INTCONST + 88:  return "INT CONST";
+    case REALCONST + 88: return "REAL CONST";
+    case CHARCONST + 88: return "CHAR CONST";
+    case STRINGSY + 88:  return "STRING CONST";
+    case LPAREN + 88:    return "LEFT PAREN";
+    case LBRACK + 88:    return "LEFT BRACK";
+    case EXPROP + 88:    return "EXPR OP";
+    case RPAREN + 88:    return "RIGHT PAREN";
+    case RBRACK + 88:    return "RIGHT BRACK";
     case COMMA + 88:     return "COMMA";
     case SEMICOLON + 88: return "SEMICOLON";
     case PERIOD + 88:    return "PERIOD";
     case ARROW + 88:     return "ARROW";
     case COLON + 88:     return "COLON";
     case BECOMES + 88:   return "ASSIGN";
-    case BEGINSY + 88:   return "BEGINSY";
-    case ENDSY + 88:     return "ENDSY";
-    case 136: return "PROGRAM";
+    case BEGINSY + 88:   return "BEGIN";
+    case ENDSY + 88:     return "END";
+    case TYPESY + 88:    return "TYPE NAME";
+    case CONSTSY + 88:   return "CONST";
+    case TYPEDEFSY + 88: return "TYPEDEF";
+    case ENUMSY + 88:    return "ENUM";
+    case PACKEDSY + 88:  return "PACKED";
+    case STRUCTSY + 88:  return "STRUCT";
+    case IFSY + 88:      return "IF";
+    case SWITCHSY + 88:  return "SWITCH";
+    case WHILESY + 88:   return "WHILE";
+    case FORSY + 88:     return "FOR";
+    case GOTOSY + 88:    return "GOTO";
+    case ELSESY + 88:    return "ELSE";
+    case DOSY + 88:      return "DO";
+    case EXTERNSY + 88:  return "EXTERN";
+    case BREAKSY + 88:   return "BREAK";
+    case CONTSY + 88:    return "CONTINUE";
+    case CASESY + 88:    return "CASE";
+    case DEFAULTSY + 88: return "DEFAULT";
+    case UNIONSY + 88:   return "UNION";
+    case RETURNSY + 88:  return "RETURN";
     }
     return "Dunno";
 }
@@ -2318,25 +2376,8 @@ L2:                 hashTravPtr = symHash[bucket];
                         }
                     }
                 } break;
-                case 2: {
-                    if (withList == NULL)
-                        goto L2;
-                    withIter = withList;
-                    l3var135z = fieldHash[bucket];
-                    if (l3var135z != NULL) {
-                        while (withIter != NULL) {
-                            hashTravPtr = l3var135z;
-                            while (hashTravPtr != NULL) {
-                                if ((hashTravPtr->id == curIdent)
-                                    and (hashTravPtr->uptype() == withIter->expr2->vt.typ))
-                                    goto exitLexer;
-                                hashTravPtr = hashTravPtr->next();
-                            }
-                            withIter = withIter->expr1;
-                        }
-                    }
+                case 2:
                     goto L2;
-                } break;
                 case 3:
                     hashTravPtr = fieldHash[bucket];
                     while (hashTravPtr != NULL) {
@@ -4452,7 +4493,7 @@ genEntry::genEntry()
        on addressing the record through the register.  WTC takes the saved
        address from the slot into C, VTM then lands it in the register --
        neither touches the accumulator, which may hold a function result. */
-    l5exp2z = withList;
+    l5exp2z = pinList;
     while (l5exp2z != NULL) {
         if (l5exp2z->vt.typ.p.psize != 0
             and (Bits(l5exp2z->vt.typ.p.pad) & calleeFl) != Bits()) {
@@ -5068,8 +5109,8 @@ formOperator::formOperator(OpGen op)
         else
             l3int3z = 2;
         helpExpr = new Expr;
-        helpExpr->expr1 = withList;
-        withList = helpExpr;
+        helpExpr->expr1 = pinList;
+        pinList = helpExpr;
         helpExpr->op = NOOP;
         /* The entry holds the index register carrying the record address
            in vt.typ.p.pad, and -- when that address was too costly to
@@ -6360,15 +6401,8 @@ L55:        lookupMode = lookField;
 
 void parseLval()
 {
-    if (hashTravPtr->pck.cl == FIELDID) {
-        /* Implicit field of the `with` variable: build GETFIELD on
-           withIter directly, then continue with any further postfix. */
-        curExpr = mkExpr(GETFIELD, hashTravPtr->typ,
-                         withIter, (ExprPtr)hashTravPtr);
-    } else {
-        curExpr = mkExpr(GETVAR, hashTravPtr->typ,
-                         (ExprPtr)hashTravPtr, NULL);
-    }
+    curExpr = mkExpr(GETVAR, hashTravPtr->typ,
+                     (ExprPtr)hashTravPtr, NULL);
     inSymbol();
     parsePostfix();
     // A register pointer that no '->' consumed stands for its own value, the
@@ -6845,7 +6879,7 @@ Factor::Factor()
                         }
                     }
                 } break;
-                case VARID: case FORMALID: case FIELDID: case REGID:
+                case VARID: case FORMALID: case REGID:
                     parseLval();
                     break;
                 default:
@@ -7253,33 +7287,6 @@ void forStatement()
     brContTarget(); /* removing break */
 } /* forStatement */
 
-void withStatement()
-{
-    ExprPtr oldWith;
-    int64_t l4var2z, l4var3z;
-    int64_t l4var4z;
-    int64_t & localSize = programme::super.back()->localSize;
-
-    oldWith = withList;
-    l4var4z = localSize;
-    l4var2z = freeRegs;
-    l4var3z = Bits();
-    do {
-        expression();
-        if (curExpr->vt.typ.p.pk == kindStruct) {
-            (void) formOperator(SETREG);
-            l4var3z = (l4var3z | Bits(curVal.ii)) & auxRegs;
-        } else {
-            error(71); /* errWithOperatorNotOfARecord */
-        }
-    } while (SY == COMMA);
-    checkSymAndRead(DOSY);
-    Statement();
-    withList = oldWith;
-    localSize = l4var4z;
-    freeRegs = l4var2z;
-    usedRegs = usedRegs | l4var3z;
-} /* withStatement */
 
 // 'register TYPE *name = expr;' at the head of a block: name is a pointer
 // whose value is pinned in an index register until the block ends, so that
@@ -7316,7 +7323,7 @@ int64_t registerDecls(IdentRecPtr & decls)
             regOk = regBase.p.pk == kindStruct;
         }
         if (not regOk) {
-            error(71); /* errWithOperatorNotOfARecord */
+            error(71); /* errRegPtrNotToStruct */
             d.type = voidPtr;
             regBase = voidType;
         }
@@ -7337,8 +7344,8 @@ int64_t registerDecls(IdentRecPtr & decls)
         regIdRec->pck.offset = curFrameRegTemplate;
         regIdRec->pck.cl = REGID;
         regIdRec->typ = d.type;
-        // the withList entry this name stands for
-        regIdRec->value() = reinterpret_cast<int64_t>(withList);
+        // the pinList entry this name stands for
+        regIdRec->value() = reinterpret_cast<int64_t>(pinList);
         // chain of this block's own names, for the unlinking by the caller
         regIdRec->list() = decls;
         decls = regIdRec;
@@ -8183,7 +8190,7 @@ Statement::Statement()
                 // as a `with`'s do.
                 IdentRecPtr blockDecls = NULL, nextDecl, unlinked;
                 int64_t & localSize = programme::super.back()->localSize;
-                ExprPtr oldWithList = withList;
+                ExprPtr oldWithList = pinList;
                 int64_t oldLocalSize = localSize, oldFreeRegs = freeRegs;
                 int64_t blockRegs = Bits();
               L_rep:
@@ -8212,7 +8219,7 @@ Statement::Statement()
                         hash(unlinked, blockDecls);
                         blockDecls = nextDecl;
                     }
-                    withList = oldWithList;
+                    pinList = oldWithList;
                     localSize = oldLocalSize;
                     freeRegs = oldFreeRegs;
                     // The registers this block claimed are clobbered as far
@@ -8300,8 +8307,6 @@ Statement::Statement()
                 setStrLab();
                 caseStatement();
                 brContTarget(); /* removing break */
-            } else if (SY == WITHSY) {
-                withStatement();
             } else if (has(Bits(TYPEDEFSY, TYPESY, CONSTSY) |
                            Bits(ENUMSY, STRUCTSY, UNIONSY) | Bits(PACKEDSY), SY)) {
                 /* A declaration keyword reached statement context -- it leaked
@@ -8421,8 +8426,8 @@ void defineRoutine(bool bodyBlock = false)
     }
     lineStartOffset = moduleOffset;
     l3var1z.ii = moduleOffset;    /* l3var1z := ; (accumulator = moduleOffset) */
-    lookup2 = lookWith;
-    withList = NULL;
+    lookup2 = lookUse;
+    pinList = NULL;
     arithMode = 1;
     liveRegs = Bits();
     freeRegs = BitRange(curProcNesting+1, 6);
@@ -9448,11 +9453,11 @@ struct initTables {
         regResWord(toText("IN"));
         SY = CONSTSY;
         charClass = NOOP;
-        // CONSTSY..RETURNSY are 20 consecutive reserved words. TYPESY sits just
+        // CONSTSY..RETURNSY are 19 consecutive reserved words. TYPESY sits just
         // before CONSTSY, outside this range -- no skip needed; the predefined
         // type names are registered as TYPESY keywords later, by initScalars,
         // and markTypeSym still raises user typedef names to TYPESY.
-        for (idx = 0; idx <= 19; ++idx) {
+        for (idx = 0; idx <= 18; ++idx) {
             regResWord(resWordNameBase[idx]);
             succ(SY);
         }
@@ -9796,7 +9801,7 @@ int main(int argc, char **argv)
     statBegSys = Bits(IDENT, EXPROP, LPAREN, INTCONST)
         | Bits(REALCONST, CHARCONST, STRINGSY, LBRACK)
         | Bits(BEGINSY, IFSY, SWITCHSY, DOSY)
-        | Bits(WHILESY, FORSY, WITHSY, GOTOSY)
+        | Bits(WHILESY, FORSY, GOTOSY)
         | Bits(BREAKSY, CONTSY, RETURNSY, SEMICOLON);
     statEndSys = Bits(SEMICOLON, ENDSY, ELSESY, WHILESY);
     lvalOpSet = Bits(GETELT, GETVAR, GETFIELD) | Bits(DEREF);
@@ -9950,7 +9955,7 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
     }
 }
 
-int64_t resWordNameBase[20] = {
+int64_t resWordNameBase[19] = {
         04357566364L             /*"   CONST"*/,
         064716045444546L         /*" TYPEDEF"*/,
         045566555L               /*"    ENUM"*/,
@@ -9960,7 +9965,6 @@ int64_t resWordNameBase[20] = {
         0636751644350L           /*"  SWITCH"*/,
         06750515445L             /*"   WHILE"*/,
         0465762L                 /*"     FOR"*/,
-        067516450L               /*"    WITH"*/,
         047576457L               /*"    GOTO"*/,
         045546345L               /*"    ELSE"*/,
         04457L                   /*"      DO"*/,

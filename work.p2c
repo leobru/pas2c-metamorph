@@ -142,7 +142,6 @@ const
 //
     lookDef = 0;
     lookUse = 1;
-    lookWith = 2;
     lookField = 3;
 //
     BACKSLASH = '\35'; // deliberately not \\
@@ -152,12 +151,11 @@ typedef enum {
 /*10B*/ RPAREN,     RBRACK,     COMMA,      SEMICOLON,
         PERIOD,     ARROW,      COLON,      BECOMES,
 /*20B*/ BEGINSY,    ENDSY,      TYPESY,     CONSTSY,
-        TYPEDEFSY,  ENUMSY,
-/*30B*/ PACKEDSY,   STRUCTSY,   IFSY,       SWITCHSY,
-        WHILESY,    FORSY,      WITHSY,     GOTOSY,
-/*40B*/ ELSESY,     DOSY,
-        EXTERNSY,   BREAKSY,    CONTSY,     CASESY,
-/*50B*/ DEFAULTSY,  UNIONSY,    RETURNSY,   NOSY
+        TYPEDEFSY,  ENUMSY,     PACKEDSY,   STRUCTSY,
+/*30B*/ IFSY,       SWITCHSY,   WHILESY,    FORSY,
+        GOTOSY,     ELSESY,     DOSY,       EXTERNSY,
+/*40B*/ BREAKSY,    CONTSY,     CASESY,     DEFAULTSY,
+        UNIONSY,    RETURNSY,   NOSY
 } symbol;
 //
 typedef enum {
@@ -396,7 +394,7 @@ setofsys statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
     blockBegSys = [CONSTSY, TYPEDEFSY, TYPESY, BEGINSY],
     statBegSys = [IDENT, EXPROP, LPAREN, INTCONST, REALCONST,
                   CHARCONST, STRINGSY, LBRACK, BEGINSY, IFSY,
-                  SWITCHSY, DOSY, WHILESY, FORSY, WITHSY, GOTOSY,
+                  SWITCHSY, DOSY, WHILESY, FORSY, GOTOSY,
                   BREAKSY, CONTSY, RETURNSY, SEMICOLON],
     skipToSet,
     lvalOpSet = [GETELT, GETVAR, GETFIELD, DEREF];
@@ -410,7 +408,10 @@ int FcstCnt;
 int symTabPos;
 int entryPtCnt;
 int fileBufSize;
-eptr withIter, withList;
+/* Pointers pinned in index registers by the register declarations of the
+   blocks now open, innermost first; genEntry reloads a spilled one after a
+   call that clobbers its register. */
+eptr pinList;
 int curInsnTemplate;
 int linePos;
 int prevErrPos;
@@ -621,7 +622,7 @@ int systemProcNames[9] = {
         '    BESM',
         '   WRITE',
         ' WRITELN' };
-int resWordName[20] = {
+int resWordName[19] = {
         '   CONST',
         ' TYPEDEF',
         '    ENUM',
@@ -631,7 +632,6 @@ int resWordName[20] = {
         '  SWITCH',
         '   WHILE',
         '     FOR',
-        '    WITH',
         '    GOTO',
         '    ELSE',
         '      DO',
@@ -751,15 +751,15 @@ tptr res;
     if (maxSmallString >= strLen)
         return smallStringType[strLen];
     res.rep = malloc(offsetof(types, szArray));
-    with *(res.rep) do {
+    { register types *ty = (res.rep);
         res.p.psize  =  (strLen + 5) / 6;
         res.p.bits  =  res.p.psize == 1 ? strLen << 3 : 0;
-        base  =  charType;
-        pck  =  true;
-        perword  =  6;
-        pcksize  =  8;
-        aleft  =  0;
-        aright  =  strLen - 1;
+        ty->base  =  charType;
+        ty->pck  =  true;
+        ty->perword  =  6;
+        ty->pcksize  =  8;
+        ty->aleft  =  0;
+        ty->aright  =  strLen - 1;
     }
     res.p.pk  =  kindArray;
     return res;
@@ -966,7 +966,7 @@ void formAndAlign(int arg) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int isCharArray(tptr arg) {
-    with *(arg.rep) do return arg.p.pk == kindArray && base == charType;
+    return arg.p.pk == kindArray && arg.rep->base == charType;
 } /* isCharArray */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1136,10 +1136,10 @@ inptr icand;
         icand = icand->inext;
     }
     res.rep = malloc(offsetof(types, szScalar));
-    with *(res.rep) do {
-        start = -1;
-        enums = NULL;
-        numen = 1 << bitWid;
+    { register types *ty = (res.rep);
+        ty->start = -1;
+        ty->enums = NULL;
+        ty->numen = 1 << bitWid;
     }
     res.p.psize  =  1;
     res.p.bits  =  bitWid;
@@ -1401,7 +1401,7 @@ int advanced;
                 goto 2233;
             }
         } else
-2233:       with PASINFOR do {
+2233:       {
                 if (charEncoding == 3) {
                     if (ch < '*' || '\176' < CH)
                         curChar  =  '\0';
@@ -1463,25 +1463,6 @@ void lexer() {
                     return;
             }
             break;
-        case lookWith:
-        if (withList != NULL) {
-            withIter  =  withList;
-            chain  =  fieldHash[bucket];
-            if (chain != NULL) {
-                while (withIter != NULL) {
-                    hashTravPtr  =  chain;
-                    while (hashTravPtr != NULL) {
-                        if ((hashTravPtr->id == curIdent)
-                        && (hashTravPtr->uptype ==
-                            withIter->expr2->typ))
-                            return;
-                        hashTravPtr  =  hashTravPtr->pck.p.next;
-                    }
-                    withIter  =  withIter->expr1;
-                }
-            }
-        }
-        // FALLTHRU
         case lookUse:
             hashTravPtr  =  symHash[bucket];
             while (hashTravPtr != NULL) {
@@ -1499,11 +1480,11 @@ void lexer() {
         case lookField:
             hashTravPtr  =  fieldHash[bucket];
             while (hashTravPtr != NULL) {
-                with *hashTravPtr do {
-                    if ((id == curIdent) &&
-                       (typ121z == uptype))
+                { register identrec *ir = hashTravPtr;
+                    if ((ir->id == curIdent) &&
+                       (typ121z == ir->uptype))
                         return;
-                    hashTravPtr  =  pck.p.next;
+                    hashTravPtr  =  ir->pck.p.next;
                }
            }
         }
@@ -1894,11 +1875,11 @@ tptr mkRoutineTyp(tptr result, sigptr params, int flags) {
 tptr resultTyp;
 sigptr p;
     resultTyp.rep = malloc(offsetof(types, szRtype));
-    with *(resultTyp.rep) do {
-        rresult  =  result;
-        rparams  =  params;
-        rargc  =  0;
-        rflags  =  flags;
+    { register types *ty = (resultTyp.rep);
+        ty->rresult  =  result;
+        ty->rparams  =  params;
+        ty->rargc  =  0;
+        ty->rflags  =  flags;
     }
     resultTyp.p.psize  =  1;
     resultTyp.p.bits  =  15;
@@ -1922,10 +1903,10 @@ sigptr newParam, lastParam, head;
     if (srcParam != NULL)
         while (srcParam != routine) {
             newParam = malloc(sizeof(sigrec));
-            with *newParam do {
-                pclass  =  srcParam->pck.p.cl;
-                ptyp  =  srcParam->typ;
-                next  =  NULL;
+            { register sigrec *sg = newParam;
+                sg->pclass  =  srcParam->pck.p.cl;
+                sg->ptyp  =  srcParam->typ;
+                sg->next  =  NULL;
             }
             if (lastParam == NULL)
                 head  =  newParam;
@@ -1947,18 +1928,18 @@ int leftAlign(int val) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regResWord(int keyword) {
-kword *kw;
+    kword *kw;
     curVal.i  =  keyword & hashMask;
     curVal.i = mapai(curVal.a);
     kw = malloc(sizeof(kword));
-    with *kw do {
-        w  =  keyword;
-        sym  =  SY;
+    { register kword *kwp = kw;
+        kwp->w  =  keyword;
+        kwp->sym  =  SY;
         if (SY == TYPESY)
-            typ  =  symType;
+            kwp->typ  =  symType;
         else
-            op  =  charClass;
-        next  =  kwordHash[curVal.i];
+            kwp->op  =  charClass;
+        kwp->next  =  kwordHash[curVal.i];
     }
     kwordHash[curVal.i]  =  kw;
 } /* regResWord */
@@ -1975,18 +1956,18 @@ irptr idRec;
     aligned  =  leftAlign(curIdent);
     if ((curIdent == litInput) || (curIdent == litOutput)) {
         idRec = malloc(offsetof(identrec, szIdent));
-        with *idRec do {
-            id  =  curIdent;
-            pck.p.offset  =  0;
+        { register identrec *ir = idRec;
+            ir->id  =  curIdent;
+            ir->pck.p.offset  =  0;
             /* An FCB is 30 opaque words.  Its size is all the compiler needs
                of the type -- that is how put/get/reset/rewrite and write's
                leading file argument recognize a file -- and no operator
                applies to it, so it is a void of 30 words.  Assigning the
                whole-word arm clears bits/psize/pad and leaves pk kindVoid. */
-            typ.rep  =  NULL;
-            typ.p.psize  =  30;
-            pck.p.cl  =  VARID;
-            list  =  NULL;
+            ir->typ.rep  =  NULL;
+            ir->typ.p.psize  =  30;
+            ir->pck.p.cl  =  VARID;
+            ir->list  =  NULL;
         }
         curVal.i  =  aligned;
         idRec->value  =  allocExtSymbol(toAlloc);
@@ -2007,11 +1988,11 @@ irptr idRec;
         }
     }
     curExternFile = malloc(sizeof(extFileRec));
-    with *curExternFile do {
-        id  =  curIdent;
-        next  =  externFileList;
-        line  =  extLine;
-        offset  =  aligned;
+    { register extfilerec *efp = curExternFile;
+        efp->id  =  curIdent;
+        efp->next  =  externFileList;
+        efp->line  =  extLine;
+        efp->offset  =  aligned;
     }
     if (extLine != 0) {
         if (curIdent == litOutput)
@@ -2128,7 +2109,7 @@ sigptr p1, p2;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if (!checkTypes || type1 == type2)
 1:      return true;
-        with *(type1.rep) do {
+        { register types *ty = (type1.rep);
             kind1  =  type1.p.pk;
             kind2  =  type2.p.pk;
             if (kind1 == kind2) {
@@ -2175,11 +2156,11 @@ sigptr p1, p2;
 eptr mkExpr(operator oper, tptr resTyp, eptr e1, eptr e2) {
     eptr n;
     n = malloc(sizeof(expr));
-    with *n do {
-        typ = resTyp;
-        op = oper;
-        expr1 = e1;
-        expr2 = e2;
+    { register expr *ex = n;
+        ex->typ = resTyp;
+        ex->op = oper;
+        ex->expr1 = e1;
+        ex->expr2 = e2;
     }
     return n;
 } /* mkExpr */
@@ -2188,10 +2169,10 @@ eptr mkExpr(operator oper, tptr resTyp, eptr e1, eptr e2) {
 eptr mkIntLit(int val) {
     eptr n;
     n = malloc(sizeof(expr));
-    with *n do {
-        typ = intType;
-        op = GETENUM;
-        num1 = val;
+    { register expr *ex = n;
+        ex->typ = intType;
+        ex->op = GETENUM;
+        ex->num1 = val;
     }
     return n;
 } /* mkIntLit */
@@ -2561,9 +2542,9 @@ void processInsn() {
                  curInsn  =  tempInsn;
                  l4var213z  =  l4var213z && findLabel();
                  if (l4var213z)
-                    with *l4inl7z do {
-                        code  =  macro;
-                        offset  =  int(l4inl8z);
+                    { register oneinsn *oi = l4inl7z;
+                        oi->code  =  macro;
+                        oi->offset  =  int(l4inl8z);
                     }
                 else
                     error(207);
@@ -2673,12 +2654,13 @@ void processInsn() {
         processInsn();
     insnList  =  NULL;
     while (l4inl6z != NULL) {
-        with *l4inl6z do
-            if (offset == 0) {
-                jumpTarget  =  code;
+        { register oneinsn *oi = l4inl6z;
+            if (oi->offset == 0) {
+                jumpTarget  =  oi->code;
                 return;
             } else
-                l4inl6z  =  next;
+                l4inl6z  =  oi->next;
+        }
     }
     liveRegs &= ~usedRegs;
 } /* genOneOp */
@@ -2687,18 +2669,18 @@ void processInsn() {
 void addToInsnList(int insn) {
 oiptr elt;
     elt = malloc(sizeof(oneinsn));
-    with *elt do {
-        next  =  NULL;
-        mode  =  0;
-        code  =  insn;
-        offset  =  0;
+    { register oneinsn *oi = elt;
+        oi->next  =  NULL;
+        oi->mode  =  0;
+        oi->code  =  insn;
+        oi->offset  =  0;
     }
-    with *insnList do {
-        if (tail == NULL)
-            head  =  elt;
+    { register insnltyp *il = insnList;
+        if (il->tail == NULL)
+            il->head  =  elt;
         else
-            tail->next  =  elt;
-        tail  =  elt;
+            il->tail->next  =  elt;
+        il->tail  =  elt;
     }
 } /* addToInsnList */
 //
@@ -2712,11 +2694,11 @@ void addInsnAndOffset(int insn, int l4arg2z) {
 void prependToInsnList(int insn) {
 oiptr elt;
     elt = malloc(sizeof(oneinsn));
-    with *elt do {
-        next  =  insnList->head;
-        mode  =  0;
-        code  =  insn;
-        offset  =  0;
+    { register oneinsn *oi = elt;
+        oi->next  =  insnList->head;
+        oi->mode  =  0;
+        oi->code  =  insn;
+        oi->offset  =  0;
     }
     if (insnList->head == NULL) {
         insnList->tail  =  elt;
@@ -2732,10 +2714,10 @@ kind l4var5z;
 state l4st6z;
 int isSimple;
     valueType  =  insnList->typ;
-    with *insnList do {
-        switch (ilm) {
+    { register insnltyp *il = insnList;
+        switch (il->ilm) {
         case ilCONST:
-            curVal.i  =  payload;
+            curVal.i  =  il->payload;
             if (typeSize(valueType) == 1)
                 curVal.i  =  getFCSToffset();
             addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
@@ -2816,10 +2798,10 @@ int isSimple;
                     (16 IN insnList->regsused)*010000 + insnList->payload);
         } /* switch */
 4602:
-    } /* with */
-    with *insnList do {
-        ilm  =  ilRVAL;
-        regsused |= E48;
+    } /* register block */
+    { register insnltyp *il = insnList;
+        il->ilm  =  ilRVAL;
+        il->regsused |= E48;
     }
 } /* prepLoad */
 //
@@ -2840,15 +2822,15 @@ void getOffset() {
 } /* getOffset */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    with *insnList do {
-        l4int2z  =  addrmd;
+    { register insnltyp *il = insnList;
+        l4int2z  =  il->addrmd;
         opCode  =  KVTM;
         regField  =  indexreg[reg];
-        l4var4z  =  payload;
-        regsused |= E48 >> reg;
-        if (ilm == ilCONST) {
-            curVal.i  =  payload;
-            if (typeSize(typ) == 1)
+        l4var4z  =  il->payload;
+        il->regsused |= E48 >> reg;
+        if (il->ilm == ilCONST) {
+            curVal.i  =  il->payload;
+            if (typeSize(il->typ) == 1)
                 curVal.i  =  addCurValToFCST();
             l4var6z  =  curVal.i;
             l4var5z  =  074001;
@@ -2888,12 +2870,12 @@ void getOffset() {
             addToInsnList(indexreg[l4int2z] + KUTC);
             goto 4650;
         }
-    } /* with */
-    with *insnList do {
-        ilm  =  ilLVAL;
-        addrmd  =  reg;
-        disp  =  0;
-        payload  =  0;
+    } /* register block */
+    { register insnltyp *il = insnList;
+        il->ilm  =  ilLVAL;
+        il->addrmd  =  reg;
+        il->disp  =  0;
+        il->payload  =  0;
     }
 } /* setAddrTo */
 //
@@ -3564,7 +3546,7 @@ idclass paramClass;
        on addressing the record through the register.  WTC takes the saved
        address from the slot into C, VTM then lands it in the register --
        neither touches the accumulator, which may hold a function result. */
-    l5exp2z  =  withList;
+    l5exp2z  =  pinList;
     while (l5exp2z != NULL) {
         if ((l5exp2z->typ.p.psize != 0) &&
             ((E48 >> l5exp2z->typ.p.pad) & calleeFl) != 0U) {
@@ -3992,11 +3974,11 @@ int needsMater;
                     genCopy();
                     if (insnList == NULL)
                         return;
-                    with *insnList do {
-                        typ  =  exprToGen->typ;
-                        regsused  =  regsused | E48;
-                        ilm  =  ilRVAL;
-                        st  =  stWORD;
+                    { register insnltyp *il = insnList;
+                        il->typ  =  exprToGen->typ;
+                        il->regsused  =  il->regsused | E48;
+                        il->ilm  =  ilRVAL;
+                        il->st  =  stWORD;
                     }
                     return;
                 case opfAND:
@@ -4072,15 +4054,15 @@ int needsMater;
         if (curOP == GETVAR) {
             insnList = malloc(sizeof(insnltyp));
             curIdRec  =  exprToGen->id1;
-            with *insnList do {
-                tail  =  NULL;
-                head  =  NULL;
-                regsused  =  0U;
-                ilm  =  ilLVAL;
-                payload  =  curIdRec->pck.p.offset;
-                disp  =  curIdRec->high;
-                st  =  stWORD;
-                addrmd  =  18;
+            { register insnltyp *il = insnList;
+                il->tail  =  NULL;
+                il->head  =  NULL;
+                il->regsused  =  0U;
+                il->ilm  =  ilLVAL;
+                il->payload  =  curIdRec->pck.p.offset;
+                il->disp  =  curIdRec->high;
+                il->st  =  stWORD;
+                il->addrmd  =  18;
             }
             if (curIdRec->pck.p.cl == ROUTINEID) {
                 insnList->disp  =  3;
@@ -4094,18 +4076,18 @@ int needsMater;
         } else if (curOP == GETFIELD) {
             genFullExpr(exprToGen->expr1);
             curIdRec  =  exprToGen->id2;
-            with *insnList do {
-                disp += curIdRec->pck.p.offset;
+            { register insnltyp *il = insnList;
+                il->disp += curIdRec->pck.p.offset;
                 if (curIdRec->pckfield) {
-                    switch (st) {
+                    switch (il->st) {
                     case stWORD: {
-                        shift  =  curIdRec->shift;
+                        il->shift  =  curIdRec->shift;
                         break;
                     }
                     case stSLICE: {
-                        shift += curIdRec->shift;
+                        il->shift += curIdRec->shift;
                         if (! curIdRec->uptype.rep->lsbord)
-                            shift  =  shift +
+                            il->shift  =  il->shift +
                                        typeBits(curIdRec->uptype) - 48;
                         break;
                     }
@@ -4142,18 +4124,18 @@ int needsMater;
            BESM-6's lack of true non-popping SP-relative addressing
            for `WTC'. */
         insnList = malloc(sizeof(insnltyp));
-        with *insnList do {
-            tail = NULL;
-            head = NULL;
-            typ = exprToGen->typ;
-            regsused = [];
-            ilm = ilLVAL;
-            st = stWORD;
-            addrmd = 16;
-            payload = 0;
-            disp = 0;
-            width = 0;
-            shift = 0;
+        { register insnltyp *il = insnList;
+            il->tail = NULL;
+            il->head = NULL;
+            il->typ = exprToGen->typ;
+            il->regsused = [];
+            il->ilm = ilLVAL;
+            il->st = stWORD;
+            il->addrmd = 16;
+            il->payload = 0;
+            il->disp = 0;
+            il->width = 0;
+            il->shift = 0;
         }
         addToInsnList(KWTC + SP);
     } else if (curOP == PROCADDR) {
@@ -4161,18 +4143,18 @@ int needsMater;
            the address the loader relocates into the instruction in the tag
            register, ITA turns it into an integer word. */
         insnList = malloc(sizeof(insnltyp));
-        with *insnList do {
-            tail = NULL;
-            head = NULL;
-            typ = exprToGen->typ;
-            regsused = E48;
-            ilm = ilRVAL;
-            st = stWORD;
-            addrmd = 18;
-            payload = 0;
-            disp = 0;
-            width = 0;
-            shift = 0;
+        { register insnltyp *il = insnList;
+            il->tail = NULL;
+            il->head = NULL;
+            il->typ = exprToGen->typ;
+            il->regsused = E48;
+            il->ilm = ilRVAL;
+            il->st = stWORD;
+            il->addrmd = 18;
+            il->payload = 0;
+            il->disp = 0;
+            il->width = 0;
+            il->shift = 0;
         }
         addToInsnList(allocGlobalObject(exprToGen->id2) + (KVTM+I14));
         addToInsnList(KITA+14);
@@ -4227,10 +4209,10 @@ int needsMater;
             case fnMALLOC:
                 addToInsnList(KVTM+I14 + getValueOrAllocSymtab(arg1Val.i));
                 addToInsnList(getHelperProc(17)); /*"P/NW"*/
-                with *insnList do {
-                    ilm  =  ilRVAL;
-                    regsused |= E48;
-                    typ = exprToGen->typ;
+                { register insnltyp *il = insnList;
+                    il->ilm  =  ilRVAL;
+                    il->regsused |= E48;
+                    il->typ = exprToGen->typ;
                 };
                 return;
             case fnREF:
@@ -4240,9 +4222,9 @@ int needsMater;
         } else if (work == fnREF) {
             setAddrTo(14);
             addToInsnList(KITA+14);
-            with *insnList do {
-                ilm  =  ilRVAL;
-                regsused |= E48;
+            { register insnltyp *il = insnList;
+                il->ilm  =  ilRVAL;
+                il->regsused |= E48;
             }
         } else {
             prepLoad();
@@ -4262,15 +4244,15 @@ int needsMater;
            clobbers it, so it needs no liveness test. */
         if ((exprToGen->typ.p.psize != 0) || (curVal.i IN liveRegs)) {
             insnList = malloc(sizeof(insnltyp));
-            with *insnList do {
-                typ  =  exprToGen->expr2->typ;
-                head  =  tail  =  NULL;
-                regsused  =  0U;
-                ilm  =  ilLVAL;
-                addrmd  =  18;
-                payload  =  indexreg[curVal.i];
-                disp  =  0;
-                st  =  stWORD;
+            { register insnltyp *il = insnList;
+                il->typ  =  exprToGen->expr2->typ;
+                il->head  =  il->tail  =  NULL;
+                il->regsused  =  0U;
+                il->ilm  =  ilLVAL;
+                il->addrmd  =  18;
+                il->payload  =  indexreg[curVal.i];
+                il->disp  =  0;
+                il->st  =  stWORD;
             }
         } else {
             exprToGen->typ.p.pad  =  14;
@@ -4295,11 +4277,11 @@ int needsMater;
         genOneOp();
         break;
     case SETREG: {
-        with *insnList do {
+        { register insnltyp *il = insnList;
             l3int3z  =  insnCount();
             helpExpr = malloc(sizeof(expr));
-            helpExpr->expr1  =  withList;
-            withList  =  helpExpr;
+            helpExpr->expr1  =  pinList;
+            pinList  =  helpExpr;
             helpExpr->op  =  NOOP;
             /* The entry holds the index register carrying the record address
                in typ.p.pad, and -- when that address was too costly to
@@ -4308,7 +4290,7 @@ int needsMater;
                after every call that clobbers it, so a spilled entry's
                register is valid throughout the body. */
             helpExpr->typ.p.psize  =  0;
-            switch (st) {
+            switch (il->st) {
             case stWORD:
                 if (l3int3z == 0) {
                     l3int2z  =  14;
@@ -4347,7 +4329,7 @@ int needsMater;
             case stPACKED:
                 error(errVarTooComplex);
             } /* switch */
-        } /* with */
+        } /* register block */
         helpExpr->expr2  =  curExpr;
         break;
     } /* SETREG */
@@ -4401,11 +4383,11 @@ int needsMater;
         genOneOp();
         break;
     case BRANCH:
-        with *insnList do {
+        { register insnltyp *il = insnList;
             noTarget  =  jumpTarget == 0;
             l3int3z  =  jumpTarget;
-            if (ilm == ilCONST) {
-                if (payload) {
+            if (il->ilm == ilCONST) {
+                if (il->payload) {
                     jumpTarget  =  0;
                 } else {
                     if (noTarget) {
@@ -4572,13 +4554,13 @@ inptr icand;
         perwordVal  =  KMUL+ I8 + getFCSToffset();
     }
     arrayType.rep = malloc(offsetof(types, szArray));
-    with *(arrayType.rep) do {
-        aleft  =  rangeInfo.aleft;
-        aright  =  rangeInfo.aright;
-        base  =  elementType;
-        pck  =  makePacked;
-        perword  =  perwordVal;
-        pcksize  =  pcksizeVal;
+    { register types *ty = (arrayType.rep);
+        ty->aleft  =  rangeInfo.aleft;
+        ty->aright  =  rangeInfo.aright;
+        ty->base  =  elementType;
+        ty->pck  =  makePacked;
+        ty->perword  =  perwordVal;
+        ty->pcksize  =  pcksizeVal;
     }
     arrayType.p.psize  =  sizeVal;
     arrayType.p.bits  =  bitsVal;
@@ -4718,7 +4700,9 @@ int wasGroup;
            ('int', 'int *', 'int [0..2]').  curDeclarator is a global, so
            the fields the name would have filled are cleared here; the
            previous declarator's values would otherwise persist. */
-        with *d do { name = bucket = wasDefined = 0; foundRec  =  NULL; }
+        { register declarator *dcl = d;
+          dcl->name = dcl->bucket = dcl->wasDefined = 0;
+          dcl->foundRec  =  NULL; }
     } else {
         error(errNoIdent);
         d->name  =  0;
@@ -4813,10 +4797,10 @@ int packedFlag, noComma;
             parseDclAt(&sigDecl, paramType, packedFlag, isForwardRef, declOpCount);
             nameOptional  =  false;
             cur = malloc(sizeof(sigrec));
-            with *cur do {
-                pclass  =  VARID;
-                ptyp  =  sigDecl.typ;
-                next  =  NULL;
+            { register sigrec *sg = cur;
+                sg->pclass  =  VARID;
+                sg->ptyp  =  sigDecl.typ;
+                sg->next  =  NULL;
             }
             if (last == NULL)
                 head  =  cur;
@@ -4863,10 +4847,10 @@ void definePtrType(tptr toType) {
     curType.p.bits = 15;
     curType.p.pk = kindPtr;
     curEnum = malloc(offsetof(identrec, szIdent));
-    with *curEnum do {
-        pck.next  =  typelist;
-        id  =  curIdent;
-        typ  =  curType;
+    { register identrec *ir = curEnum;
+        ir->pck.next  =  typelist;
+        ir->id  =  curIdent;
+        ir->typ  =  curType;
     }
     curEnum->pck.p.offset  =  lineCnt;
     curEnum->pck.p.cl  =  TYPEID;
@@ -4942,9 +4926,9 @@ pair *curSlot;
                             }
                         } /* for */
                     }
-                    with cases.pairs[pairIdx] do {
-                        first  =  48;
-                        second  =  cases.size;
+                    { register pair *prp = &cases.pairs[pairIdx];
+                        prp->first  =  48;
+                        prp->second  =  cases.size;
                     }
                     ++cases.size;
                 }
@@ -5035,14 +5019,14 @@ pair *curSlot;
                     if (curDeclarator.foundRec != NULL)
                         error(errIdentAlreadyDefined);
                     curEnum = malloc(offsetof(identrec, szField));
-                    with *curEnum do {
-                        id  =  curDeclarator.name;
-                        pck.p.next  =  fieldHash[curDeclarator.bucket];
-                        pck.p.cl  =  FIELDID;
-                        list  =  NULL;
-                        uptype  =  curType;
-                        pckfield  =  recIsPacked;
-                        typ  =  curDeclarator.typ;
+                    { register identrec *ir = curEnum;
+                        ir->id  =  curDeclarator.name;
+                        ir->pck.p.next  =  fieldHash[curDeclarator.bucket];
+                        ir->pck.p.cl  =  FIELDID;
+                        ir->list  =  NULL;
+                        ir->uptype  =  curType;
+                        ir->pckfield  =  recIsPacked;
+                        ir->typ  =  curDeclarator.typ;
                     }
                     fieldHash[curDeclarator.bucket]  =  curEnum;
                     if (prevField == NULL) {
@@ -5140,12 +5124,12 @@ pair *curSlot;
                 hasExplicit  =  true;
             }
             curEnum = malloc(offsetof(identrec, szIdent));
-            with *curEnum do {
-                pck.next  =  symHash[enumBucket];
-                id  =  enumName;
-                typ  =  curType;
-                list  =  NULL;
-                value  =  nextEnum;
+            { register identrec *ir = curEnum;
+                ir->pck.next  =  symHash[enumBucket];
+                ir->id  =  enumName;
+                ir->typ  =  curType;
+                ir->list  =  NULL;
+                ir->value  =  nextEnum;
             }
             curEnum->pck.p.offset  =  curFrameRegTemplate;
             curEnum->pck.p.cl  =  ENUMID;
@@ -5171,12 +5155,12 @@ pair *curSlot;
             curType  =  boolType;
             error(errNoIdent);
         } else {
-            with *(curType.rep) do {
-                numen  =  span;
+            { register types *ty = (curType.rep);
+                ty->numen  =  span;
                 // start = -1 suppresses the name table (writeProc then prints
                 // the value as an integer): explicit values can be sparse or
                 // negative, so there is no dense name array to index by value.
-                start  =  hasExplicit ? -1 : 0;
+                ty->start  =  hasExplicit ? -1 : 0;
             }
             curType.p.psize  =  1;
             // Explicit values may be sparse or negative -> a full 48-bit
@@ -5263,11 +5247,11 @@ pair *curSlot;
             // layout mode passed to parseRecordDecl.
             typeIsUnion  =  SY == UNIONSY;
             curType.rep = malloc(offsetof(types, szStruct));
-            with *(curType.rep) do {
-                variants.rep  =  NULL;
-                fields  =  NULL;
-                flag  =  false;
-                lsbord  =  lsbOrder;
+            { register types *ty = (curType.rep);
+                ty->variants.rep  =  NULL;
+                ty->fields  =  NULL;
+                ty->flag  =  false;
+                ty->lsbord  =  lsbOrder;
             }
             curType.p.psize  =  0;
             curType.p.bits  =  48;
@@ -5369,13 +5353,13 @@ int l3int1z, frame, l3var3z;
         break;
     case 2:
         padToLeft();
-        with *procName do {
-            l3var3z  =  ((E48 >> 22) & flags) >> 25; // 22 IN flags
-            l3arg1z  =  pos;
+        { register identrec *ir = procName;
+            l3var3z  =  ((E48 >> 22) & ir->flags) >> 25; // 22 IN flags
+            l3arg1z  =  ir->pos;
             frame  =  moduleOffset - 040000;
             if (l3arg1z != 0)
                 symTab[l3arg1z]  =  [24, 29] | frame & halfWord;
-            pos  =  moduleOffset;
+            ir->pos  =  moduleOffset;
         }
         l3arg1z  =  argCount(procName);
         if (l3var3z) {
@@ -5450,36 +5434,36 @@ int labIdx;
                 return;
             }
             ++numLabTop;
-            with numLabs[numLabTop] do {
-                id  =  curToken.i;
-                offset  =  0;
-                line  =  lineCnt;
-                defined  =  false;
+            { register numLabel *nlp = &numLabs[numLabTop];
+                nlp->id  =  curToken.i;
+                nlp->offset  =  0;
+                nlp->line  =  lineCnt;
+                nlp->defined  =  false;
             }
             labIdx  =  numLabTop;
     }
-    with numLabs[labIdx] do {
+    { register numLabel *nlp = &numLabs[labIdx];
         if (isDef) {
-            if (defined) {
-                errLine  =  numLabs[labIdx].line;
+            if (nlp->defined) {
+                errLine  =  nlp->line;
                 error(17); /* errLblAlreadyDefinedInLine */
                 return;
             }
-            line  =  lineCnt;
-            defined  =  true;
-            if (offset == 0) {
+            nlp->line  =  lineCnt;
+            nlp->defined  =  true;
+            if (nlp->offset == 0) {
                 /* empty */
-            } else if (offset >= 074000) {
+            } else if (nlp->offset >= 074000) {
                 curVal.i  =  moduleOffset - 040000;
-                symTab[offset]  =  [24,29] | (curVal.i & 077777U);
+                symTab[nlp->offset]  =  [24,29] | (curVal.i & 077777U);
             } else
-                fixup(0, offset);
-            offset  =  moduleOffset;
+                fixup(0, nlp->offset);
+            nlp->offset  =  moduleOffset;
         } else {
-                if (offset >= 040000)
-                    form1Insn(KUJ + offset);
+                if (nlp->offset >= 040000)
+                    form1Insn(KUJ + nlp->offset);
                 else
-                    formJump(&offset);
+                    formJump(&nlp->offset);
         }
     }
 } /* labCheckAndDefine */
@@ -5589,14 +5573,7 @@ kind l4var4z;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseLval() {
 tptr regTyp;
-    if (hashTravPtr->pck.p.cl == FIELDID) {
-        /* Implicit field of the `with` variable: build GETFIELD on
-           withIter directly, then continue with any further postfix. */
-        curExpr  =  mkExpr(GETFIELD, hashTravPtr->typ,
-                           withIter, eptr(hashTravPtr));
-    } else {
-        curExpr  =  mkExpr(GETVAR, hashTravPtr->typ, eptr(hashTravPtr), NULL);
-    }
+    curExpr  =  mkExpr(GETVAR, hashTravPtr->typ, eptr(hashTravPtr), NULL);
     inSymbol();
     parsePostfix();
     /* A register pointer that no '->' consumed stands for its own value, the
@@ -5673,10 +5650,10 @@ tptr routTyp, formType;
     curFormal  =  NULL;
     curSig  =  NULL;
     if (callee == NULL) {
-        with *subroutine do {
-            if (typ != voidType)
-                liveRegs &= ~flags;
-            noArgs  =  ! (24 in flags);
+        { register identrec *ir = subroutine;
+            if (ir->typ != voidType)
+                liveRegs &= ~ir->flags;
+            noArgs  =  ! (24 in ir->flags);
         }
     } else {
         routTyp  =  ptrBase(callee->typ);
@@ -5685,17 +5662,17 @@ tptr routTyp, formType;
     callExpr = malloc(sizeof(expr));
     argList  =  callExpr;
     bool48z  =  true;
-    with *callExpr do {
+    { register expr *ex = callExpr;
         if (callee == NULL) {
-            typ  =  subroutine->typ;
-            op  =  ALNUM;
-            id2  =  subroutine;
+            ex->typ  =  subroutine->typ;
+            ex->op  =  ALNUM;
+            ex->id2  =  subroutine;
         } else {
-            typ  =  routTyp.rep->rresult;
-            op  =  INDCALL;
-            expr2  =  callee;
+            ex->typ  =  routTyp.rep->rresult;
+            ex->op  =  INDCALL;
+            ex->expr2  =  callee;
         }
-        expr1  =  NULL;
+        ex->expr1  =  NULL;
     }
     if (SY == LPAREN) {
         if (noArgs) {
@@ -5741,10 +5718,10 @@ tptr routTyp, formType;
                 }
             }
             curActual = malloc(sizeof(expr));
-            with *curActual do {
-                typ.rep  =  NULL;
-                expr1  =  NULL;
-                expr2  =  curExpr;
+            { register expr *ex = curActual;
+                ex->typ.rep  =  NULL;
+                ex->expr1  =  NULL;
+                ex->expr2  =  curExpr;
             }
             argList->expr1  =  curActual;
             argList  =  curActual;
@@ -5994,11 +5971,11 @@ int stProcNo, checkMode, resultValue;
             switch (hashTravPtr->pck.p.cl) {
             case ENUMID:
                 curExpr = malloc(sizeof(expr));
-                with *curExpr do {
-                    typ  =  hashTravPtr->typ;
-                    op  =  GETENUM;
-                    num1  =  hashTravPtr->value;
-                    num2  =  0;
+                { register expr *ex = curExpr;
+                    ex->typ  =  hashTravPtr->typ;
+                    ex->op  =  GETENUM;
+                    ex->num1  =  hashTravPtr->value;
+                    ex->num2  =  0;
                 }
                 inSymbol();
                 break;
@@ -6035,7 +6012,7 @@ int stProcNo, checkMode, resultValue;
                     }
                 }
                 break;
-            case VARID: case FORMALID: case FIELDID: case REGID:
+            case VARID: case FORMALID: case REGID:
                 parseLval();
             } /* switch */
         break;
@@ -6099,10 +6076,10 @@ int stProcNo, checkMode, resultValue;
             } while (SY == COMMA);
         }
         checkSymAndRead(RBRACK);
-        with *l4var8z do {
-            op  =  GETENUM;
-            typ  =  intType;
-            num1  =  l4var1z;
+        { register expr *ex = l4var8z;
+            ex->op  =  GETENUM;
+            ex->typ  =  intType;
+            ex->num1  =  l4var1z;
         }
         break;
     }; /* LBRACK */
@@ -6380,10 +6357,10 @@ void setStrLab(int id) {
     strLabPtr = malloc(sizeof(strLabel));
     padToLeft();
     disableNorm();
-    with *strLabPtr do {
-        next  =  strLabList;
-        ident  =  id;
-        target  =  0;
+    { register strLabel *slp = strLabPtr;
+        slp->next  =  strLabList;
+        slp->ident  =  id;
+        slp->target  =  0;
     }
     strLabList  =  strLabPtr;
 } /* setStrLab */
@@ -6399,9 +6376,10 @@ void setBrCont() {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void brContTarget() {
     /* assigning target for break/continue if used */
-    with *strLabList do if (target != 0) {
-        fixup(0, target);
-    }
+    { register strLabel *slp = strLabList;
+      if (slp->target != 0) {
+          fixup(0, slp->target);
+      } }
     strLabList  =  strLabList->next; /* removing break/continue */
 }
 //
@@ -6451,34 +6429,6 @@ eptr loopExpr;
 } /* forStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void withStatement() {
-eptr oldWith;
-int oldRegs, withRegs;
-int oldSize;
-    oldWith  =  withList;
-    oldSize  =  localSize;
-    oldRegs  =  freeRegs;
-    withRegs  =  0U;
-    do {
-            expression();
-            if (curExpr->typ.p.pk == kindStruct) {
-                formOperator(SETREG);
-                withRegs  =  (withRegs | (E48 >> curVal.i)) & auxRegs;
-            } else {
-                error(71); /* errWithOperatorNotOfARecord */
-            }
-    } while (SY == COMMA);
-    checkSymAndRead(DOSY);
-    statement();
-    withList  =  oldWith;
-    localSize  =  oldSize;
-    freeRegs  =  oldRegs;
-    // The index registers this `with` claimed are clobbered as far as our
-    // callers are concerned: they must reach the routine's flags mask.
-    usedRegs |= withRegs;
-} /* withStatement */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // 'register TYPE *name = expr;' at the head of a block: name is a pointer
 // whose value is pinned in an index register until the block ends, so that
 // 'name->field' costs the one instruction a `with` field costs.  It is that
@@ -6510,7 +6460,7 @@ int claimed, regOk;
             regOk  =  regBase.p.pk == kindStruct;
         }
         if (! regOk) {
-            error(71); /* errWithOperatorNotOfARecord */
+            error(71); /* errRegPtrNotToStruct */
             regDecl.typ  =  voidPtr;
             regBase  =  voidType;
         }
@@ -6526,16 +6476,16 @@ int claimed, regOk;
         formOperator(SETREG);
         claimed  =  (claimed | (E48 >> curVal.i)) & auxRegs;
         regIdRec = malloc(offsetof(identrec, szIdent));
-        with *regIdRec do {
-            id  =  regDecl.name;
-            pck.p.offset  =  curFrameRegTemplate;
-            pck.p.cl  =  REGID;
-            pck.p.next  =  NULL;
-            typ  =  regDecl.typ;
-            /* the withList entry this name stands for */
-            value  =  int(withList);
+        { register identrec *ir = regIdRec;
+            ir->id  =  regDecl.name;
+            ir->pck.p.offset  =  curFrameRegTemplate;
+            ir->pck.p.cl  =  REGID;
+            ir->pck.p.next  =  NULL;
+            ir->typ  =  regDecl.typ;
+            /* the pinList entry this name stands for */
+            ir->value  =  int(pinList);
             /* chain of this block's own names, for the unlinking below */
-            list  =  *decls;
+            ir->list  =  *decls;
         }
         *decls  =  regIdRec;
         addToHashTab(regIdRec);
@@ -6546,14 +6496,14 @@ int claimed, regOk;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // '{' register-declarations? statement* '}'.  Whatever the declarations
-// pinned is released here, the way withStatement releases a `with`'s.
+// pinned is released here, at the closing brace.
 void blockStatement() {
 irptr blockDecls, nextDecl, unlinked;
 eptr oldWithList;
 int oldLocalSize, oldFreeRegs, blockRegs;
     inSymbol();
     blockDecls  =  NULL;
-    oldWithList  =  withList;
+    oldWithList  =  pinList;
     oldLocalSize  =  localSize;
     oldFreeRegs  =  freeRegs;
     blockRegs  =  registerDecls(&blockDecls);
@@ -6566,7 +6516,7 @@ int oldLocalSize, oldFreeRegs, blockRegs;
             unlinked  =  hash(NULL, blockDecls);
             blockDecls  =  nextDecl;
         }
-        withList  =  oldWithList;
+        pinList  =  oldWithList;
         localSize  =  oldLocalSize;
         freeRegs  =  oldFreeRegs;
         /* The registers this block claimed are clobbered as far as our
@@ -7489,9 +7439,6 @@ tptr t;
         caseStatement();
         brContTarget();
         break;
-    case WITHSY:
-        withStatement();
-        break;
     case EXPROP: case LPAREN:
     case INTCONST: case REALCONST: case CHARCONST: case STRINGSY:
     case LBRACK:
@@ -7566,8 +7513,8 @@ int l3var7z;
     }
     l3var1z  =
     lineStartOffset  =  moduleOffset;
-    lookup2  =  2;
-    withList  =  NULL;
+    lookup2  =  lookUse;
+    pinList  =  NULL;
     arithMode  =  1;
     liveRegs  =  0U;
     // [curProcNesting+1..6];
@@ -7685,11 +7632,11 @@ int l3var11z;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysProc(int l4arg1z) {
     curIdRec = malloc(offsetof(identrec, szSys));
-    with *curIdRec do {
-        pck.next  =  NULL;
-        id  =  l4arg1z;
-        typ  =  temptype;
-        sysnum  =  sysProcNum;
+    { register identrec *ir = curIdRec;
+        ir->pck.next  =  NULL;
+        ir->id  =  l4arg1z;
+        ir->typ  =  temptype;
+        ir->sysnum  =  sysProcNum;
     }
     curIdRec->pck.p.cl  =  ROUTINEID;
     addToHashTab(curIdRec);
@@ -7698,28 +7645,28 @@ void regSysProc(int l4arg1z) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     boolType.rep = malloc(offsetof(types, szScalar));
-    with *(boolType.rep) do {
-        numen  =  2;
-        start  =  -1;
-        enums  =  NULL;
+    { register types *ty = (boolType.rep);
+        ty->numen  =  2;
+        ty->start  =  -1;
+        ty->enums  =  NULL;
     }
     boolType.p.psize  =  1;
     boolType.p.bits  =  1;
     boolType.p.pk  =  kindScalar;
     intType.rep = malloc(offsetof(types, szScalar));
-    with *(intType.rep) do {
-        numen  =  100000;
-        start  =  -1;
-        enums  =  NULL;
+    { register types *ty = (intType.rep);
+        ty->numen  =  100000;
+        ty->start  =  -1;
+        ty->enums  =  NULL;
     }
     intType.p.psize  =  1;
     intType.p.bits  =  48;
     intType.p.pk  =  kindScalar;
     charType.rep = malloc(offsetof(types, szScalar));
-    with *(charType.rep) do {
-        numen  =  256;
-        start  =  -1;
-        enums  =  NULL;
+    { register types *ty = (charType.rep);
+        ty->numen  =  256;
+        ty->start  =  -1;
+        ty->enums  =  NULL;
     }
     charType.p.psize  =  1;
     charType.p.bits  =  8;
@@ -7739,13 +7686,13 @@ void regSysProc(int l4arg1z) {
     voidPtr.p.bits  =  48;
     voidPtr.p.pk  =  kindPtr;
     alfaType.rep = malloc(offsetof(types, szArray));
-    with *(alfaType.rep) do {
-        base  =  charType;
-        pck  =  true;
-        perword  =  6;
-        pcksize  =  8;
-        aleft  =  0;
-        aright  =  5;
+    { register types *ty = (alfaType.rep);
+        ty->base  =  charType;
+        ty->pck  =  true;
+        ty->perword  =  6;
+        ty->pcksize  =  8;
+        ty->aleft  =  0;
+        ty->aright  =  5;
     }
     alfaType.p.psize  =  1;
     alfaType.p.bits  =  48;
@@ -7753,25 +7700,25 @@ void regSysProc(int l4arg1z) {
     smallStringType[6]  =  alfaType;
     charPtrType = getPtrType(charType);
     flatMemType.rep = malloc(offsetof(types, szArray));
-    with *(flatMemType.rep) do {
-        base = charType;
-        pck = true;
-        perword = 6;
-        pcksize = 8;
-        aleft = 0;
-        aright = 32768 * 6 - 1;
+    { register types *ty = (flatMemType.rep);
+        ty->base = charType;
+        ty->pck = true;
+        ty->perword = 6;
+        ty->pcksize = 8;
+        ty->aleft = 0;
+        ty->aright = 32768 * 6 - 1;
     }
     flatMemType.p.psize = 32767;
     flatMemType.p.bits = 48;
     flatMemType.p.pk = kindArray;
     flatMemVar = malloc(offsetof(identrec, szIdent));
-    with *flatMemVar do {
-        id = 0;
-        pck.p.offset = 0;
-        typ = flatMemType;
-        pck.p.cl = VARID;
-        list = NULL;
-        value = 0;
+    { register identrec *ir = flatMemVar;
+        ir->id = 0;
+        ir->pck.p.offset = 0;
+        ir->typ = flatMemType;
+        ir->pck.p.cl = VARID;
+        ir->list = NULL;
+        ir->value = 0;
     }
      /*=A3 constructing TEXT constants */
     /* The predefined type names are reserved words carrying their type,
@@ -7788,26 +7735,26 @@ void regSysProc(int l4arg1z) {
         smallStringType[strlen] = makeStringType();
     maxSmallString  =  6;
     curIdRec = malloc(offsetof(identrec, szIdent));
-    with *curIdRec do {
-        pck.p.offset  =  0;
-        typ  =  intType;
-        pck.p.cl  =  VARID;
-        list  =  NULL;
-        value  =  7;
+    { register identrec *ir = curIdRec;
+        ir->pck.p.offset  =  0;
+        ir->typ  =  intType;
+        ir->pck.p.cl  =  VARID;
+        ir->list  =  NULL;
+        ir->value  =  7;
     }
     uVarPtr = malloc(sizeof(identrec));
-    with *uVarPtr do {
-        typ  =  intType;
-        op  =  GETVAR;
-        id1  =  curIdRec;
+    { register expr *ex = uVarPtr;
+        ex->typ  =  intType;
+        ex->op  =  GETVAR;
+        ex->id1  =  curIdRec;
     }
     uProcPtr = malloc(offsetof(identrec, szRoutine));
-    with *uProcPtr do {
-        typ  =  voidType;
-        list  =  NULL;
-        argList  =  NULL;
-        preDefLink  =  NULL;
-        pos  =  0;
+    { register identrec *ir = uProcPtr;
+        ir->typ  =  voidType;
+        ir->list  =  NULL;
+        ir->argList  =  NULL;
+        ir->preDefLink  =  NULL;
+        ir->pos  =  0;
     }
     temptype.rep = NULL;
     sysProcNum  =  0;
@@ -7836,9 +7783,9 @@ void regSysProc(int l4arg1z) {
     l3var11z  =  l3var11z & halfWord | [24,27,28,29];
     programObj = malloc(offsetof(identrec, szRoutine));
     symTabPos  =  074004;
-    with *programObj do {
-        id  =  'PASCOMPL';
-        pos  =  0;
+    { register identrec *ir = programObj;
+        ir->id  =  'PASCOMPL';
+        ir->pos  =  0;
         symTab[074000]  =  'PASCOMPL';
     }
     entryPtTable[0]  =  symTab[074000];
@@ -7950,14 +7897,14 @@ int noComma;
             }
         } else {
         l3var1z = malloc(offsetof(identrec, szIdent));
-        with *l3var1z do {
-            id  =  curDeclarator.name;
-            pck.p.offset  =  curFrameRegTemplate;
-            pck.p.cl  =  VARID;
-            pck.p.next  =  NULL;
-            typ  =  curDeclarator.typ;
-            list  =  curIdRec;
-            value  =  l2int18z;
+        { register identrec *ir = l3var1z;
+            ir->id  =  curDeclarator.name;
+            ir->pck.p.offset  =  curFrameRegTemplate;
+            ir->pck.p.cl  =  VARID;
+            ir->pck.p.next  =  NULL;
+            ir->typ  =  curDeclarator.typ;
+            ir->list  =  curIdRec;
+            ir->value  =  l2int18z;
         }
         /* An unnamed parameter takes its argument slot like any other.  It
            never enters the symbol table, so the body has no way to name
@@ -8047,10 +7994,10 @@ void exitScope(int a) {
             if (isDefined)
                 error(errIdentAlreadyDefined);
             workidr = malloc(offsetof(identrec, szIdent));
-            with *workidr do {
-                pck.next  =  symHash[bucket];
-                id  =  curIdent;
-                list  =  NULL;
+            { register identrec *ir = workidr;
+                ir->pck.next  =  symHash[bucket];
+                ir->id  =  curIdent;
+                ir->list  =  NULL;
             }
             workidr->pck.p.offset  =  curFrameRegTemplate;
             workidr->pck.p.cl  =  ENUMID;
@@ -8060,8 +8007,7 @@ void exitScope(int a) {
                 error(errBadSymbol);
             else
                 inSymbol();
-            with *workidr do
-                parseConstDeclValue(&typ, &high);
+            parseConstDeclValue(&workidr->typ, &workidr->high);
             if (workidr->typ == voidType) {
                 error(errNoConstant);
                 workidr->typ  =  intType;
@@ -8128,11 +8074,11 @@ void exitScope(int a) {
                     typelist = hash(typelist, curIdRec);
                 } else {
                     curIdRec = malloc(offsetof(identrec, szIdent));
-                    with *curIdRec do {
-                        id  =  curDeclarator.name;
-                        pck.p.offset  =  curFrameRegTemplate;
-                        typ  =  curDeclarator.typ;
-                        pck.p.cl  =  TYPEID;
+                    { register identrec *ir = curIdRec;
+                        ir->id  =  curDeclarator.name;
+                        ir->pck.p.offset  =  curFrameRegTemplate;
+                        ir->typ  =  curDeclarator.typ;
+                        ir->pck.p.cl  =  TYPEID;
                     }
                 }
                 /* definePtrType parks lineCnt in offset so error 79 can
@@ -8266,13 +8212,13 @@ void exitScope(int a) {
                         defExtern();
                 }
                 curIdRec = malloc(offsetof(identrec, szIdent));
-                with *curIdRec do {
-                    id  =  curDeclarator.name;
-                    pck.p.offset  =  curFrameRegTemplate;
-                    pck.p.next  =  symHash[curDeclarator.bucket];
-                    pck.p.cl  =  VARID;
-                    list  =  NULL;
-                    typ  =  curDeclarator.typ;
+                { register identrec *ir = curIdRec;
+                    ir->id  =  curDeclarator.name;
+                    ir->pck.p.offset  =  curFrameRegTemplate;
+                    ir->pck.p.next  =  symHash[curDeclarator.bucket];
+                    ir->pck.p.cl  =  VARID;
+                    ir->list  =  NULL;
+                    ir->typ  =  curDeclarator.typ;
                 }
                 symHash[curDeclarator.bucket]  =  curIdRec;
                 jj  =  typeSize(curDeclarator.typ);
@@ -8332,19 +8278,19 @@ void exitScope(int a) {
                     error(81); /* errProcNestingTooDeep */
                 }
                 curIdRec = malloc(offsetof(identrec, szRoutine));
-                with *curIdRec do {
-                    id  =  curIdent;
-                    pck.p.offset  =  curFrameRegTemplate;
-                    pck.p.next  =  symHash[bucket];
-                    typ  =  voidType;
+                { register identrec *ir = curIdRec;
+                    ir->id  =  curIdent;
+                    ir->pck.p.offset  =  curFrameRegTemplate;
+                    ir->pck.p.next  =  symHash[bucket];
+                    ir->typ  =  voidType;
                     symHash[bucket]  =  curIdRec;
-                    pck.p.cl  =  ROUTINEID;
-                    list  =  NULL;
-                    value  =  0;
-                    argList  =  NULL;
-                    preDefLink  =  NULL;
-                    flags  =  declEntry ? [0:15,22] : [0:15];
-                    pos  =  0;
+                    ir->pck.p.cl  =  ROUTINEID;
+                    ir->list  =  NULL;
+                    ir->value  =  0;
+                    ir->argList  =  NULL;
+                    ir->preDefLink  =  NULL;
+                    ir->flags  =  declEntry ? [0:15,22] : [0:15];
+                    ir->pos  =  0;
                     curFrameRegTemplate += frameRegTemplate;
                     l2int18z  =  l2bool8z ? 3 : 4;
                 }
@@ -8371,12 +8317,12 @@ void exitScope(int a) {
                     }
                 }
             } else {
-                with *hashTravPtr do {
-                    l2int18z  =  level;
+                { register identrec *ir = hashTravPtr;
+                    l2int18z  =  ir->level;
                     curFrameRegTemplate += indexreg[1];
                     ++curProcNesting;
                     if (preDefHead == hashTravPtr) {
-                        preDefHead  =  preDefLink;
+                        preDefHead  =  ir->preDefLink;
                     } else {
                         curIdRec  =  preDefHead;
                         while (hashTravPtr != curIdRec) {
@@ -8431,11 +8377,11 @@ void exitScope(int a) {
                 checkSymAndRead(SEMICOLON);
             } else {
                 checkSymAndRead(SEMICOLON);
-                with *curIdRec do {
+                { register identrec *ir = curIdRec;
                     if (isPredefined)
                         error(83); /* errRepeatedPredefinition */
-                    level  =  l2int18z;
-                    preDefLink  =  preDefHead;
+                    ir->level  =  l2int18z;
+                    ir->preDefLink  =  preDefHead;
                     preDefHead  =  curIdRec;
                 }
             }
@@ -8577,12 +8523,12 @@ void regKeywords() { /*=A3 regKeywords */
     regResWord('      IN');
     SY  =  CONSTSY;
     charClass  =  NOOP;
-    /* CONSTSY..RETURNSY are 20 consecutive reserved words. TYPESY sits just
+    /* CONSTSY..RETURNSY are 19 consecutive reserved words. TYPESY sits just
        before CONSTSY so it is outside this range -- no skip needed; the
        predefined type names are registered as TYPESY keywords later, by
        mainProgram, and markTypeSym still raises user typedef names to
        TYPESY. */
-    for (idx = 0; idx <= 19; ++idx) {
+    for (idx = 0; idx <= 18; ++idx) {
         regResWord(resWordName[idx]);
         ++SY;
     }

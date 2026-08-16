@@ -11,13 +11,13 @@ rec r1, r2;
 outer nest;
 int probe, register;
 //
-// A callee that holds a `with` of its own, so its clobber mask covers the
+// A callee that pins a pointer of its own, so its clobber mask covers the
 // index registers a caller's register pointer may be using: the caller has to
 // reload from the spill slot after the call.
 void clobber() {
-    with r2 do {
-        a = a + 1;
-        b = b + 1;
+    { register rec *c = &r2;
+        c->a = c->a + 1;
+        c->b = c->b + 1;
     }
 }
 //

@@ -12,16 +12,16 @@ point obj;
 holder h;
 void main() {
     p = &obj;
-    with *p do {
-        x = 11;
-        y = x + 31;
+    { register point *rp = p;
+        rp->x = 11;
+        rp->y = rp->x + 31;
     }
     writeln(' X=', obj.x:0);
     writeln(' Y=', obj.y:0);
     h.pstruct = &obj;
-    with *h.pstruct do {
-        x = 17;
-        y = x + 6;
+    { register point *rp = h.pstruct;
+        rp->x = 17;
+        rp->y = rp->x + 6;
     }
     writeln(' HX=', obj.x:0);
     writeln(' HY=', obj.y:0);
