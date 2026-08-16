@@ -205,7 +205,7 @@ enum Operator {
     IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
     RMWASSIGN,  GETENUM,    GETFIELD,   DEREF,
-    STKLVAL,    ALNUM,      PCALL,      FCALL,
+    STKLVAL,    INDCALL,    PROCADDR,   ALNUM,
     TOREAL,     TOINT,      NOTOP,      INEGOP,     RNEGOP,
     BITNEGOP,   STANDPROC,  NOOP
 };
@@ -226,7 +226,7 @@ enum OpFlg {
 enum Kind {
     kindVoid, kindReal, kindScalar, kindPtr,
     kindArray, kindStruct,
-    kindCases, kindRoutine
+    kindRoutine
 };
 
 // BESM-6 words are 48-bit sets/bitmaps.  work.p2c models these as plain int
@@ -446,12 +446,18 @@ struct Alfa {
         c ^= (*this)[i];
         val = (val ^ (uint64_t(c) << (48-8*i))) & 0xFFFFFFFFFFFFL;
     }
-    // Mimics the BESM-6 comparison exactly.  Its end-around carry ordering is
-    // not transitive, so a binary-search table can admit repeated literals.
+    // Mimics the BESM-6 comparison exactly: the compiled sequence is
+    //   XTA a; AEX <ones>; ARX b; UZA
+    // i.e. ~a + b with the end-around carry, "less" iff the result's top bit
+    // is clear.  Written the other way round (a + ~b, top bit set) it would
+    // call every value less than itself, since a + ~a is the all-ones word.
+    // The ordering is not transitive, so a binary-search table can admit
+    // repeated literals -- and once the table fills at 500 it stops taking
+    // new ones at all, so an early disagreement with the machine snowballs.
     bool operator<(const Alfa & x) const {
-        uint64_t tmp = val + (x.val ^ 0xFFFFFFFFFFFFL);
+        uint64_t tmp = (val ^ 0xFFFFFFFFFFFFL) + x.val;
         tmp = (tmp + (tmp >> 48)) & 0xFFFFFFFFFFFFL;
-        return tmp >> 47;
+        return (tmp >> 47) == 0;
     }
 
     std::string print() const;
@@ -563,7 +569,7 @@ struct Types : public BESM6Obj {
             int64_t flag, lsbord;      // booleans
             int64_t szStruct;
         };
-        struct {                       // kindCases
+        struct {                       // unused (work.p2c has no such kind)
             TPtr first, next, alt;
             int64_t szCases;
         };
@@ -706,7 +712,6 @@ struct IdentRec : public BESM6Obj {
             IdentRecPtr argList_, preDefLink_;
             int64_t level_, pos_;
             int64_t flags_;
-            TPtr sigtyp_;
             int64_t szRoutine;
         };
         struct {                // predefined system routine
@@ -741,10 +746,6 @@ struct IdentRec : public BESM6Obj {
     int64_t & procno() {
         assert(pck.cl == ROUTINEID);
         return low_;
-    }
-    TPtr & sigtyp() {
-        assert(pck.cl == ROUTINEID);
-        return sigtyp_;
     }
     TPtr & uptype() {
         assert(pck.cl == FIELDID);
@@ -820,7 +821,7 @@ numberFormat numFormat;
 SetOfSYs   bigSkipSet, statEndSys, blockBegSys, statBegSys,
            skipToSet, lvalOpSet;
 
-bool   inCallArgs, bool48z, forValue;
+bool   bool48z, forValue;
 
 int64_t jumpType, jumpTarget;
 
@@ -988,7 +989,7 @@ std::string Expr::p()
         "IDIVOP","IMODOP","PLUSOP","MINUSOP","OROP","NEOP","EQOP","LTOP",
         "GEOP","GTOP","LEOP","INOP","IMULOP","INTPLUS","INTMINUS","CONDOP",
         "ALTERN","INCROP","DECROP","ASSIGNOP","GETELT","GETVAR","RMWASSIGN",
-        "GETENUM","GETFIELD","DEREF","STKLVAL","ALNUM","PCALL","FCALL",
+        "GETENUM","GETFIELD","DEREF","STKLVAL","INDCALL","PROCADDR","ALNUM",
         "TOREAL","TOINT","NOTOP","INEGOP","RNEGOP","BITNEGOP","STANDPROC",
         "NOOP"
     };
@@ -1325,6 +1326,16 @@ bool isCharPtr(TPtr arg)
            ptrBase(arg) == CharType;
 } /* isCharPtr */
 
+/* A pointer to a routine, i.e. a function pointer.  getPtrType always
+   compact-encodes one (a routine type leaves pad 0), so the test is on the
+   encoding itself: calling ptrBase here would read the pointee descriptor,
+   which a pointer with no descriptor of its own -- voidPtr -- does not
+   have. */
+bool isRoutinePtr(TPtr arg)
+{
+    return isCompactP(arg) and arg.p.pad == 010 + kindRoutine;
+} /* isRoutinePtr */
+
 void internScope(int64_t bound)
 {
 /* Forget interned types allocated above the arena mark being rolled up. */
@@ -1636,7 +1647,7 @@ int64_t addCurValToFCST()
         high = FcstTotal;
         do {
             mid = (low + high) / 2;
-            if (curVal.ii == constVals[mid].ii) {
+            if (curVal.a.val == constVals[mid].a.val) {
               return constNums[mid];
             }
             if (fcstLess(curVal, constVals[mid]))
@@ -2949,15 +2960,18 @@ void checkSymAndRead(Symbol sym)
         inSymbol();
 }
 
-#ifdef kindrout
 bool typeCheck(TPtr type1, TPtr type2);
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 bool sameRoutineType(TPtr type1, TPtr type2)
 {
     SigPtr p1, p2;
+    // Only the flags that shape a call are part of the type: 21 fortran,
+    // 24 all-by-reference, 26 assembler.  Bit 20 (extern) is linkage, and
+    // including it would keep every declared function pointer type (flags 0)
+    // from ever accepting an extern routine.
     if ((type1.rep()->rargc != type2.rep()->rargc) or
-        ((type1.rep()->rflags * Bits(20,21,24,26)) !=
-         (type2.rep()->rflags * Bits(20,21,24,26)))) {
+        ((Bits(21,24,26) & type1.rep()->rflags) !=
+         (Bits(21,24,26) & type2.rep()->rflags))) {
         return false;
     }
     if ((type1.rep()->rresult != type2.rep()->rresult) and
@@ -2980,7 +2994,6 @@ bool sameRoutineType(TPtr type1, TPtr type2)
     }
     return (p1 == NULL) and (p2 == NULL);
 } /* sameRoutineType */
-#endif
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 bool typeCheck(TPtr type1, TPtr type2)
 { /* typeCheck */
@@ -3022,12 +3035,10 @@ L1:     return true;
                         goto L1;
                 }
                 break;
-#ifdef kindrout
             case kindRoutine:
                 if (sameRoutineType(type1, type2))
                     goto L1;
                 break;
-#endif
             default:
                 break;
             } /* switch */
@@ -3050,20 +3061,34 @@ int64_t argCount(IdentRecPtr l3arg1z)
     return l3var1z;
 } /* argCount */
 
-TPtr makeRoutineType(IdentRecPtr routine)
+// The routine type proper: a result type and a parameter signature.  Setting
+// rep clears the descriptor metadata, so pad comes out 0 and getPtrType can
+// compact-encode a pointer to this type.
+TPtr mkRoutineTyp(TPtr result, SigPtr params, int64_t flags)
 {
     TPtr resultTyp{};
-    IdentRecPtr srcParam;
-    SigPtr newParam, lastParam;
+    SigPtr p;
 
     resultTyp.setRep(besm6_alloc_record<Types>(offsetof(Types, szRtype)));
-    resultTyp.rep()->rresult = routine->typ;
-    resultTyp.rep()->rparams = NULL;
+    resultTyp.rep()->rresult = result;
+    resultTyp.rep()->rparams = params;
     resultTyp.rep()->rargc = 0;
-    resultTyp.rep()->rflags = routine->flags();
+    resultTyp.rep()->rflags = flags;
     resultTyp.p.psize = 1;
     resultTyp.p.bits = 15;
     resultTyp.p.pk = kindRoutine;
+    for (p = params; p != NULL; p = p->next)
+        resultTyp.rep()->rargc = resultTyp.rep()->rargc + 1;
+    return resultTyp;
+}
+
+// The type of an already declared routine, from its parameter records.
+TPtr makeRoutineType(IdentRecPtr routine)
+{
+    IdentRecPtr srcParam;
+    SigPtr newParam, lastParam, head;
+
+    head = NULL;
     lastParam = NULL;
     srcParam = routine->argList();
     if (srcParam != NULL) {
@@ -3073,15 +3098,14 @@ TPtr makeRoutineType(IdentRecPtr routine)
             newParam->ptyp = srcParam->typ;
             newParam->next = NULL;
             if (lastParam == NULL)
-                resultTyp.rep()->rparams = newParam;
+                head = newParam;
             else
                 lastParam->next = newParam;
-            resultTyp.rep()->rargc = resultTyp.rep()->rargc + 1;
             lastParam = newParam;
             srcParam = srcParam->list();
         }
     }
-    return resultTyp;
+    return mkRoutineTyp(routine->typ, head, routine->flags());
 }
 
 struct formOperator {
@@ -3267,16 +3291,6 @@ L3556:
                 case mcMINEL: {
                     add2InsnsToBuf(KANX, KSUB+E1);   /* minel */
                 } break;
-                case 16:
-                    add2InsnsToBuf(InsnTemp[XTA], KATX+SP + curInsn.ii);
-                    break;
-                case 17: {
-                    addInsnToBuf(KXTS);
-                    add2InsnsToBuf(KATX+SP+1, KUTM+SP + curInsn.ii);
-                } break;
-                case 18:
-                    add2InsnsToBuf(KVTM+I10, getHelperProc(40)); /* P/B7 */
-                    break;
                 case mcPOP2ADDR: {
                     addInsnToBuf(KVTM+I14);
                     add2InsnsToBuf(KXTA+SP, KATX+I14);
@@ -4265,16 +4279,15 @@ void genGetElt()
 struct genEntry {
     genEntry();
 
-    ExprPtr l5exp1z, l5exp2z;
-    IdentRecPtr l5idr3z, l5idr4z, l5idr5z, l5idr6z;
-    bool l5bool7z, l5bool8z, l5bool9z, l5bool10z, l5bool11z;
-    bool isAssembler; // base.pas: 26 in calleeFl.ii (flags bit 26)
-    Word l5var12z, l5var13z, l5var14z;
-    int64_t l5var15z, l5var16z;
+    ExprPtr l5exp1z, l5exp2z, calleeExp;
+    IdentRecPtr l5idr5z;
+    bool isProc, firstArg, isIndir, isFortrn, isAssembler, allByRef;
+    int64_t calleeFl, frameSiz, numArgs;
+    int64_t l5var15z;
     Word l5var17z, l5var18z, l5var19z;
     InsnListPtr l5inl20z;
-    Operator l5op21z;
-    IdClass l5idc22z;
+    TPtr routTyp, resTyp;
+    IdClass paramClass;
 };
 
 int64_t allocGlobalObject(IdentRecPtr l6arg1z)
@@ -4295,185 +4308,116 @@ genEntry::genEntry()
 {
     ExprPtr & exprToGen = genFullExpr::super.back()->exprToGen;
     l5exp1z = exprToGen->expr1;
-    l5idr5z = exprToGen->id2;
-    l5bool7z = (l5idr5z->typ == NULL);
-    l5bool9z = (l5idr5z->list() == NULL);
-    if (l5bool7z)
-        l5var13z.ii = 3;
-    else
-        l5var13z.ii = 4;
-    l5var12z.ii = l5idr5z->flags();
-    l5bool10z = (has(l5var12z.ii, 21));   // isFortrn
-    isAssembler = (has(l5var12z.ii, 26)); // base.pas 3297
-    l5bool11z = (has(l5var12z.ii, 24));   // allByRef
-    if (l5bool9z) {
-        l5var14z.ii = argCount(l5idr5z);
-        l5idr6z = l5idr5z->argList();
+    isIndir = exprToGen->op == INDCALL;
+    if (isIndir) {
+        // Everything about the callee comes from the type it is reached
+        // through: the result, the argument count, and the flags that shape
+        // the call.  Nothing is known about the registers the routine at the
+        // other end uses, so every one of them counts as clobbered.
+        calleeExp = exprToGen->expr2;
+        routTyp = ptrBase(calleeExp->vt.typ);
+        resTyp = routTyp.rep()->rresult;
+        numArgs = routTyp.rep()->rargc;
+        calleeFl = routTyp.rep()->rflags | BitRange(0,15);
     } else {
-        l5var13z.ii = l5var13z.ii + 2;
+        l5idr5z = exprToGen->id2;
+        resTyp = l5idr5z->typ;
+        numArgs = argCount(l5idr5z);
+        calleeFl = l5idr5z->flags();
     }
+    isProc = (resTyp == NULL);
+    frameSiz = isProc ? 3 : 4;
+    isFortrn = has(calleeFl, 21);
+    isAssembler = has(calleeFl, 26); // base.pas 3297
+    allByRef = has(calleeFl, 24);
     insnList = new InsnList;
     insnList->head = NULL;
     insnList->tail = NULL;
-    insnList->typ = l5idr5z->typ;
-    insnList->regsused = (l5idr5z->flags() | BitRange(7,15)) & (BitRange(0,8)|BitRange(10,15));
+    insnList->typ = resTyp;
+    insnList->regsused = (calleeFl | BitRange(7,15)) & (BitRange(0,8)|BitRange(10,15));
     insnList->ilm = ilRVAL;
     if (isAssembler) {          // base.pas 3311: assembler routine, no frame
-        l5bool8z = false;
-    } else if (l5bool10z) {     // isFortrn
-        l5bool8z = not l5bool7z;
+        firstArg = false;
+    } else if (isFortrn) {
+        firstArg = not isProc;
         if (checkFortran) {
             addToInsnList(getHelperProc(53)); /* "P/MF" */
         }
     } else {
-        l5bool8z = true;
-        if (((not l5bool9z) and (l5exp1z != NULL))
-            or ((l5bool9z) and (l5var14z.ii >= 2))) {
-            addToInsnList(KUTM+SP + l5var13z.ii);
+        firstArg = true;
+        if (numArgs >= 2) {
+            addToInsnList(KUTM+SP + frameSiz);
         }
     }
-    l5var14z.ii = 0;
 // (loop)
     while (l5exp1z != NULL) { /* 6574 */
         l5exp2z = l5exp1z->expr2;
         l5exp1z = l5exp1z->expr1;
-        l5op21z = l5exp2z->op;
-        l5var14z.ii = l5var14z.ii + 1;
         l5inl20z = insnList;
-        if ((l5op21z == PCALL) or (l5op21z == FCALL)) {
-            l5idr4z = l5exp2z->id2;
-            insnList = new InsnList;
-            insnList->head = NULL;
-            insnList->tail = NULL;
-            insnList->regsused = Bits();
-            usedRegs = usedRegs | l5idr4z->flags();
-            if (l5idr4z->list() != NULL) {
-                addToInsnList(l5idr4z->pck.offset + InsnTemp[XTA] +
-                              l5idr4z->value());
-                if (l5bool10z)
-                    addToInsnList(getHelperProc(12)); /* "P/EA" */
-            } else
-                /*(a) */         { /* 6636 */
-                if (l5idr4z->value() == 0) {
-                    if ((l5bool10z) and (has(l5idr4z->flags(), 21))) {
-                        addToInsnList(allocGlobalObject(l5idr4z) +
-                                      (KVTM+I14));
-                        addToInsnList(KITA+14);
-                        goto exit_a;
-                    } else { /* 6651 */
-                        l5var16z = 0;
-                        formJump(l5var16z);
-                        padToLeft();
-                        l5idr4z->value() = moduleOffset;
-                        l5idr3z = l5idr4z->argList();
-                        l5var15z = l5idr4z->typ != NULL;
-                        l5var17z.ii = argCount(l5idr4z);
-                        form3Insn(KVTM+I10+ 4+moduleOffset,
-                                  KVTM+I9 + l5var15z,
-                                  KVTM+I8 + 074001);
-                        formAndAlign(getHelperProc(37)); /* "P/BP" */
-                        l5var15z = l5var17z.ii + 2 + l5var15z;
-                        form1Insn(KXTA+SP + l5var15z);
-                        if ((1) < l5var17z.ii)
-                            form1Insn(KUTM+SP + l5var15z);
-                        else
-                            form1Insn(0);
-                        form2Insn(
-                            getHelperProc(38/*P/B6*/) - 0500000,
-                            allocGlobalObject(l5idr4z) + KUJ);
-                        // If a routine is passed as an actual parameter,
-                        // its (rough) prototype is stored for checking
-                        // against calls to formal parameters at runtime.
-                        if (l5idr3z != NULL) {
-                            do {
-                                l5idc22z = (IdClass)l5idr3z->pck.cl;
-                                if ((l5idc22z == ROUTINEID) and
-                                    (l5idr3z->typ != NULL))
-                                    l5idc22z = ENUMID;
-                                form2Insn(0, l5idc22z);
-                                l5idr3z = l5idr3z->list();
-                            } while (l5idr4z != l5idr3z);
-                        } /* 6745 */
-                        storeObjWord(0);
-                        fixup(0, l5var16z);
-                    }
-                } /* 6752 */
-                addToInsnList(KVTM+I14 + l5idr4z->value());
-                if (has(l5idr4z->flags(), 21))
-                    addToInsnList(KITA+14);
-                else
-                    addToInsnList(getHelperProc(39)); /* "P/PB" */
-              exit_a:;
-            }; /* 6765 */
-            if (l5op21z == PCALL)
-                l5idc22z = ROUTINEID;
-            else
-                l5idc22z = ENUMID;
-        } else { /* 6772 */
-            (void) genFullExpr(l5exp2z);
-            if (insnList->ilm == ilLVAL)
-              l5idc22z = FORMALID;
-            else
-                l5idc22z = VARID;
-        } /* 7001 */
-        if (not (not l5bool9z or (l5idc22z != FORMALID) or
-                 (l5idr6z->pck.cl != VARID)))
-            l5idc22z = VARID;
+        (void) genFullExpr(l5exp2z);
+        // Every formal is taken by value; one that does not fit a word is
+        // passed by address instead, which the callee knows to expect.
+        paramClass = VARID;
           loop:
-        if ((l5idc22z == FORMALID) or (l5bool11z)) {
+        if ((paramClass == FORMALID) or allByRef) {
             setAddrTo(14);
             addToInsnList(KITA+14);
-        } else if (l5idc22z == VARID) {
+        } else {
             if (typeSize(insnList->typ) != 1) {
-                l5idc22z = FORMALID;
+                paramClass = FORMALID;
                 goto loop;
             } else {
                 prepLoad();
             }
         } /* 7027 */
-        if (not l5bool8z)
+        if (not firstArg)
             prependToInsnList(macro + mcPUSH);
-        l5bool8z = false;
+        firstArg = false;
         if (l5inl20z->tail != NULL) {
             l5inl20z->tail->next = insnList->head;
             insnList->head = l5inl20z->head;
         }
         insnList->regsused = insnList->regsused | l5inl20z->regsused;
-        if (not l5bool9z) {
-            curVal.ii = l5idc22z;
-            addToInsnList(KXTS+I8 + getFCSToffset());
-        }
-        if (l5bool9z and not l5bool11z)
-            l5idr6z = l5idr6z->list();
     }; /* while -> 7061 */
-    if (l5bool10z) {
+    if (isFortrn) {
         addToInsnList(KNTR+2);
         insnList->tail->mode = 4;
     }
-    if (l5bool9z) {
+    if (isIndir) {
+        // WTC takes the entry address out of the pointer and into C, which
+        // the VJM then jumps to; it touches neither the accumulator, where
+        // the last argument is sitting, nor the mode register.  That is only
+        // possible while the pointer is directly addressable, i.e. while its
+        // whole insnList is a deferred address and nothing has to be
+        // computed to reach it.
+        l5inl20z = insnList;
+        (void) genFullExpr(calleeExp);
+        if (insnList->head != NULL or insnList->ilm != ilLVAL
+            or insnList->st != stWORD or insnList->addrmd == 15)
+            error(errVarTooComplex);
+        curInsnTemplate = InsnTemp[WTC];
+        prepLoad();
+        curInsnTemplate = InsnTemp[XTA];
+        if (l5inl20z->tail != NULL) {
+            l5inl20z->tail->next = insnList->head;
+            insnList->head = l5inl20z->head;
+        }
+        insnList->regsused = insnList->regsused | l5inl20z->regsused;
+        addToInsnList(KVJM+I13);
+        // The callee's level is not knowable here, and only a file-scope
+        // routine can be pointed at, so it is 1, as for an external.
+        l5var17z.ii = 1;
+    } else {
         addToInsnList(allocGlobalObject(l5idr5z) + (KVJM+I13));
         if (has(l5idr5z->flags(), 20)) {
             l5var17z.ii = 1;
         } else {
             l5var17z.ii = l5idr5z->pck.offset / 04000000;
         } /* 7102 */
-    } else { /* 7103 */
-        l5var15z = 0;
-        if (l5var14z.ii == 0) {
-            l5var17z.ii = l5var13z.ii + 1;
-        } else {
-            l5var17z.ii = -(2 * l5var14z.ii + l5var13z.ii);
-            l5var15z = 1;
-        } /* 7115 */
-        addInsnAndOffset(macro+16 + l5var15z,
-                         getValueOrAllocSymtab(l5var17z.ii));
-        addToInsnList(l5idr5z->pck.offset + InsnTemp[UTC] + l5idr5z->value());
-        addToInsnList(macro+18);
-        l5var17z.ii = 1;
     } /* 7132 */
     insnList->tail->mode = 2;
     if (not isAssembler and curProcNesting != l5var17z.ii) { // base.pas 3459
-        if (not l5bool10z) {
+        if (not isFortrn) {
             if (l5var17z.ii + 1 == curProcNesting) {
                 addToInsnList(KMTJ+I7 + curProcNesting);
             } else {
@@ -4490,9 +4434,9 @@ genEntry::genEntry()
             }
         }
     } /* 7176 */
-    // base.pas 3481: (not isAssembler) and (not isDirect or [20,21]*calleeFl)
+    // base.pas 3481: (not isAssembler) and (isIndir or [20,21]*calleeFl)
     if (not isAssembler
-        and (not l5bool9z or ((Bits(20, 21) & l5var12z.ii) != Bits()))) {
+        and (isIndir or ((Bits(20, 21) & calleeFl) != Bits()))) {
         addToInsnList(KVTM+040074001);
     }
     /* A `with` base that lives in a frame slot outlives a call that clobbers
@@ -4504,15 +4448,15 @@ genEntry::genEntry()
     l5exp2z = withList;
     while (l5exp2z != NULL) {
         if (l5exp2z->vt.typ.p.psize != 0
-            and (Bits(l5exp2z->vt.typ.p.pad) & l5var12z.ii) != Bits()) {
+            and (Bits(l5exp2z->vt.typ.p.pad) & calleeFl) != Bits()) {
             addInsnAndOffset(curFrameRegTemplate + KWTC,
                              l5exp2z->vt.typ.p.psize - 1);
             addToInsnList(KVTM + indexreg[l5exp2z->vt.typ.p.pad]);
         }
         l5exp2z = l5exp2z->expr1;
     }
-    usedRegs = (usedRegs | l5var12z.ii) & BitRange(1,15);
-    if (l5bool10z) {
+    usedRegs = (usedRegs | calleeFl) & BitRange(1,15);
+    if (isFortrn) {
         if (not checkFortran)
             addToInsnList(KNTR+7);
         else
@@ -4521,11 +4465,11 @@ genEntry::genEntry()
     } /* 7226 */
     // NB: base.pas 3486 has no `else` here -- a non-Fortran function returns
     // its value in ACC, so there is no `KXTA+SP` reload of the result.
-    if (not l5bool7z) {
-        insnList->typ = l5idr5z->typ;
+    if (not isProc) {
+        insnList->typ = resTyp;
         insnList->regsused = insnList->regsused | Bits(0L);
         insnList->ilm = ilRVAL;
-        liveRegs = liveRegs & ~ l5var12z.ii;
+        liveRegs = liveRegs & ~ calleeFl;
     }
     /* 7237 */
 } /* genEntry */
@@ -4859,9 +4803,7 @@ L10122:
                 insnList->disp = curIdRec->value();
                 insnList->st = stWORD;
                 insnList->addrmd = 18;
-                if (curIdRec->pck.cl == FORMALID) {
-                    genDeref();
-                } else if (curIdRec->pck.cl == ROUTINEID) {
+                if (curIdRec->pck.cl == ROUTINEID) {
                     insnList->disp = 3;
                     insnList->payload.ii = (insnList->payload.ii + frameRegTemplate);
                 } else if (insnList->disp >= 074000) {
@@ -4923,7 +4865,25 @@ L10122:
             insnList->width = 0;
             insnList->shift = 0;
             addToInsnList(KWTC + SP);
-        } else if (curOP == ALNUM)
+        } else if (curOP == PROCADDR) {
+            /* A function designator: its entry address as a value.  VTM
+               lands the address the loader relocates into the instruction
+               in the tag register, ITA turns it into an integer word. */
+            insnList = new InsnList;
+            insnList->tail = NULL;
+            insnList->head = NULL;
+            insnList->typ = exprToGen->vt.typ;
+            insnList->regsused = Bits(0L);
+            insnList->ilm = ilRVAL;
+            insnList->st = stWORD;
+            insnList->addrmd = 18;
+            insnList->payload.ii = 0;
+            insnList->disp = 0;
+            insnList->width = 0;
+            insnList->shift = 0;
+            addToInsnList(allocGlobalObject(exprToGen->id2) + (KVTM+I14));
+            addToInsnList(KITA+14);
+        } else if (curOP == ALNUM or curOP == INDCALL)
             genEntry();
         else if (has(BitRange(TOREAL, BITNEGOP), curOP)) {
             genFullExpr(exprToGen->expr1);
@@ -5481,34 +5441,52 @@ struct Declarator {
     TPtr type{};
 };
 
+// One declarator operator.  opFun carries the parameter signature its
+// '(...)' spelled out; opArray carries its bounds.
+enum DclOpKind { opPtr, opArray, opFun };
+
 struct DclOp {
-    bool isPtr;
+    DclOpKind opKind;
+    SigPtr sig;
     rangeRec range;
 };
 
-// Set by parseParameters (and by nobody else) around its parseOneDeclarator
-// call: in a parameter list the declarator may be abstract, i.e. carry no
+// Set by parseParameters and parseSignature around their parseOneDeclarator
+// calls: in a parameter list the declarator may be abstract, i.e. carry no
 // name at all.  A global, so parseOneDeclarator's other call sites, none of
 // which can accept an abstract declarator, stay as they are.
 bool nameOptional = false;
 
-// '*'* ('(' declarator ')' | IDENT) ('[' range ']')*
-// Collects pointer/array operators while descending; the caller applies
-// them in reverse so precedence matches C: `int *a[10]` is an array of
-// pointers (the array op is pushed by the inner IDENT case before the
+// The parameter list of a function declarator, as a signature: types and
+// nothing else, the names (if any) discarded.  Defined below, after
+// parseOneDeclarator, which it calls for each parameter.
+SigPtr parseSignature();
+
+// '*'* ('(' declarator ')' | IDENT) ('[' range ']' | '(' signature ')')*
+// Collects pointer/array/function operators while descending; the caller
+// applies them in reverse so precedence matches C: `int *a[10]` is an array
+// of pointers (the array op is pushed by the inner IDENT case before the
 // enclosing '*' case pushes its own op on the way back out); `int
 // (*row)[3]` is a pointer to an array (the parens make the '*' push
-// before the outer '[3]' does).
+// before the outer '[3]' does), and `int (*f)(char)` is a pointer to a
+// routine, the '*' likewise pushed before the function op.
+// The '(' suffix is taken only after a parenthesized declarator, which is
+// exactly where C puts it: in `int f(char)` and `int *f(char)` the '(' binds
+// to the name and declares a routine, whose parameter list belongs to
+// parseParameters (it gives the parameters records of their own), while in
+// `int (*f)(char)` it binds to the group and is part of a type.
 void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
 {
+    bool wasGroup = false;
     if (charClass == MUL) {
         inSymbol();
         readDeclaratorCore(ops, d);
-        ops.push_back({true, {}});
+        ops.push_back({opPtr, NULL, {}});
     } else if (SY == LPAREN) {
         inSymbol();
         readDeclaratorCore(ops, d);
         checkSymAndRead(RPAREN);
+        wasGroup = true;
     } else if (SY == IDENT) {
         d.name = curIdent;
         d.bucket = bucket;
@@ -5530,12 +5508,16 @@ void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
         error(errNoIdent);
         d.name = 0;
     }
-    while (SY == LBRACK) {
-        inSymbol();
-        rangeRec r{};
-        parseRange(r.aleft, r.aright);
-        checkSymAndRead(RBRACK);
-        ops.push_back({false, r});
+    while (SY == LBRACK or (wasGroup and SY == LPAREN)) {
+        if (SY == LPAREN) {
+            ops.push_back({opFun, parseSignature(), {}});
+        } else {
+            inSymbol();
+            rangeRec r{};
+            parseRange(r.aleft, r.aright);
+            checkSymAndRead(RBRACK);
+            ops.push_back({opArray, NULL, r});
+        }
     }
 }
 
@@ -5554,7 +5536,9 @@ Declarator parseOneDeclarator(TPtr baseType, bool packedFlag = false,
     d.type = baseType;
     bool firstOp = true;
     for (auto it = ops.rbegin(); it != ops.rend(); ++it) {
-        if (it->isPtr) {
+        if (it->opKind == opFun) {
+            d.type = mkRoutineTyp(d.type, it->sig, 0);
+        } else if (it->opKind == opPtr) {
             // baseType is already the forward-reference placeholder
             // pointer itself (see parseTypeRef::isForwardRef) -- applying
             // getPtrType on top would compact-encode a second, bogus
@@ -5569,6 +5553,47 @@ Declarator parseOneDeclarator(TPtr baseType, bool packedFlag = false,
         firstOp = false;
     }
     return d;
+}
+
+// '(' (typeref declarator (',' typeref declarator)*)? ')', with SY at the
+// '(': the parameter list of a function declarator.  Only the types reach
+// the signature; a name spelled out here is read and dropped, since these
+// parameters have no storage and no scope to be visible in.  Every entry is
+// VARID -- a parameter taken by address is not expressible in a type.
+SigPtr parseSignature()
+{
+    SigPtr head = NULL, last = NULL, cur;
+    inSymbol();
+    if (SY != RPAREN) {
+        bool noComma;
+        do {
+            TPtr paramType{};
+            // Scoped exactly as parseGroupedDecls's typeParser is.
+            bool packedFlag;
+            {
+                parseTypeRef sigTypeParser(paramType,
+                                           skipToSet | Bits(IDENT, RPAREN, COMMA));
+                packedFlag = sigTypeParser.isPacked;
+            }
+            nameOptional = true;
+            Declarator d = parseOneDeclarator(paramType, packedFlag);
+            nameOptional = false;
+            cur = new SigRec;
+            cur->pclass = VARID;
+            cur->ptyp = d.type;
+            cur->next = NULL;
+            if (last == NULL)
+                head = cur;
+            else
+                last->next = cur;
+            last = cur;
+            noComma = (SY != COMMA);
+            if (not noComma)
+                inSymbol();
+        } while (not noComma);
+    }
+    checkSymAndRead(RPAREN);
+    return head;
 }
 
 // Parses 'TYPE decl (, decl)* ;' (the grouped form used by variable,
@@ -6240,9 +6265,10 @@ bool isCharArray(TPtr arg)
 } /* isCharArray */
 
 void expression();
+void parseCallArgs(IdentRecPtr subroutine, ExprPtr callee);
 
-/* parsePostfix: consume any chain of postfix operators (@, .field, [idx])
-   acting on curExpr.  Returns with SY pointing at the first token that is
+/* parsePostfix: consume any chain of postfix operators (@, .field, [idx],
+   (args)) acting on curExpr.  Returns with SY pointing at the first token that is
    neither a postfix operator nor the trailing `]` of an index list.  Safe
    to call when the next token isn't a postfix at all (loop simply exits). */
 void parsePostfix()
@@ -6310,6 +6336,10 @@ L55:        lookupMode = lookField;
         if (SY != RBRACK)
             error(67 /*errNeedBracketAfterIndices*/);
         inSymbol();
+    } else if (SY == LPAREN and isRoutinePtr(l4typ3z)) {
+        /* A call through a pointer to a routine.  Unary '*' leaves such a
+           pointer alone, so 'f(x)' and '(*f)(x)' arrive here alike. */
+        parseCallArgs(NULL, curExpr);
     } else return;
     goto L13462;
 } /* parsePostfix */
@@ -6372,28 +6402,48 @@ bool areTypesCompatible(ExprPtr & other)
     return false;
 } /* areTypesCompatible */
 
-void parseCallArgs(IdentRecPtr subroutine)
+/* The arguments of a call, matched against the callee's formals.  A direct
+   call names its callee: subroutine is its record and the formals are the
+   identrec chain hanging off argList, terminated by the record itself.  A
+   call through a pointer (callee != NULL, a value of pointer-to-routine
+   type) has only the type to go by: the formals are the sigrec chain it
+   carries, and so is the whole calling convention. */
+void parseCallArgs(IdentRecPtr subroutine, ExprPtr callee)
 {
-    bool noArgs;
+    bool noArgs, tooMany;
     ExprPtr curActual, callExpr, argList;
-    IdentRecPtr curFormal;
-    Operator actualOp;
-    IdClass formClass;
+    IdentRecPtr curFormal = NULL;
+    SigPtr curSig = NULL;
+    TPtr routTyp{}, formType{};
 
-    if (subroutine->typ != voidType)
-        liveRegs = liveRegs & ~ subroutine->flags();
-    noArgs = (subroutine->list() == NULL) and not has(subroutine->flags(), 24);
+    if (callee == NULL) {
+        if (subroutine->typ != voidType)
+            liveRegs = liveRegs & ~ subroutine->flags();
+        noArgs = not has(subroutine->flags(), 24);
+    } else {
+        routTyp = ptrBase(callee->vt.typ);
+        noArgs = not has(routTyp.rep()->rflags, 24);
+    }
     callExpr = new Expr;
     argList = callExpr;
     bool48z = true;
-    callExpr->vt.typ = subroutine->typ;
-    callExpr->op = ALNUM;
-    callExpr->id2 = subroutine;
-    callExpr->id1 = NULL;
+    if (callee == NULL) {
+        callExpr->vt.typ = subroutine->typ;
+        callExpr->op = ALNUM;
+        callExpr->id2 = subroutine;
+    } else {
+        callExpr->vt.typ = routTyp.rep()->rresult;
+        callExpr->op = INDCALL;
+        callExpr->expr2 = callee;
+    }
+    callExpr->expr1 = NULL;
     if (SY == LPAREN) {
         if (noArgs) {
-            curFormal = subroutine->argList();
-            if (curFormal == NULL) {
+            if (callee == NULL)
+                curFormal = subroutine->argList();
+            else
+                curSig = routTyp.rep()->rparams;
+            if (curFormal == NULL and curSig == NULL) {
                 inSymbol();
                 if (SY != RPAREN) {
                     error(errTooManyArguments);
@@ -6405,65 +6455,52 @@ void parseCallArgs(IdentRecPtr subroutine)
             }
         }
         do {
-            if (noArgs and subroutine == curFormal) {
-                error(errTooManyArguments);
-                throw 8888;
-            }
-            inCallArgs = true;
-            expression();
-            actualOp = curExpr->op;
-            if (noArgs) { /*(a)*/
-                formClass = (IdClass)curFormal->pck.cl;
-                if (actualOp == PCALL) {
-                    if (formClass != ROUTINEID or
-                        curFormal->typ != voidType) {
-L13736:                 error(39); /*errIncompatibleArgumentKinds*/
-                        goto exit_a;
-                    }
+            if (noArgs) {
+                if (callee == NULL) {
+                    tooMany = subroutine == curFormal;
+                    formType = curFormal->typ;
                 } else {
-                    if (actualOp == FCALL) {
-                        if (formClass == ROUTINEID) {
-                            if (curFormal->typ == voidType)
-                                goto L13736;
-                        } else
-                        if (curExpr->id2->argList() == NULL and
-                            formClass == VARID) {
-                            curExpr->op = ALNUM;
-                            curExpr->expr1 = NULL;
-                        } else
-                            goto L13736;
-                    } else
-                    if (has(lvalOpSet, actualOp)) {
-                        if (formClass != VARID and
-                            formClass != FORMALID)
-                            goto L13736;
-                    } else {
-                        if (formClass != VARID)
-                            goto L13736;
-                    }
+                    tooMany = curSig == NULL;
+                    if (not tooMany)
+                        formType = curSig->ptyp;
                 }
+                if (tooMany) {
+                    error(errTooManyArguments);
+                    throw 8888;
+                }
+            }
+            expression();
+            if (noArgs) {
                 arg1Type = curExpr->vt.typ;
                 if (arg1Type != voidType) {
-                    /* A by-value formal converts its actual as an assignment
-                       would; a formal taken by address must match exactly. */
-                    if (not typeCheck(arg1Type, curFormal->typ) and
-                        not (formClass == VARID and
-                             castArith(curFormal->typ, curExpr)))
+                    /* Every formal is taken by value, so an actual converts
+                       the way an assignment to it would. */
+                    if (not typeCheck(arg1Type, formType) and
+                        not castArith(formType, curExpr))
                         error(40); /*errIncompatibleArgumentTypes*/
                 }
             }
-exit_a:
             curActual = new Expr;
             curActual->vt.typ.setRep(NULL);
             curActual->expr1 = NULL;
             curActual->expr2 = curExpr;
             argList->expr1 = curActual;
             argList = curActual;
-            if (noArgs)
-                curFormal = curFormal->list();
+            if (noArgs) {
+                if (callee == NULL)
+                    curFormal = curFormal->list();
+                else
+                    curSig = curSig->next;
+            }
         } while (SY == COMMA);
-        if ((SY != RPAREN) or
-            (noArgs and (curFormal != subroutine)))
+        tooMany = SY != RPAREN;
+        if (noArgs) {
+            if (callee == NULL)
+                tooMany = tooMany or (curFormal != subroutine);
+            else
+                tooMany = tooMany or (curSig != NULL);
+        }
+        if (tooMany)
             error(errNoCommaOrParenOrTooFewArgs);
         else
             inSymbol();
@@ -6601,11 +6638,9 @@ struct Factor {
     ~Factor() { super.pop_back(); }
 
     Word l4var1z;
-    bool wasInCall;
     Word l4var3z, l4var4z;
     ExprPtr l4exp5z, newExpr, l4var7z, l4var8z;
     IdentRecPtr routine;
-    Operator newOp;
     TPtr l4typ11z{};
     bool l4var12z;
 
@@ -6728,8 +6763,6 @@ void Factor::stdCall()
 Factor::Factor()
 { /* factor */
     super.push_back(this);
-    wasInCall = inCallArgs;
-    inCallArgs = false;
     if (SY == TYPESY) {
         l4typ11z = symType;
         inSymbol();
@@ -6765,33 +6798,33 @@ Factor::Factor()
                         if (routine->typ != voidType and
                             SY == LPAREN) {
                             stdCall();
-                            break; /* exit rout */
-                        }
-                        error(44); /* errIncorrectUsageOfStandProcOrFunc */
-                    } else if (routine->typ == voidType) {
-                        if (wasInCall) {
-                            newOp = PCALL;
                         } else {
-                            error(68); /* errUsingProcedureInExpression */
+                            error(44); /* errIncorrectUsageOfStandProcOrFunc */
+                            curExpr = uVarPtr;
                         }
+                    } else if (SY == LPAREN) {
+                        parseCallArgs(routine, NULL);
                     } else {
-                        if (SY == LPAREN) {
-                            parseCallArgs(routine);
-                            break; /* exit rout */
-                        }
-                        if (wasInCall) {
-                            newOp = FCALL;
+                        /* A routine named without an argument list is a
+                           function designator, and is worth its entry
+                           address; a '&' in front of it is the identity,
+                           as in C. */
+                        if (routine->pck.offset != frameRegTemplate) {
+                            /* A nested routine needs a display an indirect
+                               call has no way to set up. */
+                            error(81); /* errProcNestingTooDeep */
+                            curExpr = uVarPtr;
                         } else {
-                            parseCallArgs(routine);
-                            break; /* exit rout */
+                            /* The routine's type is built here, on demand,
+                               and not kept in its record: a stored one would
+                               cost every routine a heap record, and work.p2c
+                               has barely any heap to spare when compiling
+                               itself. */
+                            curExpr = mkExpr(PROCADDR,
+                                             getPtrType(makeRoutineType(routine)),
+                                             NULL, (ExprPtr)routine);
                         }
                     }
-                    if (not (SY == RPAREN or SY == COMMA)) {
-                        error(errNoCommaOrParenOrTooFewArgs);
-                        throw 8888;
-                    }
-                    curExpr = mkExpr(newOp, routine->typ, NULL,
-                                     (ExprPtr)routine);
                 } break;
                 case VARID: case FORMALID: case FIELDID:
                     parseLval();
@@ -6937,15 +6970,21 @@ void parseUnaryExpression()
         case MUL: {
             if (isCharPtr(arg1Type))
                 curExpr = flatMemAt(curExpr);
-            else if (arg1Type.p.pk == kindPtr)
-                curExpr = mkExpr(DEREF, ptrBase(arg1Type),
-                                 curExpr, NULL);
-            else {
+            else if (arg1Type.p.pk == kindPtr) {
+                /* Dereferencing a pointer to a routine yields the routine,
+                   which is worth its address again: leave the pointer as it
+                   is, so '(*f)(x)' is the same expression as 'f(x)'. */
+                if (not isRoutinePtr(arg1Type))
+                    curExpr = mkExpr(DEREF, ptrBase(arg1Type),
+                                     curExpr, NULL);
+            } else {
                 stmtName = "unary*";
                 error(errWrongVarTypeBefore);
             }
         } break;
         case SETAND: {
+            if (curExpr->op == PROCADDR)
+                break;  /* a function designator is already its address */
             if (not has(lvalOpSet, curExpr->op))
                 error(27); /* errExpressionWhereVariableExpected */
             if (curExpr->op == GETELT and
@@ -8025,7 +8064,7 @@ Statement::Statement()
                                expression in factor(), so dispatch directly to
                                parseCallArgs. */
                             inSymbol();
-                            parseCallArgs(l3idr12z);
+                            parseCallArgs(l3idr12z, NULL);
                             (void) formOperator(DOIT);
                             checkSymAndRead(SEMICOLON);
                             goto exit_ident;
@@ -8521,7 +8560,6 @@ initScalars::initScalars() :
     uProcPtr->argList() = NULL;
     uProcPtr->preDefLink() = NULL;
     uProcPtr->pos() = 0;
-    uProcPtr->sigtyp().setRep(NULL);
 
     temptype.setRep(NULL);
     sysProcNum = 0;
@@ -8571,7 +8609,6 @@ initScalars::initScalars() :
     moduleOffset = 040001;
     programObj->argList() = NULL;
     programObj->flags() = int64_t();
-    programObj->sigtyp().setRep(NULL);
     objBufIdx = 1;
     lookupMode = lookDef;
     outputObjFile();
@@ -9062,7 +9099,6 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 curIdRec->value() = 0;
                 curIdRec->argList() = NULL;
                 curIdRec->preDefLink() = NULL;
-                curIdRec->sigtyp() = voidType;
                 if (declEntry)
                     curIdRec->flags() = BitRange(0,15) | Bits(22);
                 else
@@ -9128,7 +9164,6 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 setup(scopeBound);
                 inSymbol();
                 programme(l2int18z, curIdRec, true);
-                curIdRec->sigtyp() = makeRoutineType(curIdRec);
                 internScope(ord(scopeBound));
                 rollup(scopeBound);
                 exitScope(symHash);
@@ -9149,7 +9184,6 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     curVal.ii = Bits(21);
                 }
                 curIdRec->flags() = curIdRec->flags() | curVal.ii;
-                curIdRec->sigtyp() = makeRoutineType(curIdRec);
                 inSymbol();
                 checkSymAndRead(SEMICOLON);
             } else {
@@ -9159,7 +9193,6 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 curIdRec->level() = l2int18z;
                 curIdRec->preDefLink() = preDefHead;
                 preDefHead = curIdRec;
-                curIdRec->sigtyp() = makeRoutineType(curIdRec);
             }
 L23301:
             workidr = curIdRec->argList();
@@ -9495,7 +9528,6 @@ void initOptions(int argc, char **argv)
     moduleOffset = 16384;
     lineStartOffset = 16384;
     condLabCnt = 1;
-    inCallArgs = false;
     heapSize = 100;
     forValue = true;
     atEOL = false;

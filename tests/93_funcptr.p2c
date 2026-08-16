@@ -1,0 +1,75 @@
+/*=s8,y+,k9,l0*/
+// Variables of function pointer types.  'T (*name)(params)' declares one;
+// a routine named without an argument list is a function designator worth
+// its entry address, with '&' in front of it optional, as in C; and a call
+// through the pointer takes its whole convention from the pointer's type.
+typedef void *anyptr;
+const NULL = anyptr(074000);
+//
+typedef int (*binop)(int, int);
+//
+int add2(int a, int b) { return a + b; }
+int mul2(int a, int b) { return a * b; }
+int negate(int a) { return -a; }
+float scale(float x) { return x * 2.0; }
+//
+int counter;
+void bump() { counter = counter + 10; }
+//
+binop gfn;
+void (*gproc)();
+int (*tbl[2])(int, int);
+//
+// A function pointer is an ordinary parameter and an ordinary result.
+int apply(binop f, int a, int b) {
+    return f(a, b);
+}
+//
+binop pick(int which) {
+    if (which == 0)
+        return add2;
+    return mul2;
+}
+//
+void main() {
+    binop f;
+    int (*g)(int);
+    float (*fr)(float);
+    f = add2;
+    writeln(' ADD=', f(3, 4):0);
+    f = &mul2;
+    writeln(' MUL=', f(3, 4):0);
+    // '*' on a pointer to a routine is the identity.
+    writeln(' STAR=', (*f)(5, 6):0);
+    g = negate;
+    writeln(' ONE=', g(9):0);
+    gfn = add2;
+    writeln(' GLOB=', gfn(1, 2):0);
+    writeln(' ARG=', apply(mul2, 3, 5):0);
+    f = pick(0);
+    writeln(' RET0=', f(7, 8):0);
+    f = pick(1);
+    writeln(' RET1=', f(7, 8):0);
+    counter = 0;
+    gproc = bump;
+    gproc();
+    gproc();
+    writeln(' PROC=', counter:0);
+    fr = scale;
+    writeln(' REAL=', fr(2.5):6:2);
+    // An actual is converted the way an assignment would convert it.
+    writeln(' CONV=', fr(2):6:2);
+    tbl[0] = add2;
+    tbl[1] = mul2;
+    writeln(' TBL=', tbl[0](2, 3):0, ' ', tbl[1](2, 3):0);
+    gfn = NULL;
+    if (gfn == NULL)
+        writeln(' NULL=YES');
+    else
+        writeln(' NULL=NO');
+    gfn = mul2;
+    if (gfn == NULL)
+        writeln(' NULL2=YES');
+    else
+        writeln(' NULL2=NO');
+}
