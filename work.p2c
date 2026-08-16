@@ -3854,10 +3854,17 @@ insnltyp *condChain, *thenChain;
     condChain->tail = insnList->tail;
 
     /* Union the regsused sets of all three sub-chains so the surrounding
-       expression sees the full set of registers/conditions that the
-       ternary touches. Add reg 0 (ACC) since the result lives there. */
-    condChain->regsused = condChain->regsused | thenChain->regsused
-                          | insnList->regsused | [0];
+       expression sees the full set of registers the ternary touches, and add
+       reg 0 (ACC) since the result lives there.  Bit 16 is not a register: it
+       is the condition-polarity flag, and each sub-chain's own is spent by
+       the time it is folded in -- the condition's by the UZA/U1A selected
+       above, an arm's by the prepLoad that materialized its value.  Carrying
+       one into the composite would tell the consumer that this ilRVAL is a
+       negated condition, and prepLoad or formOperator(BRANCH) would invert
+       the ternary's value.  genBoolAnd and genComparison mask it off here for
+       the same reason. */
+    condChain->regsused = (condChain->regsused | thenChain->regsused
+                          | insnList->regsused | [0]) & (~[16]);
 
     /* Finalize the result insnList as an ilRVAL (rvalue-in-ACC). Both branches
        leave their value in ACC and the chains rejoin at endLab, so the
@@ -5728,14 +5735,8 @@ tptr routTyp, formType;
                     curSig  =  curSig->next;
             }
         } while (SY == COMMA);
-        tooMany  =  SY != RPAREN;
-        if (noArgs) {
-            if (callee == NULL)
-                tooMany  =  tooMany || (curFormal != subroutine);
-            else
-                tooMany  =  tooMany || (curSig != NULL);
-        }
-        if (tooMany)
+        if ((SY != RPAREN) || noArgs &&
+           (callee == NULL ? curFormal != subroutine : curSig != NULL))
             error(errNoCommaOrParenOrTooFewArgs);
         else
             inSymbol();

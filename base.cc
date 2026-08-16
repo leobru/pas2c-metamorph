@@ -4045,8 +4045,15 @@ L33:        prepLoad();
         condChain->tail = thenChain->tail;
         condChain->tail->next = insnList->head;
         condChain->tail = insnList->tail;
-        condChain->regsused = condChain->regsused | thenChain->regsused
-                              | insnList->regsused | Bits(0);
+        // Bit 16 is not a register: it is the condition-polarity flag, and
+        // each sub-chain's own is spent by the time it is folded in -- the
+        // condition's by the UZA/U1A selected above, an arm's by the prepLoad
+        // that materialized its value.  Carrying one into the composite would
+        // tell the consumer that this ilRVAL is a negated condition, and
+        // prepLoad or formOperator(BRANCH) would invert the ternary's value.
+        // genBoolAnd and genComparison mask it off here for the same reason.
+        condChain->regsused = (condChain->regsused | thenChain->regsused
+                              | insnList->regsused | Bits(0)) & ~ Bits(16);
         insnList = condChain;
         insnList->typ = exprToGen->vt.typ;
         insnList->ilm = ilRVAL;
@@ -6493,14 +6500,9 @@ void parseCallArgs(IdentRecPtr subroutine, ExprPtr callee)
                     curSig = curSig->next;
             }
         } while (SY == COMMA);
-        tooMany = SY != RPAREN;
-        if (noArgs) {
-            if (callee == NULL)
-                tooMany = tooMany or (curFormal != subroutine);
-            else
-                tooMany = tooMany or (curSig != NULL);
-        }
-        if (tooMany)
+        if ((SY != RPAREN) or
+            (noArgs and (callee == NULL ? curFormal != subroutine
+                                        : curSig != NULL)))
             error(errNoCommaOrParenOrTooFewArgs);
         else
             inSymbol();
