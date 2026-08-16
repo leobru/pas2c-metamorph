@@ -183,7 +183,7 @@ enum Symbol {
 
 enum IdClass {
         TYPEID,     ENUMID,     ROUTINEID,  VARID,
-        FORMALID,   FIELDID
+        FORMALID,   FIELDID,    REGID
 };
 
 enum Insn {
@@ -921,7 +921,7 @@ int64_t leftInsn;
 int64_t curIdent;
 int64_t toAlloc, usedRegs, liveRegs, freeRegs, auxRegs;
 Word optSflags;
-int64_t litOct, litFortran, litAssembler, litLsb, litMain;
+int64_t litOct, litFortran, litAssembler, litLsb, litMain, litRegister;
 ExprPtr uVarPtr, curExpr;
 InsnList *  insnList;
 InternRec * internHead;
@@ -6296,9 +6296,16 @@ L13462:
         l4typ5z = l4var4z == kindPtr ? ptrBase(l4typ3z) : l4typ3z;
         if (l4var4z == kindPtr and
             l4typ5z.p.pk == kindStruct) {
-            l4exp1z->vt.typ = l4typ5z;
-            l4exp1z->op = DEREF;
-            curExpr = l4exp1z;
+            // Through a register pointer the record is already pinned: stand
+            // its `with` entry in for the deref, and the field access costs
+            // the one instruction it costs under `with`.
+            if (curExpr->op == GETVAR and curExpr->id1->pck.cl == REGID)
+                curExpr = reinterpret_cast<ExprPtr>(curExpr->id1->value());
+            else {
+                l4exp1z->vt.typ = l4typ5z;
+                l4exp1z->op = DEREF;
+                curExpr = l4exp1z;
+            }
             l4typ3z = l4typ5z;
             goto L55;
         } else {
@@ -6364,6 +6371,16 @@ void parseLval()
     }
     inSymbol();
     parsePostfix();
+    // A register pointer that no '->' consumed stands for its own value, the
+    // address of the record pinned in the register.  Taking that address of
+    // the `with` entry also re-derives it when the register was demoted.  The
+    // result is not an lvalue, so assigning to such a pointer is refused by
+    // the ordinary lvalue check.
+    if (curExpr->op == GETVAR and curExpr->id1->pck.cl == REGID) {
+        TPtr regTyp = curExpr->vt.typ;
+        curExpr = mkRef(reinterpret_cast<ExprPtr>(curExpr->id1->value()));
+        curExpr->vt.typ = regTyp;
+    }
 } /* parseLval */
 
 void castToReal(ExprPtr & value)
@@ -6828,7 +6845,7 @@ Factor::Factor()
                         }
                     }
                 } break;
-                case VARID: case FORMALID: case FIELDID:
+                case VARID: case FORMALID: case FIELDID: case REGID:
                     parseLval();
                     break;
                 default:
@@ -7263,6 +7280,73 @@ void withStatement()
     freeRegs = l4var2z;
     usedRegs = usedRegs | l4var3z;
 } /* withStatement */
+
+// 'register TYPE *name = expr;' at the head of a block: name is a pointer
+// whose value is pinned in an index register until the block ends, so that
+// 'name->field' costs the one instruction a `with` field costs.  It is that
+// same machinery: SETREG on a DEREF of the initializer allocates the
+// register, spills it when the address is dear to recompute, and pushes the
+// entry genEntry reloads after a call that clobbers it.  The declared name
+// merely gives the entry something to be reached by, in place of `with`'s
+// implicit field lookup.
+//
+// Returns the registers claimed, for the caller to fold into usedRegs; the
+// records themselves come back on the chain headed by `decls`, to be
+// unlinked from the symbol table when the block closes.
+int64_t registerDecls(IdentRecPtr & decls)
+{
+    int64_t claimed = Bits();
+    while (SY == IDENT and curIdent == litRegister) {
+        inSymbol();
+        TPtr regType{};
+        bool packedFlag, forwardRef;
+        {
+            parseTypeRef regTypeParser(regType, skipToSet | Bits(IDENT, SEMICOLON));
+            packedFlag = regTypeParser.isPacked;
+            forwardRef = regTypeParser.isForwardRef;
+        }
+        Declarator d = parseOneDeclarator(regType, packedFlag, forwardRef);
+        // The pointee goes through regBase: selecting a field of a function
+        // result is not supported by work.p2c, so ptrBase's result has to
+        // land in a variable there, and this mirrors it.
+        TPtr regBase{};
+        bool regOk = d.type.p.pk == kindPtr;
+        if (regOk) {
+            regBase = ptrBase(d.type);
+            regOk = regBase.p.pk == kindStruct;
+        }
+        if (not regOk) {
+            error(71); /* errWithOperatorNotOfARecord */
+            d.type = voidPtr;
+            regBase = voidType;
+        }
+        checkSymAndRead(BECOMES);
+        // SY already sits on the initializer's first token.
+        readNext = false;
+        expression();
+        if (not typeCheck(d.type, curExpr->vt.typ))
+            error(33); /* errIllegalTypesForAssignment */
+        // Exactly what `with *e do` builds, so the register allocation,
+        // spilling and demotion behaviour is the existing one.
+        curExpr = mkExpr(DEREF, regBase, curExpr, NULL);
+        (void) formOperator(SETREG);
+        claimed = (claimed | Bits(curVal.ii)) & auxRegs;
+        IdentRecPtr regIdRec =
+            besm6_alloc_record<IdentRec>(offsetof(IdentRec, szIdent));
+        regIdRec->id = d.name;
+        regIdRec->pck.offset = curFrameRegTemplate;
+        regIdRec->pck.cl = REGID;
+        regIdRec->typ = d.type;
+        // the withList entry this name stands for
+        regIdRec->value() = reinterpret_cast<int64_t>(withList);
+        // chain of this block's own names, for the unlinking by the caller
+        regIdRec->list() = decls;
+        decls = regIdRec;
+        addToHashTab(regIdRec);
+        checkSymAndRead(SEMICOLON);
+    }
+    return claimed;
+} /* registerDecls */
 
 void reportStmtType()
 {
@@ -8093,8 +8177,18 @@ Statement::Statement()
                 (void) formOperator(DOIT);
                 checkSymAndRead(SEMICOLON);
             } else if (SY == BEGINSY) {
+                // A block may open with 'register TYPE *p = expr;'
+                // declarations; the registers they pin, and the names
+                // themselves, last only as far as the closing brace, exactly
+                // as a `with`'s do.
+                IdentRecPtr blockDecls = NULL, nextDecl, unlinked;
+                int64_t & localSize = programme::super.back()->localSize;
+                ExprPtr oldWithList = withList;
+                int64_t oldLocalSize = localSize, oldFreeRegs = freeRegs;
+                int64_t blockRegs = Bits();
               L_rep:
                 inSymbol();
+                blockRegs = blockRegs | registerDecls(blockDecls);
               L_skip:
                 while (SY != ENDSY and CH != 0)
                     Statement();
@@ -8110,7 +8204,22 @@ Statement::Statement()
                     goto L_rep;
                 }
                 inSymbol();
-              L_exit_begin:;
+              L_exit_begin:
+                if (blockDecls != NULL) {
+                    while (blockDecls != NULL) {
+                        nextDecl = blockDecls->list();
+                        unlinked = NULL;
+                        hash(unlinked, blockDecls);
+                        blockDecls = nextDecl;
+                    }
+                    withList = oldWithList;
+                    localSize = oldLocalSize;
+                    freeRegs = oldFreeRegs;
+                    // The registers this block claimed are clobbered as far
+                    // as our callers are concerned: they must reach the
+                    // routine's flags mask.
+                    usedRegs = usedRegs | blockRegs;
+                }
             } else if (SY == GOTOSY) {
                 inSymbol();
                 if (SY != INTCONST) {
@@ -9809,6 +9918,7 @@ int main(int argc, char **argv)
     litAssembler = toText("ASSEMBLE");
     litFortran = toText("FORTRAN");
     litLsb = toText("**LSB");           // '__lsb': '_' shares the code of '*'
+    litRegister = toText("REGISTER");   // pins a pointer in an index register
     litMain = toText("MAIN");           // the entry point, called by the level 1 block
     litOct = toText("OCT");
     PASINPUT = ugetc(pasinput);

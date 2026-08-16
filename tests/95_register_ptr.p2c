@@ -1,0 +1,62 @@
+/*=s8,y+,k9,l0*/
+//
+// A block may open with 'register TYPE *p = expr;'.  The pointer's value is
+// pinned in an index register until the closing brace, so 'p->field' costs
+// the one instruction a `with` field costs -- it is the same machinery, with
+// a name in place of `with`'s implicit field lookup.
+//
+typedef struct { int a, b, c; } rec;
+typedef struct { rec inner; int tag; } outer;
+rec r1, r2;
+outer nest;
+int probe, register;
+//
+// A callee that holds a `with` of its own, so its clobber mask covers the
+// index registers a caller's register pointer may be using: the caller has to
+// reload from the spill slot after the call.
+void clobber() {
+    with r2 do {
+        a = a + 1;
+        b = b + 1;
+    }
+}
+//
+int sum3(rec *q) {
+    return q->a + q->b + q->c;
+}
+//
+void main() {
+    r1.a = 1;  r1.b = 2;  r1.c = 3;
+    r2.a = 10; r2.b = 20; r2.c = 30;
+    nest.inner.a = 100; nest.inner.b = 200; nest.inner.c = 300;
+    nest.tag = 7;
+    // Read and write through a register pointer.
+    { register rec *p = &r1;
+      p->a = p->b + p->c;
+      writeln(' ONE=', p->a:0, ',', p->b:0, ',', p->c:0);
+    }
+    writeln(' AFTER=', r1.a:0);
+    // Two of them, in nested blocks, live at the same time.
+    { register rec *p = &r1;
+      { register rec *q = &nest.inner;
+        q->a = q->a + p->b;
+        writeln(' TWO=', p->b:0, ',', q->a:0);
+      }
+      writeln(' OUTER=', p->b:0, ' TAG=', nest.tag:0);
+    }
+    // A call in the middle: the register must survive it.
+    { register rec *p = &r1;
+      probe = p->b;
+      clobber();
+      clobber();
+      writeln(' ACROSS=', p->b:0, ',', probe:0, ' R2=', r2.a:0, ',', r2.b:0);
+    }
+    // The pointer used on its own, passed by value.
+    { register rec *p = &r1;
+      writeln(' BARE=', sum3(p):0);
+    }
+    // 'register' is recognized by spelling, so it stays an ordinary
+    // identifier everywhere else.
+    register = 42;
+    writeln(' NAME=', register:0);
+}

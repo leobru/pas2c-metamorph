@@ -1,0 +1,49 @@
+/*=s8,y+,k9,l0*/
+//
+// A ternary whose value is consumed as a condition.  genCondOp unions the
+// regsused sets of the condition and both arms into the result, and bit 16
+// of that set is not a register: it is the condition-polarity flag.  Letting
+// one through told the consumer that the ternary's ilRVAL was a negated
+// condition, so prepLoad / formOperator(BRANCH) inverted it.  `==` and `!=`
+// leave opposite polarities behind, which is why only some spellings broke.
+//
+typedef void *anyptr;
+const NULL = anyptr(074000);
+typedef struct { int v; } rec;
+typedef rec *recp;
+rec r1, r2;
+int b, i1, i2, k, t;
+recp p1, p2, p3, callee;
+//
+void probe() {
+    // Arms that are comparisons, both spellings.
+    if (b ? (p1 != p2) : (p1 != p3)) write('1'); else write('0');
+    if (b ? (p1 == p2) : (p1 == p3)) write('1'); else write('0');
+    if (b ? (i1 != i2) : (i1 == i2)) write('1'); else write('0');
+    // A pointer comparison as the condition, the shape parseCallArgs used.
+    if (callee == NULL ? (p1 != p2) : (p1 == p3)) write('1'); else write('0');
+    // The same, under && and ||, where the polarity bit also reaches BRANCH.
+    if (b && (callee == NULL ? (p1 != p2) : (p1 == p3)))
+        write('1'); else write('0');
+    if ((k > 99) || b && (callee == NULL ? (p1 != p2) : (p1 == p3)))
+        write('1'); else write('0');
+    // And once materialized into a variable rather than branched on.
+    t  =  (b ? (p1 == p2) : (p1 == p3));
+    write(t:1);
+    write(' ');
+}
+//
+void main() {
+    p1  =  &r1;
+    i1  =  1;
+    for (k = 0; k <= 7; ++k) {
+        b       =  (k >> 2) & 1;
+        p2      =  ((k >> 1) & 1) ? &r1 : &r2;
+        p3      =  (k & 1) ? &r1 : &r2;
+        i2      =  ((k >> 1) & 1) ? 1 : 2;
+        callee  =  (k & 1) ? recp(NULL) : &r2;
+        probe();
+    }
+    writeln;
+    writeln(' DONE');
+}
