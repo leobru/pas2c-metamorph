@@ -1,0 +1,23 @@
+/*=s8,y+,k9,l0*/
+//
+// A switch arm whose label is not introduced by `case`.  requiredSymErr
+// reports the missing keyword; recovery then has to leave the label's own
+// first token as the current SY, because expression() reads a token before
+// parsing and the valid path relies on `case` being the token it eats.
+//
+// Skipping the label instead derails the arm: the `:` is parsed as the start
+// of the label expression (error 12), the arm never closes, and the following
+// `default` reaches statement context -- where defineRoutine's
+// `while (SY != ENDSY and CH != 0) Statement()` spins forever, because
+// Statement() has no branch for DEFAULTSY and so consumes nothing.
+//
+// Expected: exactly one error, "REQUIRED CASE", and a terminating compile.
+//
+int k;
+void main() {
+    switch (k) {
+        1: k = 1;
+        default: k = 2;
+    }
+    writeln(' UNREACHED');
+}

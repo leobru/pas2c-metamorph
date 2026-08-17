@@ -3522,6 +3522,47 @@ void prependToInsnList(int64_t insn)
     insnList->head = elt;
 }
 
+// Extract the packed field described by insnList->shift/width out of the
+// word that is already in the accumulator, and mark the list a plain word.
+// Both of prepLoad's arms need this: an addressable operand loads its word
+// first, while a value -- a function result, a ternary -- is in ACC from the
+// start.  Leaving the second case out is what made `f(x).packedfield` yield
+// the whole word.
+void genSliceExtract()
+{
+    Kind l4var5z;
+    bool isSimple;
+    int64_t sh, wd, ends;
+
+    l4var5z = (Kind)(insnList->typ.p.pk);
+    isSimple = l4var5z < kindArray or
+               (l4var5z == kindStruct and insnList->typ.rep()->lsbord);
+    sh = insnList->shift;
+    wd = insnList->width;
+    ends = sh + wd;
+    if (isSimple) {
+// The commented out optimization is specific to the original BESM-6
+// without a barrel shifter; it is not needed here.
+//      if (30 < sh) {
+//          addToInsnList(ASN64-48 + sh);
+//          addToInsnList(KYTA);
+//      } else {
+            if (sh != 0)
+                addToInsnList(ASN64 + sh);
+//      }
+        if (ends != 48) {
+            curVal.ii = MASK48 >> (48 - wd);
+            addToInsnList(KAAX+I8 + getFCSToffset());
+        }
+    } else {
+        if (ends != 48)
+            addToInsnList(ASN64-48 + ends);
+        curVal.ii = shl48(MASK48, 48 - wd);
+        addToInsnList(KAAX+I8 + getFCSToffset());
+    }
+    insnList->st = stWORD;
+} /* genSliceExtract */
+
 void prepLoad()
 {
     int64_t helper, l4int2z, l4int3z;
@@ -3559,6 +3600,13 @@ void prepLoad()
             l4st6z = insnList->st;
             if (l4st6z == stWORD) {
                 addInsnAndOffset(l4int2z + curInsnTemplate, l4int3z);
+            } else if (l4st6z == stSLICE) {
+                if ((l4int3z != l4int2z) or
+                    (helper != 15) or
+                    (l4int2z != 0))
+                    addInsnAndOffset(l4int2z + InsnTemp[XTA],
+                                     l4int3z);
+                genSliceExtract();
             } else {
                 l4var5z = (Kind)(valueType.p.pk);
                 if (l4var5z < kindArray or
@@ -3567,43 +3615,18 @@ void prepLoad()
                 } else {
                     isSimple = false;
                 }
-                if (l4st6z == stSLICE) {
-                    if ((l4int3z != l4int2z) or
-                        (helper != 15) or
-                        (l4int2z != 0))
-                        addInsnAndOffset(l4int2z + InsnTemp[XTA],
-                                         l4int3z);
-                    l4int3z = insnList->shift;
-                    l4int2z = insnList->width;
-                    helper = l4int3z + l4int2z;
-                    if (isSimple) {
-// The commented out optimization is specific to the original BESM-6
-// without a barrel shifter; it is not needed here.
-//                      if (30 < l4int3z) {
-//                          addToInsnList(ASN64-48 + l4int3z);
-//                          addToInsnList(KYTA);
-//                      } else {
-                            if (l4int3z != 0)
-                                addToInsnList(ASN64 + l4int3z);
-//                      }
-                        if (helper != 48) {
-                            curVal.ii = MASK48 >> (48 - l4int2z);
-                            addToInsnList(KAAX+I8 + getFCSToffset());
-                        }
-                    } else {
-                        if (helper != 48)
-                            addToInsnList(ASN64-48 + helper);
-                        curVal.ii = shl48(MASK48, 48 - l4int2z);
-                        addToInsnList(KAAX+I8 + getFCSToffset());
-                    }
-                } else {
-                    addToInsnList(getHelperProc(isSimple ? P_LDAR : P_RR));
-                    insnList->tail->mode = 1;
-                }
+                addToInsnList(getHelperProc(isSimple ? P_LDAR : P_RR));
+                insnList->tail->mode = 1;
             }
             goto L4545;
         } break;
         case ilRVAL: {
+            // A value already in ACC can still be a slice: GETFIELD on a
+            // function result records shift/width without an address to
+            // load from.  genSliceExtract clears st, so the jump in from
+            // ilLVAL cannot extract twice.
+            if (insnList->st == stSLICE)
+                genSliceExtract();
 L4545:      if (forValue and (valueType == BooleanType) and
                 has(insnList->regsused, 16))
                 addToInsnList(KAEX+E1);
@@ -3616,6 +3639,7 @@ L4545:      if (forValue and (valueType == BooleanType) and
     } /* case */
 L4602:
     insnList->ilm = ilRVAL;
+    insnList->st = stWORD;      // the value is a plain word in ACC now
     insnList->regsused = insnList->regsused | Bits(0L);
 } /* prepLoad */
 
@@ -3815,6 +3839,12 @@ L5220:          addInsnAndOffset((insnList->payload.ii + InsnTemp[WTC]), l5var2z
                 }
             }
         } else {
+            // A right-aligned pointer field needs no extraction in this mode
+            // either: mcACC2ADDR is ATI, which takes A[15:1], exactly the
+            // bits WTC takes above.  Without this, prepLoad's stSLICE arm
+            // would emit a redundant shift/mask first.
+            if (insnList->st == stSLICE and insnList->shift == 0)
+                insnList->st = stWORD;
             startLVal();
             addToInsnList(macro + mcACC2ADDR);
         }
@@ -4384,6 +4414,7 @@ genEntry::genEntry()
     insnList->typ = resTyp;
     insnList->regsused = (calleeFl | BitRange(7,15)) & (BitRange(0,8)|BitRange(10,15));
     insnList->ilm = ilRVAL;
+    insnList->st = stWORD;      // prepLoad reads st on every ilRVAL list
     if (isAssembler) {          // base.pas 3311: assembler routine, no frame
         firstArg = false;
     } else if (isFortrn) {
@@ -4533,6 +4564,7 @@ void startInsnList()
     insnList->ilm = ilCONST;
     insnList->payload.ii = exprToGen->num1;
     insnList->addrmd = exprToGen->num2;
+    insnList->st = stWORD;
 }
 
 void genCopy()
@@ -6330,8 +6362,8 @@ L13462:
     if (SY == ARROW) {
         /* '->' is deref + struct field selection; build DEREF here,
            then jump to label 55 to consume the field IDENT.  The pointee
-           goes through l4typ5z: field selection on a function result is
-           not supported by the language (mirrors work.p2c). */
+           goes through l4typ5z because it is needed again below, for the
+           DEREF node and for l4typ3z (mirrors work.p2c). */
         l4exp1z = new Expr;
         l4exp1z->expr1 = curExpr;
         l4typ5z = l4var4z == kindPtr ? ptrBase(l4typ3z) : l4typ3z;
@@ -7313,9 +7345,8 @@ int64_t registerDecls(IdentRecPtr & decls)
             forwardRef = regTypeParser.isForwardRef;
         }
         Declarator d = parseOneDeclarator(regType, packedFlag, forwardRef);
-        // The pointee goes through regBase: selecting a field of a function
-        // result is not supported by work.p2c, so ptrBase's result has to
-        // land in a variable there, and this mirrors it.
+        // The pointee goes through regBase because it is needed again
+        // below, for the DEREF node.
         TPtr regBase{};
         bool regOk = d.type.p.pk == kindPtr;
         if (regOk) {
@@ -7425,8 +7456,16 @@ void caseStatement()
                 otherSeen = true;
                 otherOffset = moduleOffset;
             } else {
-                if (SY != CASESY)
+                if (SY != CASESY) {
                     requiredSymErr(CASESY);
+                    // No CASESY was consumed, so the label's own first token
+                    // is the current SY.  readNext := false keeps it for
+                    // expression(); skipping it instead derails the arm and
+                    // leaves the next CASESY/DEFAULTSY in statement context,
+                    // where the routine-body loop spins on a symbol
+                    // Statement() will not consume.
+                    readNext = false;
+                }
                 expression();
                 takeConstFromExpr();
                 itemvalue = curVal;

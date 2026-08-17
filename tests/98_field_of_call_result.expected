@@ -1,0 +1,7 @@
+ LSB VAR       37  1234  200
+ LSB CALL      37  1234  200
+ MSB VAR       37  1234  200
+ MSB CALL      37  1234  200
+ PLAIN         15   15
+ ARROW         11   22
+ COND OK      42   10

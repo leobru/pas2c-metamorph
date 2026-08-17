@@ -21,9 +21,8 @@ cat << EOF >> tmp$$
 EOF
 sed 's/{/<:/g;s/}/:>/g' < "$1" | ./preprocess.py > lexsrc.utxt
 dd bs=120 count=1 < /dev/zero >> lexsrc.utxt
-ulimit -t 5
 if [ "$2" = "-d" ]; then ln -f tmp$$ lexer.dub ; fi
-dubna tmp$$ | tee lexer.lst
+timeout 5 dubna tmp$$ | tee lexer.lst
 status=$?
 rm -f tmp$$
 exit $status

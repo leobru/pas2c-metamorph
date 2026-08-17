@@ -54,8 +54,7 @@ cat << EOF >> tmp$$
 EOF
 cat "$1" | sed 's/{/<:/g;s/}/:>/g' | ./preprocess.py > lexinp.utxt
 dd bs=120 count=1 < /dev/zero >> lexinp.utxt
-ulimit -t 5
-dubna tmp$$ | tee lexerp2c.lst
+timeout 5 dubna tmp$$ | tee lexerp2c.lst
 status=$?
 rm -f tmp$$
 exit $status

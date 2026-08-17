@@ -37,7 +37,22 @@ run_test() {
         return
     fi
 
-    if timeout 10 ./$RUNNER "$test_file" > "$result_file" 2>&1; then
+    local rc=0
+    timeout 10 ./$RUNNER "$test_file" > "$result_file" 2>&1 || rc=$?
+
+    # A timeout is never an "expected failure".  .should_fail asserts that the
+    # compiler *rejects* the program, not that it may spin: a hang there used
+    # to be reported as a pass, which is how the switch-without-case spin
+    # (tests/97) stayed invisible.  124 is timeout(1)'s SIGTERM kill, 137 a
+    # SIGKILL that outlived it.  timeout signals the whole process group, so
+    # ./base or dubna go down with the runner.
+    if [ $rc -eq 124 ] || [ $rc -eq 137 ]; then
+        echo -e "${RED}FAIL${NC} (timeout -- infinite loop?)"
+        FAILED=$((FAILED + 1))
+        return
+    fi
+
+    if [ $rc -eq 0 ]; then
         if grep -q '\*EXECUTE' "$result_file"; then
             sed -n '/\*EXECUTE/,/^----/ p' "$result_file" | tail -n +2 | head -n -1 > "${result_file}.output"
 
@@ -71,7 +86,7 @@ run_test() {
             echo -e "${GREEN}PASS${NC} (expected failure)"
             PASSED=$((PASSED + 1))
         else
-            echo -e "${RED}FAIL${NC} (timeout or crash)"
+            echo -e "${RED}FAIL${NC} (crash, exit $rc)"
             FAILED=$((FAILED + 1))
         fi
     fi

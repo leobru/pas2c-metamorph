@@ -34,6 +34,5 @@ fi
 cat << EOF >> tmp$$
 *end file
 EOF
-ulimit -t 3
-dubna tmp$$
+timeout 3 dubna tmp$$
 rm -f tmp$$

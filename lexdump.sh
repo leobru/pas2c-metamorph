@@ -23,11 +23,10 @@ cat << EOF >> tmp$$
 *execute
 *end file
 EOF
-ulimit -t 5
 if [ "$tokens" != "tokens.bin" ]; then
     cp "$tokens" tokens.bin
 fi
-dubna tmp$$ | tee lexdump.lst
+timeout 5 dubna tmp$$ | tee lexdump.lst
 status=$?
 rm -f tmp$$
 exit $status

@@ -56,8 +56,7 @@ EOF
 if [ "$tokens" != "tokens.bin" ]; then
     cp "$tokens" tokens.bin
 fi
-ulimit -t 5
-dubna tmp$$ | tee lexdumpp2c.lst
+timeout 5 dubna tmp$$ | tee lexdumpp2c.lst
 status=$?
 rm -f tmp$$
 exit $status

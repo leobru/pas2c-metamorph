@@ -27,9 +27,8 @@ P 2 0 1000440000B .
 *end file
 EOF
 if [ "$1" = "-d" ]; then ln -f tmp$$ self2.dub ; fi
-ulimit -t 3
 rm -f self2.o
-length=`dubna tmp$$ | tee self2.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
+length=`timeout 3 dubna tmp$$ | tee self2.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))
 grep -q 'LINES STRUCTURE 1' self2.lst
 if [ $? -ne 0 ]; then
