@@ -1,8 +1,8 @@
 /*
- * Host-native C++ port of the base.pas "Pascal to C metamorphosis" (P2C)
- * compiler, replacing the emulator-hosted base compiler. base.pas is the
- * authoritative source for semantics; work.p2c is the C-style mirror and
- * phrasing donor.
+ * Host-native C++ mirror of work.p2c, the "Pascal to C metamorphosis" (P2C)
+ * compiler.  work.p2c is authoritative for semantics, spelling and structure;
+ * this file follows it.  Built with `make base`, it compiles work.p2c into
+ * the emulator module work.o/work.bin and so roots the bootstrap.
  *
  * Invoked with two arguments, infile and outfile. Infile is the P2C source
  * in ASCII/UTF-8 (read as KOI-8 via unicode_to_koi8); outfile is a
@@ -406,7 +406,7 @@ typedef struct SigRec * SigPtr;
 
 // Compact type descriptor: one 48-bit word holding both the (arena-index)
 // pointer to the Types record and the pointee's metadata, mirroring
-// base.pas's `pckrep` packed record with s6 right-to-left packing:
+// The `pckrep` packed record, s6 right-to-left packing:
 //   rep:15  bits:6  pk:3  psize:15  pad:8   (47 bits used)
 // An ordinary one-word pointer type (*T) is encoded entirely in the word,
 // with no Types record allocated. g++ allocates bitfields from the LSB,
@@ -430,7 +430,7 @@ struct TPtr {
     };
     bool operator==(const TPtr & x) const { return word == x.word; }
     bool operator!=(const TPtr & x) const { return word != x.word; }
-    // Bridge for legacy `typ == NULL` sites: tests the record-pointer part.
+    // For `typ == NULL` sites: tests the record-pointer part.
     bool operator==(const void * q) const;
     bool operator!=(const void * q) const;
     Types * rep() const;   // deref the arena pointer part (defined after Types)
@@ -541,7 +541,7 @@ typedef InsnList * InsnListPtr;
 
 // The type descriptor record proper: kind-specific payload ONLY — size,
 // bits, and kind live in the compact TPtr word that references this record
-// (base.pas `types` variant record after the compact-pointer redesign).
+// (the `types` variant record, under the compact-pointer layout).
 struct Types : public BESM6Obj {
     void * operator new(size_t) = delete;
 
@@ -863,7 +863,7 @@ unsigned char CH, prevCH;
 Word prevInsn;
 
 int64_t lineNesting,
-        FcstTotal,       // FcstCountTo500 in base.pas
+        FcstTotal,
         objBufIdx,
         lookup2, lookupMode, condLabCnt,
         prevOpcode,
@@ -896,7 +896,7 @@ ExtFileRec * externFileList;
 TPtr typ121z;
 TPtr voidType, voidPtr;
 // Expression-operator tables, filled in the initialize section
-// (base.pas: intOpMap[MUL] := IMULOP,IDIVOP... ; opPrec := precNone:48 ...).
+// (intOpMap[MUL] = IMULOP,IDIVOP...; opPrec = precNone:48 ...).
 Operator intOpMap[64];
 int64_t opPrec[64];
 TPtr BooleanType;
@@ -1362,7 +1362,7 @@ int64_t typeSize(TPtr typtr)
 } /* typeSize */
 
 /* Pointee of a pointer type: compact words reconstruct it in place,
- * legacy allocated descriptors read the heap record. */
+ * heap-allocated descriptors read the record. */
 TPtr ptrBase(TPtr t)
 {
     TPtr b;
@@ -2062,7 +2062,7 @@ unicode_to_koi8(int val)
         uni2koi8[L'≤'] = 016;
         uni2koi8[L'≥'] = 017;
         uni2koi8[L'≡'] = 027;
-        uni2koi8[L'\\'] = 035;   // BACKSLASH (base.pas BACKSLASH = '\035'):
+        uni2koi8[L'\\'] = 035;   // BACKSLASH is '\035':
                                  // the '\NNN' / '\<letter>' escape introducer.
         uni2koi8[L'÷'] = 032;
         uni2koi8[L'∨'] = 036;
@@ -2280,7 +2280,7 @@ unsigned char koi8_to_koi7(unsigned char ch)
         return (ch & 0177) | 040;
     if (ch >= 0200)
         return ' ';
-    // work.p2c/base.pas KOI-7 literal mode distinguishes ASCII '^' and '|':
+    // work.p2c's KOI-7 literal mode distinguishes ASCII '^' and '|':
     // '^' becomes 0134, while '|' becomes the OR/caret glyph 0136.
     if (ch == '^')
         return 0134;
@@ -2530,9 +2530,10 @@ L2:                 hashTravPtr = symHash[bucket];
             } break; /* INTCONST */ /*=m+*/
             case CHARCONST: {
                 {
+                    unsigned char quote = CH;
                     for (tokenIdx = 6; tokenIdx <= 130; ++tokenIdx) {
                         nextCH();
-                        if (charSymTabBase[CH] == CHARCONST) {
+                        if (CH == quote) {
                             nextCH();
                             goto exitLoop;
                         }
@@ -2540,8 +2541,8 @@ L2:                 hashTravPtr = symHash[bucket];
 L2175:                      error(59); /* errEOLNInStringLiteral */
                             goto exitLoop;
                         } else if (CH == BACKSLASH) {
-                            // base.pas 1563: '\NNN' octal (1..3 digits) or a
-                            // named escape '\<letter>'.  base.pas indexes
+                            // '\NNN' octal (1..3 digits) or a named escape
+                            // '\<letter>'.  work.p2c indexes
                             // escSet/escMap by the BESM-6 input code; base.cc
                             // reads KOI-8, so map each (case-folded) letter
                             // directly to the same control code escMap yields.
@@ -2596,7 +2597,7 @@ L2233:                      switch (charEncoding) {
                                 localBuf[tokenIdx] = CH;
                                 break;
                             case 3:
-                                // base.pas 1598: internal 6-bit text
+                                // internal 6-bit text
                                 // (iso2text == koi2text), printable range
                                 // '*'(052)..'_176' only, else NUL.
                                 if (CH < '*' or 0176 < CH)
@@ -2626,7 +2627,7 @@ exitLoop:
                     pck(localBuf[tokenLen], curToken.a);
                     goto exitLexer;
                 } else {
-                    curVal.ii = 0x202020202020L; // base.pas: curVal.a := '      '
+                    curVal.ii = 0x202020202020L; // curVal.a = '      '
                     SY = STRINGSY;
                     unpck(localBuf[tokenIdx], curVal.a);
                     pck(localBuf[6], curToken.a);
@@ -2634,7 +2635,7 @@ exitLoop:
                     if (6 >= strLen)
                         goto exitLexer;
                     else if (charEncoding == 3 and strLen == 8) {
-                        // base.pas 1632: an 8-char string in 6-bit-text mode
+                        // an 8-char string in 6-bit-text mode
                         // packs into one 48-bit word (pack(localbuf,6,.t)) and
                         // becomes an INTCONST.  Pack localBuf[6..13] MSB-first.
                         curToken.ii = 0;
@@ -2650,7 +2651,7 @@ exitLoop:
 loop:                   {
                             toFCST();
                             tokenLen = tokenLen + 6;
-                            if (tokenIdx < tokenLen) // base.pas 1643: strict <
+                            if (tokenIdx < tokenLen) // strict <
                                 goto exitLexer;      // exact multiples of 6 get
                                                      // a trailing 6-space word
                             pck(localBuf[tokenLen], curVal.a);
@@ -2661,7 +2662,7 @@ loop:                   {
                 } break; /* CHARCONST */
             default: break;
             } /* switch */
-        /* two-char operator lexer (base.pas 1652-1687). curToken.a is
+        /* two-char operator lexer.  curToken.a is
            conceptually '      ' with [1]=prevCH, [2]=CH; only the pair
            is significant, so we match (prevCH, CH) directly. */
         prevCH = CH;
@@ -2823,11 +2824,10 @@ Word foldRawInt1(Operator op, const Word &arg)
 
 /* Construct a binary op-node, but if both operands are already constants
    (GETENUM), fold at construction and reuse the left operand's node in place
-   as the result — no new allocation.  Construction is now the *only* place
-   constant folding happens (genFullExpr no longer re-folds), and the payoff is
-   that constant expressions collapse to a literal for every downstream site
-   that requires `op == GETENUM`.  A divide/modulo by a zero constant is left
-   as an op-node so codegen keeps its current behaviour. */
+   as the result — no new allocation.  Construction is the *only* place
+   constant folding happens, so constant expressions collapse to a literal for
+   every downstream site that requires `op == GETENUM`.  A divide/modulo by a
+   zero constant is left as an op-node so codegen keeps its behaviour. */
 ExprPtr mkExprFold(Operator op, TPtr resTyp, ExprPtr e1, ExprPtr e2)
 {
     if (e1->op == GETENUM and e2->op == GETENUM and
@@ -3778,7 +3778,7 @@ void prepStore()
 } /* prepStore */
 
 /* Rotate a 48-bit set left/right by `amt` (negative = left). Matches
-   base.pas `shift`; the exp-normalization of `amt` there is a host no-op. */
+   `shift`; the exp-normalization of `amt` is a host no-op. */
 int64_t shift(int64_t val, int64_t amt)
 {
     int64_t i;
@@ -4056,7 +4056,7 @@ L33:        prepLoad();
     } /* genBoolAnd */
 
     void genConstDiv() {
-        // base.pas 3561: power-of-2 divisors (card==1) collapse to a single
+        // power-of-2 divisors (card==1) collapse to a single
         // arithmetic shift; other divisors emit a reciprocal multiply first,
         // then the residual shift.
         Real r;
@@ -4406,7 +4406,7 @@ genEntry::genEntry()
     isProc = (resTyp == NULL);
     frameSiz = isProc ? 3 : 4;
     isFortrn = has(calleeFl, 21);
-    isAssembler = has(calleeFl, 26); // base.pas 3297
+    isAssembler = has(calleeFl, 26);
     allByRef = has(calleeFl, 24);
     insnList = new InsnList;
     insnList->head = NULL;
@@ -4415,7 +4415,7 @@ genEntry::genEntry()
     insnList->regsused = (calleeFl | BitRange(7,15)) & (BitRange(0,8)|BitRange(10,15));
     insnList->ilm = ilRVAL;
     insnList->st = stWORD;      // prepLoad reads st on every ilRVAL list
-    if (isAssembler) {          // base.pas 3311: assembler routine, no frame
+    if (isAssembler) {          // assembler routine, no frame
         firstArg = false;
     } else if (isFortrn) {
         firstArg = not isProc;
@@ -4495,7 +4495,7 @@ genEntry::genEntry()
         } /* 7102 */
     } /* 7132 */
     insnList->tail->mode = 2;
-    if (not isAssembler and curProcNesting != l5var17z.ii) { // base.pas 3459
+    if (not isAssembler and curProcNesting != l5var17z.ii) {
         if (not isFortrn) {
             if (l5var17z.ii + 1 == curProcNesting) {
                 addToInsnList(KMTJ+I7 + curProcNesting);
@@ -4513,7 +4513,7 @@ genEntry::genEntry()
             }
         }
     } /* 7176 */
-    // base.pas 3481: (not isAssembler) and (isIndir or [20,21]*calleeFl)
+    // (not isAssembler) and (isIndir or [20,21]*calleeFl)
     if (not isAssembler
         and (isIndir or ((Bits(20, 21) & calleeFl) != Bits()))) {
         addToInsnList(KVTM+040074001);
@@ -4542,7 +4542,7 @@ genEntry::genEntry()
             addToInsnList(getHelperProc(54));    /* "P/FM" */
         insnList->tail->mode = 2;
     } /* 7226 */
-    // NB: base.pas 3486 has no `else` here -- a non-Fortran function returns
+    // NB: no `else` here -- a non-Fortran function returns
     // its value in ACC, so there is no `KXTA+SP` reload of the result.
     if (not isProc) {
         insnList->typ = resTyp;
@@ -4576,9 +4576,9 @@ void genCopy()
 
     size = typeSize(insnList->typ);
     if (size == 1) {
-        // Merge the rhs-load and lhs-store instruction lists into insnList
-        // (base.pas builds the list; the upstream genOneOp version emitted
-        // directly and left insnList consumed -> NULL deref at the caller).
+        // Merge the rhs-load and lhs-store instruction lists into insnList.
+        // Build the list rather than emitting directly: emitting leaves
+        // insnList consumed, and the caller then dereferences NULL.
         lhsIns = insnList;
         insnList = otherIns;
         prepLoad();
@@ -5325,9 +5325,8 @@ formOperator::formOperator(OpGen op)
 } /* formOperator */
 
 /* Extract the value of a constant expression into curVal.  With folding at
-   construction a constant expression is already a GETENUM node, so we read it
-   directly rather than lowering it through genFullExpr — which is what the
-   former formOperator(LITINSN) did.  Dropping that path avoids an insnList
+   construction a constant expression is already a GETENUM node, so read it
+   directly instead of lowering it through genFullExpr, which saves an insnList
    allocation per constant (case labels, const decls, array bounds, besm). */
 void takeConstFromExpr()
 {
@@ -5519,6 +5518,10 @@ struct Declarator {
     // second hash lookup.
     IdentRecPtr foundRec = NULL;
     TPtr type{};
+    // The declarator applied nothing but '*' ops, so it is a name a routine
+    // header may use: 'T name', 'T *name'.  An opFun ('T (*fp)(args)') or an
+    // opArray ('T a[3]') clears it, and those are variables.
+    bool ptrOnly = true;
 };
 
 // One declarator operator.  opFun carries the parameter signature its
@@ -5618,6 +5621,7 @@ Declarator parseOneDeclarator(TPtr baseType, bool packedFlag = false,
     for (auto it = ops.rbegin(); it != ops.rend(); ++it) {
         if (it->opKind == opFun) {
             d.type = mkRoutineTyp(d.type, it->sig, 0);
+            d.ptrOnly = false;
         } else if (it->opKind == opPtr) {
             // baseType is already the forward-reference placeholder
             // pointer itself (see parseTypeRef::isForwardRef) -- applying
@@ -5627,9 +5631,11 @@ Declarator parseOneDeclarator(TPtr baseType, bool packedFlag = false,
             // this case (it's applied directly to baseType).
             if (not (firstOp and isForwardRef))
                 d.type = getPtrType(d.type);
-        } else
+        } else {
             d.type = makeArrayType(it->range, d.type,
                                    packedFlag and (&*it == &ops.front()));
+            d.ptrOnly = false;
+        }
         firstOp = false;
     }
     return d;
@@ -6460,8 +6466,8 @@ void castToReal(ExprPtr & value)
 /* C's assignment conversions between integer and real, applied wherever a
    value is assigned to a destination of the other type: plain assignment,
    an actual passed by value to a formal, and return.  Widening goes through
-   castToReal; narrowing drops the fraction, the way the retired standard
-   function TRUNC did.  Returns false if the mismatch is not one of those,
+   castToReal; narrowing drops the fraction.  Returns false if the mismatch
+   is not one of those,
    leaving the caller to report it. */
 bool castArith(TPtr dest, ExprPtr & value)
 {
@@ -8709,7 +8715,7 @@ initScalars::initScalars() :
 
     uProcPtr = besm6_alloc_record<IdentRec>(
         offsetof(IdentRec, szRoutine));
-    uProcPtr->pck.cl = ROUTINEID; // cl left as heap garbage in base.pas
+    uProcPtr->pck.cl = ROUTINEID;
     uProcPtr->typ.setRep(NULL);
     uProcPtr->list() = NULL;
     uProcPtr->argList() = NULL;
@@ -9041,7 +9047,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             // (see definePtrType); when the real definition for that name
             // comes through here, patch the placeholder's base in place
             // instead of creating an unrelated second IdentRec, exactly
-            // mirroring the retired Pascal '= ^Name' bookkeeping.
+            // the same bookkeeping the '*Name' forward reference needs.
             inTypeDef = true;
             // lookup2 (not just lookupMode) must carry lookDef through
             // parseTypeRef's own internal inSymbol() calls -- every
@@ -9120,24 +9126,24 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             packedFlag = typeParser.isPacked;
             forwardRef = typeParser.isForwardRef;
         }
-        done = baseTy == voidType;
-        // Set here, ahead of the declarator: the redefinition test below
-        // compares it against the declaration's return type.  work.p2c sets
-        // it at the same point.
-        typedRetType = baseTy;
         Declarator d = parseOneDeclarator(baseTy, packedFlag, forwardRef);
         if (d.name == 0) {
             markTypeSym();
             continue;
         }
-        bool bareName = (d.type == baseTy);
+        // A routine's result is the declarator's type, not the bare type-spec,
+        // so 'cell *pick(int)' returns a pointer.  Taken after the declarator
+        // for that reason; the redefinition test below compares it against the
+        // declaration's return type, which was recorded the same way.
+        typedRetType = d.type;
+        done = typedRetType == voidType;
         isPredefined = false;
         // A definition restates the whole header, so a redefinition is a
         // name already in the symbol table and followed by its parameter
         // list.  The id check proves foundRec is this name's record: a
         // lookup that found nothing can leave a neighbour there, and a
         // plain 'TYPE name;' would then reach here.
-        if (bareName and SY == LPAREN and d.foundRec != NULL and
+        if (d.ptrOnly and SY == LPAREN and d.foundRec != NULL and
             d.foundRec->id == d.name and
             d.foundRec->pck.cl == ROUTINEID and
             d.foundRec->list() == NULL and
@@ -9147,7 +9153,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             // not a forward declaration" arm below.
             (d.foundRec->typ == typedRetType)) {
             isPredefined = true;
-        } else if (bareName and SY == LPAREN and d.foundRec != NULL and
+        } else if (d.ptrOnly and SY == LPAREN and d.foundRec != NULL and
                    d.foundRec->id == d.name and
                    // A routine record.  A name may shadow an enum constant
                    // or a variable of an outer scope, and identifiers
@@ -9157,11 +9163,13 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             error(errIdentAlreadyDefined);
             printErrMsg(82); /* errPrevDeclWasNotForward */
         }
-        // A bare name (no '*'/'[]') is a routine when followed by '(' or
-        // ':', and a plain variable otherwise. Every routine carries explicit
+        // A name carrying nothing but '*' ops -- 'name', '*name', '**name'
+        // -- is a routine when followed by '(', and a plain variable
+        // otherwise. A '[]' or a parenthesized group makes it a variable: an
+        // array, or a pointer to a routine. Every routine carries explicit
         // parens, a definition completing an earlier declaration included, so
         // no lookahead past ';' is needed.
-        bool isRoutine = bareName and (SY == LPAREN or SY == COLON);
+        bool isRoutine = d.ptrOnly and SY == LPAREN;
         if (externDecl and isRoutine) {
             error(errBadSymbol);
             skip(skipToSet | Bits(SEMICOLON));
@@ -9270,21 +9278,12 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 hadParens = (SY == LPAREN);
                 if (hadParens)
                     parseParameters(NULL);
+                /* The result type comes from the declarator, ahead of the
+                   name; there is no ':TYPE' suffix. */
                 if (not done) {
-                    if (typedRetType != voidType) {
-                        /* New C-style: return type stashed at the loop head;
-                           no ':TYPE' suffix expected. */
-                        curIdRec->typ = typedRetType;
-                        if (typeSize(curIdRec->typ) != 1)
-                            error(errTypeMustNotBeFile);
-                    } else if (SY != COLON)
-                        errAndSkip(106 /*:*/, skipToSet | Bits(SEMICOLON));
-                    else {
-                        inSymbol();
-                        parseTypeRef(curIdRec->typ, skipToSet | Bits(SEMICOLON));
-                        if (typeSize(curIdRec->typ) != 1)
-                            error(errTypeMustNotBeFile);
-                    }
+                    curIdRec->typ = typedRetType;
+                    if (typeSize(curIdRec->typ) != 1)
+                        error(errTypeMustNotBeFile);
                 }
             } else /*23167*/ {
                 l2int18z = hashTravPtr->level();
@@ -9538,7 +9537,7 @@ struct initTables {
                "\060\061\062\063\064\065\066\067" // 160-167 (p - w)
                "\070\071\072\000\000\000\000\000" // 170-177 (x y z { | } ~ )
                , 86);
-        koi2text['_'] = koi2text['*']; // base.pas: iso2text['_'] := iso2text['*']
+        koi2text['_'] = koi2text['*']; // iso2text['_'] = iso2text['*']
         memcpy(&koi2text[0300],
                "\077\041\002\003\004\045\005\006" // 300-307 (ю - г)
                "\070\007\013\053\014\055\050\057" // 310-317 (х - о)
@@ -9778,7 +9777,7 @@ void initOptions(int argc, char **argv)
             fixMult = (optarg[0] == '+');
             continue;
         case 'r':
-            // Fuzzy real comparison was removed from base.pas; option is a no-op.
+            // No fuzzy real comparison; the option is a no-op.
             continue;
         case 's':
             curVal.ii = strtoul(optarg, 0, 0);
@@ -9793,8 +9792,8 @@ void initOptions(int argc, char **argv)
             }
             continue;
         case 'u':
-            // Source line length is a compile-time constant (maxLineLen);
-            // base.pas has no runtime override, so this option is a no-op.
+            // Source line length is a compile-time constant (maxLineLen),
+            // with no runtime override, so this option is a no-op.
             continue;
         case 'y':
             allowCompat = (optarg[0] == '+');
@@ -9874,6 +9873,7 @@ int main(int argc, char **argv)
     }
     chrClassTabBase['_'] = ALNUM;
     charSymTabBase['\''] = CHARCONST;
+    charSymTabBase['"'] = CHARCONST;
     charSymTabBase['_'] = IDENT;
     charSymTabBase['<'] = EXPROP;
     charSymTabBase['>'] = EXPROP;
@@ -9887,7 +9887,7 @@ int main(int argc, char **argv)
     chrClassTabBase['|'] = SETOR;
     chrClassTabBase['^'] = SETXOR;
     chrClassTabBase[037] = BITNEGOP;  // '~': BESM-6 code 037 (unicode_to_koi8),
-                                      // not ASCII 0176 -- base.pas `chrClass['~']`
+                                      // not ASCII 0176 -- `chrClass['~']`
     chrClassTabBase['>'] = GTOP;
     chrClassTabBase['<'] = LTOP;
     chrClassTabBase['!'] = NOTOP;
@@ -9921,7 +9921,7 @@ int main(int argc, char **argv)
     intOpMap[PLUSOP] = INTPLUS;
     intOpMap[MINUSOP] = INTMINUS;
 
-    // Operator precedence table (base.pas 8649): default precNone, then the
+    // Operator precedence table: default precNone, then the
     // per-operator levels used by parsePrc/getPrec.  Without this every EXPROP
     // operator reads back precAssign(0), collapsing `a + b` into an op-assign
     // (RMWASSIGN) node.

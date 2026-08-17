@@ -1,0 +1,77 @@
+/*=s8,y+,k9,l0*/
+//
+// A routine header may carry '*' on its declarator: the result type is the
+// declarator's, not the bare type-spec.  The routine/variable dispatch used
+// to demand a declarator with no operators at all, so 'cell *pick(int)' was
+// read as a variable declaration and then failed on the '(' with "required
+// SEMICOLON"; the only spelling available was a typedef'd pointer type.
+//
+// A '[]' or a parenthesized group still makes it a variable -- an array, or
+// a pointer to a routine -- and that is asserted at the bottom.
+//
+typedef void *anyptr;
+const NULL = anyptr(074000);
+typedef struct { int v; } cell;
+cell c1, c2;
+int g, h;
+int *ptr;
+//
+// A forward declaration completed further down.  The redefinition test
+// compares the declaration's recorded return type against the definition's,
+// and both are now taken from the declarator.
+cell *later(int x);
+//
+cell *pick(int x) {
+    return x ? &c1 : &c2;
+}
+//
+int *ip(int x) {
+    return x ? &g : &h;
+}
+//
+int **pp(int x) {
+    ptr  =  &g;
+    return &ptr;
+}
+//
+void *vp(int x) {
+    return x ? anyptr(&g) : NULL;
+}
+//
+// A plain procedure beside the pointer-returning ones: 'void f(...)' must
+// still be a procedure (no result, smaller frame) while 'void *f(...)' is a
+// function.  The discriminator is the declarator's type now.
+void bump(int x) {
+    g  =  g + x;
+}
+//
+cell *later(int x) {
+    return x ? &c2 : &c1;
+}
+//
+int twice(int x) {
+    return x + x;
+}
+//
+// Still variables, not routines.
+int (*fp)(int);
+int arr[3];
+//
+void main() {
+    c1.v  =  11;
+    c2.v  =  22;
+    g  =  70;
+    h  =  80;
+    writeln(' PICK  ', pick(1)->v:4, pick(0)->v:4);
+    writeln(' IP    ', *ip(1):4, *ip(0):4);
+    writeln(' PP    ', **pp(0):4);
+    writeln(' VP    ', (vp(0) == NULL):2, (vp(1) == NULL):2);
+    bump(5);
+    writeln(' BUMP  ', g:4);
+    writeln(' LATER ', later(0)->v:4, later(1)->v:4);
+    fp  =  twice;
+    arr[0]  =  3;
+    arr[1]  =  4;
+    arr[2]  =  5;
+    writeln(' FP    ', fp(9):4, ' ARR', arr[0]:3, arr[1]:3, arr[2]:3);
+}

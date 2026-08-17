@@ -40,5 +40,6 @@ base
 !work.p2c
 !lexer.p2c
 !lexer.pas
+!quine.p2c
 !build_pascom.dub
 !tests/*.p2c

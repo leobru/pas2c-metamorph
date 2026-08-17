@@ -996,7 +996,7 @@ int typeSize(tptr typtr) {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 tptr ptrBase(tptr t) {
 /* Pointee of a pointer type: compact words reconstruct it in place,
- * legacy allocated descriptors read the heap record. */
+ * heap-allocated descriptors read the record. */
 tptr b;
     if (!isCompactP(t))
         return t.rep->base;
@@ -1159,7 +1159,8 @@ int getValueOrAllocSymtab(int value) {
 } /* getValueOrAllocSymtab */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// fixup -- address-fixup helper; see base.pas for full mode docs.
+// fixup -- address-fixup helper.  mode 0 starts a chain at moduleOffset,
+// and the other modes patch a pending chain; see the arms below.
 void fixup(int mode, int arg) {
 int addr, insn, leftHalf;
 int isLarge;
@@ -2019,8 +2020,7 @@ strLabel *strLabList;
 //
 int l2int18z, ii, localSize, sizeCount, jj;
 //
-// Promoted here (rather than kept private to parseTypeRef, as base.pas
-// had them) so the shared declarator parser below -- a sibling of
+// File scope, so the shared declarator parser below -- a sibling of
 // parseTypeRef, not nested inside it -- can read them right after each
 // type-spec call: isPacked mirrors '__packed TYPE[range]' (parseTypeRef
 // resets it false on entry, sets it true on 'packed', and would
@@ -2050,11 +2050,10 @@ int top;
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// name: the Pascal '^Name' call sites (still in parseTypeRef's MUL
-// branch) pass curIdent, since the lexer is still sitting on Name there.
-// C-style forward-referenced typedef patching (see TYPEDEFSY) calls this
-// after the declarator's own name has already been read and the lexer
-// has moved on, so it passes the saved declarator.name explicitly.
+// name: parseTypeRef's '*Name' branch passes curIdent, since the lexer is
+// still sitting on Name there.  Forward-referenced typedef patching (see
+// TYPEDEFSY) calls this after the declarator's own name has been read and
+// the lexer has moved on, so it passes the saved declarator.name.
 int knownInType(irptr *rec, int name) {
 irptr it;
     for (it = typelist; it != NULL; it = it->pck.p.next) {
@@ -2180,10 +2179,9 @@ eptr mkIntLit(int val) {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 /* Construct a binary op-node, but if both operands are already constants
    (GETENUM), fold at construction and reuse the left operand's node in place
-   as the result — no new allocation.  Construction is now the only place
-   folding happens (genFullExpr no longer re-folds); the payoff is that
-   constant expressions collapse to a literal for downstream sites that
-   require op == GETENUM.  Divide/modulo by a zero constant is left as an
+   as the result — no new allocation.  Construction is the only place folding
+   happens, so constant expressions collapse to a literal for downstream sites
+   that require op == GETENUM.  Divide/modulo by a zero constant is left as an
    op-node so codegen keeps its behaviour. */
 eptr mkExprFold(operator op, tptr resTyp, eptr e1, eptr e2) {
     word v, r;
@@ -3868,8 +3866,8 @@ insnltyp *condChain, *thenChain;
 
     /* Union the regsused sets of all three sub-chains so the surrounding
        expression sees the full set of registers the ternary touches, and add
-       reg 0 (ACC) since the result lives there.  Bit 16 is not a register: it
-       is the condition-polarity flag, and each sub-chain's own is spent by
+       reg 0 (ACC) since the result lives there.  Bit 16 is the
+       condition-polarity flag, and each sub-chain's own is spent by
        the time it is folded in -- the condition's by the UZA/U1A selected
        above, an arm's by the prepLoad that materialized its value.  Carrying
        one into the composite would tell the consumer that this ilRVAL is a
@@ -4496,9 +4494,9 @@ int needsMater;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 /* Extract the value of a constant expression into curVal.  With folding at
-   construction a constant expression is already a GETENUM node, so we read it
-   directly rather than lowering it through genFullExpr — the former
-   formOperator(LITINSN).  Avoids an insnList allocation per constant. */
+   construction a constant expression is already a GETENUM node, so read it
+   directly instead of lowering it through genFullExpr, which saves an
+   insnList allocation per constant. */
 void takeConstFromExpr() {
     if (errors || curExpr == NULL)
         return;
@@ -4651,6 +4649,11 @@ typedef struct {
             int wasDefined;
             irptr foundRec;
             tptr typ;
+            /* The declarator applied nothing but '*' ops, so it is a name a
+               routine header may use: 'T name', 'T *name'.  An opFun ('T
+               (*fp)(args)') or an opArray ('T a[3]') clears it, and those are
+               variables.  Set by parseDclAt. */
+            int ptrOnly;
 } declarator;
 
 /* One declarator operator.  opFun carries the parameter signature its
@@ -4681,7 +4684,6 @@ int moreDecls;
 int nameOptional;
 // Scratch for the unified TYPESY/PACKEDSY/STRUCTSY/ENUMSY declaration-
 // dispatch loop in programme's own body: same reasoning as above.
-int declBareName;
 int declIsRoutine;
 
 // The parameter list of a function declarator, as a signature: types and
@@ -4785,15 +4787,18 @@ int i;
     declOpCount  =  base;
     readDeclaratorCore(d);
     d->typ  =  baseType;
+    d->ptrOnly  =  true;
     for (i = declOpCount; i > base; --i) {
         if (declOps[i].opKind == opPtr) {
             if (! ((i == declOpCount) && isForwardRef))
                 d->typ  =  getPtrType(d->typ);
         } else if (declOps[i].opKind == opFun) {
             d->typ  =  mkRoutineTyp(d->typ, declOps[i].sig, 0);
+            d->ptrOnly  =  false;
         } else {
             d->typ  =  makeArrayType(declOps[i].range, d->typ,
                                     packedFlag && (i == base + 1));
+            d->ptrOnly  =  false;
         }
     }
     declOpCount  =  base;
@@ -5631,8 +5636,8 @@ void castToReal(eptr *value) {
 /* C's assignment conversions between integer and real, applied wherever a
    value is assigned to a destination of the other type: plain assignment,
    an actual passed by value to a formal, and return.  Widening goes through
-   castToReal; narrowing drops the fraction, the way the retired standard
-   function TRUNC did.  Returns false if the mismatch is not one of those,
+   castToReal; narrowing drops the fraction.  Returns false if the mismatch
+   is not one of those,
    leaving the caller to report it. */
 int castArith(tptr dest, eptr *value) {
 eptr arg;
@@ -7870,14 +7875,9 @@ void regSysProc(int l4arg1z) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // C-style: each comma-separated parameter carries its own full type-spec
-// ('int a, int *p, char c'), mirroring base.cc's parseParameters --
-// unlike parseRecordDecl's grouped form, since a parameter list has no
-// Pascal 'a, b: type' grouping to preserve. The old Pascal grouped-colon
-// version (a, b: type; ...), including its ROUTINEID-formal-parameter
-// path, is gone: it silently misclassified every C-style 'TYPE name'
-// parameter as a ROUTINEID formal (since a leading bound-type token used
-// to mean "formal procedural parameter"), producing bogus "NO PARAM LIST"/
-// "ARGUMENT KIND MISMATCH" errors at every call site.
+// ('int a, int *p, char c'), mirroring base.cc's parseParameters.  A
+// parameter list has no grouped 'a, b: type' form, and every formal is a
+// VARID -- there is no procedural-parameter class to classify one into.
 // matchTo == NULL builds the argument list from scratch, for a routine's
 // first declaration.  A non-NULL matchTo walks the records an earlier
 // declaration built (terminated by curIdRec, per the argList convention, so
@@ -8161,12 +8161,14 @@ void exitScope(int a) {
     // ('TYPE decl, decl;') or a routine ('TYPE name(params) {...}' /
     // 'TYPE name(params);' / 'TYPE name(params) extern;'), exactly as C
     // distinguishes 'int x;' from 'int f(...);'.
-    // Disambiguated right after reading the first declarator:
-    // a bare name immediately followed by '(' or ':' is a routine. A
-    // definition completing an earlier declaration is one too: it restates
-    // the whole header, parameter list included ('int add(int a, int b);'
-    // ... 'int add(int a, int b) { ... }'). Everything else -- a '*'/'[]'
-    // on the declarator, a ',', or a bare ';' -- is a variable.
+    // Disambiguated right after reading the first declarator: a name with
+    // zero or more '*' on it, immediately followed by '(' or ':', is a
+    // routine, and its result type is the declarator's ('cell *pick(int)'
+    // returns a pointer). A definition completing an earlier declaration is
+    // one too: it restates the whole header, parameter list included
+    // ('int add(int a, int b);' ... 'int add(int a, int b) { ... }').
+    // Everything else -- a '[]' or a parenthesized group on the declarator,
+    // a ',', or a bare ';' -- is a variable.
     //
     // Not just TYPESY -- a type-spec can also open with
     // '__packed'/'struct'/'enum' (mirrors parseRecordDecl's own
@@ -8188,20 +8190,23 @@ void exitScope(int a) {
             }
         }
         l2typ13z = parseTypeRef(skipToSet | [IDENT, LPAREN, COMMA, SEMICOLON]);
-        l2bool8z  =  l2typ13z == voidType;
-        typedRetType  =  l2typ13z;
         parseOneDeclarator(&curDeclarator, l2typ13z, isPacked, isForwardRef);
         if (curDeclarator.name == 0) {
             markTypeSym();
         } else {
-        declBareName  =  curDeclarator.typ == l2typ13z;
+        /* A routine's result is the declarator's type, not the bare type-spec,
+           so 'cell *pick(int)' returns a pointer.  Taken after the declarator
+           for that reason; the redefinition test below compares it against the
+           declaration's return type, which was recorded the same way. */
+        typedRetType  =  curDeclarator.typ;
+        l2bool8z  =  typedRetType == voidType;
         isPredefined  =  false;
         /* A definition restates the whole header, so a redefinition is a
            name already in the symbol table and followed by its parameter
            list.  The id check proves foundRec is this name's record: a
            lookup that found nothing can leave a neighbour there, and a
            plain 'TYPE name;' would then reach here. */
-        if (declBareName && (SY == LPAREN) &&
+        if (curDeclarator.ptrOnly && (SY == LPAREN) &&
             (curDeclarator.foundRec != NULL) &&
             (curDeclarator.foundRec->id == curDeclarator.name) &&
             (curDeclarator.foundRec->pck.p.cl == ROUTINEID) &&
@@ -8212,7 +8217,7 @@ void exitScope(int a) {
                not a forward declaration" arm below. */
             (curDeclarator.foundRec->typ == typedRetType)) {
             isPredefined  =  true;
-        } else if (declBareName && (SY == LPAREN) &&
+        } else if (curDeclarator.ptrOnly && (SY == LPAREN) &&
                    (curDeclarator.foundRec != NULL) &&
                    (curDeclarator.foundRec->id == curDeclarator.name) &&
                    /* A routine record.  A name may shadow an enum constant
@@ -8223,11 +8228,13 @@ void exitScope(int a) {
             error(errIdentAlreadyDefined);
             printErrMsg(82); /* errPrevDeclWasNotForward */
         }
-        // A bare name (no '*'/'[]') is a routine when followed by '(' or
-        // ':', and a plain variable otherwise. Every routine carries explicit
+        // A name carrying nothing but '*' ops -- 'name', '*name', '**name'
+        // -- is a routine when followed by '(', and a plain variable
+        // otherwise. A '[]' or a parenthesized group makes it a variable: an
+        // array, or a pointer to a routine. Every routine carries explicit
         // parens, a definition completing an earlier declaration included, so
         // no lookahead past ';' is needed.
-        declIsRoutine  =  declBareName && ((SY == LPAREN) || (SY == COLON));
+        declIsRoutine  =  curDeclarator.ptrOnly && (SY == LPAREN);
         if (externDecl && declIsRoutine) {
             error(errBadSymbol);
             skip(skipToSet | [SEMICOLON]);
@@ -8337,21 +8344,12 @@ void exitScope(int a) {
                 hadParens  =  (SY == LPAREN);
                 if (hadParens)
                     parseParameters(NULL);
+                /* The result type comes from the declarator, ahead of the
+                   name; there is no ':TYPE' suffix. */
                 if (! l2bool8z) {
-                    if (typedRetType != voidType) {
-                        /* New C-style: return type was stashed at the loop
-                           head; no ':TYPE' suffix expected. */
-                        curIdRec->typ = typedRetType;
-                        if (typeSize(curIdRec->typ) != 1)
-                            error(errTypeMustNotBeFile);
-                    } else if (SY != COLON)
-                        errAndSkip(106 /*:*/, skipToSet | [SEMICOLON]);
-                    else {
-                        inSymbol();
-                        curIdRec->typ = parseTypeRef(skipToSet | [SEMICOLON]);
-                        if (typeSize(curIdRec->typ) != 1)
-                            error(errTypeMustNotBeFile);
-                    }
+                    curIdRec->typ = typedRetType;
+                    if (typeSize(curIdRec->typ) != 1)
+                        error(errTypeMustNotBeFile);
                 }
             } else {
                 { register identrec *ir = hashTravPtr;
