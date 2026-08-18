@@ -1,0 +1,18 @@
+ ADD     12  202  302  502  702
+ COMM    32  32
+ SUB     12  202  302  502   72
+ DIFF    3  3  3  3  3
+ NEGD    -3
+ IDX     30  33  302
+ IDXV    32  302  502  702
+ STORE   91  92  30  300  93
+ INC     91
+ PREI    30
+ DEC     91
+ PLEQ    33
+ MIEQ    30
+ POST    30  91  1
+ PRE     91  91
+ WALK    206
+ PP      30  91  3
+ HEAP    40  43  43

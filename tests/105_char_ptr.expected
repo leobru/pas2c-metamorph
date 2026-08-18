@@ -1,0 +1,12 @@
+ DEREF   88  88
+ STAR    70
+ IDX     71
+ CMP      6 1 0 1
+ ADD      6
+ SUB      0
+ INC      1
+ PLEQ     6
+ MIEQ     4
+ PRED     3
+ ARG     89  71
+ UNPK    97  98   0

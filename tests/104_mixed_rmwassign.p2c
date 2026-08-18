@@ -1,0 +1,65 @@
+/*=s8,y+,k9,l0*/
+//
+// Mixed-type operands, where the two sides of an operator have different
+// types and it therefore matters which one the type checker is looking at.
+// A binary operator and an op-assign reach the same builders, so both
+// spellings of every mixture appear here: an integer added to a real must
+// widen to a real either way, a real compared with an integer must widen
+// through areTypesCompatible, and a bit operation on a char and an int must
+// keep printing as a number.
+//
+float f;
+int i, n;
+char c;
+int s;
+//
+void main() {
+    // Binary arithmetic, both operand orders.
+    f  =  10.0;
+    i  =  3;
+    n  =  f + i;
+    writeln(' BINL  ', n:4);
+    n  =  i + f;
+    writeln(' BINR  ', n:4);
+    n  =  f - i;
+    writeln(' BINS  ', n:4);
+    n  =  i - f;
+    writeln(' BINT  ', n:4);
+    n  =  f * i;
+    writeln(' BINM  ', n:4);
+    // The same mixtures as op-assign: a real lvalue and an integer right
+    // operand.  The right operand is the one that has to widen.
+    f  =  10.0;
+    f  +=  i;
+    n  =  f;
+    writeln(' PLEQ  ', n:4);
+    f  =  10.0;
+    f  -=  i;
+    n  =  f;
+    writeln(' MIEQ  ', n:4);
+    f  =  10.0;
+    f  *=  i;
+    n  =  f;
+    writeln(' MUEQ  ', n:4);
+    // A fraction survives, so this is real arithmetic and not integer.
+    f  =  2.5;
+    f  +=  i;
+    n  =  f * 2;
+    writeln(' FRAC  ', n:4);
+    // An integer lvalue with a real right operand, in the spelling that
+    // holds both conversions: the lvalue's own value widens on the way in,
+    // and the result narrows at the store.
+    n  =  10;
+    n  =  n + f;
+    writeln(' INTL  ', n:4);
+    // A real compared with an integer, both orders.
+    f  =  2.5;
+    i  =  3;
+    writeln(' REL   ', (f < i):2, (i < f):2, (f > i):2, (f == i):2);
+    // A bit operation on a char and an int prints as a number.
+    c  =  'A';
+    writeln(' BIT   ', (c | 8):4, (8 | c):4);
+    // Set membership: the element is a scalar, the set an integer word.
+    i  =  2;
+    writeln(' IN    ', (i in [1,2,3]):2, (i in [4,5]):2);
+}

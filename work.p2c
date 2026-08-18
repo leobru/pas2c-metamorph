@@ -1027,6 +1027,17 @@ int isRoutinePtr(tptr arg) {
 } /* isRoutinePtr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* The step for pointer arithmetic: the pointee's size in words.  A step of
+   0 bars the arithmetic; it covers a void pointer, which is what '&x' and
+   NULL are here, and a pointer to a routine, whose value is an entry
+   address. */
+int eltStep(tptr t) {
+    if (t.p.pk != kindPtr || t == voidPtr || isRoutinePtr(t))
+        return 0;
+    return typeSize(ptrBase(t));
+} /* eltStep */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void putToSymTab(int arg) {
     symTab[symTabPos]  =  arg;
     if (symTabPos == 075500) {
@@ -2265,6 +2276,14 @@ eptr ret;
 } /* mkRef */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* An index or offset in pointee units, converted to words. */
+eptr scaleIdx(eptr n, int step) {
+    if (step == 1)
+        return n;
+    return mkExprFold(IMULOP, intType, n, mkIntLit(step));
+} /* scaleIdx */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 tptr getPtrType(tptr toType) {
 tptr t;
@@ -2296,12 +2315,22 @@ tptr t;
 eptr bldIncDec(eptr lval, int isInc, int isPost) {
 eptr one, rmw;
 operator op;
+tptr t;
+int step;
+    /* A pointer steps by its pointee, and keeps its type; anything else is
+       an integer step of one. */
+    step  =  eltStep(lval->typ);
+    if (step == 0) {
+        t  =  intType;
+        step  =  1;
+    } else
+        t  =  lval->typ;
     op = isInc ? INTPLUS : INTMINUS;
-    one = mkIntLit(1);
-    rmw = mkExpr(RMWASSIGN, intType, lval, mkExpr(op, intType, one, NULL));
+    one = mkIntLit(step);
+    rmw = mkExpr(RMWASSIGN, t, lval, mkExpr(op, t, one, NULL));
     if (! isPost)
         return rmw;
-    return mkExpr(INTPLUS + INTMINUS - op, intType, rmw, one);
+    return mkExpr(INTPLUS + INTMINUS - op, t, rmw, one);
 } /* bldIncDec */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5531,6 +5560,7 @@ void parsePostfix() {
 eptr l4exp1z, l4exp2z;
 tptr l4typ3z, l4typ5z;
 kind l4var4z;
+int l4step6z;
 13462:
     l4typ3z  =  curExpr->typ;
     l4var4z  =  l4typ3z.p.pk;
@@ -5584,10 +5614,16 @@ kind l4var4z;
         l4exp1z  =  curExpr;
         expression();
         l4typ3z  =  l4exp1z->typ;
+        l4step6z  =  eltStep(l4typ3z);
         if (isCharPtr(l4typ3z))
             curExpr = flatMemAt(mkExpr(INTPLUS, charPtrType,
                                       l4exp1z, curExpr));
-        else if (l4typ3z.p.pk != kindArray) {
+        else if (l4step6z != 0) {
+            /* p[i] is *(p + i), an lvalue like any other DEREF. */
+            curExpr = mkExpr(DEREF, ptrBase(l4typ3z),
+                             mkExpr(INTPLUS, l4typ3z, l4exp1z,
+                                    scaleIdx(curExpr, l4step6z)), NULL);
+        } else if (l4typ3z.p.pk != kindArray) {
             error(errWrongVarTypeBefore);
         } else {
             l4exp1z  =  mkExpr(GETELT, l4typ3z.rep->base,
@@ -5658,12 +5694,12 @@ eptr arg;
 int areTypesCompatible(eptr *l4arg1z) {
     if (arg1Type == realType) {
         if (typeCheck(intType, arg2Type)) {
-            castToReal(l4arg1z);
+            castToReal(&curExpr);
             return true;
         }
     } else if ((arg2Type == realType) &&
                typeCheck(intType, arg1Type)) {
-        castToReal(&curExpr);
+        castToReal(l4arg1z);
         return true;
     }
     return false;
@@ -5785,7 +5821,7 @@ void bldBitOp(operator oper, eptr leftArg) {
         curExpr = uVarPtr;
         return;
     }
-    curExpr = mkExprFold(oper, arg1Type, leftArg, curExpr);
+    curExpr = mkExprFold(oper, arg2Type, leftArg, curExpr);
 } /* bldBitOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5793,18 +5829,43 @@ void bldArithOp(operator oper, eptr leftExpr, int match) {
 kind k1, k2;
 operator resOp;
 tptr resTyp;
+int lstep, rstep;
     k1 = arg1Type.p.pk;
     k2 = arg2Type.p.pk;
-    if (isCharPtr(arg1Type) && typeCheck(intType, arg2Type)) {
-        resOp = intOpMap[oper];
-        resTyp = charPtrType;
-        curExpr = mkExpr(resOp, resTyp, leftExpr, curExpr);
+    /* A char pointer is a byte index into flat memory: the byte is already
+       its unit, so a count applies as it stands, and either operand may be
+       the pointer.  The operands stay in source order, which an op-assign
+       depends on -- it drops this node's expr1 and takes expr2 as the
+       right-hand side. */
+    if ((isCharPtr(arg1Type) && typeCheck(intType, arg2Type)) ||
+        (isCharPtr(arg2Type) && typeCheck(intType, arg1Type))) {
+        curExpr = mkExpr(intOpMap[oper], charPtrType, leftExpr, curExpr);
         return;
     }
-    if (isCharPtr(arg2Type) && typeCheck(intType, arg1Type)) {
-        resOp = intOpMap[oper];
-        resTyp = charPtrType;
-        curExpr = mkExpr(resOp, resTyp, curExpr, leftExpr);
+    /* Pointer arithmetic steps in pointee units: the integer operand is
+       scaled to words here, so codegen sees an ordinary integer add.  Any
+       combination not taken apart below -- a scaling operator, 'int - ptr',
+       a sum of two pointers -- falls into the rejection that follows. */
+    lstep  =  eltStep(arg1Type);
+    rstep  =  eltStep(arg2Type);
+    if (lstep != 0 && rstep != 0) {
+        if (oper == MINUSOP && typeCheck(arg1Type, arg2Type)) {
+            curExpr = mkExpr(INTMINUS, intType, leftExpr, curExpr);
+            if (lstep != 1)
+                curExpr = mkExprFold(IDIVOP, intType, curExpr, mkIntLit(lstep));
+            return;
+        }
+    } else if (lstep != 0) {
+        if ((oper == PLUSOP || oper == MINUSOP) &&
+            typeCheck(intType, arg2Type)) {
+            curExpr = mkExpr(intOpMap[oper], arg1Type,
+                             leftExpr, scaleIdx(curExpr, lstep));
+            return;
+        }
+    } else if (rstep != 0 && oper == PLUSOP &&
+               typeCheck(intType, arg1Type)) {
+        curExpr = mkExpr(INTPLUS, arg2Type,
+                         scaleIdx(leftExpr, rstep), curExpr);
         return;
     }
     if (k1 > kindScalar || k2 > kindScalar) {
@@ -5818,9 +5879,9 @@ tptr resTyp;
             goto 1;
         }
         if (k1 != kindReal)
-            castToReal(&curExpr);
-        if (k2 != kindReal)
             castToReal(&leftExpr);
+        if (k2 != kindReal)
+            castToReal(&curExpr);
         resOp = oper;
         resTyp = realType;
     } else {
@@ -5843,8 +5904,8 @@ operator resOp;
         }
     } else  {
         if (!areTypesCompatible(&ex2) &&
-            ((arg1Type != intType) ||
-             (arg2Type.p.pk != kindScalar) ||
+            ((arg2Type != intType) ||
+             (arg1Type.p.pk != kindScalar) ||
             (oper != INOP))) {
             goto 1;
         }
@@ -6130,7 +6191,7 @@ int stProcNo, checkMode, resultValue;
     if (charClass == INCROP || charClass == DECROP) {
         if (! (curExpr->op IN lvalOpSet))
             error(27);
-        if (! typeCheck(curExpr->typ, intType))
+        if (! typeCheck(curExpr->typ, intType) && eltStep(curExpr->typ) == 0)
             error(62);
         l4var1z = (charClass == INCROP);
         inSymbol();
@@ -6231,7 +6292,7 @@ eptr leftExpr;
                 error(27); /* errExpressionWhereVariableExpected */
                 return;
             }
-            if (! typeCheck(arg1Type, intType)) {
+            if (! typeCheck(arg1Type, intType) && eltStep(arg1Type) == 0) {
                 error(62); /* errIntegerNeeded */
                 return;
             }
@@ -6340,8 +6401,8 @@ int match;
             parsePrc(curPrec + 1);
 
             /* Build AST node based on operator type */
-            arg1Type = curExpr->typ;
-            arg2Type = leftExpr->typ;
+            arg1Type = leftExpr->typ;
+            arg2Type = curExpr->typ;
             match = typeCheck(arg1Type, arg2Type);
 
             switch (curPrec) {

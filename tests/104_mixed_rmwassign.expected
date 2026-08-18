@@ -1,0 +1,13 @@
+ BINL    13
+ BINR    13
+ BINS     7
+ BINT    -7
+ BINM    30
+ PLEQ    13
+ MIEQ     7
+ MUEQ    30
+ FRAC    11
+ INTL    15
+ REL    1 0 0 0
+ BIT     73   I
+ IN     1 0

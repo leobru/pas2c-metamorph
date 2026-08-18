@@ -1,0 +1,10 @@
+/*=s8,y+,k9,l0*/
+// A normal routine can be passed to a pointer-to-function parameter.
+// A standard function is a call form, not a routine designator.
+int negate(int value) { return -value; }
+void consume(int (*fn)(int)) {}
+
+void main() {
+    consume(negate);
+    consume(CARD);
+}

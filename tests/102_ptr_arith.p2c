@@ -1,0 +1,104 @@
+/*=s8,y+,k9,l0*/
+//
+// Pointer arithmetic steps in pointee units: 'p + 1' advances by one whole
+// structure, however many words that is, and 'q - p' counts structures, not
+// words.  The scaling is a multiply folded into the expression at
+// construction, so codegen sees an ordinary integer add and the pointer
+// keeps its type -- '(p + 2)->field', '*(p + 2)' and 'p[i]' all follow.
+// Sizes one, two, three, five and thirty words are exercised side by side,
+// the size being what the scaling turns on.
+//
+typedef void *anyptr;
+const NULL = anyptr(074000);
+typedef struct { int a; } w1;
+typedef struct { int a, b; } w2;
+typedef struct { int a, b, c; } w3;
+typedef struct { int a, b, c, d, e; } w5;
+typedef struct { int x[0..29]; } w30;
+//
+w1 t1[0..3];
+w2 t2[0..3];
+w3 t3[0..3];
+w5 t5[0..3];
+w30 t30[0..3];
+w1 *p1, *q1;
+w2 *p2, *q2;
+w3 *p3, *q3;
+w5 *p5, *q5;
+w30 *p30, *q30;
+w3 *ptab[0..3];
+w3 **pp;
+int i, k;
+//
+void main() {
+    for (i = 0; i <= 3; i = i + 1) {
+        t1[i].a  =  10 + i;
+        t2[i].a  =  20 + i;   t2[i].b  =  200 + i;
+        t3[i].a  =  30 + i;   t3[i].c  =  300 + i;
+        t5[i].a  =  50 + i;   t5[i].e  =  500 + i;
+        t30[i].x[0]  =  70 + i;   t30[i].x[29]  =  700 + i;
+    }
+    p1  =  &t1[0];  p2  =  &t2[0];  p3  =  &t3[0];
+    p5  =  &t5[0];  p30  =  &t30[0];
+    // One step of 'p + 2' at each size.
+    writeln(' ADD   ', (p1 + 2)->a:4, (p2 + 2)->b:5, (p3 + 2)->c:5,
+            (p5 + 2)->e:5, (p30 + 2)->x[29]:5);
+    writeln(' COMM  ', (2 + p3)->a:4, (p3 + 2)->a:4);
+    q1  =  p1 + 3;  q2  =  p2 + 3;  q3  =  p3 + 3;
+    q5  =  p5 + 3;  q30  =  p30 + 3;
+    writeln(' SUB   ', (q1 - 1)->a:4, (q2 - 1)->b:5, (q3 - 1)->c:5,
+            (q5 - 1)->e:5, (q30 - 1)->x[0]:5);
+    // A difference counts elements, whatever the element is.
+    writeln(' DIFF  ', (q1 - p1):3, (q2 - p2):3, (q3 - p3):3,
+            (q5 - p5):3, (q30 - p30):3);
+    writeln(' NEGD  ', (p1 - q1):4);
+    // p[i] is *(p + i), with a constant and with a variable index.
+    writeln(' IDX   ', p3[0].a:4, p3[3].a:4, p3[2].c:5);
+    i  =  2;
+    writeln(' IDXV  ', p3[i].a:4, p3[i].c:5, p5[i].e:5, p30[i].x[29]:5);
+    // Stores through a computed pointer: an element, a whole structure,
+    // a field.
+    p3[1].a  =  91;
+    p5[1].e  =  92;
+    *(p3 + 2)  =  t3[0];
+    (p3 + 3)->c  =  93;
+    writeln(' STORE ', t3[1].a:4, t5[1].e:4, t3[2].a:4, t3[2].c:5, t3[3].c:4);
+    // Stepping by one, in every spelling.
+    p3  =  &t3[0];
+    p3++;
+    writeln(' INC   ', p3->a:4);
+    ++p3;
+    writeln(' PREI  ', p3->a:4);
+    p3--;
+    writeln(' DEC   ', p3->a:4);
+    p3  +=  2;
+    writeln(' PLEQ  ', p3->a:4);
+    p3  -=  3;
+    writeln(' MIEQ  ', p3->a:4);
+    // The value of a step is the pointer before or after it.
+    p3  =  &t3[0];
+    q3  =  p3++;
+    writeln(' POST  ', q3->a:4, p3->a:4, (p3 - q3):3);
+    p3  =  &t3[0];
+    q3  =  ++p3;
+    writeln(' PRE   ', q3->a:4, p3->a:4);
+    // Walking an array with a pointer.
+    p5  =  &t5[0];
+    q5  =  &t5[3];
+    k  =  0;
+    while (p5 <= q5) {
+        k  =  k + p5->a;
+        p5++;
+    }
+    writeln(' WALK  ', k:5);
+    // A pointer to a pointer steps one word, whatever it points at.
+    ptab[0]  =  &t3[0];  ptab[1]  =  &t3[1];
+    ptab[2]  =  &t3[2];  ptab[3]  =  &t3[3];
+    pp  =  &ptab[0];
+    writeln(' PP    ', (*(pp + 2))->a:4, pp[1]->a:4, ((pp + 3) - pp):3);
+    // Heap storage indexed as an array.
+    p3  =  malloc(4 * sizeof(w3));
+    for (i = 0; i <= 3; i = i + 1)
+        p3[i].a  =  40 + i;
+    writeln(' HEAP  ', p3[0].a:4, p3[3].a:4, (p3 + 3)->a:4);
+}

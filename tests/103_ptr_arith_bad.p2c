@@ -1,0 +1,41 @@
+/*=s8,y+,k9,l0*/
+//
+// The rejections.  Pointer arithmetic scales by the pointee's size, so it
+// wants a pointer that has one: a void pointer, which is what '&x' and NULL
+// are here, and a pointer to a routine, whose value is an entry address, both
+// report error 21.  So do multiplication and division of a pointer,
+// 'int - ptr', a sum of two pointers, and a difference of pointers to
+// unrelated things.
+//
+typedef void *anyptr;
+const NULL = anyptr(074000);
+typedef struct { int a, b, c; } w3;
+typedef struct { int a, b, c, d, e; } w5;
+//
+w3 t3[0..3];
+w3 *p3, *q3;
+w5 s5;
+w5 *p5;
+int (*fp)(int);
+int g, k;
+//
+int twice(int x) {
+    return x + x;
+}
+//
+void main() {
+    p3  =  &t3[0];
+    q3  =  &t3[2];
+    p5  =  &s5;
+    fp  =  twice;
+    k  =  int(p3 * 2);
+    k  =  int(p3 / 2);
+    p3  =  2 - p3;
+    p3  =  p3 + q3;
+    k  =  p3 - p5;
+    p3  =  &g + 1;
+    p3  =  NULL + 1;
+    fp  =  fp + 1;
+    fp++;
+    writeln(' UNREACHED ', k:0);
+}
