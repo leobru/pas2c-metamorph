@@ -1,11 +1,14 @@
 /*=s8,y+,k9,l0*/
 //
 // The rejections.  Pointer arithmetic scales by the pointee's size, so it
-// wants a pointer that has one: a void pointer, which is what '&x' and NULL
-// are here, and a pointer to a routine, whose value is an entry address, both
-// report error 21.  So do multiplication and division of a pointer,
-// 'int - ptr', a sum of two pointers, and a difference of pointers to
-// unrelated things.
+// wants a pointer that has one: NULL, a void pointer, and a pointer to a
+// routine, whose value is an entry address, both report error 21.  So do
+// multiplication and division of a pointer, 'int - ptr', a sum of two
+// pointers, and a difference of pointers to unrelated things.
+//
+// '&' yields a pointer to the lvalue's type, so an address of the wrong type
+// is caught where it lands: '&g + 1' and '&k' are both 'int *', and error 33
+// against a 'w3 *'.
 //
 typedef void *anyptr;
 const NULL = anyptr(074000);
@@ -34,6 +37,7 @@ void main() {
     p3  =  p3 + q3;
     k  =  p3 - p5;
     p3  =  &g + 1;
+    q3  =  &k;
     p3  =  NULL + 1;
     fp  =  fp + 1;
     fp++;

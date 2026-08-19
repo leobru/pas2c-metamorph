@@ -638,7 +638,7 @@ struct KeyWord : public BESM6Obj {
     KeyWord * next;
     Word w;
     Symbol sym;
-    // A TYPESY keyword (int, char, float, __alfa, void) carries its type;
+    // A TYPESY keyword (int, char, float, void) carries its type;
     // every other keyword carries the character class of its first symbol.
     union {
         Operator op;
@@ -906,7 +906,6 @@ TPtr RealType;
 TPtr CharType;
 TPtr charPtrType, flatMemType;
 IdentRecPtr flatMemVar;
-TPtr AlfaType;
 
 TPtr arg1Type, arg2Type;
 
@@ -7161,21 +7160,32 @@ void parseUnaryExpression()
                 curExpr->expr1->id1 == flatMemVar) {
                 curExpr = curExpr->expr2;
                 curExpr->vt.typ = charPtrType;
-            } else if (arg1Type == CharType)
-                curExpr = mkExpr(INTPLUS, charPtrType,
-                    mkExpr(IMULOP, IntegerType,
-                           mkCastInt(mkRef(curExpr)), mkIntLit(6)),
-                    mkIntLit(5));
-            else if (curExpr->op == GETELT and
-                     isCharArray(curExpr->expr1->vt.typ))
+            } else if (curExpr->op == GETELT and
+                       isCharArray(curExpr->expr1->vt.typ) and
+                       curExpr->expr1->vt.typ.rep()->pck) {
+                /* A packed char array holds six 8-bit bytes to a word, so an
+                   element's byte index is the array's word address times six
+                   plus the index, counted from the array's lower bound. */
+                ExprPtr idxExpr = curExpr->expr2;
+                if (curExpr->expr1->vt.typ.rep()->aleft != 0)
+                    idxExpr = mkExprFold(INTMINUS, IntegerType, idxExpr,
+                                 mkIntLit(curExpr->expr1->vt.typ.rep()->aleft));
                 curExpr = mkExpr(INTPLUS, charPtrType,
                     mkExpr(IMULOP, IntegerType,
                            mkCastInt(mkRef(curExpr->expr1)),
                            mkIntLit(6)),
-                    curExpr->expr2);
+                    idxExpr);
+            } else if (arg1Type == CharType)
+                /* An unpacked char array's element has a word to itself, and
+                   a char value sits in its rightmost byte. */
+                curExpr = mkExpr(INTPLUS, charPtrType,
+                    mkExpr(IMULOP, IntegerType,
+                           mkCastInt(mkRef(curExpr)), mkIntLit(6)),
+                    mkIntLit(5));
             else {
-                curExpr = mkExpr(STANDPROC, voidPtr, curExpr, NULL);
-                curExpr->num2 = fnREF;
+                /* The address of an lvalue is a pointer to its type. */
+                curExpr = mkRef(curExpr);
+                curExpr->vt.typ = getPtrType(arg1Type);
             }
         } break;
         case INCROP: case DECROP: {
@@ -7519,7 +7529,7 @@ void caseStatement()
     parentExpression();
     exprtype = curExpr->vt.typ;
     otherSeen = false;
-    if (exprtype == AlfaType or exprtype.p.pk == kindScalar)
+    if (exprtype.p.pk == kindScalar)
         (void) formOperator(LOAD);
     else
         error(25); /* errExprNotOfADiscreteType */
@@ -8217,7 +8227,7 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
             verifyType(CharType);
             checkSymAndRead(COMMA);
             (void) formOperator(SETREG12);
-            verifyType(AlfaType);
+            verifyType(IntegerType);
             if (procNo == 1) {
                 (void) formOperator(LOAD);
             }
@@ -8745,16 +8755,6 @@ initScalars::initScalars() :
     voidPtr.p.bits = 15;
     voidPtr.p.pk = kindPtr;
 
-    AlfaType.setRep(besm6_alloc_record<Types>(offsetof(Types, szArray)));
-    AlfaType.rep()->base = CharType;
-    AlfaType.rep()->pck = true;
-    AlfaType.rep()->perword = 6;
-    AlfaType.rep()->pcksize = 8;
-    AlfaType.rep()->aleft = 0;
-    AlfaType.rep()->aright = 5;
-    AlfaType.p.psize = 1;
-    AlfaType.p.bits = 48;
-    AlfaType.p.pk = kindArray;
 
     charPtrType = getPtrType(CharType);
 
@@ -8779,7 +8779,6 @@ initScalars::initScalars() :
     flatMemVar->list() = NULL;
     flatMemVar->value() = 0;
 
-    smallStringType[6] = AlfaType;
     // The predefined type names are reserved words carrying their type,
     // not identifiers: they cannot be shadowed, and they are recognized
     // in every lookup mode.  '_' shares the code of '*', cf. "**PACKED".
@@ -8787,10 +8786,9 @@ initScalars::initScalars() :
     symType = IntegerType;  regResWord(0515664L      /*"     INT"*/);
     symType = CharType;     regResWord(043504162L    /*"    CHAR"*/);
     symType = RealType;     regResWord(04654574164L  /*"   FLOAT"*/);
-    symType = AlfaType;     regResWord(0121241544641L/*"  **ALFA"*/);
     symType = voidType;     regResWord(066575144L    /*"    VOID"*/);
     maxSmallString = 0;
-    for (strLen = 2; strLen <= 5; ++strLen)
+    for (strLen = 2; strLen <= 6; ++strLen)
         smallStringType[strLen] = makeStringType();
     maxSmallString = 6;
 

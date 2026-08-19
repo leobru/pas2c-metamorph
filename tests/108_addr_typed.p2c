@@ -1,0 +1,87 @@
+/*=s8,y+,k9,l0*/
+//
+// '&' yields a pointer to the lvalue's type, as in C.  '&x' on an int is an
+// 'int *', '&a[i]' points at the element and '&s.f' at the field, '&p' adds
+// a level, and '&a' on a whole array is a pointer to the array, so '*pa' is
+// the array again.  Every one of them carries a step, so arithmetic works
+// from an address as it does from a pointer variable.
+//
+// A char lvalue keeps its own rule, a 'char *' being a byte index into flat
+// memory: an element of a packed char array, six bytes to a word, is the
+// array's word address times six plus the index counted from the array's
+// lower bound, while an unpacked array's element has a word to itself and
+// its value sits in the rightmost byte.
+//
+typedef struct { int a, b, c; } w3;
+//
+int x;
+int arr[0..4];
+int (*pa)[0..4];
+w3 t3[0..3];
+w3 *p3;
+w3 *ptab[0..3];
+w3 **pp;
+int *p, *q;
+typedef __packed char alfa[0..5];
+alfa al;
+__packed char s[0..11];
+__packed char t[1..6];
+char un[0..5];
+char *cp;
+int i;
+//
+void main() {
+    // A scalar's address, read and written through.
+    x  =  41;
+    p  =  &x;
+    *p  =  *p + 1;
+    writeln(" SCALAR", x:4, (*p):4);
+    // An element's address steps by the element.
+    for (i = 0; i <= 4; i = i + 1)
+        arr[i]  =  10 * i;
+    p  =  &arr[1];
+    q  =  &arr[4];
+    writeln(" ELT   ", (*p):4, (*(p + 1)):4, (*(q - 1)):4, (q - p):3);
+    // The same with a variable index, and a difference of two addresses.
+    i  =  2;
+    p  =  &arr[i] + 1;
+    writeln(" VARIDX", (*p):4, (&arr[3] - &arr[0]):3);
+    // A field's address, and arithmetic on a structure's address.
+    for (i = 0; i <= 3; i = i + 1) {
+        t3[i].a  =  100 + i;
+        t3[i].c  =  300 + i;
+    }
+    p  =  &t3[1].a;
+    p3  =  &t3[0];
+    writeln(" STRUCT", (*p):5, (p3 + 2)->c:5, (&t3[2] - &t3[0]):3);
+    // '&' on a pointer adds a level.
+    ptab[0]  =  &t3[0];  ptab[1]  =  &t3[1];  ptab[2]  =  &t3[2];
+    pp  =  &ptab[0];
+    writeln(" PP    ", (*pp)->a:5, (*(pp + 2))->a:5, pp[1]->a:5);
+    // '&' on a whole array is a pointer to the array.
+    pa  =  &arr;
+    writeln(" ARRPTR", (*pa)[2]:4, sizeof(*pa):3, sizeof(pa):3);
+    // An element of a packed char array, read and stored through.
+    al  =  "ABCDEF";
+    cp  =  &al[2];
+    writeln(" ALFA  ", *cp, cp[1], *(cp - 2));
+    *cp  =  'Z';
+    write(" STORE ");
+    write(al);
+    writeln;
+    // A packed array wider than a word: index 7 lies in the second word.
+    for (i = 0; i <= 11; i = i + 1)
+        s[i]  =  char(65 + i);
+    cp  =  &s[7];
+    writeln(" WIDE  ", *cp, *(cp - 1), *(cp + 4));
+    // A packed array whose lower bound is not zero.
+    for (i = 1; i <= 6; i = i + 1)
+        t[i]  =  char(64 + i);
+    cp  =  &t[3];
+    writeln(" LOWB  ", *cp, *(cp + 2), *(cp - 2));
+    // An unpacked char array still has its elements six bytes apart.
+    for (i = 0; i <= 5; i = i + 1)
+        un[i]  =  char(80 + i);
+    cp  =  &un[2];
+    writeln(" UNPK  ", *cp, cp[6], int(cp[1]):4);
+}

@@ -1,7 +1,9 @@
 /*=s8,y+,k9,l0*/
 //
-// String constants and __alfa use the same zero-based packed-char type.
-__alfa a;
+// A string constant and a declared packed char array are the same
+// zero-based type.
+typedef __packed char alfa[0..5];
+alfa a;
 char s[6];
 int i;
 

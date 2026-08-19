@@ -5,13 +5,15 @@
 // pack into a word -- are that word as an int, so the literal compares,
 // assigns and labels a case like any other integer.  Double quotes give a
 // packed character array of the length written, which is what write takes as
-// text and what an __alfa holds.  Beyond one word a single-quoted literal
+// text and what a one-word packed char array holds.  Beyond one word a
+// single-quoted literal
 // stays an array, since there is no integer for it to be.
 //
 // The word is packed left to right and padded with spaces, so shifting a
 // two-character constant right by 40 leaves its first character.
 //
-__alfa a;
+typedef __packed char alfa[0..5];
+alfa a;
 int i, k;
 char c;
 //
@@ -27,7 +29,7 @@ void main() {
     write('ABCDEFG');
     write("ABCDEFG");
     writeln;
-    // Six characters in double quotes fill an __alfa.
+    // Six characters in double quotes fill a one-word packed char array.
     a  =  "ALFA!!";
     write(" ALFA   ");
     write(a);

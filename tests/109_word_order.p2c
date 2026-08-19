@@ -1,0 +1,49 @@
+/*=s8,y+,k9,l0*/
+//
+// Ordering of a one-word value follows its type.  A scalar is compared
+// arithmetically; anything else -- a pointer, a packed array, a struct --
+// is compared as an unsigned 48-bit pattern.  Equality is the same
+// operation for every type.
+//
+// 'uword' names the void pointer, so a cast to it orders two words by their
+// bits, which is what a sorted table of arbitrary words needs.  A one-word
+// packed char array orders the same way with no cast.
+//
+typedef void *uword;
+typedef __packed char alfa[0..5];
+//
+int w[0..3];
+alfa a, b;
+int i, j;
+//
+void main() {
+    // Four words in ascending order of their leading byte: 0, then a space
+    // (040), then 'A' (0101), then 'Z' (0132).
+    w[0]  =  1;
+    w[1]  =  '      ';
+    w[2]  =  'AAAAAA';
+    w[3]  =  'ZZZZZZ';
+    writeln(" ASC   ", (uword(w[0]) < uword(w[1])):2,
+            (uword(w[1]) < uword(w[2])):2, (uword(w[2]) < uword(w[3])):2);
+    writeln(" DESC  ", (uword(w[1]) < uword(w[0])):2,
+            (uword(w[2]) < uword(w[1])):2, (uword(w[3]) < uword(w[2])):2);
+    // The other orderings, on one pair.
+    writeln(" REL   ", (uword(w[1]) <= uword(w[2])):2,
+            (uword(w[2]) > uword(w[1])):2, (uword(w[1]) >= uword(w[1])):2);
+    // The two orderings differ where the sign bit is set: -1 is below 1 as
+    // a number and above it as a bit pattern.
+    i  =  -1;
+    j  =  1;
+    writeln(" SIGN  ", (i < j):2, (uword(i) < uword(j)):2);
+    // A packed char array orders by the same rule without a cast.
+    a  =  "AAAAAA";
+    b  =  "ZZZZZZ";
+    writeln(" ALFA  ", (a < b):2, (b < a):2, (a <= b):2, (a == b):2);
+    // Equality reads the same whatever the spelling.
+    i  =  'AAAAAA';
+    writeln(" EQ    ", (i == w[2]):2, (uword(i) == uword(w[2])):2,
+            (i != w[3]):2);
+    // Each of them is one word.
+    writeln(" SIZE  ", sizeof(int):2, sizeof(uword):2, sizeof(alfa):2,
+            sizeof(a):2);
+}

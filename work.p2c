@@ -232,7 +232,6 @@ typedef int:6 textchar;
 typedef union {
     int i;
     float r;
-    __alfa a;
     __packed textchar t[8];
     char c;
     idclass cl;
@@ -313,7 +312,7 @@ typedef struct {
 typedef struct {
     int w;
     symbol sym;
-    // A TYPESY keyword (int, char, float, __alfa, void) carries its type;
+    // A TYPESY keyword (int, char, float, void) carries its type;
     // every other keyword carries the character class of its first symbol.
     union {
         operator op;
@@ -388,6 +387,13 @@ typedef void *anyptr;
 // pointer comparison or assignment.  (It cannot be called voidptr: that
 // collides with the global voidPtr, identifiers being case-insensitive.)
 const NULL = anyptr(074000);
+// A word ordered as a bit pattern: comparison of a one-word non-scalar is
+// unsigned, where a scalar's is arithmetic.  The FCST pool is sorted and
+// binary-searched, and holds arbitrary literals, so that is the order it
+// needs.  uword denotes the voidPtr singleton, as anyptr does.
+typedef void *uword;
+// Six characters in a word, the shape a six-character string constant has.
+typedef __packed char alfa[6];
 //
 NumberFormat numFormat;
 setofsys statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
@@ -427,7 +433,7 @@ int strLen;
 int heapCallsCnt;
 int heapSize;
 int arithMode;
-__alfa stmtName;
+alfa stmtName;
 kword *keywordHashPtr;
 kind curVarKind;
 pextf curExternFile;
@@ -467,7 +473,6 @@ tptr realType;
 tptr charType;
 tptr charPtrType, flatMemType;
 irptr flatMemVar;
-tptr alfaType;
 tptr symType; // the type denoted by the current TYPESY
 tptr arg1Type;
 tptr arg2Type;
@@ -646,7 +651,7 @@ int resWordName[19] = {
 int longSymCnt;
 int longSym[1..90];
 int longSyms[1..90];
-__alfa constVals[1..500];
+int constVals[1..500];
 int constNums[1..500];
 int objBuffer[1..1024];
 char iso2text['\052'..'\177'];
@@ -665,11 +670,11 @@ typedef struct {
    /*18*/ int flags;
 } pasinfotyp;
 extern pasinfotyp pasinfor;
-extern __alfa paseofcd;
+extern alfa paseofcd;
 //
 // %%%%%%%%%%%% Libc functions %%%%%%%%%%%
 //
-int mapai(__alfa a) assembler;
+int mapai(int) assembler;
 void longjmp(int jmpbuf, int val) assembler;
 int setjmp(int *jmpbuf) assembler;
 int setup() assembler;
@@ -770,7 +775,7 @@ tptr res;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void addToHashTab(irptr arg) {
     curVal.i  =  arg->id & hashMask;
-    curVal.i = mapai(curVal.a);
+    curVal.i = mapai(curVal.i);
     arg->pck.p.next  =  symHash[curval.i];
     symHash[curval.i]  =  arg;
 } /* addToHashTab */
@@ -787,29 +792,29 @@ int low, high, mid;
     low  =  1;
     if (FcstCountTo500 == 0) {
         FcstCountTo500  =  1;
-        constVals[1]  =  curVal.a;
+        constVals[1]  =  curVal.i;
         constNums[1]  =  FcstCnt;
     } else {
         high  =  FcstCountTo500;
         do {
             mid  =  (low + high) / 2;
-            if (curVal.a == constVals[mid]) {
+            if (curVal.i == constVals[mid]) {
                 return constNums[mid];
             }
-            if (curval.a < constVals[mid])
+            if (uword(curval.i) < uword(constVals[mid]))
                 high  =  mid - 1;
             else
                 low  =  mid + 1;
         } while (high >= low);
         if (FcstCountTo500 != 500) {
-            high  =  curval.a < constVals[mid] ? mid : mid + 1;
+            high  =  uword(curval.i) < uword(constVals[mid]) ? mid : mid + 1;
             for (mid  =  FcstCountTo500; mid >= high; --mid) {
                 low  =  mid + 1;
                 constVals[low]  =  constVals[mid];
                 constNums[low]  =  constNums[mid];
             }
             ++FcstCountTo500;
-            constVals[high]  =  curVal.a;
+            constVals[high]  =  curVal.i;
             constNums[high]  =  FcstCnt;
         }
     }
@@ -1096,14 +1101,14 @@ word value;
             if (value == symTabArray[mid]) {
                 return symtbidx[mid];
             }
-            if ( value.a < symTabArray[mid].a)
+            if (uword(value.i) < uword(symTabArray[mid].i))
                  high  =  mid;
             else
                  low  =  mid + 1;
         } while (high > low);
         ret  =  symTabPos;
         if (symTabCnt != 80) {
-            high  =  (value.a < symTabArray[mid].a) ? mid : mid + 1;
+            high  =  uword(value.i) < uword(symTabArray[mid].i) ? mid : mid + 1;
             for (low  =  symTabCnt; low > high; --low) {
                 mid  =  low - 1;
                 symTabArray[low]  =  symTabArray[mid];
@@ -1445,7 +1450,7 @@ void lexer() {
             }
         } while (chrClass[CH] == ALNUM);
         curVal.i  =  curToken.i & hashMask;
-        bucket = mapAI(curVal.a);
+        bucket = mapAI(curVal.i);
         curIdent  =  curToken.i;
         keywordHashPtr  =  kwordHash[bucket];
         while (keywordHashPtr != NULL) {
@@ -1648,14 +1653,14 @@ void lexer() {
             SY  =  CHARCONST;
             tokenLen  =  1;
             curToken.i  =  0;
-            unpck(localBuf[0], curToken.a);
-            pck(localBuf[tokenLen], curToken.a);
+            unpck(localBuf[0], curToken.i);
+            pck(localBuf[tokenLen], curToken.i);
             return;
         } else 2320: {
-            curVal.a  =  "      ";
+            curVal.i  =  '      ';
             SY  =  STRINGSY;
-            unpck(localBuf[tokenIdx], curVal.a);
-            pck(localBuf[6], curToken.a);
+            unpck(localBuf[tokenIdx], curVal.i);
+            pck(localBuf[6], curToken.i);
             curVal  =  curToken;
             if (strLen <= 6) {
                 if (litQuote == '\'')
@@ -1674,7 +1679,7 @@ void lexer() {
                     tokenLen += 6;
                     if (tokenIdx < tokenLen)
                         return;
-                    pck(localBuf[tokenLen], curVal.a);
+                    pck(localBuf[tokenLen], curVal.i);
                 }
             }
         }
@@ -1836,7 +1841,7 @@ irptr l3var3z, l3var4z;
 //
     if (l3arg1z == NULL) {
         curVal.i  =  l3arg2z->id & hashMask;
-        l3var2z = mapAI(curVal.a);
+        l3var2z = mapAI(curVal.i);
         l3var1z  =  true;
         l3arg1z  =  symHash[l3var2z];
     } else {
@@ -1949,7 +1954,7 @@ int leftAlign(int val) {
 void regResWord(int keyword) {
     kword *kw;
     curVal.i  =  keyword & hashMask;
-    curVal.i = mapai(curVal.a);
+    curVal.i = mapai(curVal.i);
     kw = malloc(sizeof(kword));
     { register kword *kwp = kw;
         kwp->w  =  keyword;
@@ -4547,7 +4552,7 @@ void takeConstFromExpr() {
 void markTypeSym() {
     if (SY == IDENT) {
         curVal.i  =  curIdent & hashMask;
-        bucket = mapAI(curVal.a);
+        bucket = mapAI(curVal.i);
         hashTravPtr  =  symHash[bucket];
         while ((hashTravPtr != NULL) && (hashTravPtr->id != curIdent))
             hashTravPtr  =  hashTravPtr->pck.p.next;
@@ -6280,21 +6285,32 @@ eptr leftExpr;
                 (curExpr->expr1->id1 == flatMemVar)) {
                 curExpr = curExpr->expr2;
                 curExpr->typ = charPtrType;
-            } else if (arg1Type == charType) {
-                curExpr = mkExpr(INTPLUS, charPtrType,
-                    mkExpr(IMULOP, intType,
-                           mkCastInt(mkRef(curExpr)), mkIntLit(6)),
-                    mkIntLit(5));
             } else if ((curExpr->op == GETELT) &&
-                       isCharArray(curExpr->expr1->typ)) {
+                       isCharArray(curExpr->expr1->typ) &&
+                       curExpr->expr1->typ.rep->pck) {
+                /* A packed char array holds six 8-bit bytes to a word, so an
+                   element's byte index is the array's word address times six
+                   plus the index, counted from the array's lower bound. */
+                leftExpr = curExpr->expr2;
+                if (curExpr->expr1->typ.rep->aleft != 0)
+                    leftExpr = mkExprFold(INTMINUS, intType, leftExpr,
+                                 mkIntLit(curExpr->expr1->typ.rep->aleft));
                 curExpr = mkExpr(INTPLUS, charPtrType,
                     mkExpr(IMULOP, intType,
                            mkCastInt(mkRef(curExpr->expr1)),
                            mkIntLit(6)),
-                    curExpr->expr2);
+                    leftExpr);
+            } else if (arg1Type == charType) {
+                /* An unpacked char array's element has a word to itself, and
+                   a char value sits in its rightmost byte. */
+                curExpr = mkExpr(INTPLUS, charPtrType,
+                    mkExpr(IMULOP, intType,
+                           mkCastInt(mkRef(curExpr)), mkIntLit(6)),
+                    mkIntLit(5));
             } else {
-                curExpr = mkExpr(STANDPROC, voidPtr, curExpr, NULL);
-                curExpr->num2 = fnREF;
+                /* The address of an lvalue is a pointer to its type. */
+                curExpr = mkRef(curExpr);
+                curExpr->typ = getPtrType(arg1Type);
             }
             break;
         case INCROP:
@@ -7371,7 +7387,7 @@ tptr t;
         verifyType(charType);
         checkSymAndRead(COMMA);
         formOperator(SETREG12);
-        verifyType(alfaType);
+        verifyType(intType);
         if (procNo == 1) {
             formOperator(LOAD);
         }
@@ -7694,7 +7710,7 @@ int l3var7z;
             skipToEnd();
         }
         curVal.i  =  litMain & hashMask;
-        bucket = mapAI(curVal.a);
+        bucket = mapAI(curVal.i);
         l3idr5z  =  symHash[bucket];
         while ((l3idr5z != NULL) && (l3idr5z->id != litMain))
             l3idr5z  =  l3idr5z->pck.p.next;
@@ -7815,19 +7831,6 @@ void regSysProc(int l4arg1z) {
     voidPtr.p.psize  =  1;
     voidPtr.p.bits  =  48;
     voidPtr.p.pk  =  kindPtr;
-    alfaType.rep = malloc(offsetof(types, szArray));
-    { register types *ty = (alfaType.rep);
-        ty->base  =  charType;
-        ty->pck  =  true;
-        ty->perword  =  6;
-        ty->pcksize  =  8;
-        ty->aleft  =  0;
-        ty->aright  =  5;
-    }
-    alfaType.p.psize  =  1;
-    alfaType.p.bits  =  48;
-    alfaType.p.pk  =  kindArray;
-    smallStringType[6]  =  alfaType;
     charPtrType = getPtrType(charType);
     flatMemType.rep = malloc(offsetof(types, szArray));
     { register types *ty = (flatMemType.rep);
@@ -7858,10 +7861,9 @@ void regSysProc(int l4arg1z) {
     symType = intType;   regResWord('     INT');
     symType = charType;  regResWord('    CHAR');
     symType = realType;  regResWord('   FLOAT');
-    symType = alfaType;  regResWord('  **ALFA');
     symType = voidType;  regResWord('    VOID');
     maxSmallString  =  0;
-    for (strLen = 2; strLen <= 5; ++strLen)
+    for (strLen = 2; strLen <= 6; ++strLen)
         smallStringType[strlen] = makeStringType();
     maxSmallString  =  6;
     curIdRec = malloc(offsetof(identrec, szIdent));
