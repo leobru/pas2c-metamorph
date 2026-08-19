@@ -1,0 +1,13 @@
+/*=s8,y+,k9,l0*/
+//
+// An empty string constant is error 61.  The lexer reports it and carries on
+// with a length of one, so the constant still has to acquire a type; it takes
+// the same interned packed char array a one-character constant would, and the
+// compile ends with that single error rather than a second, spurious one.
+//
+char c;
+void main() {
+    write("");
+    c  =  'A';
+    writeln(" UNREACHED ", c);
+}

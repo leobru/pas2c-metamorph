@@ -517,7 +517,7 @@ struct OneInsn : public BESM6Obj {
 
 /* Interned derived-type descriptors (arrays, int:N scalars): a chain of
  * nodes so identical types share one heap record.  Nodes above a rolled-up
- * arena mark are dropped by internScope. */
+ * arena mark are dropped by myrollup. */
 struct InternRec : public BESM6Obj {
     TPtr ityp;
     InternRec * inext;
@@ -927,9 +927,6 @@ ExprPtr uVarPtr, curExpr;
 InsnList *  insnList;
 InternRec * internHead;
 ExtFileRec * fileForOutput, * fileForInput;
-int64_t maxSmallString;
-
-TPtr smallStringType[7]; // [2..6]
 int64_t symTabCnt;
 
 int64_t symTabArray[SYMTAB_MAX+1]; // array [1..80] of Word;
@@ -1028,6 +1025,9 @@ int64_t leftAlign(int64_t val);
 void addToHashTab(IdentRecPtr arg);
 void error(int64_t errNo);
 int64_t allocExtSymbol(int64_t newSym);
+// Defined below, past the declarator machinery it grew out of; a string
+// constant needs it here to type itself.
+TPtr makeArrayType(int64_t, int64_t, TPtr, bool);
 
 void defExtern()
 {
@@ -1311,32 +1311,6 @@ void regResWord(int64_t l4arg1z) {
     KeyWordHashTabBase[curVal.ii] = kw;
 } /* regResWord */
 
-TPtr makeStringType()
-{
-    TPtr res;
-    int64_t size;
-
-    if (maxSmallString >= strLen)
-        return smallStringType[strLen];
-    else {
-        res.setRep(besm6_alloc_record<Types>(offsetof(Types, szArray)));
-        size = (strLen + 5) / 6;
-        res.p.bits = 0;
-        res.p.psize = size;
-        if (size == 1)
-            res.p.bits = strLen * 8;
-        res.p.pk = kindArray;
-        Types & r = *res.rep();
-        r.base = CharType;
-        r.pck = true;
-        r.perword = 6;
-        r.pcksize = 8;
-        r.aleft = 0;
-        r.aright = strLen - 1;
-        return res;
-    }
-}
-
 /* An ordinary pointer type encoded wholly in the tptr word: rep, psize
  * and bits carry the ultimate non-pointer base, pad packs depth*8 plus
  * the base kind.  Base kind 0 is never encoded (pointer-to-void is the
@@ -1405,12 +1379,15 @@ int64_t eltStep(TPtr t)
     return typeSize(ptrBase(t));
 } /* eltStep */
 
-void internScope(int64_t bound)
+void myrollup(void * p)
 {
-/* Forget interned types allocated above the arena mark being rolled up. */
-    while (internHead != NULL and ord(internHead) >= bound)
+/* Forget interned types allocated above the mark being rolled up: every arena
+   rollback comes through here, and a statement's own rollback reclaims the
+   types its string constants built. */
+    while (internHead != NULL and ord(internHead) >= ord(p))
         internHead = internHead->inext;
-} /* internScope */
+    rollup(p);
+} /* myrollup */
 
 ExprPtr mkExpr(Operator oper, TPtr resTyp, ExprPtr e1, ExprPtr e2)
 {
@@ -2973,7 +2950,8 @@ L99:        litType.setRep(NULL);
             litType = CharType;
             break;
         case STRINGSY:
-            litType = makeStringType();
+            /* A string constant is a packed char array of its own length. */
+            litType = makeArrayType(0, strLen - 1, CharType, true);
             break;
         default: break;
         } /* case */
@@ -5400,16 +5378,16 @@ void markTypeSym()
 struct rangeRec { int64_t aleft, aright; };
 typedef rangeRec rangeList[21]; // array [1..20] of rangeRec;
 
-TPtr makeArrayType(rangeRec rg, TPtr elem, bool pckFlag)
+TPtr makeArrayType(int64_t aleft, int64_t aright, TPtr elem, bool makePacked)
 {
-    bool makePacked;
     int64_t span, l3int22z, numBits;
     int64_t sizeVal, bitsVal, perwordVal, pcksizeVal;
     TPtr arrayType{};
 
-    makePacked = pckFlag;
-    span = rg.aright - rg.aleft + 1;
+    span = aright - aleft + 1;
     l3int22z = typeBits(elem);
+    /* Nothing wider than half a word packs, so the request is refused here
+       and the type records what it was given. */
     if (24 < l3int22z)
         makePacked = false;
     InternRec * icand = internHead;
@@ -5417,8 +5395,8 @@ TPtr makeArrayType(rangeRec rg, TPtr elem, bool pckFlag)
         arrayType = icand->ityp;
         if (arrayType.p.pk == kindArray and
             arrayType.rep()->base == elem and
-            arrayType.rep()->aleft == rg.aleft and
-            arrayType.rep()->aright == rg.aright and
+            arrayType.rep()->aleft == aleft and
+            arrayType.rep()->aright == aright and
             arrayType.rep()->pck == makePacked)
             return arrayType;
         icand = icand->inext;
@@ -5450,8 +5428,8 @@ TPtr makeArrayType(rangeRec rg, TPtr elem, bool pckFlag)
         perwordVal = KMUL+ I8 + getFCSToffset();
     }
     arrayType.setRep(besm6_alloc_record<Types>(offsetof(Types, szArray)));
-    arrayType.rep()->aleft = rg.aleft;
-    arrayType.rep()->aright = rg.aright;
+    arrayType.rep()->aleft = aleft;
+    arrayType.rep()->aright = aright;
     arrayType.rep()->base = elem;
     arrayType.rep()->pck = makePacked;
     arrayType.rep()->perword = perwordVal;
@@ -5645,7 +5623,8 @@ void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
 // packedFlag mirrors parseTypeRef's own array-suffix handling ('TYPE
 // [range]', its curDim==1 case): only the outermost array dimension of
 // a multi-dim declarator (e.g. int matrix[2][3]'s [2]) carries it, since
-// pckFlag describes how elements of the final array are packed, not
+// makeArrayType's flag describes how elements of the final array are
+// packed, not
 // each nesting level. ops is applied innermost-first (reverse of source
 // order), so the outermost dimension is ops.front(), processed last.
 Declarator parseOneDeclarator(TPtr baseType, bool packedFlag = false,
@@ -5675,7 +5654,7 @@ Declarator parseOneDeclarator(TPtr baseType, bool packedFlag = false,
             d.ptrOnly = false;
             break;
         default:
-            d.type = makeArrayType(it->range, d.type,
+            d.type = makeArrayType(it->range.aleft, it->range.aright, d.type,
                                    packedFlag and (&*it == &ops.front()));
             d.ptrOnly = false;
         }
@@ -6174,8 +6153,8 @@ L12366:             error(errNotAType);
     }
     curType = tempType;
     for (curDim = rangeCnt; curDim >= 1; --curDim) {
-        curType = makeArrayType(ranges[curDim], curType,
-                                isPacked and (curDim == 1));
+        curType = makeArrayType(ranges[curDim].aleft, ranges[curDim].aright,
+                                curType, isPacked and (curDim == 1));
     }
     if (rangeCnt != 0)
         isPacked = false;
@@ -7795,7 +7774,7 @@ void parseInitializer(IdentRecPtr var) {
         if (braced and SY == LBRACK) {
             /* '[index]=' designator opens a new segment (parsePostfix's
                expression() consumes the '[' -- it needs readNext=true). */
-            rollup(boundary);
+            myrollup(boundary);
             setup(boundary);
             readNext = true;
             beginInitSeg(var, true);
@@ -7825,7 +7804,7 @@ void parseInitializer(IdentRecPtr var) {
         }
         break;
     }
-    rollup(boundary);
+    myrollup(boundary);
     if (braced)
         checkSymAndRead(ENDSY);
     /* the trailing ';' is consumed by the declarator loop */
@@ -7919,7 +7898,7 @@ void parseConstExpression()
     takeConstFromExpr();
     ceTyp = curExpr->vt.typ;
     ceVal = curVal;
-    rollup(boundary);
+    myrollup(boundary);
 } /* parseConstExpression */
 
 void returnOp() {
@@ -8478,7 +8457,7 @@ Statement::Statement()
       L_cleanup:
         if (nest)
             lineNesting = lineNesting - 1;
-        rollup(boundary);
+        myrollup(boundary);
         if (bool110z) {
             bool110z = false;
             skip(skipToSet | statEndSys); /* goto 8888 */
@@ -8787,10 +8766,6 @@ initScalars::initScalars() :
     symType = CharType;     regResWord(043504162L    /*"    CHAR"*/);
     symType = RealType;     regResWord(04654574164L  /*"   FLOAT"*/);
     symType = voidType;     regResWord(066575144L    /*"    VOID"*/);
-    maxSmallString = 0;
-    for (strLen = 2; strLen <= 6; ++strLen)
-        smallStringType[strLen] = makeStringType();
-    maxSmallString = 6;
 
     curIdRec = besm6_alloc_record<IdentRec>(
         offsetof(IdentRec, szIdent));
@@ -9411,8 +9386,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 setup(scopeBound);
                 inSymbol();
                 programme(l2int18z, curIdRec, true);
-                internScope(ord(scopeBound));
-                rollup(scopeBound);
+                myrollup(scopeBound);
                 exitScope(symHash);
                 exitScope(fieldHash);
                 goto L23301;

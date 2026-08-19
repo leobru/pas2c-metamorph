@@ -248,7 +248,7 @@ typedef struct {
 //
 /* Interned derived-type descriptors (arrays, int:N scalars): a chain of
  * nodes so identical types share one heap record.  Nodes above a rolled-up
- * arena mark are dropped by internScope. */
+ * arena mark are dropped by myrollup. */
 typedef internrec *inptr;
 typedef struct {
     tptr ityp;
@@ -494,8 +494,6 @@ eptr curExpr;
 insnltyp *insnList;
 inptr internHead;
 extfilerec *fileForOutput, *fileForInput;
-int maxSmallString;
-tptr smallStringType[2..6];
 int symTabCnt;
 word symtabarray[80];
 int symtbidx[80];
@@ -747,28 +745,6 @@ void printTextWord(int val) { /* printTextWord */
     write(' ');
     PASTPR(val);
 } /* printTextWord */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-//              makeStringType                %
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr makeStringType() {
-tptr res;
-    if (maxSmallString >= strLen)
-        return smallStringType[strLen];
-    res.rep = malloc(offsetof(types, szArray));
-    { register types *ty = (res.rep);
-        res.p.psize  =  (strLen + 5) / 6;
-        res.p.bits  =  res.p.psize == 1 ? strLen << 3 : 0;
-        ty->base  =  charType;
-        ty->pck  =  true;
-        ty->perword  =  6;
-        ty->pcksize  =  8;
-        ty->aleft  =  0;
-        ty->aright  =  strLen - 1;
-    }
-    res.p.pk  =  kindArray;
-    return res;
-} /* makeStringType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              addToHashTab              %
@@ -1786,6 +1762,74 @@ void errAndSkip(int errno, setofsys toset)
 } /* errAndSkip */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Every array type is interned: identical types share one heap record,
+// which a string constant relies on as much as a declaration does.  At
+// file scope because parseLiteral, below, types string constants with it.
+tptr makeArrayType(int aleft, int aright, tptr elementType, int makePacked) {
+int span, l3int22z, numBits;
+int sizeVal, bitsVal, perwordVal, pcksizeVal;
+tptr arrayType;
+inptr icand;
+    span  =  aright - aleft + 1;
+    l3int22z  =  typeBits(elementType);
+    /* Nothing wider than half a word packs, so the request is refused here
+       and the type records what it was given. */
+    if (24 < l3int22z)
+        makePacked  =  false;
+    icand  =  internHead;
+    while (icand != NULL) {
+        arrayType  =  icand->ityp;
+        if (arrayType.p.pk == kindArray &&
+            arrayType.rep->base == elementType &&
+            arrayType.rep->aleft == aleft &&
+            arrayType.rep->aright == aright &&
+            arrayType.rep->pck == makePacked)
+            return arrayType;
+        icand  =  icand->inext;
+    }
+    bitsVal  =  48;
+    perwordVal  =  0;
+    pcksizeVal  =  0;
+    if (makePacked) {
+        l3int22z  =  48 / l3int22z;
+        if (l3int22z == 9) {
+            l3int22z  =  8;
+        } else if (l3int22z == 5) {
+            l3int22z  =  4;
+        }
+        perwordVal  =  l3int22z;
+        pcksizeVal  =  48 / l3int22z;
+        l3int22z  =  span * pcksizeVal;
+        numBits  =  (l3int22z % 48 == 0) ? 0 : 1;
+        sizeVal  =  l3int22z / 48 + numBits;
+        if (sizeVal == 1)
+            bitsVal  =  l3int22z;
+    } else {
+        sizeVal  =  span * typeSize(elementType);
+        curVal.i  =  typeSize(elementType);
+        curVal.i  =  curVal.i & [7:47] | E48;
+        perwordVal  =  KMUL+ I8 + getFCSToffset();
+    }
+    arrayType.rep = malloc(offsetof(types, szArray));
+    { register types *ty = (arrayType.rep);
+        ty->aleft  =  aleft;
+        ty->aright  =  aright;
+        ty->base  =  elementType;
+        ty->pck  =  makePacked;
+        ty->perword  =  perwordVal;
+        ty->pcksize  =  pcksizeVal;
+    }
+    arrayType.p.psize  =  sizeVal;
+    arrayType.p.bits  =  bitsVal;
+    arrayType.p.pk  =  kindArray;
+    icand  =  malloc(sizeof(internrec));
+    icand->ityp  =  arrayType;
+    icand->inext  =  internHead;
+    internHead  =  icand;
+    return arrayType;
+} /* makeArrayType */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Returns the type of the literal; the value is assigned by reference
 // in the first argument.
 tptr parseLiteral(int *litValue, int allowSign) {
@@ -1828,7 +1872,8 @@ tptr ret;
             ret  =  charType;
             break;
         case STRINGSY:
-            ret = makeStringType();
+            /* A string constant is a packed char array of its own length. */
+            ret = makeArrayType(0, strLen - 1, charType, true);
         }; /* switch */
     return ret;
 } /* parseLiteral */
@@ -2064,6 +2109,11 @@ int isForwardRef;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void myrollup(int addr) {
 int top;
+    /* Forget interned types allocated above the mark being rolled up: every
+       arena rollback comes through here, and a statement's own rollback
+       reclaims the types its string constants built. */
+    while (internHead != NULL && int(internHead) >= addr)
+        internHead  =  internHead->inext;
     top = setup();
     if (top > maxHeap) {
         maxHeap = top;
@@ -4564,81 +4614,16 @@ void markTypeSym() {
 } /* markTypeSym */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// Promoted out of parseTypeRef (mirroring base.cc): makeArrayType
-// and the shared declarator parser below both need to construct/consume
-// range bounds, and a type nested inside a function is only visible
-// within that function's own scope in this codebase's Pascal-style
-// nesting -- so both live here, at programme's own level, declared
-// before parseTypeRef so that parseRecordDecl (nested inside it) can
-// also see them.
+// The shared declarator parser below constructs and consumes range
+// bounds, and a type nested inside a function is only visible within
+// that function's own scope in this codebase's Pascal-style nesting --
+// so rangeRec lives here, at programme's own level, declared before
+// parseTypeRef so that parseRecordDecl (nested inside it) can also see
+// it.
 typedef struct {
             int aleft, aright;
 } rangeRec;
 typedef rangeRec rangeList[1..20];
-
-tptr makeArrayType(rangeRec rangeInfo, tptr elementType, int packedFlag) {
-int makePacked;
-int span, l3int22z, numBits;
-int sizeVal, bitsVal, perwordVal, pcksizeVal;
-tptr arrayType;
-inptr icand;
-    makePacked  =  packedFlag;
-    span  =  rangeInfo.aright - rangeInfo.aleft + 1;
-    l3int22z  =  typeBits(elementType);
-    if (24 < l3int22z)
-        makePacked  =  false;
-    icand  =  internHead;
-    while (icand != NULL) {
-        arrayType  =  icand->ityp;
-        if (arrayType.p.pk == kindArray &&
-            arrayType.rep->base == elementType &&
-            arrayType.rep->aleft == rangeInfo.aleft &&
-            arrayType.rep->aright == rangeInfo.aright &&
-            arrayType.rep->pck == makePacked)
-            return arrayType;
-        icand  =  icand->inext;
-    }
-    bitsVal  =  48;
-    perwordVal  =  0;
-    pcksizeVal  =  0;
-    if (makePacked) {
-        l3int22z  =  48 / l3int22z;
-        if (l3int22z == 9) {
-            l3int22z  =  8;
-        } else if (l3int22z == 5) {
-            l3int22z  =  4;
-        }
-        perwordVal  =  l3int22z;
-        pcksizeVal  =  48 / l3int22z;
-        l3int22z  =  span * pcksizeVal;
-        numBits  =  (l3int22z % 48 == 0) ? 0 : 1;
-        sizeVal  =  l3int22z / 48 + numBits;
-        if (sizeVal == 1)
-            bitsVal  =  l3int22z;
-    } else {
-        sizeVal  =  span * typeSize(elementType);
-        curVal.i  =  typeSize(elementType);
-        curVal.i  =  curVal.i & [7:47] | E48;
-        perwordVal  =  KMUL+ I8 + getFCSToffset();
-    }
-    arrayType.rep = malloc(offsetof(types, szArray));
-    { register types *ty = (arrayType.rep);
-        ty->aleft  =  rangeInfo.aleft;
-        ty->aright  =  rangeInfo.aright;
-        ty->base  =  elementType;
-        ty->pck  =  makePacked;
-        ty->perword  =  perwordVal;
-        ty->pcksize  =  pcksizeVal;
-    }
-    arrayType.p.psize  =  sizeVal;
-    arrayType.p.bits  =  bitsVal;
-    arrayType.p.pk  =  kindArray;
-    icand  =  malloc(sizeof(internrec));
-    icand->ityp  =  arrayType;
-    icand->inext  =  internHead;
-    internHead  =  icand;
-    return arrayType;
-} /* makeArrayType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Array bounds are const-expressions.  parseRange evaluates each bound
@@ -4798,7 +4783,8 @@ int wasGroup;
 // packedFlag mirrors parseTypeRef's own array-suffix handling ('TYPE
 // [range]', its curDim==1 case): only the outermost array dimension of
 // a multi-dim declarator (e.g. int matrix[2][3]'s [2]) carries it, since
-// pckFlag describes how elements of the final array are packed, not
+// makeArrayType's flag describes how elements of the final array are
+// packed, not
 // each nesting level. declOps is applied innermost-first (index
 // declOpCount down to base+1, i.e. reverse of source order), so the
 // outermost dimension is declOps[base+1], processed last.
@@ -4841,7 +4827,8 @@ int i;
             d->ptrOnly  =  false;
             break;
         default:
-            d->typ  =  makeArrayType(declOps[i].range, d->typ,
+            d->typ  =  makeArrayType(declOps[i].range.aleft,
+                                    declOps[i].range.aright, d->typ,
                                     packedFlag && (i == base + 1));
             d->ptrOnly  =  false;
         }
@@ -5365,7 +5352,8 @@ pair *curSlot;
     }
     curType  =  tempType;
     for (curDim = rangeCnt; curDim >= 1; --curDim) {
-        curType  =  makeArrayType(ranges[curDim], curType,
+        curType  =  makeArrayType(ranges[curDim].aleft,
+                                  ranges[curDim].aright, curType,
                                   isPacked && (curDim == 1));
     }
     if (rangeCnt != 0)
@@ -7862,10 +7850,6 @@ void regSysProc(int l4arg1z) {
     symType = charType;  regResWord('    CHAR');
     symType = realType;  regResWord('   FLOAT');
     symType = voidType;  regResWord('    VOID');
-    maxSmallString  =  0;
-    for (strLen = 2; strLen <= 6; ++strLen)
-        smallStringType[strlen] = makeStringType();
-    maxSmallString  =  6;
     curIdRec = malloc(offsetof(identrec, szIdent));
     { register identrec *ir = curIdRec;
         ir->pck.p.offset  =  0;
@@ -8476,9 +8460,6 @@ void exitScope(int a) {
                 scopeBound = irptr(setup());
                 inSymbol();
                 programme(&l2int18z, curIdRec, true);
-                /* Forget interned types allocated above the arena mark being rolled up. */
-                while (internHead != NULL && int(internHead) >= int(scopeBound))
-                    internHead  =  internHead->inext;
                 myrollup(int(scopeBound));
                 exitScope(0);
                 exitScope(1);
