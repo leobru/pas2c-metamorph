@@ -35,6 +35,7 @@ const int MAXLIT = 500;
 const int SYMTAB_LIMIT = 075500;
 const int SYMTAB_MAX = 80;
 const int OBJBUF_SIZE = 8192;    // initially 1024
+const int caseTabMin = 9;        // clause count from which a switch indexes
 
 const int64_t
     fnABS = 0, fnSIZEOF = 1, fnOFFSETOF = 2, fnMALLOC = 3,
@@ -5648,10 +5649,10 @@ Declarator parseOneDeclarator(TPtr baseType, bool packedFlag = false,
     d.type = baseType;
     bool firstOp = true;
     for (auto it = ops.rbegin(); it != ops.rend(); ++it) {
-        if (it->opKind == opFun) {
-            d.type = mkRoutineTyp(d.type, it->sig, 0);
-            d.ptrOnly = false;
-        } else if (it->opKind == opPtr) {
+        /* A switch loads the field once per operator and turns each kind
+           into a label. */
+        switch (it->opKind) {
+        case opPtr:
             // baseType is already the forward-reference placeholder
             // pointer itself (see parseTypeRef::isForwardRef) -- applying
             // getPtrType on top would compact-encode a second, bogus
@@ -5660,7 +5661,12 @@ Declarator parseOneDeclarator(TPtr baseType, bool packedFlag = false,
             // this case (it's applied directly to baseType).
             if (not (firstOp and isForwardRef))
                 d.type = getPtrType(d.type);
-        } else {
+            break;
+        case opFun:
+            d.type = mkRoutineTyp(d.type, it->sig, 0);
+            d.ptrOnly = false;
+            break;
+        default:
             d.type = makeArrayType(it->range, d.type,
                                    packedFlag and (&*it == &ops.front()));
             d.ptrOnly = false;
@@ -7496,6 +7502,7 @@ void caseStatement()
     TPtr firstType, itemtype, exprtype;
     Word itemvalue;
     int64_t itemSpan;
+    int64_t nClauses;
     Word expected;
     int64_t decoder, endOfStmt;
     Word minValue, maxValue;
@@ -7597,48 +7604,26 @@ void caseStatement()
         expected = allClauses->value;
         minValue = expected;
         curClause = allClauses;
+        nClauses = 0;
         while (curClause != NULL) {
-            if (expected == curClause->value and
-                exprtype.p.pk == kindScalar) {
-                maxValue = expected;
-                if (isIntCase) {
-                    expected.ii = expected.ii + 1;
-                } else {
-                    expected.ii = expected.ii + 1; // raw ordinal, no exponent
-                }
-                curClause = curClause->next;
+            if (expected != curClause->value or
+                exprtype.p.pk != kindScalar)
+                goto L16140;        /* a gap in the labels: compare them */
+            maxValue = expected;
+            if (isIntCase) {
+                expected.ii = expected.ii + 1;
             } else {
-                itemSpan = 34000;
-                fixup(0, decoder);
-                if (firstType.p.pk == kindScalar)
-                    itemSpan = firstType.rep()->numen;
-                itemsEnded = itemSpan < 32000;
-                if (itemsEnded) {
-                    form1Insn(KATI+14);
-                } else {
-                    form1Insn(KATX+SP+1);
-                }
-                minValue.ii = (minValue.ii - minValue.ii); /* WTF? */
-                while (allClauses != NULL) {
-                    if (itemsEnded) {
-                        curVal.ii = (minValue.ii - allClauses->value.ii);
-                        form1Insn(getValueOrAllocSymtab(curVal.ii) +
-                                  (KUTM+I14));
-                        form1Insn(KVZM+I14 + allClauses->offset);
-                        minValue = allClauses->value;
-                    } else {
-                        form1Insn(KXTA+SP+1);
-                        curVal = allClauses->value;
-                        form2Insn(KAEX + I8 + getFCSToffset(),
-                                  InsnTemp[UZA] + allClauses->offset);
-                    }
-                    allClauses = allClauses->next;
-                }
-                if (otherSeen)
-                    form1Insn(InsnTemp[UJ] + otherOffset);
-                goto L16211;
-            } /* if 16141 */
+                expected.ii = expected.ii + 1; // raw ordinal, no exponent
+            }
+            ++nClauses;
+            curClause = curClause->next;
         } /* while 16142 */
+        /* An indexed jump carries a ten-instruction prologue whatever the
+           label count is, so it earns that back from caseTabMin clauses up.
+           Below it, comparing the labels one by one is shorter and needs no
+           range check. */
+        if (nClauses < caseTabMin)
+            goto L16140;
         if (not otherSeen) {
             otherOffset = moduleOffset;
             formJump(endOfStmt);
@@ -7666,6 +7651,43 @@ void caseStatement()
             allClauses = allClauses->next;
             decoder = (int64_t)UZA + (int64_t)UJ - decoder;
         }
+        goto L16211;
+L16140:
+        itemSpan = 34000;
+        fixup(0, decoder);
+        if (firstType.p.pk == kindScalar)
+            itemSpan = firstType.rep()->numen;
+        itemsEnded = itemSpan < 32000;
+        if (itemsEnded)
+            form1Insn(KATI+14);
+        /* Both chains walk the labels by the difference from the one before,
+           so each step needs a single instruction to reach the next label:
+           an index register counts down through KUTM, and the accumulator
+           holds the subject XOR-ed with the label reached so far, AEX being
+           its own inverse. */
+        minValue.ii = (minValue.ii - minValue.ii); /* WTF? */
+        while (allClauses != NULL) {
+            if (itemsEnded) {
+                curVal.ii = (minValue.ii - allClauses->value.ii);
+                /* KVZM reads the index register, so a step of zero -- a
+                   first label of zero -- needs no instruction of its own.
+                   The accumulator chain below keeps its KAEX even then: it
+                   is what leaves omega logical, which an arithmetic subject
+                   expression may not have done. */
+                if (curVal.ii != 0)
+                    form1Insn(getValueOrAllocSymtab(curVal.ii) +
+                              (KUTM+I14));
+                form1Insn(KVZM+I14 + allClauses->offset);
+            } else {
+                curVal.ii = (minValue.ii ^ allClauses->value.ii);
+                form2Insn(KAEX + I8 + getFCSToffset(),
+                          InsnTemp[UZA] + allClauses->offset);
+            }
+            minValue = allClauses->value;
+            allClauses = allClauses->next;
+        }
+        if (otherSeen)
+            form1Insn(InsnTemp[UJ] + otherOffset);
 L16211:
         fixup(0, endOfStmt);
         if (not goodMode)

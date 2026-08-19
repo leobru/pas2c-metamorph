@@ -43,7 +43,6 @@ const
     mcMULTI = 7;
     mcADDSTK2REG = 8;
     mcADDACC2REG = 9;
-    mcDUMMY = 10;
     mcMALLOC = 12;
     mcMINEL = 15;
     mcPOP2ADDR = 19;
@@ -124,6 +123,7 @@ const
     all1 = ~0;
     extSymMask  =  043000000U;
     maxLineLen = 130;
+    caseTabMin = 9;             // clause count from which a switch indexes
     /*=A3*/
     litFortran  =  ' FORTRAN';
     litAssembler = 'ASSEMBLE';
@@ -2635,7 +2635,6 @@ void processInsn() {
                    the NEW system procedure. */
                 add2InsnsToBuf(KATI+14, getHelperProc(17));
                 break;
-            case mcDUMMY: case 13: // unused, kept for switch optimization
             } /* switch */
         } else {
             if (28 in tempInsn) {
@@ -4818,13 +4817,18 @@ int i;
     d->typ  =  baseType;
     d->ptrOnly  =  true;
     for (i = declOpCount; i > base; --i) {
-        if (declOps[i].opKind == opPtr) {
+        /* A switch loads the indexed field once per operator and turns each
+           kind into a label. */
+        switch (declOps[i].opKind) {
+        case opPtr:
             if (! ((i == declOpCount) && isForwardRef))
                 d->typ  =  getPtrType(d->typ);
-        } else if (declOps[i].opKind == opFun) {
+            break;
+        case opFun:
             d->typ  =  mkRoutineTyp(d->typ, declOps[i].sig, 0);
             d->ptrOnly  =  false;
-        } else {
+            break;
+        default:
             d->typ  =  makeArrayType(declOps[i].range, d->typ,
                                     packedFlag && (i == base + 1));
             d->ptrOnly  =  false;
@@ -6655,6 +6659,7 @@ int itemsEnded, goodMode;
 tptr firstType, itemtype, exprtype;
 int itemvalue;
 int itemSpan;
+int nClauses;
 word expected;
 int startLine, decoder, endOfStmt;
 word minValue, maxValue;
@@ -6756,43 +6761,21 @@ word minValue, maxValue;
         expected  =  allClauses->value;
         minValue  =  expected;
         curClause  =  allClauses;
+        nClauses  =  0;
         while (curClause != NULL) {
-            if (expected == curClause->value) {
-                maxValue  =  expected;
-                ++expected.i;
-                curClause  =  curClause->next;
-            } else {
-                itemSpan  =  34000;
-                fixup(0, decoder);
-                if (firstType.p.pk == kindScalar)
-                    itemSpan  =  firstType.rep->numen;
-                itemsEnded  =  itemSpan < 32000;
-                if (itemsEnded) {
-                    form1Insn(KATI+14);
-                } else {
-                    form1Insn(KATX+SP+1);
-                }
-                minValue.i  =  0;
-                while (allClauses != NULL) {
-                    if (itemsEnded) {
-                        curVal.i  =  minValue.i - allClauses->value.i;
-                        form1Insn(getValueOrAllocSymtab(curVal.i) +
-                                  (KUTM+I14));
-                        form1Insn(KVZM+I14 + allClauses->offset);
-                        minValue  =  allClauses->value;
-                    } else {
-                        form1Insn(KXTA+SP+1);
-                        curVal  =  allClauses->value;
-                        form2Insn(KAEX + I8 + getFCSToffset(),
-                                  KUZA + allClauses->offset);
-                    }
-                    allClauses  =  allClauses->next;
-                }
-                if (otherSeen)
-                    form1Insn(KUJ + otherOffset);
-                goto 16211;
-            } /* if 16141 */
+            if (expected != curClause->value)
+                goto 16140;         /* a gap in the labels: compare them */
+            maxValue  =  expected;
+            ++expected.i;
+            ++nClauses;
+            curClause  =  curClause->next;
         } /* while 16142 */
+        /* An indexed jump carries a ten-instruction prologue whatever the
+           label count is, so it earns that back from caseTabMin clauses up.
+           Below it, comparing the labels one by one is shorter and needs no
+           range check. */
+        if (nClauses < caseTabMin)
+            goto 16140;
         if (! otherSeen) {
             otherOffset  =  moduleOffset;
             formJump(&endOfStmt);
@@ -6819,6 +6802,43 @@ word minValue, maxValue;
             allClauses  =  allClauses->next;
             decoder = KUZA ^ KUJ ^ decoder;
         }
+        goto 16211;
+        16140:
+        itemSpan  =  34000;
+        fixup(0, decoder);
+        if (firstType.p.pk == kindScalar)
+            itemSpan  =  firstType.rep->numen;
+        itemsEnded  =  itemSpan < 32000;
+        if (itemsEnded)
+            form1Insn(KATI+14);
+        /* Both chains walk the labels by the difference from the one before,
+           so each step needs a single instruction to reach the next label:
+           an index register counts down through KUTM, and the accumulator
+           holds the subject XOR-ed with the label reached so far, AEX being
+           its own inverse. */
+        minValue.i  =  0;
+        while (allClauses != NULL) {
+            if (itemsEnded) {
+                curVal.i  =  minValue.i - allClauses->value.i;
+                /* KVZM reads the index register, so a step of zero -- a
+                   first label of zero -- needs no instruction of its own.
+                   The accumulator chain below keeps its KAEX even then: it
+                   is what leaves omega logical, which an arithmetic subject
+                   expression may not have done. */
+                if (curVal.i != 0)
+                    form1Insn(getValueOrAllocSymtab(curVal.i) +
+                              (KUTM+I14));
+                form1Insn(KVZM+I14 + allClauses->offset);
+            } else {
+                curVal.i  =  minValue.i ^ allClauses->value.i;
+                form2Insn(KAEX + I8 + getFCSToffset(),
+                          KUZA + allClauses->offset);
+            }
+            minValue  =  allClauses->value;
+            allClauses  =  allClauses->next;
+        }
+        if (otherSeen)
+            form1Insn(KUJ + otherOffset);
         16211:
         fixup(0, endOfStmt);
         if (! goodMode)
