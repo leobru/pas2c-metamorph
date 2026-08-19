@@ -59,7 +59,7 @@ void main() {
     l.r.b = 9;
     l.r.c = 7;
     writeln(' READBACK  ', m.r.a:3, m.r.b:3, m.r.c:3,
-            ' / ', l.r.a:3, l.r.b:3, l.r.c:3);
+            " / ", l.r.a:3, l.r.b:3, l.r.c:3);
     o.w = 0;
     o.r.head = 1;
     writeln(' OUT HEAD  ', o.w:17 oct);

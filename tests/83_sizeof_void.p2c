@@ -2,5 +2,5 @@
 // sizeof(void) is 1, as in GNU C.
 typedef void *anyptr;
 void main() {
-    writeln('VOID=', sizeof(void):0, ' PTR=', sizeof(anyptr):0);
+    writeln("VOID=", sizeof(void):0, " PTR=", sizeof(anyptr):0);
 }

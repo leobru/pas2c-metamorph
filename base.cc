@@ -2332,6 +2332,7 @@ bool skipSp()
 
 inSymbol::inSymbol()
 {
+    unsigned char litQuote = 0;
 {
 L1473:
         while (skipSp()) ;
@@ -2552,7 +2553,12 @@ L2:                 hashTravPtr = symHash[bucket];
             } break; /* INTCONST */ /*=m+*/
             case CHARCONST: {
                 {
+                    /* The delimiter tells a character constant from a string:
+                       single quotes give the packed word as an integer wherever
+                       it fits one, double quotes give a packed character array
+                       of the length written. */
                     unsigned char quote = CH;
+                    litQuote = CH;
                     for (tokenIdx = 6; tokenIdx <= 130; ++tokenIdx) {
                         nextCH();
                         if (CH == quote) {
@@ -2654,9 +2660,12 @@ exitLoop:
                     unpck(localBuf[tokenIdx], curVal.a);
                     pck(localBuf[6], curToken.a);
                     curVal = curToken;
-                    if (6 >= strLen)
+                    if (6 >= strLen) {
+                        if (litQuote == '\'')
+                            SY = INTCONST;
                         goto exitLexer;
-                    else if (charEncoding == 3 and strLen == 8) {
+                    } else if (litQuote == '\'' and
+                               charEncoding == 3 and strLen == 8) {
                         // an 8-char string in 6-bit-text mode
                         // packs into one 48-bit word (pack(localbuf,6,.t)) and
                         // becomes an INTCONST.  Pack localBuf[6..13] MSB-first.

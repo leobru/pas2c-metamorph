@@ -36,32 +36,32 @@ void main() {
     int (*g)(int);
     float (*fr)(float);
     f = add2;
-    writeln(' ADD=', f(3, 4):0);
+    writeln(" ADD=", f(3, 4):0);
     f = &mul2;
-    writeln(' MUL=', f(3, 4):0);
+    writeln(" MUL=", f(3, 4):0);
     // '*' on a pointer to a routine is the identity.
-    writeln(' STAR=', (*f)(5, 6):0);
+    writeln(" STAR=", (*f)(5, 6):0);
     g = negate;
-    writeln(' ONE=', g(9):0);
+    writeln(" ONE=", g(9):0);
     gfn = add2;
-    writeln(' GLOB=', gfn(1, 2):0);
-    writeln(' ARG=', apply(mul2, 3, 5):0);
+    writeln(" GLOB=", gfn(1, 2):0);
+    writeln(" ARG=", apply(mul2, 3, 5):0);
     f = pick(0);
-    writeln(' RET0=', f(7, 8):0);
+    writeln(" RET0=", f(7, 8):0);
     f = pick(1);
-    writeln(' RET1=', f(7, 8):0);
+    writeln(" RET1=", f(7, 8):0);
     counter = 0;
     gproc = bump;
     gproc();
     gproc();
-    writeln(' PROC=', counter:0);
+    writeln(" PROC=", counter:0);
     fr = scale;
-    writeln(' REAL=', fr(2.5):6:2);
+    writeln(" REAL=", fr(2.5):6:2);
     // An actual is converted the way an assignment would convert it.
-    writeln(' CONV=', fr(2):6:2);
+    writeln(" CONV=", fr(2):6:2);
     tbl[0] = add2;
     tbl[1] = mul2;
-    writeln(' TBL=', tbl[0](2, 3):0, ' ', tbl[1](2, 3):0);
+    writeln(" TBL=", tbl[0](2, 3):0, ' ', tbl[1](2, 3):0);
     gfn = NULL;
     if (gfn == NULL)
         writeln(' NULL=YES');

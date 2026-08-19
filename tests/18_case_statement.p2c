@@ -4,10 +4,10 @@ int x;
 void main() {
     for (x = 0; x < 5; x = x + 1)
     switch (x) {
-        case 1: writeln('One'); break;
-        case 2: writeln('Two'); break;
-        case 3: writeln('Three'); break;
+        case 1: writeln("One"); break;
+        case 2: writeln("Two"); break;
+        case 3: writeln("Three"); break;
     default:
-        writeln('Other');
+        writeln("Other");
     }
 }

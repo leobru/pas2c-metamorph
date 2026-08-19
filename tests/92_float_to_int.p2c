@@ -29,31 +29,31 @@ float retReal(int n) {
 void main() {
     r = 3.75;
     i = r;
-    writeln(' POS=', i:0);
+    writeln(" POS=", i:0);
     r = -3.75;
     i = r;
-    writeln(' NEG=', i:0);
+    writeln(" NEG=", i:0);
     // Constant reals fold at construction; the folded value must agree
     // with what the run-time conversion above produces.
     i = 3.75;
-    writeln(' CPOS=', i:0);
+    writeln(" CPOS=", i:0);
     i = -3.75;
-    writeln(' CNEG=', i:0);
-    writeln(' ARGC=', takeInt(6.25):0);
+    writeln(" CNEG=", i:0);
+    writeln(" ARGC=", takeInt(6.25):0);
     r = 6.25;
-    writeln(' ARGV=', takeInt(r):0);
-    writeln(' RET=', retInt(9.75):0);
+    writeln(" ARGV=", takeInt(r):0);
+    writeln(" RET=", retInt(9.75):0);
     // Widening: integer actual, integer returned, integer assigned.
     r = takeReal(4);
-    writeln(' WARG=', r:6:2);
+    writeln(" WARG=", r:6:2);
     r = retReal(7);
-    writeln(' WRET=', r:6:2);
+    writeln(" WRET=", r:6:2);
     i = 5;
     r = i;
-    writeln(' WASN=', r:6:2);
+    writeln(" WASN=", r:6:2);
     // Neither TRUNC nor ROUND is a standard function, so both spellings
     // are plain identifiers.
     trunc = 42;
     round = 17;
-    writeln(' NAME=', trunc:0, ' ', round:0);
+    writeln(" NAME=", trunc:0, ' ', round:0);
 }

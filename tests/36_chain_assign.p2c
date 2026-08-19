@@ -4,16 +4,16 @@ int a, b, c, d;
 void main() {
     c = 42;
     a = b = c;
-    writeln('two ', a:0, ' ', b:0, ' ', c:0);
+    writeln("two ", a:0, ' ', b:0, ' ', c:0);
 
     d = 7;
     a = b = c = d;
-    writeln('four ', a:0, ' ', b:0, ' ', c:0, ' ', d:0);
+    writeln("four ", a:0, ' ', b:0, ' ', c:0, ' ', d:0);
 
     a = 0;
     b = (a = 5) + 1;
-    writeln('embed ', a:0, ' ', b:0);
+    writeln("embed ", a:0, ' ', b:0);
 
     a = b = 100;
-    writeln('reuse ', a:0, ' ', b:0);
+    writeln("reuse ", a:0, ' ', b:0);
 }

@@ -8,22 +8,22 @@ int idx;
 void main() {
     arr[3] = 33;
     idx = 3;
-    writeln('arr ', arr[idx]:0);
+    writeln("arr ", arr[idx]:0);
 
     chars[1] = 'H';
     chars[2] = 'I';
     idx = 2;
-    writeln('char ', chars[idx]);
+    writeln("char ", chars[idx]);
 
     packed[0] = 7;
     packed[13] = 123;
     if (packed[13] == 123)
-        writeln('packed ', sizeof(packed):0, ' ok');
+        writeln('packed ', sizeof(packed):0, " ok");
     else
         writeln('packed fail');
 
     matrix[1][2] = 12;
     matrix[2][3] = 23;
     writeln('matrix ', matrix[1][2]:0, ' ', matrix[2][3]:0,
-            ' size ', sizeof(matrix):0);
+            " size ", sizeof(matrix):0);
 }

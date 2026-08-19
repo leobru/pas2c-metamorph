@@ -8,7 +8,7 @@ void main() {
         if (i == 3) continue;
         if (i == 7) break;
         else
-        writeln('w ', i:0);
+        writeln("w ", i:0);
     }
     writeln('after-w ', i:0);
 
@@ -17,7 +17,7 @@ void main() {
         i = i + 1;
         if (i == 2) continue;
         if (i == 5) break;
-        writeln('d ', i:0);
+        writeln("d ", i:0);
     } while (i < 10);
     writeln('after-d ', i:0);
 
@@ -29,7 +29,7 @@ void main() {
             j = j + 1;
             if (j == 2) continue;
             if (j == 4) break;
-            writeln('n ', i:0, ' ', j:0);
+            writeln("n ", i:0, ' ', j:0);
         }
     }
 }

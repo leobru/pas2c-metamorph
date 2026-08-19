@@ -6,6 +6,6 @@ void main() {
     i = 10;
     {
         i = i + 5;
-        writeln('i = ', i:0);
+        writeln("i = ", i:0);
     }
 }

@@ -16,13 +16,13 @@ void main() {
         rp->x = 11;
         rp->y = rp->x + 31;
     }
-    writeln(' X=', obj.x:0);
-    writeln(' Y=', obj.y:0);
+    writeln(" X=", obj.x:0);
+    writeln(" Y=", obj.y:0);
     h.pstruct = &obj;
     { register point *rp = h.pstruct;
         rp->x = 17;
         rp->y = rp->x + 6;
     }
-    writeln(' HX=', obj.x:0);
-    writeln(' HY=', obj.y:0);
+    writeln(" HX=", obj.x:0);
+    writeln(" HY=", obj.y:0);
 }

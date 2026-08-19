@@ -7,5 +7,5 @@ void main() {
     put = 7;
     rewrite = 9;
     reset = 11;
-    writeln(' PUT=', put:0, ' REWRITE=', rewrite:0, ' RESET=', reset:0);
+    writeln(" PUT=", put:0, ' REWRITE=', rewrite:0, ' RESET=', reset:0);
 }

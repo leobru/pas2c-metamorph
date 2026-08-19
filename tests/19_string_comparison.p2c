@@ -2,8 +2,8 @@
 //
 __packed char s1[1..6], s2[1..6];
 void main() {
-    s1 = 'HELLO ';
-    s2 = 'HELLO ';
+    s1 = "HELLO ";
+    s2 = "HELLO ";
     
     if (s1 == s2) {
         writeln(' Strings are equal');

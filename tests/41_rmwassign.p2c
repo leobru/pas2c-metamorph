@@ -21,15 +21,15 @@ void main() {
     /* simple array element via variable index */
     arr[1] = 10; arr[2] = 20; arr[3] = 30; arr[4] = 40;
     i = 2;
-    arr[i] += 5;        writeln(' a01 ', arr[2]:0);
-    arr[i] -= 3;        writeln(' a02 ', arr[2]:0);
-    arr[i] *= 2;        writeln(' a03 ', arr[2]:0);
-    ++arr[i];           writeln(' a04 ', arr[2]:0);
-    --arr[i];           writeln(' a05 ', arr[2]:0);
+    arr[i] += 5;        writeln(" a01 ", arr[2]:0);
+    arr[i] -= 3;        writeln(" a02 ", arr[2]:0);
+    arr[i] *= 2;        writeln(" a03 ", arr[2]:0);
+    ++arr[i];           writeln(" a04 ", arr[2]:0);
+    --arr[i];           writeln(" a05 ", arr[2]:0);
 
     /* computed-index access: arr[i+1] */
-    arr[i+1] += 100;    writeln(' a06 ', arr[3]:0);
-    ++arr[i+1];         writeln(' a07 ', arr[3]:0);
+    arr[i+1] += 100;    writeln(" a06 ", arr[3]:0);
+    ++arr[i+1];         writeln(" a07 ", arr[3]:0);
 
     /* multi-dim subscripting */
     i = 1; j = 1;
@@ -41,29 +41,29 @@ void main() {
         };
         ++i;
     };
-    mat[2][3] += 7;     writeln(' m01 ', mat[2][3]:0);
-    --mat[3][1];        writeln(' m02 ', mat[3][1]:0);
+    mat[2][3] += 7;     writeln(" m01 ", mat[2][3]:0);
+    --mat[3][1];        writeln(" m02 ", mat[3][1]:0);
 
     /* pointer deref */
     n = 50;
     p = &n;
-    *p += 4;            writeln(' p01 ', n:0);
-    *p -= 1;            writeln(' p02 ', n:0);
-    ++(*p);             writeln(' p03 ', n:0);
+    *p += 4;            writeln(" p01 ", n:0);
+    *p -= 1;            writeln(" p02 ", n:0);
+    ++(*p);             writeln(" p03 ", n:0);
 
     /* struct field via pointer */
     r.x = 100; r.y = 200;
     rp = &r;
-    rp->x += 11;        writeln(' r01 ', r.x:0);
-    rp->y -= 25;        writeln(' r02 ', r.y:0);
-    ++rp->x;            writeln(' r03 ', r.x:0);
-    --rp->y;            writeln(' r04 ', r.y:0);
+    rp->x += 11;        writeln(" r01 ", r.x:0);
+    rp->y -= 25;        writeln(" r02 ", r.y:0);
+    ++rp->x;            writeln(" r03 ", r.x:0);
+    --rp->y;            writeln(" r04 ", r.y:0);
 
     /* bit ops on indexed element */
     arr[1] = 12;
-    arr[1] |= 1;        writeln(' b01 ', arr[1]:0);
-    arr[1] &= 7;        writeln(' b02 ', arr[1]:0);
-    arr[1] ^= 2;        writeln(' b03 ', arr[1]:0);
-    arr[1] <<= 1;       writeln(' b04 ', arr[1]:0);
-    arr[1] >>= 2;       writeln(' b05 ', arr[1]:0);
+    arr[1] |= 1;        writeln(" b01 ", arr[1]:0);
+    arr[1] &= 7;        writeln(" b02 ", arr[1]:0);
+    arr[1] ^= 2;        writeln(" b03 ", arr[1]:0);
+    arr[1] <<= 1;       writeln(" b04 ", arr[1]:0);
+    arr[1] >>= 2;       writeln(" b05 ", arr[1]:0);
 }

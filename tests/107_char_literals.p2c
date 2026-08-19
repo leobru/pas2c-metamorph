@@ -1,0 +1,54 @@
+/*=s8,y+,k9,l0*/
+//
+// The delimiter decides what a literal is.  Single quotes give a character
+// constant: one character is a char, and two to six characters -- as many as
+// pack into a word -- are that word as an int, so the literal compares,
+// assigns and labels a case like any other integer.  Double quotes give a
+// packed character array of the length written, which is what write takes as
+// text and what an __alfa holds.  Beyond one word a single-quoted literal
+// stays an array, since there is no integer for it to be.
+//
+// The word is packed left to right and padded with spaces, so shifting a
+// two-character constant right by 40 leaves its first character.
+//
+__alfa a;
+int i, k;
+char c;
+//
+void main() {
+    i  =  'AB';
+    writeln(" ASSIGN", (i == 'AB'):2, (i != 'BA'):2);
+    writeln(" SHIFT ", ('AB' >> 40):4, ('AB' >> 32):7);
+    writeln(" SIZEOF", sizeof('AB'):3, sizeof("AB"):3, sizeof('A'):3,
+            sizeof('ABCDEFG'):3, sizeof("ABCDEFG"):3, sizeof('ABCDEFGH'):3);
+    // Both spellings of a string, and a literal too wide for a word.
+    write(" TEXT   ");
+    write("AB");
+    write('ABCDEFG');
+    write("ABCDEFG");
+    writeln;
+    // Six characters in double quotes fill an __alfa.
+    a  =  "ALFA!!";
+    write(" ALFA   ");
+    write(a);
+    writeln;
+    // One character is still a char, and an escape is one character.
+    c  =  'A';
+    writeln(" CHAR  ", int(c):4, int('A'):4, int('\052'):4, int('\''):4);
+    // A one-word constant labels a case.
+    switch (i) {
+    case 'AB':
+        writeln(" CASE   MATCH");
+        break;
+    default:
+        writeln(" CASE   MISS");
+    }
+    k  =  0;
+    switch (k) {
+    case 'AB':
+        writeln(" CASE2  MATCH");
+        break;
+    default:
+        writeln(" CASE2  MISS");
+    }
+}

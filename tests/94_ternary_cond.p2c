@@ -45,5 +45,5 @@ void main() {
         probe();
     }
     writeln;
-    writeln(' DONE');
+    writeln(" DONE");
 }

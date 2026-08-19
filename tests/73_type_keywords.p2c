@@ -16,21 +16,21 @@ typedef int myint;              // a user typedef still reaches TYPESY
 myint m;
 //
 void show(float x, int n) {
-    writeln(' SHOW ', x:8:2, ' ', n:0);
+    writeln(" SHOW ", x:8:2, ' ', n:0);
 }
 //
 void main() {
     g = 5;
     f = 2.5;
-    a = 'ALFA!!';
+    a = "ALFA!!";
     c = 'Q';
     p = &g;
     r.ch = 'Z';
     r.n = 7;
     m = 11;
-    writeln(' G=', g:0, ' N=', r.n:0, ' M=', m:0);
-    writeln(' C=', c, ' CH=', r.ch, ' A=', a);
-    writeln(' DEREF=', *p:0, ' ORD=', int(c):0);
+    writeln(" G=", g:0, " N=", r.n:0, " M=", m:0);
+    writeln(" C=", c, " CH=", r.ch, " A=", a);
+    writeln(' DEREF=', *p:0, " ORD=", int(c):0);
     writeln(' SIZES ', sizeof(int):0, sizeof(char):0, sizeof(float):0,
             sizeof(__alfa):0, sizeof(rec):0);
     show(f, g);

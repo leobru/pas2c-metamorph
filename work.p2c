@@ -836,7 +836,7 @@ int err, errPos, prevPos, listMode,
         }
         writeln;
         if (errsInLine) {
-            write('*****':startPos, ' ':errMap[0]+1, '0');
+            write("*****":startPos, ' ':errMap[0]+1, '0');
             lastErr  =  errsInLine - 1;
             for (err = 1; err <= lastErr; ++err) {
                 errPos  =  errMap[err];
@@ -1359,6 +1359,7 @@ int expSign;
 irptr chain;
 float expMultiple, expValue;
 char curChar;
+char litQuote;
 word numstr[17];
 int expLiteral, expMagnitude;
 int val;
@@ -1633,6 +1634,10 @@ void lexer() {
         return;
     } /* INTCONST */ /*=m+*/
     case CHARCONST: {
+        /* The delimiter tells a character constant from a string: single
+           quotes give the packed word as an integer wherever it fits one,
+           double quotes give a packed character array of the length written. */
+        litQuote  =  CH;
         doCharConst(CH);
         strLen  =  tokenIdx - 6;
         if (strLen == 0) {
@@ -1647,14 +1652,16 @@ void lexer() {
             pck(localBuf[tokenLen], curToken.a);
             return;
         } else 2320: {
-            curVal.a  =  '      ';
+            curVal.a  =  "      ";
             SY  =  STRINGSY;
             unpck(localBuf[tokenIdx], curVal.a);
             pck(localBuf[6], curToken.a);
             curVal  =  curToken;
-            if (strLen <= 6)
+            if (strLen <= 6) {
+                if (litQuote == '\'')
+                    SY  =  INTCONST;
                 return;
-            else if (charEncoding == 3 && strLen == 8) {
+            } else if (litQuote == '\'' && charEncoding == 3 && strLen == 8) {
                 pack(localbuf, 6, curToken.t);
                 curVal  =  curToken;
                 SY = INTCONST;
@@ -1749,7 +1756,7 @@ void error(int errno) {
         errMap[errsInLine]  =  linePos;
         ++errsInLine;
         prevErrPos  =  linePos;
-        write('******', errno:0);
+        write("******", errno:0);
         printErrMsg(errno);
         if (60 < totalErrors) {
             writeln;
@@ -5011,13 +5018,13 @@ pair *curSlot;
     if (PASINFOR.listMode == 3) {
         write(' ':16);
         if (curField->pckfield)
-            write('PACKED');
+            write("PACKED");
         write(' FIELD ');
         printTextWord(curField->id);
         write('.OFFSET=', curField->pck.p.offset:5 oct, 'B');
         if (curField->pckfield) {
             write('.<<=SHIFT=', curField->shift:2,
-                  '. WIDTH=', curField->width:2, ' BITS');
+                  '. WIDTH=', curField->width:2, " BITS");
         } else {
             write('.WORDS=', typeSize(curField->typ):0);
         }
@@ -5415,7 +5422,7 @@ int l3int1z, frame, l3var3z;
         break;
     case 1:
         prevErrPos  =  0;
-        write('IDENT ');
+        write("IDENT ");
         printTextWord(l2var12z);
         write(' IN LINE ', curIdRec->pck.p.offset:0);
         break;
@@ -5588,7 +5595,7 @@ int l4step6z;
                 goto 55;
             }
         }
-        stmtName  =  '  ->  ';
+        stmtName  =  "  ->  ";
         error(errWrongVarTypeBefore);
         l4exp1z = malloc(sizeof(expr));
         l4exp1z->expr1  =  curExpr;
@@ -5609,12 +5616,12 @@ int l4step6z;
             }
             inSymbol();
         } else {
-            stmtName  =  '  .   ';
+            stmtName  =  "  .   ";
             error(errWrongVarTypeBefore);
             return;
         }
     } else if (SY == LBRACK) {
-        stmtName  =  '  [   ';
+        stmtName  =  "  [   ";
         l4exp1z  =  curExpr;
         expression();
         l4typ3z  =  l4exp1z->typ;
@@ -6259,7 +6266,7 @@ eptr leftExpr;
                     curExpr = mkExpr(DEREF, ptrBase(arg1Type),
                                      curExpr, NULL);
             } else {
-                stmtName = 'unary*';
+                stmtName = "unary*";
                 error(errWrongVarTypeBefore);
             }
             break;
@@ -6627,7 +6634,7 @@ int oldLocalSize, oldFreeRegs, blockRegs;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void reportStmtType() {
-    writeln(' STATEMENT ', stmtname:0, ' IN ', startLine:0, ' LINE');
+    writeln(' STATEMENT ', stmtname:0, " IN ", startLine:0, " LINE");
 } /* reportStmtType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6747,7 +6754,7 @@ word minValue, maxValue;
     } while (! itemsEnded);
     if (SY != ENDSY) {
         requiredSymErr(ENDSY);
-        stmtName  =  'SWITCH';
+        stmtName  =  "SWITCH";
         reportStmtType();
     } else
         inSymbol();
@@ -7536,7 +7543,7 @@ tptr t;
         brContTarget();
         if (SY != WHILESY) {
             requiredSymErr(WHILESY);
-            stmtName  =  '  DO  ';
+            stmtName  =  "  DO  ";
             reportStmtType();
             goto 8888;
         }
@@ -8371,7 +8378,7 @@ void exitScope(int a) {
                     if (PASINFOR.listMode == 3) {
                         write('VARIABLE ':25);
                         printTextWord(curDeclarator.name);
-                        writeln(' OFFSET (', curProcNesting:0, ') ',
+                        writeln(' OFFSET (', curProcNesting:0, ") ",
                                 localSize:5 oct, 'B. WORDS=',
                                 jj:5 oct, 'B');
                     }
@@ -8745,7 +8752,7 @@ void initOptions() {
     longSymCnt  =  0;
     *pasinfor.errors  =  true;
     symTabCnt  =  0;
-    paseofcd  =  '*copy:';
+    paseofcd  =  "*copy:";
 } /* initOptions */
 //
 void main() {
@@ -8764,7 +8771,7 @@ void main() {
     fopen(&INITBUF, 010000100000, 0);
     programme(&curInsnTemplate, hashTravPtr, false);
     if (errors) {
-9999:   writeln(' IN ', (lineCnt-1):0, ' LINES ',
+9999:   writeln(" IN ", (lineCnt-1):0, ' LINES ',
             totalErrors:0, ' ERRORS');
     } else {
         finalize();

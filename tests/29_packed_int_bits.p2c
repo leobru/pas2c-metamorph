@@ -13,8 +13,8 @@ int wrdsExp(int bitW) {
 
 int chkWords(int tag, int got, int exp) {
     if (got != exp) {
-        writeln('FAIL size tag=', tag:0, ' got=', got:0,
-                ' exp=', exp:0);
+        writeln('FAIL size tag=', tag:0, " got=", got:0,
+                " exp=", exp:0);
         return 1;
     } else {
         writeln('OK size tag=', tag:0, ' words=', got:0);
@@ -254,5 +254,5 @@ void main() {
     if (tdense() != 0) {
         writeln('abort dense');
     }
-    writeln('done');
+    writeln("done");
 }

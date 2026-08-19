@@ -3,7 +3,7 @@
 void later();
 //
 void ping() {
-    writeln('PING');
+    writeln("PING");
 }
 //
 int answer() {
@@ -11,7 +11,7 @@ int answer() {
 }
 //
 void later() {
-    writeln('LATER');
+    writeln("LATER");
 }
 //
 void main() {

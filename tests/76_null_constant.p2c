@@ -25,7 +25,7 @@ void main() {
     p = malloc(sizeof(node));
     p->val = 7;
     p->next = NULL;
-    writeln(' AFTER MALLOC: ', p == NULL:0, ' VAL=', p->val:0,
+    writeln(' AFTER MALLOC: ', p == NULL:0, " VAL=", p->val:0,
             ' TAIL: ', p->next == NULL:0);
     writeln(' ISEMPTY: ', isEmpty(p):0);
     q = p;
@@ -34,5 +34,5 @@ void main() {
         write(' ', chain[i] == NULL:0);
     writeln;
     chain[1] = p;
-    writeln(' CHAIN1 SET: ', chain[1] != NULL:0, ' VAL=', chain[1]->val:0);
+    writeln(' CHAIN1 SET: ', chain[1] != NULL:0, " VAL=", chain[1]->val:0);
 }

@@ -9,7 +9,7 @@ void main() {
             a[i][j] = i + j;
             sum += a[i][j];
         }
-    writeln('diag ', a[0][0]:0, ' ', a[2][2]:0, ' ', a[4][4]:0);
-    writeln('edge ', a[0][4]:0, ' ', a[4][0]:0, ' ', a[3][1]:0);
-    writeln('sum ', sum:0, ' size ', sizeof(a):0);
+    writeln("diag ", a[0][0]:0, ' ', a[2][2]:0, ' ', a[4][4]:0);
+    writeln("edge ", a[0][4]:0, ' ', a[4][0]:0, ' ', a[3][1]:0);
+    writeln("sum ", sum:0, " size ", sizeof(a):0);
 }

@@ -5,6 +5,6 @@ void main() {
 c2 = 1;
 c1 = 256;
 switch (c1 << 10 | c2) {
-case 1: case 11: case 111: case 1111: writeln(' ones');
+case 1: case 11: case 111: case 1111: writeln(" ones");
 }
 }

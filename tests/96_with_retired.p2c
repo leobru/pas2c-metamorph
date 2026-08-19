@@ -16,6 +16,6 @@ void main() {
       p->a = with;
       p->b = x;
     }
-    writeln(' WITH=', with:0, ' X=', x:0);
-    writeln(' A=', r.a:0, ' B=', r.b:0);
+    writeln(" WITH=", with:0, " X=", x:0);
+    writeln(" A=", r.a:0, " B=", r.b:0);
 }

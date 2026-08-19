@@ -15,7 +15,7 @@ void main() {
     for (i = 1; i <= N*M; i = i + 1) {
         b[i] = i;
     }
-    writeln(' a[0]=', a[0]:0);
+    writeln(" a[0]=", a[0]:0);
     writeln(' a[N+1]=', a[N+1]:0);
     writeln(' b[N*M]=', b[N*M]:0);
 }
