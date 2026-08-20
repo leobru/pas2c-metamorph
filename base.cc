@@ -40,7 +40,7 @@ const int caseTabMin = 9;        // clause count from which a switch indexes
 const int64_t
     fnABS = 0, fnSIZEOF = 1, fnOFFSETOF = 2, fnMALLOC = 3,
     fnCARD = 4, fnMINEL = 5,
-    fnREF = 6, fnABSI = 7;
+    fnABSI = 6;
 
 const int64_t
     S3 = 0,
@@ -206,7 +206,7 @@ enum Operator {
     RMWASSIGN,  GETENUM,    GETFIELD,   DEREF,
     STKLVAL,    INDCALL,    PROCADDR,   ALNUM,
     TOREAL,     TOINT,      NOTOP,      INEGOP,     RNEGOP,
-    BITNEGOP,   STANDPROC,  NOOP
+    BITNEGOP,   STANDPROC,  ADDROF,     NOOP
 };
 
 enum OpGen {
@@ -937,7 +937,7 @@ int64_t indexreg[16];
 int64_t opToInsn[48];
 int64_t opToMode[48];
 OpFlg opFlags[48]; // array [MUL..op44] of OpFlg;
-int64_t funcInsn[8];
+int64_t funcInsn[7];
 int64_t InsnTemp[48];
 
 int64_t frameRegTemplate = 04000000,
@@ -989,7 +989,7 @@ std::string Expr::p()
         "ALTERN","INCROP","DECROP","ASSIGNOP","GETELT","GETVAR","RMWASSIGN",
         "GETENUM","GETFIELD","DEREF","STKLVAL","INDCALL","PROCADDR","ALNUM",
         "TOREAL","TOINT","NOTOP","INEGOP","RNEGOP","BITNEGOP","STANDPROC",
-        "NOOP"
+        "ADDROF","NOOP"
     };
     char buf[256];
     const char * nm = (op >= 0 && op <= NOOP) ? opName[op] : "??";
@@ -1418,21 +1418,12 @@ ExprPtr flatMemAt(ExprPtr idx)
                   mkExpr(GETVAR, flatMemType, (ExprPtr)flatMemVar, NULL), idx);
 } /* flatMemAt */
 
-ExprPtr mkCastInt(ExprPtr e)
+/* The address of an lvalue, typed by the caller: a pointer to the lvalue's
+   type where that is what is wanted, an int where the address is about to
+   take part in byte arithmetic. */
+ExprPtr mkRef(ExprPtr lval, TPtr typ)
 {
-    ExprPtr n;
-    n = new Expr;
-    *n = *e;
-    n->vt.typ = IntegerType;
-    return n;
-} /* mkCastInt */
-
-ExprPtr mkRef(ExprPtr lval)
-{
-    ExprPtr ret;
-    ret = mkExpr(STANDPROC, voidPtr, lval, NULL);
-    ret->num2 = fnREF;
-    return ret;
+    return mkExpr(ADDROF, typ, lval, NULL);
 } /* mkRef */
 
 ExprPtr cpDsLval(ExprPtr e)
@@ -4980,6 +4971,17 @@ L10122:
             insnList->shift = 0;
             addToInsnList(allocGlobalObject(exprToGen->id2) + (KVTM+I14));
             addToInsnList(KITA+14);
+        } else if (curOP == ADDROF) {
+            /* An lvalue's address as a value: setAddrTo lands the address in
+               the tag register and ITA turns it into an integer word, as just
+               above for a routine's entry. */
+            genFullExpr(exprToGen->expr1);
+            if (insnList->ilm == ilCONST)
+                error(201);
+            setAddrTo(14);
+            addToInsnList(KITA+14);
+            insnList->ilm = ilRVAL;
+            insnList->regsused = insnList->regsused | Bits(0);
         } else if (curOP == ALNUM or curOP == INDCALL)
             genEntry();
         else if (has(BitRange(TOREAL, BITNEGOP), curOP)) {
@@ -5045,18 +5047,10 @@ L10122:
                     insnList->regsused = insnList->regsused | Bits(0);
                     insnList->typ = exprToGen->vt.typ;
                     return;
-                case fnREF:
-                    error(201);
-                    break;
                 default:
                     break;
                 } /* 10546 */
                 insnList->payload = arg1Val;
-            } else if (work == fnREF) {
-                setAddrTo(14);
-                addToInsnList(KITA+14);
-                insnList->ilm = ilRVAL;
-                insnList->regsused = insnList->regsused | Bits(0);
             } else {
                 prepLoad();
                 if (work == fnCARD) {
@@ -6456,9 +6450,8 @@ void parseLval()
     // result is not an lvalue, so assigning to such a pointer is refused by
     // the ordinary lvalue check.
     if (curExpr->op == GETVAR and curExpr->id1->pck.cl == REGID) {
-        TPtr regTyp = curExpr->vt.typ;
-        curExpr = mkRef(reinterpret_cast<ExprPtr>(curExpr->id1->value()));
-        curExpr->vt.typ = regTyp;
+        curExpr = mkRef(reinterpret_cast<ExprPtr>(curExpr->id1->value()),
+                        curExpr->vt.typ);
     }
 } /* parseLval */
 
@@ -6774,10 +6767,7 @@ std::vector<Factor*> Factor::super;
 
 void Factor::stdCall()
 {
-    const int64_t chkREAL = 0, chkINT    = 1, chkCHAR = 2, chkSCALAR = 3,
-                  chkPTR  = 4, chkFILE   = 5, /* chkSET = 6, */ chkOTHER = 7;
     TPtr l5var2z{};
-    Kind argKind;
     int64_t asint64_t;
     int64_t stProcNo, checkMode, resultValue;
 
@@ -6835,46 +6825,21 @@ void Factor::stdCall()
         return;
     }
     expression();
-    if (stProcNo == fnREF and
-        not (GETELT <= curExpr->op and curExpr->op <= DEREF)) {
-        error(27); /* errExpressionWhereVariableExpected */
-        return;
-    }
     arg1Type = curExpr->vt.typ;
-    argKind = (Kind)arg1Type.p.pk;
+    /* The set of functions this argument type admits.  Every type outside
+       these two admits none: the address-of operator is not one of them. */
     if (arg1Type == RealType)
-        checkMode = chkREAL;
+        checkMode = Bits(fnABS);
     else if (arg1Type == IntegerType)
-        checkMode = chkINT;
-    else if (arg1Type == CharType)
-        checkMode = chkCHAR;
-    else if (argKind == kindScalar)
-        checkMode = chkSCALAR;
-    else if (argKind == kindPtr)
-        checkMode = chkPTR;
-    else if (typeSize(arg1Type) == 30)
-        checkMode = chkFILE;
-    else {
-        checkMode = chkOTHER;
-    }
+        checkMode = Bits(fnABS, fnMALLOC, fnCARD) | Bits(fnMINEL);
+    else
+        checkMode = 0;
     asint64_t = Bits(stProcNo);
-    if (stProcNo != fnSIZEOF and
-        not (((checkMode == chkREAL) and
-              (subset(asint64_t, Bits(fnABS, fnREF))))
-          or ((checkMode == chkINT) and
-              (subset(asint64_t, (Bits(fnABS,fnMALLOC,fnREF,fnCARD) |
-                           Bits(fnMINEL)))))
-          or ((checkMode == chkCHAR or checkMode == chkSCALAR or
-               checkMode == chkPTR) and
-              (subset(asint64_t, Bits(fnREF))))
-          or ((checkMode == chkFILE) and
-              (subset(asint64_t, Bits(fnREF))))
-          or ((checkMode == chkOTHER) and
-              (stProcNo == fnREF))))
+    if (stProcNo != fnSIZEOF and not subset(asint64_t, checkMode))
         error(errNeedOtherTypesOfOperands);
     if (not (subset(asint64_t, Bits(fnABS, fnSIZEOF)))) {
         arg1Type = routine->typ;
-    } else if (checkMode == chkINT and subset(asint64_t, Bits(fnABS))) {
+    } else if (arg1Type == IntegerType and subset(asint64_t, Bits(fnABS))) {
         stProcNo = fnABSI;
     }
     if (stProcNo == fnSIZEOF)
@@ -7129,7 +7094,7 @@ void parseUnaryExpression()
                                  mkIntLit(curExpr->expr1->vt.typ.rep()->aleft));
                 curExpr = mkExpr(INTPLUS, charPtrType,
                     mkExpr(IMULOP, IntegerType,
-                           mkCastInt(mkRef(curExpr->expr1)),
+                           mkRef(curExpr->expr1, IntegerType),
                            mkIntLit(6)),
                     idxExpr);
             } else if (arg1Type == CharType)
@@ -7137,12 +7102,11 @@ void parseUnaryExpression()
                    a char value sits in its rightmost byte. */
                 curExpr = mkExpr(INTPLUS, charPtrType,
                     mkExpr(IMULOP, IntegerType,
-                           mkCastInt(mkRef(curExpr)), mkIntLit(6)),
+                           mkRef(curExpr, IntegerType), mkIntLit(6)),
                     mkIntLit(5));
             else {
                 /* The address of an lvalue is a pointer to its type. */
-                curExpr = mkRef(curExpr);
-                curExpr->vt.typ = getPtrType(arg1Type);
+                curExpr = mkRef(curExpr, getPtrType(arg1Type));
             }
         } break;
         case INCROP: case DECROP: {

@@ -5,7 +5,7 @@ const
 //
     fnABS = 0; fnSIZEOF = 1; fnOFFSETOF = 2; fnMALLOC = 3;
     fnCARD = 4; fnMINEL = 5;
-    fnREF = 6; fnABSI = 7;
+    fnABSI = 6;
 //
     S5 = 2;
 //
@@ -175,7 +175,7 @@ typedef enum {
     RMWASSIGN,  GETENUM,    GETFIELD,   DEREF,      STKLVAL,
     INDCALL,    PROCADDR,   ALNUM,      TOREAL,     TOINT,
     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,   STANDPROC,
-    NOOP
+    ADDROF,     NOOP
 } operator;
 //
 typedef enum {
@@ -508,7 +508,7 @@ int indexreg[1..15];
 int opToInsn[SHLEFT..STKLVAL];
 int opToMode[SHLEFT..STKLVAL];
 opflg opFlags[SHLEFT..STKLVAL];
-int funcInsn[8] = {
+int funcInsn[7] = {
     [fnABS]    = KAMX,
     [fnCARD]   = KACX,
     [fnMINEL]  = macro + mcMINEL,
@@ -2322,20 +2322,11 @@ eptr flatMemAt(eptr idx) {
 } /* flatMemAt */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr mkCastInt(eptr e) {
-eptr n;
-    n = malloc(sizeof(expr));
-    *n = *e;
-    n->typ = intType;
-    return n;
-} /* mkCastInt */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-eptr mkRef(eptr lval) {
-eptr ret;
-    ret = mkExpr(STANDPROC, voidPtr, lval, NULL);
-    ret->num2 = fnREF;
-    return ret;
+/* The address of an lvalue, typed by the caller: a pointer to the lvalue's
+   type where that is what is wanted, an int where the address is about to
+   take part in byte arithmetic. */
+eptr mkRef(eptr lval, tptr typ) {
+    return mkExpr(ADDROF, typ, lval, NULL);
 } /* mkRef */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4278,6 +4269,19 @@ int needsMater;
         }
         addToInsnList(allocGlobalObject(exprToGen->id2) + (KVTM+I14));
         addToInsnList(KITA+14);
+    } else if (curOP == ADDROF) {
+        /* An lvalue's address as a value: setAddrTo lands the address in the
+           tag register and ITA turns it into an integer word, as just above
+           for a routine's entry. */
+        genFullExpr(exprToGen->expr1);
+        if (insnList->ilm == ilCONST)
+            error(201);
+        setAddrTo(14);
+        addToInsnList(KITA+14);
+        { register insnltyp *il = insnList;
+            il->ilm  =  ilRVAL;
+            il->regsused |= E48;
+        }
     } else if (curOP == ALNUM || curOP == INDCALL)
         genEntry();
     else if (curOP IN [TOREAL..BITNEGOP]) {
@@ -4335,17 +4339,8 @@ int needsMater;
                     il->typ = exprToGen->typ;
                 };
                 return;
-            case fnREF:
-                error(201);
             }
             insnList->payload  =  arg1Val.i;
-        } else if (work == fnREF) {
-            setAddrTo(14);
-            addToInsnList(KITA+14);
-            { register insnltyp *il = insnList;
-                il->ilm  =  ilRVAL;
-                il->regsused |= E48;
-            }
         } else {
             prepLoad();
             if (work == fnCARD) {
@@ -5627,7 +5622,6 @@ int l4step6z;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseLval() {
-tptr regTyp;
     curExpr  =  mkExpr(GETVAR, hashTravPtr->typ, eptr(hashTravPtr), NULL);
     inSymbol();
     parsePostfix();
@@ -5638,9 +5632,7 @@ tptr regTyp;
        the ordinary lvalue check. */
     if ((curExpr->op == GETVAR) &&
         (curExpr->id1->pck.p.cl == REGID)) {
-        regTyp  =  curExpr->typ;
-        curExpr  =  mkRef(eptr(curExpr->id1->value));
-        curExpr->typ  =  regTyp;
+        curExpr  =  mkRef(eptr(curExpr->id1->value), curExpr->typ);
     }
 } /* parseLval */
 //
@@ -5947,7 +5939,6 @@ int l4var12z;
 void stdCall() {
 operator l5op1z;
 tptr l5var2z;
-kind argKind;
 int asBitset;
 int stProcNo, checkMode, resultValue;
     stProcNo  =  routine->low;
@@ -6004,16 +5995,14 @@ int stProcNo, checkMode, resultValue;
     }
     expression();
     arg1Type  =  curExpr->typ;
-    argKind  =  arg1Type.p.pk;
+    /* The set of functions this argument type admits.  Every type outside
+       these two admits none: the address-of operator is not one of them. */
     if (arg1Type == realType)
         checkMode  =  [fnABS];
     else if (arg1Type == intType)
         checkMode  =  [fnABS, fnMALLOC, fnCARD, fnMINEL];
-    else if ((arg1Type == charType) || (argKind == kindScalar) || (argKind == kindPtr))
+    else
         checkMode  =  0U;
-    else {
-        checkMode  =  0U;
-    }
     asBitset  =  E48 >> stProcNo;
     if ((stProcNo != fnSIZEOF) && ((asBitset & checkMode) == 0U))
         error(errNeedOtherTypesOfOperands);
@@ -6265,7 +6254,7 @@ eptr leftExpr;
                                  mkIntLit(curExpr->expr1->typ.rep->aleft));
                 curExpr = mkExpr(INTPLUS, charPtrType,
                     mkExpr(IMULOP, intType,
-                           mkCastInt(mkRef(curExpr->expr1)),
+                           mkRef(curExpr->expr1, intType),
                            mkIntLit(6)),
                     leftExpr);
             } else if (arg1Type == charType) {
@@ -6273,12 +6262,11 @@ eptr leftExpr;
                    a char value sits in its rightmost byte. */
                 curExpr = mkExpr(INTPLUS, charPtrType,
                     mkExpr(IMULOP, intType,
-                           mkCastInt(mkRef(curExpr)), mkIntLit(6)),
+                           mkRef(curExpr, intType), mkIntLit(6)),
                     mkIntLit(5));
             } else {
                 /* The address of an lvalue is a pointer to its type. */
-                curExpr = mkRef(curExpr);
-                curExpr->typ = getPtrType(arg1Type);
+                curExpr = mkRef(curExpr, getPtrType(arg1Type));
             }
             break;
         case INCROP:
