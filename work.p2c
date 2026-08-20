@@ -613,11 +613,12 @@ int opPrec[SHLEFT..ALTERN] = {
 int symTab[074000 .. 075500];
 /*=A3*/
 // A name's index in this table is its procNo, which several helper numbers
-// are derived from: pck/unpck take helper procNo+13, pack/unpack helper
-// procNo+69, free/halt helper procNo+30.
+// are derived from: pack/unpack take helper procNo+69, free/halt helper
+// procNo+30.  A zero entry is a retired number, skipped by the registration
+// loop so that the numbers after it keep their places.
 int systemProcNames[9] = {
-/*0*/   '     PCK',
-        '   UNPCK',
+/*0*/   0,
+        0,
         '    PACK',
         '  UNPACK',
         '    FREE',
@@ -688,6 +689,8 @@ int feof(pfcb) assembler;
 int fgetc(pfcb) assembler;
 int fgetw(pfcb) assembler;
 void fputw(int, pfcb) assembler;
+int pck(int *) assembler;
+void unpck(int, int *) assembler;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
@@ -1334,7 +1337,7 @@ int skipSp() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void inSymbol() { /* inSymbol */
-char localBuf[131];
+int localBuf[131];
 int tokenLen, tokenIdx;
 int expSign;
 irptr chain;
@@ -1629,14 +1632,14 @@ void lexer() {
             SY  =  CHARCONST;
             tokenLen  =  1;
             curToken.i  =  0;
-            unpck(localBuf[0], curToken.i);
-            pck(localBuf[tokenLen], curToken.i);
+            unpck(curToken.i, &localBuf[0]);
+            curToken.i = pck(&localBuf[tokenLen]);
             return;
         } else 2320: {
             curVal.i  =  '      ';
             SY  =  STRINGSY;
-            unpck(localBuf[tokenIdx], curVal.i);
-            pck(localBuf[6], curToken.i);
+            unpck(curVal.i, &localBuf[tokenIdx]);
+            curToken.i = pck(&localBuf[6]);
             curVal  =  curToken;
             if (strLen <= 6) {
                 if (litQuote == '\'')
@@ -1655,7 +1658,7 @@ void lexer() {
                     tokenLen += 6;
                     if (tokenIdx < tokenLen)
                         return;
-                    pck(localBuf[tokenLen], curVal.i);
+                    curVal.i = pck(&localBuf[tokenLen]);
                 }
             }
         }
@@ -7316,7 +7319,7 @@ tptr t;
     l4bool10z  =  (SY == LPAREN);
     oldOffset  =  moduleOffset;
     if (! l4bool10z &&
-       (procNo IN [0:4,6,7]))
+       (procNo IN [2:4,6,7]))
         error(45); /* errNoOpenParenForStandProc */
     if (procNo == 4) {
         expression();
@@ -7370,19 +7373,6 @@ tptr t;
         expression();
         takeConstFromExpr();
         formAndAlign(curVal.i);
-        break;
-    case 0: case 1: /* pck, unpck */
-        inSymbol();
-        verifyType(charType);
-        checkSymAndRead(COMMA);
-        formOperator(SETREG12);
-        verifyType(intType);
-        if (procNo == 1) {
-            formOperator(LOAD);
-        }
-        formAndAlign(getHelperProc(procNo + 9));
-        if (procNo == 0)
-            formOperator(STORE);
         break;
     case 2: /* pack */
         inSymbol();

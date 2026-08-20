@@ -1,0 +1,35 @@
+/*=s8,y+,l0*/
+//
+// unpck(value, p) writes the six characters of value to the six words at p,
+// the most significant byte of value first, so unpacking a word that pck made
+// gives back the characters pck was given.  The word is the argument that
+// gets pushed and the address arrives in the accumulator, so the callee takes
+// both of them in one instruction; the pushed word is also the one it has to
+// pop, and a count that is off by one would drift the stack per call.
+//
+int pck(int *) assembler;
+void unpck(int, int *) assembler;
+//
+typedef union { int i; __packed char c[0..5]; } wordu;
+int buf[0..5], lib[0..5];
+wordu u;
+int w, same, bal, i;
+void main() {
+    buf[0] = 'A'; buf[1] = 'B'; buf[2] = 'C';
+    buf[3] = 'D'; buf[4] = 'E'; buf[5] = 'F';
+    w = pck(&buf[0]);
+    unpck(w, &lib[0]);
+    same = 1;
+    for (i = 0; i <= 5; ++i)
+        if (lib[i] != buf[i])
+            same = 0;
+    u.i = pck(&lib[0]);
+    writeln(' UNPCK=', u.c:6);
+    writeln(' SAME =', same:0);
+    bal = 0;
+    for (i = 1; i <= 100; ++i) {
+        unpck(w, &lib[0]);
+        bal += pck(&lib[0]) - w;
+    }
+    writeln(' BAL  =', bal:0);
+}

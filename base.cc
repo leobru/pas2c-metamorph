@@ -470,19 +470,19 @@ std::string Alfa::print() const
     return ret;
 }
 
-void unpck(unsigned char & to, Alfa & from)
+int64_t pck(unsigned char * p)
 {
-    unsigned char * p = &to;
-    for (int i = 0; i < 6; ++i) {
-        p[i] = from[i+1];
-    }
+    int64_t w = 0;
+    for (int i = 0; i < 6; ++i)
+        w = (w << 8) | p[i];
+    return w;
 }
 
-void pck(unsigned char & from, Alfa & to)
+void unpck(int64_t w, unsigned char * p)
 {
-    unsigned char * p = &from;
-    for (int i = 0; i < 6; ++i) {
-        to.put(i+1, p[i]);
+    for (int i = 5; i >= 0; --i) {
+        p[i] = w & 0xFF;
+        w >>= 8;
     }
 }
 
@@ -2627,14 +2627,14 @@ exitLoop:
                     SY = CHARCONST;
                     tokenLen = 1;
                     curToken.ii = '\0';
-                    unpck(localBuf[0], curToken.a);
-                    pck(localBuf[tokenLen], curToken.a);
+                    unpck(curToken.ii, &localBuf[0]);
+                    curToken.ii = pck(&localBuf[tokenLen]);
                     goto exitLexer;
                 } else {
                     curVal.ii = 0x202020202020L; // curVal.a = '      '
                     SY = STRINGSY;
-                    unpck(localBuf[tokenIdx], curVal.a);
-                    pck(localBuf[6], curToken.a);
+                    unpck(curVal.ii, &localBuf[tokenIdx]);
+                    curToken.ii = pck(&localBuf[6]);
                     curVal = curToken;
                     if (6 >= strLen) {
                         if (litQuote == '\'')
@@ -2661,7 +2661,7 @@ loop:                   {
                             if (tokenIdx < tokenLen) // strict <
                                 goto exitLexer;      // exact multiples of 6 get
                                                      // a trailing 6-space word
-                            pck(localBuf[tokenLen], curVal.a);
+                            curVal.ii = pck(&localBuf[tokenLen]);
                             goto loop;
                        }
                    }
@@ -8145,7 +8145,7 @@ struct standProc {
         l4bool10z = (SY == LPAREN);
         oldOffset = moduleOffset;
         if (not l4bool10z and
-            has((BitRange(0,4) | Bits(6,7)), procNo))
+            has((BitRange(2,4) | Bits(6,7)), procNo))
             error(45); /* errNoOpenParenForStandProc */
         if (procNo == 4) {
             expression();
@@ -8201,19 +8201,6 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
             expression();
             takeConstFromExpr();
             formAndAlign(curVal.ii);
-        } break;
-        case 0: case 1: { /* pck, unpck */
-            inSymbol();
-            verifyType(CharType);
-            checkSymAndRead(COMMA);
-            (void) formOperator(SETREG12);
-            verifyType(IntegerType);
-            if (procNo == 1) {
-                (void) formOperator(LOAD);
-            }
-            formAndAlign(getHelperProc(procNo + 9));
-            if (procNo == 0)
-                (void) formOperator(STORE);
         } break;
         case 2: { /* pack */
             inSymbol();
@@ -10143,12 +10130,13 @@ int64_t helperNames[58] = { 0L,
         04317635062000000L      /*"C/SHR   "*/};
 
 // A name's index in this table is its procNo, which several helper numbers
-// are derived from: pck/unpck take helper procNo+13, pack/unpack helper
-// procNo+69, free/halt helper procNo+30.  This is the P2C set
+// are derived from: pack/unpack take helper procNo+69, free/halt helper
+// procNo+30.  A zero entry is a retired number, skipped by the registration
+// loop so that the numbers after it keep their places.  This is the P2C set
 // (BESM/FREE/PACK...).
 int64_t systemProcNames[9] = {
-/*0*/   0604353L                /*"     PCK"*/,
-        06556604353L            /*"   UNPCK"*/,
+/*0*/   0,
+        0,
         060414353L              /*"    PACK"*/,
         0655660414353L          /*"  UNPACK"*/,
         044516360576345L        /*"    FREE"*/,
