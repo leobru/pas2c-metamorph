@@ -182,7 +182,7 @@ typedef enum {
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
     SETREG9,  STOREAT9,  DOIT,  SETREG12,  DFLTWDTH,
     FRACWIDTH, SETREG11, PUSHSET11,
-    BRANCH, PCKUNPCK
+    BRANCH
 } opgen;
 //
 // Flags for ops that can potentially be optimized if one operand is a constant
@@ -612,16 +612,10 @@ int opPrec[SHLEFT..ALTERN] = {
 //
 int symTab[074000 .. 075500];
 /*=A3*/
-// A name's index in this table is its procNo, which several helper numbers
-// are derived from: pack/unpack take helper procNo+69, free/halt helper
-// procNo+30.  A zero entry is a retired number, skipped by the registration
-// loop so that the numbers after it keep their places.
-int systemProcNames[9] = {
-/*0*/   0,
-        0,
-        '    PACK',
-        '  UNPACK',
-        '    FREE',
+// A name's index in this table is its procNo, which free and halt derive their
+// helper numbers from (getHelperProc(18 + procNo)).
+int systemProcNames[5] = {
+/*0*/   '    FREE',
         '    HALT',
         '    BESM',
         '   WRITE',
@@ -691,6 +685,8 @@ int fgetw(pfcb) assembler;
 void fputw(int, pfcb) assembler;
 int pck(int *) assembler;
 void unpck(int, int *) assembler;
+void packt(void *, void *, int) assembler;
+void unpackt(void *, void *, int) assembler;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
@@ -720,7 +716,7 @@ char c;
                 write(curToken.i:0,' ');
         }
         errptr  =  pasmitxt(errno);
-        unpack(*errptr, errtext, 0);
+        unpackt(errptr, &errtext, 101);
         for (i = 0; i <= 100; ++i) {
             c  =  pasisoxt(errtext[i]);
             if (c == '*')
@@ -1646,7 +1642,7 @@ void lexer() {
                     SY  =  INTCONST;
                 return;
             } else if (litQuote == '\'' && charEncoding == 3 && strLen == 8) {
-                pack(localbuf, 6, curToken.t);
+                packt(&localBuf[6], &curToken.t, 8);
                 curVal  =  curToken;
                 SY = INTCONST;
                 return;
@@ -4392,7 +4388,7 @@ int needsMater;
     rhsMode  =  true;
     if (errors && l3arg1z != SETREG || curExpr == NULL)
         return;
-    if (! (l3arg1z IN [FORMOP, STOREAT9, DFLTWDTH, PCKUNPCK]))
+    if (! (l3arg1z IN [FORMOP, STOREAT9, DFLTWDTH]))
         genFullExpr(curExpr);
     switch (l3arg1z) {
     case DOIT:
@@ -4561,28 +4557,6 @@ int needsMater;
             }
             break;
         } /* BRANCH */
-    case PCKUNPCK:
-        helpExpr  =  curExpr;
-        curExpr  =  curExpr->expr1;
-        formOperator(SETREG11);
-        genFullExpr(helpExpr->expr2);
-        if ((E48 >> 11) & insnList->regsused)
-            error(44); /* errIncorrectUsageOfStandProcOrFunc */
-        setAddrTo(12);
-        genOneOp();
-        arg1Type  =  helpExpr->expr2->typ;
-        l3int3z  =  arg1Type.rep->aright - arg1Type.rep->aleft + 1;
-        form2Insn((KVTM+I14) + l3int3z,
-                  (KVTM+I10+64) - arg1Type.rep->pcksize);
-        l3int3z  =  int(helpExpr->typ.rep);
-        l3int1z  =  arg1Type.rep->perword;
-        if (l3int3z == 44)           /* P/KC */
-            l3int1z  =  1 - l3int1z;
-        form1Insn(getValueOrAllocSymtab(l3int1z) + (KVTM+I9));
-        l3int1z  =  KXTA;
-        form1Insn(l3int1z);
-        formAndAlign(getHelperProc(l3int3z));
-        break;
     } /* switch */
 } /* formOperator */
 //
@@ -7087,10 +7061,9 @@ void returnOp() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void standProc() { /* standProc */
-tptr l4typ1z, l4typ2z, l4typ3z;
+tptr l4typ2z, l4typ3z;
 eptr firstWidth, secondWidth;
-eptr l4exp6z;
-eptr l4exp7z, l4exp8z, workExpr;
+eptr l4exp7z, workExpr;
 int l4bool10z,
     noWidth, needR12, oldOffset;
 int defWidth;
@@ -7273,7 +7246,7 @@ void writeProc() {
                 callHelperWithArg();
         }
     } while (SY == COMMA);
-    if (procNo == 8) {
+    if (procNo == 4) {
         helperNo  =  30;                 /* P/WL */
         callHelperWithArg();
     }
@@ -7283,55 +7256,24 @@ void writeProc() {
 } /* writeProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void checkArrayArg() {
-    verifyType(voidType);
-    workExpr  =  curExpr;
-    l4typ1z  =  curExpr->typ;
-    if ((l4typ1z.rep->pck) ||
-       (l4typ1z.p.pk != kindArray))
-        error(errNeedOtherTypesOfOperands);
-    checkSymAndRead(COMMA);
-    readNext  =  false;
-    expression();
-    l4exp8z  =  curExpr;
-} /* checkArrayArg */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void doPackUnpack() {
-tptr t;
-    l4exp7z  =  mkExpr(GETELT, l4typ1z.rep->base, workExpr, l4exp8z);
-    t  =  l4exp6z->typ;
-    if ((t.p.pk != kindArray) ||
-       ! t.rep->pck ||
-       (t.rep->base.p.pk != kindScalar) ||
-       (l4typ1z.rep->base.p.pk != kindScalar))
-        error(errNeedOtherTypesOfOperands);
-    curExpr = malloc(sizeof(expr));
-    curExpr->typ.rep  =  typptr(procNo + 41);
-    curExpr->expr1  =  l4exp7z;
-    curExpr->expr2  =  l4exp6z;
-    formOperator(PCKUNPCK);
-} /* doPackUnpack */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     curVal.i  =  l3idr12z->low;
     procNo  =  curVal.i;
     l4bool10z  =  (SY == LPAREN);
     oldOffset  =  moduleOffset;
     if (! l4bool10z &&
-       (procNo IN [2:4,6,7]))
+       (procNo IN [0,2,3]))
         error(45); /* errNoOpenParenForStandProc */
-    if (procNo == 4) {
+    if (procNo == 0) {
         expression();
         if (! (curExpr->op IN lvalOpSet))
             error(27); /* errExpressionWhereVariableExpected */
         arg1Type  =  curExpr->typ;
         curVarKind  =  arg1Type.p.pk;
     }
-    if (procNo IN [4,5])
-        jumpTarget  =  getHelperProc(14 + procNo); /* P/DS, P/HT */
+    if (procNo IN [0,1])
+        jumpTarget  =  getHelperProc(18 + procNo); /* P/DS, P/HT */
     switch (procNo) {
-    case 4: /* free */
+    case 0: /* free */
         if (curVarKind != kindPtr)
             error(13); /* errVarIsNotPointer */
         ++heapCallsCnt;
@@ -7355,13 +7297,13 @@ tptr t;
         }
         formAndAlign(jumpTarget);
         break;
-    case 5: /* halt */
+    case 1: /* halt */
         formAndAlign(jumpTarget);
         return;
-    case 7: /* write */
+    case 3: /* write */
         writeProc();
         break;
-    case 8: /* writeln */
+    case 4: /* writeln */
         if (SY == LPAREN) {
             writeProc();
             break;
@@ -7369,28 +7311,13 @@ tptr t;
             formAndAlign(getHelperProc(31)); /*"P/WOLN"*/
             return;
         }
-    case 6: /* besm */
+    case 2: /* besm */
         expression();
         takeConstFromExpr();
         formAndAlign(curVal.i);
         break;
-    case 2: /* pack */
-        inSymbol();
-        checkArrayArg();
-        checkSymAndRead(COMMA);
-        verifyType(voidType);
-        l4exp6z  =  curExpr;
-        doPackUnpack();
-        break;
-    case 3: /* unpack */
-        inSymbol();
-        verifyType(voidType);
-        l4exp6z  =  curExpr;
-        checkSymAndRead(COMMA);
-        checkArrayArg();
-        doPackUnpack();
     }
-    if (procNo in [2:4,7,8])
+    if (procNo in [0,3,4])
         arithMode  =  1;
     checkSymAndRead(RPAREN);
 } /* standProc */
@@ -7865,11 +7792,8 @@ void regSysProc(int l4arg1z) {
     }
     temptype.rep = NULL;
     sysProcNum  =  0;
-    for (l3var5z = 0; l3var5z <= 8; ++l3var5z) {
-        if (systemProcNames[l3var5z] != 0)
-            regSysProc(systemProcNames[l3var5z]);
-        else
-            ++sysProcNum;
+    for (l3var5z = 0; l3var5z <= 4; ++l3var5z) {
+        regSysProc(systemProcNames[l3var5z]);
     }
     sysProcNum  =  0;
     temptype  =  realType;
@@ -8636,7 +8560,7 @@ void regKeywords() { /*=A3 regKeywords */
     FcstCount  =  0;
     initInsnTemplates();
     skipToSet  =  blockBegSys | statBegSys & (~[SWITCHSY]);
-    unpack(*pasinfor.a3, iso2text, '\052'); /* '*' */
+    unpackt(pasinfor.a3, &iso2text, '\177' - '\052' + 1);
     iso2text['_'] = iso2text['*'];
     ftruncate(&_CHILD_);
     for (jdx = 1; jdx <= 10; ++jdx)

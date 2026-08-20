@@ -1,0 +1,46 @@
+/*=s8,y+,l0*/
+//
+// packt(src, dst, count) packs COUNT six-bit characters, a word each, into
+// eight-to-a-word slots at dst, and unpackt puts them back.  Six bits is two
+// octal digits, so a packed word of ascending values reads straight off.  A
+// call passes its last argument in the accumulator and pushes the two before
+// it, which is exactly the two words the routine pops.
+//
+typedef int:6 textchar;
+void packt(void *, void *, int) assembler;
+void unpackt(void *, void *, int) assembler;
+//
+typedef union { __packed textchar c[16]; int w[0..1]; } pk16;
+textchar plain[0..15], back[0..15];
+char cback[0..7];
+pk16 u;
+int i, j, same;
+void main() {
+    for (i = 0; i <= 15; ++i)
+        plain[i] = i + 1;
+    packt(&plain, &u, 16);
+    writeln(' W0   =', u.w[0]:16 oct);
+    writeln(' W1   =', u.w[1]:16 oct);
+    for (i = 0; i <= 15; ++i)
+        back[i] = 0;
+    unpackt(&u, &back, 16);
+    same = 1;
+    for (i = 0; i <= 15; ++i)
+        if (back[i] != plain[i])
+            same = 0;
+    writeln(' SAME =', same:0);
+    //
+    // packing from the middle of the unpacked array, and out into an unpacked
+    // char array, which is the shape the compiler's own calls have
+    //
+    packt(&plain[8], &u, 8);
+    writeln(' HALF =', u.w[0]:16 oct);
+    unpackt(&u, &cback, 8);
+    same = 1;
+    for (i = 0; i <= 7; ++i) {
+        j = cback[i];
+        if (j != i + 9)
+            same = 0;
+    }
+    writeln(' CHARS=', same:0);
+}
