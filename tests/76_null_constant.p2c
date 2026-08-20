@@ -2,7 +2,7 @@
 // The null pointer is not predefined any more: a program declares it, and
 // a void pointer constant is compatible with every pointer type.
 typedef void *anyptr;
-const NULL = anyptr(074000);
+const NULL = anyptr(0);
 //
 typedef struct {
     int val;

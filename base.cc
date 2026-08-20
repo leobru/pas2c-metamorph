@@ -370,11 +370,11 @@ void rollup(void * p)
     }
 }
 
-// We need to be able to produce NULL, which must not be equal to ptr(0).
-// In the BESM-6, NIL was equal to 074000.
+// NULL is zero, and arena index 0 is never handed out (allocation starts at
+// heapBase), so ptr(0) is exactly NULL.
 void * ptr(int64_t x)
 {
-    if (x == 074000) return NULL;
+    if (x == 0) return NULL;
     if (x < 0 || x >= avail) {
         fprintf(stderr, "Cannot convert %ld to a pointer, avail = %ld\n", x, avail);
         exit(1);
@@ -385,7 +385,7 @@ void * ptr(int64_t x)
 int64_t ord(void * p)
 {
     int64_t ret = reinterpret_cast<int64_t>(p);
-    if (p == NULL) return 074000;
+    if (p == NULL) return 0;
     if (ret < avail || ret <= 100) return ret;
     // The exact heap top is a valid mark (cf. rollup): ord(heap+avail) = avail.
     if (p < heap || p > heap + avail) {
@@ -413,7 +413,7 @@ typedef struct SigRec * SigPtr;
 // with no Types record allocated. g++ allocates bitfields from the LSB,
 // which reproduces the right-to-left field order.
 struct PckRep {
-    uint64_t rep   : 15;   // arena word-index of the Types record (074000 = nil)
+    uint64_t rep   : 15;   // arena word-index of the Types record (0 = nil)
     uint64_t bits  : 6;
     uint64_t pk    : 3;    // Kind
     uint64_t psize : 15;
@@ -586,7 +586,7 @@ struct Types : public BESM6Obj {
 
 inline Types * TPtr::rep() const
 {
-    return p.rep == 074000 ? nullptr : reinterpret_cast<Types*>(heap + p.rep);
+    return p.rep == 0 ? nullptr : reinterpret_cast<Types*>(heap + p.rep);
 }
 
 inline void TPtr::setRep(TypesPtr t)
@@ -684,7 +684,7 @@ struct IdentRec : public BESM6Obj {
     union {
         int64_t pckword;
         struct {
-            uint64_t nidx   : 15;   // arena word-index (074000 = nil)
+            uint64_t nidx   : 15;   // arena word-index (0 = nil)
             int64_t  offset : 24;
             uint64_t cl     : 3;    // IdClass
         };
@@ -719,12 +719,12 @@ struct IdentRec : public BESM6Obj {
         };
     };
     // Hash-chain link, stored as a compact arena index in pck (see above).
-    // nidx==0 is the memset-fresh state (besm6_alloc zero-fills); treat it as
-    // nil like the explicit 074000, so a just-allocated record reads NULL.
+    // nidx==0 is both nil and the memset-fresh state (besm6_alloc zero-fills),
+    // so a just-allocated record reads NULL.
     IdentRecPtr next() const {
         // heap + index directly (not ptr(), whose bounds check rejects the
         // dangling-but-unused links a native pointer tolerated across rollup).
-        return (pck.nidx == 0 || pck.nidx == 074000) ? NULL
+        return pck.nidx == 0 ? NULL
              : reinterpret_cast<IdentRecPtr>(heap + pck.nidx);
     }
     IdentRecPtr & list() {
@@ -1045,7 +1045,7 @@ void defExtern()
            leading file argument recognize a file -- and no operator
            applies to it, so it is a void of 30 words. */
         idRec->typ.word = 0;
-        idRec->typ.setRep(NULL);        // ord(NULL) == 074000, as in work.p2c
+        idRec->typ.setRep(NULL);        // ord(NULL) == 0, as in work.p2c
         idRec->typ.p.psize = 30;
         idRec->pck.cl = VARID;
         idRec->list() = NULL;
@@ -8944,7 +8944,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         initScalars();          // reads the first token itself
         return;
     }
-    preDefHead = reinterpret_cast<IdentRec*>(ptr(0));
+    preDefHead = uProcPtr;
     inTypeDef = false;
     typedefPending = false;
     typelist = NULL;
@@ -9380,9 +9380,9 @@ L23301:
             curExternFile = curExternFile->next;
         }
     }
-    if (preDefHead != ptr(0))  {
+    if (preDefHead != uProcPtr)  {
         error(85); /* errNotFullyDefinedProcedures */
-        while (preDefHead != ptr(0)) {
+        while (preDefHead != uProcPtr) {
             printTextWord(preDefHead->id);
             preDefHead = preDefHead->preDefLink();
         }

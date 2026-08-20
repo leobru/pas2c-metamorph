@@ -4,7 +4,7 @@
 // its entry address, with '&' in front of it optional, as in C; and a call
 // through the pointer takes its whole convention from the pointer's type.
 typedef void *anyptr;
-const NULL = anyptr(074000);
+const NULL = anyptr(0);
 //
 typedef int (*binop)(int, int);
 //

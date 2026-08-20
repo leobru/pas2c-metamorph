@@ -386,7 +386,9 @@ typedef void *anyptr;
 // returns that singleton), which typeCheck accepts on either side of a
 // pointer comparison or assignment.  (It cannot be called voidptr: that
 // collides with the global voidPtr, identifiers being case-insensitive.)
-const NULL = anyptr(074000);
+// Zero is free to mean it: the heap starts above the static image and every
+// other address is taken relative to a base register, so no object has it.
+const NULL = anyptr(0);
 // A word ordered as a bit pattern: comparison of a one-word non-scalar is
 // unsigned, where a scalar's is arithmetic.  The FCST pool is sorted and
 // binary-searched, and holds arbitrary literals, so that is the order it
@@ -8005,7 +8007,7 @@ void exitScope(int a) {
         mainProgram();          // reads the first token itself
         return;
     }
-    preDefHead  =  irptr(0);
+    preDefHead  =  uProcPtr;
     inTypeDef  =  false;
     typelist  =  NULL;
     retSeen  =  false;
@@ -8456,9 +8458,9 @@ void exitScope(int a) {
             curExternFile  =  curExternFile->next;
         }
     }
-    if (preDefHead != irptr(0)) {
+    if (preDefHead != uProcPtr) {
         error(85); /* errNotFullyDefinedVoids */
-        while (preDefHead != irptr(0)) {
+        while (preDefHead != uProcPtr) {
             printTextWord(preDefHead->id);
             preDefHead  =  preDefHead->preDefLink;
         }

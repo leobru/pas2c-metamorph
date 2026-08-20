@@ -11,7 +11,7 @@
 // a pointer -- must be size-independent.
 //
 typedef void *anyptr;
-const NULL = anyptr(074000);
+const NULL = anyptr(0);
 //
 typedef struct { int a; } w1;
 typedef struct { int a, b; } w2;
