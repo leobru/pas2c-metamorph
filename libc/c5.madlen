@@ -1,0 +1,35 @@
+ C/5:,NAME,
+C===========================================================
+C C/5 - entry to a routine at lexical level 5.
+C
+C   M13 = the routine's return link, M14 = the link back here,
+C   M15 = the frame the caller left for it.
+C
+C It builds the frame P/5 builds -- [0] the caller's frame,
+C [1] the return address, [2] the static link -- and first
+C saves the display registers M2 through M6 in [3] through [7],
+C which the compiler reserves in every frame.  C/E restores
+C them, so a call leaves the caller's display as it found it
+C and nothing has to be rebuilt after the call returns.  The
+C registers above this level are the body's scratch, which is
+C why they are saved here too.
+C===========================================================
+                ,NTR ,3
+                ,ITA ,2
+            15  ,ATX ,3      . [frame+3] := M2
+                ,ITA ,3
+            15  ,ATX ,4
+                ,ITA ,4
+            15  ,ATX ,5
+                ,ITA ,5
+            15  ,ATX ,6
+                ,ITA ,6
+            15  ,ATX ,7      . [frame+7] := M6
+                ,ITA ,7      . the caller's frame
+            15  ,MTJ ,7      . M7 := the new frame
+            15  ,MTJ ,5      . M5 := it as well, the display for this level
+                ,ITS ,13     . [frame+0] := the caller's frame
+                ,ITS ,4      . [frame+1] := the return address
+             7  ,ATX ,2      . [frame+2] := the enclosing frame
+            14  ,UJ  ,
+                ,END ,

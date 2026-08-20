@@ -1,0 +1,30 @@
+ UNPACKT:,NAME,
+C===========================================================
+C unpackt(src, dst, count) - unpack six-bit characters.
+C
+C Calling convention for a three-argument ASSEMBLER routine:
+C   ACC    = count, the number of characters
+C   [SP-1] = dst, the first of COUNT unpacked characters
+C   [SP-2] = src, the packed array, eight characters to a word
+C   M13    = return link
+C
+C   void unpackt(void *, void *, int) assembler;
+C
+C P/KC takes the unpacked address in M11, the packed address in
+C M12, the count in M14 and the width of a packed slot as an ASN
+C code in M10, as P/CK does; M9 holds one less the number of
+C slots per word, which for six-bit characters is 1 - 8.
+C
+C P/KC returns through M13, which still holds the caller's link,
+C so the jump into it is the return as well.
+C===========================================================
+ P/KC:          ,SUBP,
+                ,NTR ,7      . ABI requirement
+                ,STI ,14     . M14 := count; ACC := dst
+                ,STI ,11     . M11 := dst, the unpacked characters
+                ,ATI ,12     . M12 := src, the packed array
+             9  ,VTM ,-7     . 1 - 8, the form P/KC wants
+            10  ,VTM ,58     . 64 - 6, the ASN code for the slot width
+                ,XTA ,
+                ,UJ  ,P/KC   . tail call: P/KC returns to our caller
+                ,END ,

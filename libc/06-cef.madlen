@@ -14,6 +14,21 @@ c===========================================
  c/e     :      ,entry,
 c===========================================
                 , ntr , 7
+c   Put back the display C/2..C/6 saved in the frame: the
+c   routine that clobbered a register is the one that restores
+c   it, so nothing has to be rebuilt at the call site.  WTC and
+c   VTM leave the accumulator alone, which is where a function
+c   result is sitting.
+            7   , wtc , 3
+            2   , vtm ,
+            7   , wtc , 4
+            3   , vtm ,
+            7   , wtc , 5
+            4   , vtm ,
+            7   , wtc , 6
+            5   , vtm ,
+            7   , wtc , 7
+            6   , vtm ,
             7   , mtj , 15
             7   , wtc ,
             7   , vtm ,

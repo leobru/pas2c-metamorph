@@ -1,0 +1,34 @@
+ PACKT:,NAME,
+C===========================================================
+C packt(src, dst, count) - pack six-bit characters.
+C
+C Calling convention for a three-argument ASSEMBLER routine:
+C   ACC    = count, the number of characters
+C   [SP-1] = dst, the packed array, eight characters to a word
+C   [SP-2] = src, the first of COUNT unpacked characters
+C   M13    = return link
+C
+C   void packt(void *, void *, int) assembler;
+C
+C P/CK takes the unpacked address in M11, the packed address in
+C M12, the count in M14, the width of a packed slot as an ASN
+C code in M10, and the number of slots per word in M9.  Six-bit
+C characters go eight to a word, which fixes those two.
+C
+C An unpacked character array gives every element a word of its
+C own, so both addresses are word addresses; VOID * is what lets
+C the caller pass an array of any character type.
+C
+C P/CK returns through M13, which still holds the caller's link,
+C so the jump into it is the return as well.
+C===========================================================
+ P/CK:          ,SUBP,
+                ,NTR ,7      . ABI requirement
+                ,STI ,14     . M14 := count; ACC := dst
+                ,STI ,12     . M12 := dst, the packed array
+                ,ATI ,11     . M11 := src, the unpacked characters
+             9  ,VTM ,8      . eight six-bit characters to a word
+            10  ,VTM ,58     . 64 - 6, the ASN code for the slot width
+                ,XTA ,
+                ,UJ  ,P/CK   . tail call: P/CK returns to our caller
+                ,END ,

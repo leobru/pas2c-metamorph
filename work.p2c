@@ -503,7 +503,6 @@ operator intOpMap[MUL..MINUSOP] = {
     [MUL] = IMULOP, IDIVOP,
     [IMODOP] = IMODOP, INTPLUS, INTMINUS };
 entries entryPtTable;
-four frameRestore[3..6] = 0:16;
 int indexreg[1..15];
 int opToInsn[SHLEFT..STKLVAL];
 int opToMode[SHLEFT..STKLVAL];
@@ -541,11 +540,11 @@ int helperMap[1..57] = 0:57;
 /*=A3*/
 int helperNames[1..57] = {
         'P/1     ',
-        'P/2     ',
-        'P/3     ',
-        'P/4     ',
-        'P/5     ',
-        'P/6     ',
+        'C/2     ',
+        'C/3     ',
+        'C/4     ',
+        'C/5     ',
+        'C/6     ',
         'C/MD    ',
         'P/MI    ',
         'P/PA    ',
@@ -1275,10 +1274,6 @@ void readOptFlag(int *res) {
         nextCH();
         badOpt  =  true;
         switch (CH) {
-        case 'D':
-            curVal.i = readOptVal(15);
-            optSflags  =  optSflags & [0..40] | curVal.i & [41..47];
-            break;
         case 'Y': readOptFlag(&allowCompat); break; // just for LINES STRUCTURE
         case 'E': readOptFlag(&declEntry); break;
         case 'S':
@@ -3513,8 +3508,6 @@ eptr l5exp1z, l5exp2z, calleeExp;
 irptr l5idr5z;
 int isProc, firstArg, isIndir, isFortrn, isAssembler, allByRef;
 int calleeFl, frameSiz, numArgs;
-int l5var15z;
-int l5var17z, l5var18z, l5var19z;
 insnltyp *l5inl20z;
 tptr routTyp, resTyp;
 idclass paramClass;
@@ -3538,7 +3531,7 @@ idclass paramClass;
         calleeFl  =  l5idr5z->flags;
     }
     isProc  =  resTyp == voidType;
-    frameSiz  =  isProc ? 3 : 4;
+    frameSiz  =  isProc ? 8 : 9;
     isFortrn  =  21 in calleeFl;
     isAssembler  =  26 in calleeFl;
     allByRef  =  24 in calleeFl;
@@ -3616,36 +3609,14 @@ idclass paramClass;
         }
         insnList->regsused  =  insnList->regsused | l5inl20z->regsused;
         addToInsnList(KVJM+I13);
-        /* The callee's level is not knowable here, and only a file-scope
-           routine can be pointed at, so it is 1, as for an external. */
-        l5var17z  =  1;
     } else {
         addToInsnList(allocGlobalObject(l5idr5z) + (KVJM+I13));
-        if (20 in l5idr5z->flags) {
-            l5var17z  =  1;
-        } else {
-            l5var17z  =  l5idr5z->pck.p.offset / 04000000;
-        }
     }
     insnList->tail->mode  =  2;
-    if (! isAssembler && curProcNesting != l5var17z) {
-        if (! isFortrn) {
-            if (l5var17z + 1 == curProcNesting) {
-                addToInsnList(KMTJ+I7 + curProcNesting);
-            } else {
-                l5var15z  =  frameRestore[curProcNesting][l5var17z];
-                if (l5var15z == 0) {
-                    curVal.i  =  /*=A3*/'C/      ';/*=A2*/
-                    l5var19z  =  (curProcNesting + 16) << 30;
-                    l5var18z  =  (l5var17z + 16) << 24;
-                    curVal.i |= l5var19z | l5var18z;
-                    l5var15z  =  allocExtSymbol(extSymMask);
-                    frameRestore[curProcNesting][l5var17z]  =  l5var15z;
-                }
-                addToInsnList(KVJM+I13 + l5var15z);
-            }
-        }
-    }
+    /* Nothing follows the call: the display registers a callee disturbs are
+       the ones its own entry helper saved in its frame, and C/E puts them
+       back.  A frameless routine has no helper to do that, which is why one
+       that uses a display register does not get to stay frameless. */
     if (! isAssembler &&
         (isIndir || [20, 21] & calleeFl)) {
         addToInsnList(KVTM+040074001);
@@ -5414,12 +5385,12 @@ int l3int1z, frame, l3var3z;
                 error(87); /* errTooManyEntryProcs */
         }
         if (procName->typ == voidType) {
-            frame  =  3;
+            frame  =  8;
         } else {
-            frame  =  4;
+            frame  =  9;
         }
         if (l3var3z)
-            form2Insn((KVTM+I14) + l3arg1z + ((frame - 3) << 9),
+            form2Insn((KVTM+I14) + l3arg1z + ((frame - 8) << 9),
                       getHelperProc(55 /*"P/NN"*/) - 010000000); // Use I11 instead of I13
         if (1 < l3arg1z) {
             frame  =  getValueOrAllocSymtab(-(frame+l3arg1z));
@@ -7571,9 +7542,9 @@ int l3var7z;
         requiredSymErr(BEGINSY);
     if ((E48 >> 23) & procName->flags) {
         l3idr5z  =  procName->argList;
-        l3int4z  =  3;
+        l3int4z  =  8;
         if (procName->typ != voidType)
-        l3int4z  =  4;
+        l3int4z  =  9;
         while (l3idr5z != procName) {
             if (l3idr5z->pck.p.cl == VARID) {
                 l3var2z  =  typeSize(l3idr5z->typ);
@@ -7627,23 +7598,16 @@ int l3var7z;
     }
     procName->flags  =  usedRegs & [0:15] | procName->flags & ~l3var7z;
     lineNesting  =  l3var2z - 1;
-    if (!bool48z && (sizeCount == 3) &&
+    /* An empty body needs no frame: the return goes straight back through
+       M13 and no register is disturbed.  A body with anything in it borrows
+       a scratch display register to hold the link, and a routine without a
+       frame has nowhere to save what it borrows -- its callers no longer
+       rebuild the display, so it gets a frame like everything else. */
+    if (!bool48z && (objBufIdx == 2) && (sizeCount == 8) &&
        (curProcNesting != 1) && (usedRegs & [1:15]) != [1:15]) {
-        objBuffer[1]  =  (KNTR+7)<< 24 | KUTC;
+        objBuffer[1]  =  (KUJ+I13) << 24;
         procName->flags |= [25];
-        if (objBufIdx == 2) {
-            objBuffer[1]  =  (KUJ+I13) << 24;
-            putLeft  =  true;
-        } else {
-            procName->pos  =  l3var1z;
-            if ((E48 >> 13) & usedRegs) {
-                curVal.i  =  minel([1:15] & (~usedRegs));
-                objBuffer[2]  =  objBuffer[2] | (KMTJ+I13+curVal.i) << 24;
-            } else {
-                curVal.i  =  13;
-            }
-            form1Insn(KUJ + indexreg[curVal.i]);
-        }
+        putLeft  =  true;
     } else {
         jj = curProcNesting == 1 ? 16 /* C/EF */ : 15; /* C/E */
         form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
@@ -8315,7 +8279,7 @@ void exitScope(int a) {
                     ir->flags  =  declEntry ? [0:15,22] : [0:15];
                     ir->pos  =  0;
                     curFrameRegTemplate += frameRegTemplate;
-                    l2int18z  =  l2bool8z ? 3 : 4;
+                    l2int18z  =  l2bool8z ? 8 : 9;
                 }
                 ++curProcNesting;
                 if (6 < curProcNesting)
