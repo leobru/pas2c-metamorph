@@ -4431,16 +4431,17 @@ genEntry::genEntry()
     insnList->regsused = (calleeFl | BitRange(7,15)) & (BitRange(0,8)|BitRange(10,15));
     insnList->ilm = ilRVAL;
     insnList->st = stWORD;      // prepLoad reads st on every ilRVAL list
-    if (isAssembler) {          // assembler routine, no frame
-        firstArg = false;
-    } else if (isFortrn) {
+    if (isFortrn) {
         firstArg = not isProc;
         if (checkFortran) {
             addToInsnList(getHelperProc(53)); /* "P/MF" */
         }
     } else {
+        // The first argument travels in the accumulator and the ones after it
+        // are pushed.  An assembler routine reads those off the stack top and
+        // has no frame of its own, so nothing is skipped for it.
         firstArg = true;
-        if (numArgs >= 2) {
+        if (not isAssembler and numArgs >= 2) {
             addToInsnList(KUTM+SP + frameSiz);
         }
     }

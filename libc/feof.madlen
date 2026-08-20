@@ -1,7 +1,7 @@
  FEOF:,NAME,
-C FEOF - eof(f), libc entry.  STI,12 then same as P/EO.
+C FEOF - eof(f), libc entry.  ATI,12 then same as P/EO.
 C ACC := FILE[2]; 0=eof false, non-zero=eof true.
- ,STI,12
+ ,ATI,12
  12,XTA,2                     . ACC := FILE[2]
  13,UJ,                       . return via M13
  ,END,

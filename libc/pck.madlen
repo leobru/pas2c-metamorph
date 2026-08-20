@@ -1,0 +1,30 @@
+ PCK:,NAME,
+C===========================================================
+C pck(p) - pack six characters into one word.
+C
+C Calling convention (single argument, in ACC):
+C   ACC = p, the word address of the first of six characters
+C   M13 = return link
+C
+C   int pck(int *) assembler;
+C
+C Result:
+C   ACC = the six characters at p packed into one word, the
+C         first of them in the most significant byte.
+C
+C This is the PCK standard procedure as a function: PCK sets
+C M12 to the address of a CHAR lvalue, calls P/PA and stores
+C the word P/PA leaves in the accumulator, so the whole of the
+C work is P/PA's and the address is all it wants.  An unpacked
+C character array gives every element a word of its own, which
+C is why the argument is an INT * rather than a CHAR *, a
+C CHAR * being a byte index into flat memory.
+C
+C P/PA returns the packed word through M13, which still holds
+C the caller's link, so the jump into it is the return as well.
+C===========================================================
+ P/PA:          ,SUBP,
+                ,NTR ,7      . ABI requirement
+                ,ATI ,12     . M12 := p, the address P/PA packs from
+                ,UJ  ,P/PA   . tail call: P/PA returns the word to our caller
+                ,END ,

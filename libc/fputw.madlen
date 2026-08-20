@@ -8,10 +8,14 @@ C   [SP-1]     = value
 C
 C P/PF expects M12 to address the FCB and f^ to contain the
 C value being written.  It is already an ENTRY in p_sys.asm.
+C
+C One word is pushed for the two arguments, so exactly one is
+C taken back, and STI is the whole of the pop: ATX stores f^
+C without touching the stack, where STX would pop a second time.
 C===========================================================
  P/PF:          ,SUBP,
                 ,STI ,12     . M12 := f; ACC := value
             12  ,WTC ,       . address f^ through FILE[0]
-                ,STX ,       . f^ := value; restore caller's ACC
+                ,ATX ,       . f^ := value
                 ,UJ  ,P/PF   . tail call to put(f)
                 ,END ,

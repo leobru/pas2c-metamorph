@@ -20,7 +20,7 @@ C P/GF advances to the next element.
 C===========================================================
  P/GF:          ,SUBP,
  PASEOLSY:      ,LC  ,1
-                ,STI ,12     . M12 := fcb; pop previous stack value into ACC
+                ,ATI ,12     . M12 := fcb
             12  ,XTA ,2      . FILE[2] != 0 means EOF
              1  ,AEX ,8
             13  ,UZA ,       . C EOF sentinel is a zero word
