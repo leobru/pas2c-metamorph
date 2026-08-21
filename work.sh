@@ -4,7 +4,6 @@
 # work.bin.
 rm -f work.bin
 sed 's/{/<:/g;s/}/:>/g' < work.p2c | ./preprocess.py > wrksrc.utxt
-echo '                                                                                ' >> wrksrc.utxt
 rm -f work.raw.o work.o work.bin
 ./base wrksrc.utxt work.tmp.o > work.lst
 grep -q 'LINES STRUCTURE 1' work.lst

@@ -1,7 +1,7 @@
 #!/bin/sh
 rm -f tmpsrc.bin tmpsrc.txt
 sed 's/{/<:/g;s/}/:>/g' < $1 > tmpsrc.utxt
-echo '                                                                                 ' >> tmpsrc.utxt
+src_extent=$(./pashelp-source-extent.sh tmpsrc.utxt)
 cat << EOF > tmp$$
 *NAME work
 *disc:1/local
@@ -15,7 +15,7 @@ cat << EOF > tmp$$
 *libra:41
 *libra:22
 *call pashelp
-P 2 0 1000440000B .
+P 2 0 ${src_extent}B .
 *call *pascom
 *copy:0,000000,000000
 *no load list

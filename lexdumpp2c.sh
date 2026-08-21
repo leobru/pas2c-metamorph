@@ -11,6 +11,8 @@ if [ ! -f "$tokens" ]; then
     exit 1
 fi
 rm -f lexdump.bin
+sed 's/{/<:/g;s/}/:>/g' < lexdump.p2c > lexsrc.utxt
+src_extent=$(./pashelp-source-extent.sh lexsrc.utxt)
 cat << EOF > tmp$$
 *NAME lexdump
 *disc:1/local
@@ -36,11 +38,9 @@ cat << EOF >> tmp$$
 *perso:43,cont
 *libra:22
 *call pashelp
-P 2 0 1000440000B .
+P 2 0 ${src_extent}B .
 *call *pascom
 EOF
-sed 's/{/<:/g;s/}/:>/g' < lexdump.p2c > lexsrc.utxt
-dd bs=120 count=1 < /dev/zero >> lexsrc.utxt
 cat << EOF >> tmp$$
 *copy:0,000000,000000
 *      libra:23

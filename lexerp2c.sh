@@ -9,6 +9,8 @@ if [ $# -ne 1 ]; then
     echo "usage: $0 [-work] input-file" >&2
     exit 2
 fi
+sed 's/{/<:/g;s/}/:>/g' < lexer.p2c > lexsrc.utxt
+src_extent=$(./pashelp-source-extent.sh lexsrc.utxt)
 cat << EOF > tmp$$
 *NAME lexer
 *disc:1/local
@@ -35,11 +37,9 @@ cat << EOF >> tmp$$
 *perso:43,cont
 *libra:22
 *call pashelp
-P 2 0 1000440000B .
+P 2 0 ${src_extent}B .
 *call *pascom
 EOF
-sed 's/{/<:/g;s/}/:>/g' < lexer.p2c > lexsrc.utxt
-dd bs=120 count=1 < /dev/zero >> lexsrc.utxt
 cat << EOF >> tmp$$
 *copy:0,000000,000000
 *      libra:23
@@ -53,7 +53,6 @@ cat << EOF >> tmp$$
 *end file
 EOF
 cat "$1" | sed 's/{/<:/g;s/}/:>/g' | ./preprocess.py > lexinp.utxt
-dd bs=120 count=1 < /dev/zero >> lexinp.utxt
 timeout 5 dubna tmp$$ | tee lexerp2c.lst
 status=$?
 rm -f tmp$$

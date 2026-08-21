@@ -5,7 +5,7 @@
 #
 rm -f wrksrc.bin
 sed 's/{/<:/g;s/}/:>/g' < work.p2c | ./preprocess.py > wrksrc.utxt
-echo '                                                                                ' >> wrksrc.utxt
+src_extent=$(./pashelp-source-extent.sh wrksrc.utxt)
 cat << EOF > tmp$$
 *NAME work
 *disc:1/local
@@ -22,7 +22,7 @@ cat << EOF > tmp$$
 *libra:43
 *libra:22
 *call pashelp
-P 2 0 1000440000B .
+P 2 0 ${src_extent}B .
 *call allmemory
 *call *pascom
 *copy:20,270000,670000

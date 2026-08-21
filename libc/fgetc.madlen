@@ -10,23 +10,35 @@ C Result:
 C   ACC = current character, with PASEOLSY returned for EOL;
 C         zero at EOF.
 C
-C P/GF owns all cursor movement and buffer/refill state.  Its
-C Pascal interface aborts when called with FILE[2] non-zero and
-C represents the synthetic stdin line boundary through FILE[24]
-C plus a space in f^.  Check EOF before calling it and translate
-C that cached EOL state to LF, while leaving a real LF in f^
-C unchanged.  Save both the result and the caller's M13 while
-C P/GF advances to the next element.
+C P/GF owns ordinary cursor movement and buffer/refill state.  Its
+C Pascal interface aborts when called with FILE[2] non-zero.  A
+C synthetic stdin line boundary is recorded in FILE[24] with a
+C space in f^.  At that boundary, compare MONCARD* with PASEOFCD
+C before READ*; a match marks EOF and preserves the monitor card.
+C Return LF for the synthetic boundary.  Save the result and the
+C caller's M13 while P/GF advances to the next element.
 C===========================================================
  P/GF:          ,SUBP,
  PASEOLSY:      ,LC  ,1
+ PASEOFCD:      ,LC  ,1
+ MONCARD*:      ,LC  ,1
                 ,ATI ,12     . M12 := fcb
             12  ,XTA ,2      . FILE[2] != 0 means EOF
              1  ,AEX ,8
             13  ,UZA ,       . C EOF sentinel is a zero word
             12  ,XTA ,30B    . FILE[24]: synthetic stdin EOL
                 ,UZA ,CHAR
+                ,UTC ,MONCARD*
+                ,XTA ,       . inspect the next monitor card ahead of READ*
+                ,UTC ,PASEOFCD
+                ,AEX ,
+                ,U1A ,EOL
+             1  ,XTA ,8      . preserve the sentinel card and mark EOF
+            12  ,ATX ,2
                 ,UTC ,PASEOLSY
+                ,XTA ,
+            13  ,UJ  ,
+ EOL:           ,UTC ,PASEOLSY
                 ,XTA ,       . C newline byte (ASCII LF)
                 ,UJ  ,SAVE
  CHAR:      12  ,WTC ,       . WT := FILE[0] (current cursor)

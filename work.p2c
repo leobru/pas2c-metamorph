@@ -124,16 +124,14 @@ const
     extSymMask  =  043000000U;
     maxLineLen = 130;
     caseTabMin = 9;             // clause count from which a switch indexes
-    /*=A3*/
-    litFortran  =  ' FORTRAN';
-    litAssembler = 'ASSEMBLE';
-    litLsb  =  '   **LSB';   // '__lsb': '_' shares the code of '*'
-    litRegister = 'REGISTER'; // pins a pointer in an index register
-    litMain  =  '    MAIN';  // the entry point: the level 1 block calls it
-    litOct  =  '     OCT';
-    litOutput  =  '*OUTPUT*';
-    litInput  =  ' *INPUT*';
-    /*=A2*/
+    litFortran  =  t' FORTRAN';
+    litAssembler = t'ASSEMBLE';
+    litLsb  =  t'   **LSB';   // '__lsb': '_' shares the code of '*'
+    litRegister = t'REGISTER'; // pins a pointer in an index register
+    litMain  =  t'    MAIN';  // the entry point: the level 1 block calls it
+    litOct  =  t'     OCT';
+    litOutput  =  t'*OUTPUT*';
+    litInput  =  t' *INPUT*';
     FALSE  =  0U;
     TRUE  =  1U;
     E48 = 1 << 47;
@@ -430,6 +428,7 @@ int curFrameRegTemplate;
 int curProcNesting;
 int totalErrors;
 int lineCnt;
+int eofOverreads;
 int bucket;
 int strLen;
 int heapCallsCnt;
@@ -449,7 +448,6 @@ int prevInsn,
     lookupMode,
     condLabCnt,
     prevOpcode,
-    charEncoding,
     errLine,
     atEOL,
     checkTypes,
@@ -536,66 +534,64 @@ symbol charSym['\200'] = {
     [':']=COLON, ['!']=EXPROP, ['~']=EXPROP, ['?']=EXPROP };
 hashArray symHash = NULL:128, fieldHash = NULL:128;
 int helperMap[1..57] = 0:57;
-/*=A3*/
 int helperNames[1..57] = {
-        'P/1     ',
-        'C/2     ',
-        'C/3     ',
-        'C/4     ',
-        'C/5     ',
-        'C/6     ',
-        'C/MD    ',
-        'P/MI    ',
-        'P/PA    ',
-/*10*/  'P/UN    ',
-        'C/DI    ',
-        'P/EA    ',
-        'P/1D    ',
-        'P/GD    ',
-        'C/E     ',
-        'C/EF    ',
-        'P/NW    ',
-        'P/DS    ',
-        'P/HT    ',
-/*20*/  'C/WI    ',
-        'P/WR    ',
-        'P/WC    ',
-        'P/A6    ',
-        'P/A7    ',
-        'P/WX    ',
-        'P/WO    ',
-        'P/CW    ',
-        'P/6A    ',
-        'P/7A    ',
-/*30*/  'P/WL    ',
-        'P/WOLN  ',
-        'P/RR    ',
-        'C/TR    ',
-        'P/LV    ',
-        'FOPEN   ',
-        'FCLOSE  ',
-        'P/BP    ',
-        'P/B6    ',
-        'P/PB    ',
-/*40*/  'P/B7    ',
-        'P/IN    ',
-        'P/IT    ',
-        'P/CK    ',
-        'P/KC    ',
-        'P/LNGPAR',
-        'P/LDAR  ',
-        'P/00C   ',
-        'P/STAR  ',
-        'P/WA    ',
-/*50*/  'P/EQ    ',
-        'P/RA    ',  // placeholder: keeps the compare family contiguous
-        'P/GE    ',
-        'P/MF    ',
-        'P/FM    ',
-        'P/NN    ',
-        'C/SHL   ',
-        'C/SHR   ' };
-/*=A2*/
+        t'P/1     ',
+        t'C/2     ',
+        t'C/3     ',
+        t'C/4     ',
+        t'C/5     ',
+        t'C/6     ',
+        t'C/MD    ',
+        t'P/MI    ',
+        t'P/PA    ',
+/*10*/  t'P/UN    ',
+        t'C/DI    ',
+        t'P/EA    ',
+        t'P/1D    ',
+        t'P/GD    ',
+        t'C/E     ',
+        t'C/EF    ',
+        t'P/NW    ',
+        t'P/DS    ',
+        t'P/HT    ',
+/*20*/  t'C/WI    ',
+        t'P/WR    ',
+        t'P/WC    ',
+        t'P/A6    ',
+        t'P/A7    ',
+        t'P/WX    ',
+        t'P/WO    ',
+        t'P/CW    ',
+        t'P/6A    ',
+        t'P/7A    ',
+/*30*/  t'P/WL    ',
+        t'P/WOLN  ',
+        t'P/RR    ',
+        t'C/TR    ',
+        t'P/LV    ',
+        t'FOPEN   ',
+        t'FCLOSE  ',
+        t'P/BP    ',
+        t'P/B6    ',
+        t'P/PB    ',
+/*40*/  t'P/B7    ',
+        t'P/IN    ',
+        t'P/IT    ',
+        t'P/CK    ',
+        t'P/KC    ',
+        t'P/LNGPAR',
+        t'P/LDAR  ',
+        t'P/00C   ',
+        t'P/STAR  ',
+        t'P/WA    ',
+/*50*/  t'P/EQ    ',
+        t'P/RA    ',  // placeholder: keeps the compare family contiguous
+        t'P/GE    ',
+        t'P/MF    ',
+        t'P/FM    ',
+        t'P/NN    ',
+        t'C/SHL   ',
+        t'C/SHR   ' };
 int opPrec[SHLEFT..ALTERN] = {
     precNone:48,
     [CONDOP]=precCond,
@@ -611,36 +607,34 @@ int opPrec[SHLEFT..ALTERN] = {
     [MUL]=precMul, [RDIVOP]=precMul, [IDIVOP]=precMul, [IMODOP]=precMul };
 //
 int symTab[074000 .. 075500];
-/*=A3*/
 // A name's index in this table is its procNo, which free and halt derive their
 // helper numbers from (getHelperProc(18 + procNo)).
 int systemProcNames[5] = {
-/*0*/   '    FREE',
-        '    HALT',
-        '    BESM',
-        '   WRITE',
-        ' WRITELN' };
+/*0*/   t'    FREE',
+        t'    HALT',
+        t'    BESM',
+        t'   WRITE',
+        t' WRITELN' };
 int resWordName[19] = {
-        '   CONST',
-        ' TYPEDEF',
-        '    ENUM',
-        '**PACKED',
-        '  STRUCT',
-        '      IF',
-        '  SWITCH',
-        '   WHILE',
-        '     FOR',
-        '    GOTO',
-        '    ELSE',
-        '      DO',
-        '  EXTERN',
-        '   BREAK',
-        'CONTINUE',
-        '    CASE',
-        ' DEFAULT',
-        '   UNION',
-        '  RETURN' };
-/*=A2*/
+        t'   CONST',
+        t' TYPEDEF',
+        t'    ENUM',
+        t'**PACKED',
+        t'  STRUCT',
+        t'      IF',
+        t'  SWITCH',
+        t'   WHILE',
+        t'     FOR',
+        t'    GOTO',
+        t'    ELSE',
+        t'      DO',
+        t'  EXTERN',
+        t'   BREAK',
+        t'CONTINUE',
+        t'    CASE',
+        t' DEFAULT',
+        t'   UNION',
+        t'  RETURN' };
 int longSymCnt;
 int longSym[1..90];
 int longSyms[1..90];
@@ -810,7 +804,7 @@ int err, errPos, prevPos, listMode,
         startPos  =  13;
         do
             --linePos;
-        while (lineBuf[linePos]  == ' ' && linePos >= 0);
+        while (linePos >= 0 && lineBuf[linePos] == ' ');
         for (err = 0; err <= linePos; ++err) {
             write(linebuf[err]);
         }
@@ -835,11 +829,6 @@ int err, errPos, prevPos, listMode,
     lineStartOffset  =  moduleOffset;
     linePos  =  -1;
     ++lineCnt;
-    if (feof(&pasinput)) {
-//        error(errEOFEncountered);
-        writeln("EOF reached");
-        halt;
-    }
 } /* endOfLine */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1223,6 +1212,17 @@ int c;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void nextCH() {
+    if (CH == 0) {
+        ++eofOverreads;
+        if (eofOverreads > maxLineLen) {
+            error(errEOFEncountered);
+            longjmp(jb9999, 1);
+        }
+        atEOL  =  true;
+        if (linePos < maxLineLen-1)
+            ++linePos;
+        return;
+    }
     /* Columns past lineBuf are dropped, not stored: keep reading them until
        the line ends, so that CH comes back at the line's end and neither
        linePos nor the stores leave the buffer. */
@@ -1283,7 +1283,6 @@ void readOptFlag(int *res) {
         case 'F': readOptFlag(&checkFortran); break;
         case 'I': readOptFlag(&enableStdInput); break;
         case 'L': PASINFOR.listMode = readOptVal(3); break;
-        case 'A': charEncoding = readOptVal(3); break;
         case 'C': readOptFlag(&checkTypes); break;
         case 'M': readOptFlag(&fixMult); break;
         case 'B': fileBufSize = readOptVal(4); break;
@@ -1339,6 +1338,7 @@ word numstr[17];
 int expLiteral, expMagnitude;
 int val;
 int jb1473;
+int literalEncoding;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void doCharConst(char lim) {
@@ -1390,7 +1390,7 @@ int advanced;
             }
         } else
 2233:       {
-                if (charEncoding == 3) {
+                if (literalEncoding == 3) {
                     if (ch < '*' || '\176' < CH)
                         curChar  =  '\0';
                     else {
@@ -1419,6 +1419,11 @@ void lexer() {
                 curToken.i  =  (curToken.i << 6) | curVal.i;
             }
         } while (chrClass[CH] == ALNUM);
+        if (tokenLen == 2 && curToken.i == iso2text['T'] &&
+            (CH == '\'' || CH == '"')) {
+            literalEncoding = 3;
+            goto 2290;
+        }
         curVal.i  =  curToken.i & hashMask;
         bucket = mapAI(curVal.i);
         curIdent  =  curToken.i;
@@ -1609,9 +1614,12 @@ void lexer() {
         return;
     } /* INTCONST */ /*=m+*/
     case CHARCONST: {
+        literalEncoding = 2;
+2290:
         /* The delimiter tells a character constant from a string: single
            quotes give the packed word as an integer wherever it fits one,
-           double quotes give a packed character array of the length written. */
+           double quotes give a packed character array of the length written.
+           An adjacent t or T prefix selects TEXT encoding for that literal. */
         litQuote  =  CH;
         doCharConst(CH);
         strLen  =  tokenIdx - 6;
@@ -1642,7 +1650,7 @@ void lexer() {
                     curVal  =  curToken;
                 }
                 return;
-            } else if (litQuote == '\'' && charEncoding == 3 && strLen == 8) {
+            } else if (litQuote == '\'' && literalEncoding == 3 && strLen == 8) {
                 packt(&localBuf[6], &curToken.t, 8);
                 curVal  =  curToken;
                 SY = INTCONST;
@@ -1652,7 +1660,7 @@ void lexer() {
                    holds: six ISO characters, or eight in TEXT.  A longer
                    string is written in double quotes. */
                 if (litQuote == '\'' &&
-                    strLen > (charEncoding == 3 ? 8 : 6))
+                    strLen > (literalEncoding == 3 ? 8 : 6))
                     error(errNumberTooLarge);
                 curToken.i  =  FcstCnt;
                 tokenLen  =  6;
@@ -6427,10 +6435,8 @@ void setStrLab(int id) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void setBrCont() {
-    /*=A3*/
-    setStrLab('   BREAK');
-    setStrLab('CONTINUE');
-    /*=A2*/
+    setStrLab(t'   BREAK');
+    setStrLab(t'CONTINUE');
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7458,7 +7464,7 @@ void writeProc() {
         break;
     case SWITCHSY:
          // Switch statements only have "break", no "continue".
-        /*=A3*/setStrLab('   BREAK');/*=A2*/
+        setStrLab(t'   BREAK');
         caseStatement();
         brContTarget();
         break;
@@ -7723,15 +7729,15 @@ void regSysProc(int l4arg1z) {
         ir->list = NULL;
         ir->value = 0;
     }
-     /*=A3 constructing TEXT constants */
+     /* constructing TEXT constants */
     /* The predefined type names are reserved words carrying their type,
        not identifiers: they cannot be shadowed, and they are recognized
        in every lookup mode.  '_' shares the code of '*', cf. '**PACKED'. */
     SY  =  TYPESY;
-    symType = intType;   regResWord('     INT');
-    symType = charType;  regResWord('    CHAR');
-    symType = realType;  regResWord('   FLOAT');
-    symType = voidType;  regResWord('    VOID');
+    symType = intType;   regResWord(t'     INT');
+    symType = charType;  regResWord(t'    CHAR');
+    symType = realType;  regResWord(t'   FLOAT');
+    symType = voidType;  regResWord(t'    VOID');
     curIdRec = malloc(offsetof(identrec, szIdent));
     { register identrec *ir = curIdRec;
         ir->pck.p.offset  =  0;
@@ -7761,15 +7767,15 @@ void regSysProc(int l4arg1z) {
     }
     sysProcNum  =  0;
     temptype  =  realType;
-    regSysProc('     ABS');
+    regSysProc(t'     ABS');
     temptype  =  intType;
-    regSysProc('  SIZEOF');
-    regSysProc('OFFSETOF');
+    regSysProc(t'  SIZEOF');
+    regSysProc(t'OFFSETOF');
     temptype  =  voidPtr;
-    regSysProc('  MALLOC');
+    regSysProc(t'  MALLOC');
     temptype  =  intType;
-    regSysProc('    CARD');
-    regSysProc('   MINEL');
+    regSysProc(t'    CARD');
+    regSysProc(t'   MINEL');
     /* The first token of the source is read here, not by the caller: sources
        usually open with a type keyword (int, void), so the predefined type
        names must already be registered.  lookupMode is still lookUse. */
@@ -7779,16 +7785,15 @@ void regSysProc(int l4arg1z) {
     programObj = malloc(offsetof(identrec, szRoutine));
     symTabPos  =  074004;
     { register identrec *ir = programObj;
-        ir->id  =  'PASCOMPL';
+        ir->id  =  t'PASCOMPL';
         ir->pos  =  0;
-        symTab[074000]  =  'PASCOMPL';
+        symTab[074000]  =  t'PASCOMPL';
     }
     entryPtTable[0]  =  symTab[074000];
     entryPtTable[1]  =  [1];
-    entryPtTable[2]  = 'PROGRAM ';
+    entryPtTable[2]  = t'PROGRAM ';
     entryPtTable[3]  =  [1];
     entryPtCnt  =  4;
-    /*=A2 done with TEXT constants */
     fputw((KVTM+I8+074001) << 24 | KUJ+074002, &_CHILD_);
     moduleOffset  =  040001;
     programObj->argList  =  NULL;
@@ -8500,12 +8505,12 @@ operator op;
 } /* initInsnTemplates */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void regKeywords() { /*=A3 regKeywords */
+void regKeywords() { /* regKeywords */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     SY  =  EXPROP;
     charClass  =  INOP;
-    regResWord('      IN');
+    regResWord(t'      IN');
     SY  =  CONSTSY;
     charClass  =  NOOP;
     /* CONSTSY..RETURNSY are 19 consecutive reserved words. TYPESY sits just
@@ -8517,7 +8522,7 @@ void regKeywords() { /*=A3 regKeywords */
         regResWord(resWordName[idx]);
         ++SY;
     }
-} /*=A2 regKeywords */
+} /* regKeywords */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     FcstCnt  =  0;
@@ -8594,6 +8599,7 @@ void initOptions() {
     prevErrPos  =
     errsInLine  =  0;
     lineCnt  =  1;
+    eofOverreads  =  0;
     checkFortran  =
     abort  =  false;
     lookup2  =  lookupMode  =  1;
@@ -8609,7 +8615,6 @@ void initOptions() {
     enableStdInput  =
     errors  =  false;
     fileBufSize  =  1;
-    charEncoding  =  2;
     longSymCnt  =  0;
     *pasinfor.errors  =  true;
     symTabCnt  =  0;
@@ -8617,10 +8622,8 @@ void initOptions() {
 } /* initOptions */
 //
 void main() {
-    /*=A3*/
-    fopen(&PASINPUT, 010000100010, 'PASINPUT');
-    fopen(&_CHILD_, 010000100000,'*CHILD* ');
-    /*=A2*/
+    fopen(&PASINPUT, 010000100010, t'PASINPUT');
+    fopen(&_CHILD_, 010000100000, t'*CHILD* ');
     if (PASINFOR.listMode != 0)
         writeln(boilerplate);
     writeln(" INITHEAP = ", setup():5 oct);

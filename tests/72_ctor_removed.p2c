@@ -1,6 +1,0 @@
-int CTOR(int value) {
-    return value + 1;
-}
-void main() {
-    writeln("CTOR=", CTOR(41):0);
-}

@@ -16,7 +16,6 @@ lun=41
 
 rm -f tmpbin.bin tmpbin.txt tmpbin.o tmpbin.raw.o tmpbin.bin
 sed 's/{/<:/g;s/}/:>/g' < "$src" > tmpbin.utxt
-echo '                                                                                 ' >> tmpbin.utxt
 
 if ! ./base tmpbin.utxt tmpbin.o > runhotest.compile.lst; then
     cat runhotest.compile.lst

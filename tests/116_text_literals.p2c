@@ -1,0 +1,18 @@
+/*=s8,l0*/
+typedef __packed char pair[0..1];
+
+pair s;
+int t;
+
+void main() {
+    t = 7;
+    s = t"AB";
+    writeln(" ID     ", t:0);
+    writeln(" CHAR   ", int(t'A'):0, ' ', int(T'B'):0,
+            ' ', int(t'\n'):0);
+    writeln(" WORD   ",
+            (t'ABCDEFGH' == 04142434445464750U):0, ' ',
+            (T'ASSEMBLE' == t'ASSEMBLE'):0);
+    writeln(" STRING ", int(s[0]):0, ' ', int(s[1]):0,
+            ' ', sizeof(t"AB"):0);
+}

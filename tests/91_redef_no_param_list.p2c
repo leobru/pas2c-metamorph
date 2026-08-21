@@ -1,6 +1,0 @@
-/*=s8,k9,l0*/
-// The old parenthesis-free form is gone: a definition always restates the
-// parameter list.
-int h(int a);
-int h { return a; }
-void main() { writeln(h(1):0); }

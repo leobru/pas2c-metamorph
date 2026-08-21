@@ -1,4 +1,4 @@
-/*=a3,s8,l0*/
+/*=s8,l0*/
 typedef struct {
     int *data;
     int w1, w2, w3, w4, w5, w6, w7, w8, w9, w10,
@@ -22,7 +22,7 @@ int valueat(int n) {
 }
 //
 void writechild() {
-    fopen(&_child_, 010000100000, '*CHILD* ');
+    fopen(&_child_, 010000100000, t'*CHILD* ');
     ftruncate(&_child_);
     for (i = 0; i < 1105; i = i + 1) {
         fputw(valueat(i), &_child_);
@@ -31,7 +31,7 @@ void writechild() {
 }
 //
 void readchild() {
-    fopen(&_child_, 010000100000, '*CHILD* ');
+    fopen(&_child_, 010000100000, t'*CHILD* ');
     frewind(&_child_);
     for (i = 0; i < 1105; i = i + 1) {
         if (fgetc(&_child_) != valueat(i)) {

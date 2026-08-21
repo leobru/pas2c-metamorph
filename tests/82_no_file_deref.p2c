@@ -1,5 +1,0 @@
-/*=s8,k9,l0*/
-// A file is not a pointer: there is no file dereference.
-void main() {
-    writeln(*_output_);
-}

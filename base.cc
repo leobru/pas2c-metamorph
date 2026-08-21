@@ -848,6 +848,7 @@ int64_t curInsnTemplate,
         curProcNesting,
         totalErrors,
         lineCnt,
+        eofOverreads,
         bucket,
         strLen,
         heapCallsCnt,
@@ -2021,12 +2022,6 @@ void endOfLine()
     lineStartOffset = moduleOffset;
     linePos = 0;
     lineCnt = lineCnt + 1;
-    // One EOF is OK when the file doesn't have any extra characters after "END."
-    static int eofs;
-    if (feof(pasinput) && eofs++) {
-        error(errEOFEncountered);
-        throw 9999;
-    }
 } /* endOfLine */
 
 void requiredSymErr(Symbol sym)
@@ -2128,8 +2123,7 @@ void nextCH()
     // linePos corrupted the globals behind lineBufBase, lineCnt among them,
     // which is what printed " IN -1 LINES".
     if (CH == 0) {
-        static int64_t overreads;
-        if (maxLineLen < ++overreads) {
+        if (maxLineLen < ++eofOverreads) {
             error(errEOFEncountered);
             throw 9999;
         }
@@ -2216,9 +2210,6 @@ parseComment::parseComment()
             case 'L': case 'l':
                 PASINFOR.listMode = readOptVal(3);
                 break;
-            case 'A': case 'a':
-                charEncoding = readOptVal(3);
-                break;
             case 'C': case 'c':
                 readOptFlag(checkTypes);
                 break;
@@ -2291,6 +2282,7 @@ bool skipSp()
 inSymbol::inSymbol()
 {
     unsigned char litQuote = 0;
+    int literalEncoding = charEncoding;
 {
 L1473:
         while (skipSp()) ;
@@ -2311,6 +2303,11 @@ L1473:
                         curToken.ii = curToken.ii | curVal.ii;
                     }
                 } while (chrClassTabBase[CH] == ALNUM);
+                if (tokenLen == 2 and curToken.ii == koi2text['T'] and
+                    (CH == '\'' or CH == '"')) {
+                    literalEncoding = 3;
+                    goto L2290;
+                }
                 bucket = curToken.ii % 65535 % 128;
                 curIdent = curToken.ii;
                 keyWordHashPtr = KeyWordHashTabBase[bucket];
@@ -2510,16 +2507,18 @@ L2:                 hashTravPtr = symHash[bucket];
                 goto exitLexer;
             } break; /* INTCONST */ /*=m+*/
             case CHARCONST: {
+                literalEncoding = charEncoding;
+L2290:
                 {
                     /* The delimiter tells a character constant from a string:
                        single quotes give the packed word as an integer wherever
                        it fits one, double quotes give a packed character array
-                       of the length written. */
-                    unsigned char quote = CH;
+                       of the length written. An adjacent t or T prefix selects
+                       TEXT encoding for that literal. */
                     litQuote = CH;
                     for (tokenIdx = 6; tokenIdx <= 130; ++tokenIdx) {
                         nextCH();
-                        if (CH == quote) {
+                        if (CH == litQuote) {
                             nextCH();
                             goto exitLoop;
                         }
@@ -2567,7 +2566,7 @@ L2175:                      error(59); /* errEOLNInStringLiteral */
                         } else {
                             // Modify output encoding:
                             // a0 - UTF-8, a1 - KOI-8, a2 - KOI7 (default).
-L2233:                      switch (charEncoding) {
+L2233:                      switch (literalEncoding) {
                             case 0:
                                 // KOI-8 to UTF-8.
                                 if (CH < 0300) {
@@ -2629,7 +2628,7 @@ exitLoop:
                         }
                         goto exitLexer;
                     } else if (litQuote == '\'' and
-                               charEncoding == 3 and strLen == 8) {
+                               literalEncoding == 3 and strLen == 8) {
                         // an 8-char string in 6-bit-text mode
                         // packs into one 48-bit word (packt in work.p2c) and
                         // becomes an INTCONST.  Pack localBuf[6..13] MSB-first.
@@ -2645,7 +2644,7 @@ exitLoop:
                            word holds: six ISO characters, or eight in TEXT.
                            A longer string is written in double quotes. */
                         if (litQuote == '\'' &&
-                            strLen > (charEncoding == 3 ? 8 : 6))
+                            strLen > (literalEncoding == 3 ? 8 : 6))
                             error(errNumberTooLarge);
                         curToken.ii = FcstCnt;
                         tokenLen = 6;
@@ -9588,6 +9587,7 @@ void initOptions(int argc, char **argv)
     prevErrPos = 0;
     errsInLine = 0;
     lineCnt = 1;
+    eofOverreads = 0;
     checkFortran = false;
     bool110z = false;
     lookupMode = 1;

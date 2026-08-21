@@ -3,6 +3,7 @@
 # disassembling and running
 rm -f tmp.bin
 sed 's/{/<:/g;s/}/:>/g' < $1 > tmp.utxt
+src_extent=$(./pashelp-source-extent.sh tmp.utxt)
 cat << EOF > tmp$$
 *NAME test
 *disc:1/local
@@ -16,7 +17,7 @@ cat << EOF > tmp$$
 *     taking the base compiler module
 *libra:41
 *call pashelp
-P 2 0 1000440000B .
+P 2 0 ${src_extent}B .
 *call *pascom
 *libra:23
 *call dtran(program)
