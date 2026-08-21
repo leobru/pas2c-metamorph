@@ -1,10 +1,10 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 typedef enum { RED, GREEN, BLUE } color;
 color c;
 void main() {
     c = GREEN;
     if (c == GREEN) {
-        writeln('Color is GREEN');
+        writeln("Color is GREEN");
     }
 }

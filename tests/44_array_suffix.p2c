@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 int arr[1..5];
 char chars[1..5];
@@ -18,12 +18,12 @@ void main() {
     packed[0] = 7;
     packed[13] = 123;
     if (packed[13] == 123)
-        writeln('packed ', sizeof(packed):0, " ok");
+        writeln("packed ", sizeof(packed):0, " ok");
     else
-        writeln('packed fail');
+        writeln("packed fail");
 
     matrix[1][2] = 12;
     matrix[2][3] = 23;
-    writeln('matrix ', matrix[1][2]:0, ' ', matrix[2][3]:0,
+    writeln("matrix ", matrix[1][2]:0, ' ', matrix[2][3]:0,
             " size ", sizeof(matrix):0);
 }

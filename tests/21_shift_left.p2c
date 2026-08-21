@@ -1,8 +1,8 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 int a, b;
 void main() {
     a = 5;
     b = a << 2;  // 5 * 4 = 20
-    writeln(' 5 << 2 = ', b oct);
+    writeln(" 5 << 2 = ", b oct);
 }

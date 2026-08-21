@@ -880,7 +880,6 @@ bool atEOL,
     rangeMismatch,
     fixMult,
     bool110z,
-    allowCompat,
     sortFcst,
     checkFortran;
 
@@ -2198,9 +2197,6 @@ parseComment::parseComment()
             nextCH();
             badOpt = true;
             switch (CH) {
-            case 'Y': case 'y':
-                readOptFlag(allowCompat);
-                break;
             case 'E': case 'e':
                 readOptFlag(declEntry);
                 break;
@@ -2623,8 +2619,14 @@ exitLoop:
                     curToken.ii = pck(&localBuf[6]);
                     curVal = curToken;
                     if (6 >= strLen) {
-                        if (litQuote == '\'')
+                        if (litQuote == '\'') {
                             SY = INTCONST;
+                            /* Right-aligned, as a one-character literal is:
+                               the characters end up in the low bytes and the
+                               space padding below them is shifted out. */
+                            curToken.ii = curToken.ii >> (8 * (6 - strLen));
+                            curVal = curToken;
+                        }
                         goto exitLexer;
                     } else if (litQuote == '\'' and
                                charEncoding == 3 and strLen == 8) {
@@ -2639,6 +2641,12 @@ exitLoop:
                         SY = INTCONST;
                         goto exitLexer;
                     } else {
+                        /* Single quotes give one word, so they hold what a
+                           word holds: six ISO characters, or eight in TEXT.
+                           A longer string is written in double quotes. */
+                        if (litQuote == '\'' &&
+                            strLen > (charEncoding == 3 ? 8 : 6))
+                            error(errNumberTooLarge);
                         curToken.ii = FcstCnt;
                         tokenLen = 6;
 loop:                   {
@@ -5946,7 +5954,11 @@ L12247:
             curEnum->list() = NULL;
             curEnum->value() = nextEnum;
             symHash[enumBucket] = curEnum;
-            nextEnum = nextEnum + 1;
+            /* work.p2c increments an int and the machine keeps it one; here
+               nextEnum is a 41-bit word in an int64_t, so the carry out of
+               the sign bit has to be dropped rather than land in what would
+               be the exponent field. */
+            nextEnum = (nextEnum + 1) & INT41_MASK;
             span = span + 1;
             if (curField == NULL) {
                 curType.rep()->enums = curEnum;
@@ -9510,7 +9522,7 @@ void finalize()
         CHILD.push_back(symTab[cnt]);
     for (cnt = 1; cnt <= longSymCnt; ++cnt)
         CHILD.push_back(longSyms[cnt]);
-    if (allowCompat) {
+    if (PASINFOR.listMode != 0) {
         printf("%6ld LINES STRUCTURE ", lineCnt - 1);
         for (idx=1; idx <=10; ++idx)
             printf("%ld ", sizes[idx]);
@@ -9561,7 +9573,6 @@ void usage ()
     printf("    -s8                 Disable checking for stack overflow\n");
     printf("    -s9                 Unknown\n");
     printf("    -u- -u+             Set length of source lines: 120 or 72 columns\n");
-    printf("    -y- -y+             Disable/enable non-standard syntax\n");
     printf("    -v                  Output version information and exit\n");
     printf("    -h                  Display this help and exit\n");
     exit(0);
@@ -9592,7 +9603,6 @@ void initOptions(int argc, char **argv)
     declEntry = false;
     enableStdInput = false;
     errors = false;
-    allowCompat = false;
     sortFcst = false;
     fileBufSize = 1;
     charEncoding = 2;
@@ -9604,7 +9614,7 @@ void initOptions(int argc, char **argv)
     progname = progname ? progname+1 : argv[0];
 
     for (;;) {
-        switch (getopt(argc, argv, "vVhiFH:e:c:r:m:y:u:f:a:d:k:b:s:l:")) {
+        switch (getopt(argc, argv, "vVhiFH:e:c:r:m:u:f:a:d:k:b:s:l:")) {
         case EOF:
             break;
         case 'a':
@@ -9696,9 +9706,6 @@ void initOptions(int argc, char **argv)
         case 'u':
             // Source line length is a compile-time constant (maxLineLen),
             // with no runtime override, so this option is a no-op.
-            continue;
-        case 'y':
-            allowCompat = (optarg[0] == '+');
             continue;
         case 'v':
             printf("%s\n", boilerplate);

@@ -1,5 +1,5 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 void main() {
-    writeln('Hello from p2c!');
+    writeln("Hello from p2c!");
 }

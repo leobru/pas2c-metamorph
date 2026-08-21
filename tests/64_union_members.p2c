@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 // True-C unions: standalone union type, individual (bare) variable members,
 // overlap semantics, and an anonymous union member inside a struct.
 //
@@ -14,10 +14,10 @@ numunion n;
 tagged t;
 void main() {
     n.i = 42;
-    writeln('union i = ', n.i:0);
-    writeln('sizeof union = ', sizeof(numunion):0);
+    writeln("union i = ", n.i:0);
+    writeln("sizeof union = ", sizeof(numunion):0);
     t.tag = 3;
     t.a = 99;
-    writeln('overlap: tag=', t.tag:0, " a=", t.a:0, " b=", t.b:0);
-    writeln('sizeof tagged = ', sizeof(tagged):0);
+    writeln("overlap: tag=", t.tag:0, " a=", t.a:0, " b=", t.b:0);
+    writeln("sizeof tagged = ", sizeof(tagged):0);
 }

@@ -1,8 +1,8 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 void badproc;
 {
-    writeln('BADPROC');
+    writeln("BADPROC");
 }
 //
 int badfunc;
@@ -12,5 +12,5 @@ int badfunc;
 //
 {
     badproc();
-    writeln('BADFUNC=', badfunc():0);
+    writeln("BADFUNC=", badfunc():0);
 }

@@ -1,16 +1,17 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // The delimiter decides what a literal is.  Single quotes give a character
 // constant: one character is a char, and two to six characters -- as many as
-// pack into a word -- are that word as an int, so the literal compares,
-// assigns and labels a case like any other integer.  Double quotes give a
+// pack into a word -- are that word as an int, right-aligned in it, so the
+// literal compares, assigns and labels a case like any other integer.  Double quotes give a
 // packed character array of the length written, which is what write takes as
-// text and what a one-word packed char array holds.  Beyond one word a
-// single-quoted literal
-// stays an array, since there is no integer for it to be.
+// text and what a one-word packed char array holds.  A string too long for a
+// word -- more than six characters in ISO, or eight in TEXT -- is written in
+// double quotes; tests/115 has the single-quoted form it refuses.
 //
-// The word is packed left to right and padded with spaces, so shifting a
-// two-character constant right by 40 leaves its first character.
+// A multi-character constant is right-aligned, as a single character is: the
+// characters sit in the low bytes, so 'AB' is its first character times 256
+// plus its second, and shifting it right by eight leaves the first.
 //
 typedef __packed char alfa[0..5];
 alfa a;
@@ -20,13 +21,12 @@ char c;
 void main() {
     i  =  'AB';
     writeln(" ASSIGN", (i == 'AB'):2, (i != 'BA'):2);
-    writeln(" SHIFT ", ('AB' >> 40):4, ('AB' >> 32):7);
+    writeln(" SHIFT ", ('AB' >> 8):4, 'AB':7);
     writeln(" SIZEOF", sizeof('AB'):3, sizeof("AB"):3, sizeof('A'):3,
-            sizeof('ABCDEFG'):3, sizeof("ABCDEFG"):3, sizeof('ABCDEFGH'):3);
-    // Both spellings of a string, and a literal too wide for a word.
+            sizeof("ABCDEFG"):3, sizeof("ABCDEFGH"):3);
+    // A string of one word and one of more than a word.
     write(" TEXT   ");
     write("AB");
-    write('ABCDEFG');
     write("ABCDEFG");
     writeln;
     // Six characters in double quotes fill a one-word packed char array.

@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 
 int grdval;
 int arspan;
@@ -13,11 +13,11 @@ int wrdsExp(int bitW) {
 
 int chkWords(int tag, int got, int exp) {
     if (got != exp) {
-        writeln('FAIL size tag=', tag:0, " got=", got:0,
+        writeln("FAIL size tag=", tag:0, " got=", got:0,
                 " exp=", exp:0);
         return 1;
     } else {
-        writeln('OK size tag=', tag:0, ' words=', got:0);
+        writeln("OK size tag=", tag:0, " words=", got:0);
         return 0;
     }
 }
@@ -67,34 +67,34 @@ int trw08() {
     }
     buf[lo] = v;
     if (buf[lo] != v) {
-        writeln('FAIL int:8 store read back');
+        writeln("FAIL int:8 store read back");
         fail = 1;
     }
     for (i = 0; i < lo; i = i + 1) {
         g = grdval + i;
         if (buf[i] != g) {
-            writeln('FAIL int:8 low guard i=', i:0);
+            writeln("FAIL int:8 low guard i=", i:0);
             fail = 1;
         }
     }
     for (i = lo + 1; i <= arspan + 1; i = i + 1) {
         g = grdval + i;
         if (buf[i] != g) {
-            writeln('FAIL int:8 high guard i=', i:0);
+            writeln("FAIL int:8 high guard i=", i:0);
             fail = 1;
         }
     }
     buf[hi] = maxv;
     if (buf[hi] != maxv) {
-        writeln('FAIL int:8 max at hi');
+        writeln("FAIL int:8 max at hi");
         fail = 1;
     }
     if (buf[lo] != v) {
-        writeln('FAIL int:8 neighbor after hi write');
+        writeln("FAIL int:8 neighbor after hi write");
         fail = 1;
     }
     if (fail == 0) {
-        writeln('OK int:8 rw guards');
+        writeln("OK int:8 rw guards");
     } else {
         return 1;
     }
@@ -119,27 +119,27 @@ int trw16() {
     }
     buf[lo] = v;
     if (buf[lo] != v) {
-        writeln('FAIL int:16 store read');
+        writeln("FAIL int:16 store read");
         fail = 1;
     }
     buf[lo + 1] = maxv;
     if (buf[lo] != v) {
-        writeln('FAIL int:16 low corrupted');
+        writeln("FAIL int:16 low corrupted");
         fail = 1;
     }
     if (buf[lo + 1] != maxv) {
-        writeln('FAIL int:16 hi read');
+        writeln("FAIL int:16 hi read");
         fail = 1;
     }
     for (i = 0; i < lo; i = i + 1) {
         g = grdval + i;
         if (buf[i] != g) {
-            writeln('FAIL int:16 guard i=', i:0);
+            writeln("FAIL int:16 guard i=", i:0);
             fail = 1;
         }
     }
     if (fail == 0) {
-        writeln('OK int:16 rw guards');
+        writeln("OK int:16 rw guards");
     } else {
         return 1;
     }
@@ -162,21 +162,21 @@ int trw24() {
     }
     buf[lo] = v;
     if (buf[lo] != v) {
-        writeln('FAIL int:24 store read');
+        writeln("FAIL int:24 store read");
         fail = 1;
     }
     g = grdval + lo - 1;
     if (buf[lo - 1] != g) {
-        writeln('FAIL int:24 guard below');
+        writeln("FAIL int:24 guard below");
         fail = 1;
     }
     g = grdval + lo + 1;
     if (buf[lo + 1] != g) {
-        writeln('FAIL int:24 guard above');
+        writeln("FAIL int:24 guard above");
         fail = 1;
     }
     if (fail == 0) {
-        writeln('OK int:24 rw guards');
+        writeln("OK int:24 rw guards");
     } else {
         return 1;
     }
@@ -193,7 +193,7 @@ int tdense() {
     one = 1;
     zero = 0;
     if (sizeof(a) != 1) {
-        writeln('FAIL int:1 dense words got=', sizeof(a):0);
+        writeln("FAIL int:1 dense words got=", sizeof(a):0);
         fail = 1;
     }
     for (i = 1; i <= 48; i = i + 1) {
@@ -201,21 +201,21 @@ int tdense() {
     }
     for (i = 1; i <= 48; i = i + 1) {
         if (a[i] != one) {
-            writeln('FAIL int:1 dense at i=', i:0);
+            writeln("FAIL int:1 dense at i=", i:0);
             fail = 1;
         }
     }
     a[25] = zero;
     if (a[24] != one) {
-        writeln('FAIL int:1 dense neighbor');
+        writeln("FAIL int:1 dense neighbor");
         fail = 1;
     }
     if (a[26] != one) {
-        writeln('FAIL int:1 dense neighbor hi');
+        writeln("FAIL int:1 dense neighbor hi");
         fail = 1;
     }
     if (fail == 0) {
-        writeln('OK int:1 dense 48 x 1 bit');
+        writeln("OK int:1 dense 48 x 1 bit");
     } else {
         return 1;
     }
@@ -226,33 +226,33 @@ int tdense() {
 void main() {
     grdval = 100;
     arspan = 12;
-    writeln('packed int:<bits> tests arspan=', arspan:0);
+    writeln("packed int:<bits> tests arspan=", arspan:0);
     if (tsz08() != 0) {
-        writeln('abort sizes');
+        writeln("abort sizes");
     }
     if (tsz16() != 0) {
-        writeln('abort sizes');
+        writeln("abort sizes");
     }
     if (tsz24() != 0) {
-        writeln('abort sizes');
+        writeln("abort sizes");
     }
     if (tsz32() != 0) {
-        writeln('abort sizes');
+        writeln("abort sizes");
     }
     if (tsz40() != 0) {
-        writeln('abort sizes');
+        writeln("abort sizes");
     }
     if (trw08() != 0) {
-        writeln('abort rw8');
+        writeln("abort rw8");
     }
     if (trw16() != 0) {
-        writeln('abort rw16');
+        writeln("abort rw16");
     }
     if (trw24() != 0) {
-        writeln('abort rw24');
+        writeln("abort rw24");
     }
     if (tdense() != 0) {
-        writeln('abort dense');
+        writeln("abort dense");
     }
     writeln("done");
 }

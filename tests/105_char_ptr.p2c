@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // A 'char *' is a byte index into flat memory -- six 8-bit bytes to a 48-bit
 // word -- and carries its own rules: '&c' on a char variable is the
@@ -24,35 +24,35 @@ void main() {
         un[i]  =  char(97 + i);
     // Reading through a pointer, both spellings.
     cp  =  &c;
-    writeln(' DEREF ', int(*cp):4, int(cp[0]):4);
+    writeln(" DEREF ", int(*cp):4, int(cp[0]):4);
     // Writing through a pointer, both spellings.
     *cp  =  char(70);
-    writeln(' STAR  ', int(c):4);
+    writeln(" STAR  ", int(c):4);
     cp[0]  =  char(71);
-    writeln(' IDX   ', int(c):4);
+    writeln(" IDX   ", int(c):4);
     // Two pointers: a difference in bytes, ordering, equality.  Adjacent
     // one-word globals are six bytes apart.
     cp  =  &c;
     cq  =  &d;
-    writeln(' CMP   ', (cq - cp):4, (cp < cq):2, (cp == cq):2, (cp == cp):2);
+    writeln(" CMP   ", (cq - cp):4, (cp < cq):2, (cp == cq):2, (cp == cp):2);
     // Arithmetic, read back through the difference.  These pin the operand
     // order, which the subtraction and both op-assign forms depend on.
     cq  =  cp + 6;
-    writeln(' ADD   ', (cq - cp):4);
+    writeln(" ADD   ", (cq - cp):4);
     cq  =  cq - 6;
-    writeln(' SUB   ', (cq - cp):4);
+    writeln(" SUB   ", (cq - cp):4);
     cq++;
-    writeln(' INC   ', (cq - cp):4);
+    writeln(" INC   ", (cq - cp):4);
     cq  +=  5;
-    writeln(' PLEQ  ', (cq - cp):4);
+    writeln(" PLEQ  ", (cq - cp):4);
     cq  -=  2;
-    writeln(' MIEQ  ', (cq - cp):4);
+    writeln(" MIEQ  ", (cq - cp):4);
     --cq;
-    writeln(' PRED  ', (cq - cp):4);
+    writeln(" PRED  ", (cq - cp):4);
     // Passed to a routine, as a variable and as a fresh address.
-    writeln(' ARG   ', firstOf(&d):4, firstOf(cp):4);
+    writeln(" ARG   ", firstOf(&d):4, firstOf(cp):4);
     // An unpacked char array holds one char per word, so its elements sit
     // six bytes apart in the flat view and cp[1] reads an empty byte.
     cp  =  &un[0];
-    writeln(' UNPK  ', int(*cp):4, int(cp[6]):4, int(cp[1]):4);
+    writeln(" UNPK  ", int(*cp):4, int(cp[6]):4, int(cp[1]):4);
 }

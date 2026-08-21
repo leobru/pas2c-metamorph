@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // Test P/LDARIN helper: integer array with variable index
 int arr[1..10];
@@ -11,9 +11,9 @@ void main() {
     
     idx = 2;
     value = arr[idx];          // Variable index forces st2 → P/LDARIN
-    writeln('Value at index 2: ', value:0);
+    writeln("Value at index 2: ", value:0);
     
     idx = 5;
     value = arr[idx];
-    writeln('Value at index 5: ', value:0);
+    writeln("Value at index 5: ", value:0);
 }

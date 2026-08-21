@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // A switch arm whose label is not introduced by `case`.  requiredSymErr
 // reports the missing keyword; recovery then has to leave the label's own
@@ -19,5 +19,5 @@ void main() {
         1: k = 1;
         default: k = 2;
     }
-    writeln(' UNREACHED');
+    writeln(" UNREACHED");
 }

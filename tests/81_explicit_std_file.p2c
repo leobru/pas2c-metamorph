@@ -1,7 +1,7 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 // The implicit standard files can also be named explicitly as write's
 // leading argument; they are recognized by their 30-word size.
 void main() {
-    write(_output_, 'EXPLICIT ');
+    write(_output_, "EXPLICIT ");
     writeln(_output_, 42:0);
 }

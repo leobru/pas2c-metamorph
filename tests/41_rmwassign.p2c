@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 /*
  * Exercise op-assign and ++/-- on ACC-using lvalues.  Each lvalue
  * needs the accumulator to compute its address, so the prior AST

@@ -1,4 +1,4 @@
-/*=p-,t-,s8,y+,k9,l0*/
+/*=p-,t-,s8,k9,l0*/
 extern _output_;
 //
 const
@@ -135,7 +135,7 @@ void writeEscapedChar(ch, quote: char) {
 //
 void prStrA2() {
     var i, idx, nWords, pos: int;
-    write(' value ');
+    write(" value ");
     write('"');
     i = 1;
     nWords = (strLen + 5) / 6;
@@ -154,7 +154,7 @@ void prStrA2() {
 //
 void prStrOct() {
     var idx, nWords: int;
-    write(' value ');
+    write(" value ");
     nWords = (strLen + 7) / 8;
     for (idx = 1; idx <= nWords; ++idx) {
         w.i = getStrWord();
@@ -167,7 +167,7 @@ void printPseudo() {
     var optVal: int;
     optCh = getByte();
     optVal = getByte();
-    write(' PSEUDOSY value ', optCh);
+    write(" PSEUDOSY value ", optCh);
     if (optCh == 'Y' || optCh == 'E' || optCh == 'F' ||
         optCh == 'P' || optCh == 'T' || optCh == 'C' || optCh == 'M')
         write(' ', optVal:0);
@@ -186,12 +186,12 @@ void printToken() {
     write(SY:1);
     if (SY == EOLSY) {
         ++lineCnt;
-        write(' of line ', lineCnt - 1:0);
+        write(" of line ", lineCnt - 1:0);
     }
     if (SY == EXPROP || SY == BECOMES) {
         w.i = getByte();
         charClass = opTab[w.i];
-        write(' operator ', charClass:1);
+        write(" operator ", charClass:1);
     }
     if (SY == IDENT) {
         curToken.i = getTokWord();
@@ -200,15 +200,15 @@ void printToken() {
     }
     if (SY == INTCONST) {
         curToken.i = getTokWord();
-        write(' value ', curToken oct);
+        write(" value ", curToken oct);
     }
     if (SY == REALCONST) {
         curToken.i = getTokWord();
-        write(' value ', curToken.r);
+        write(" value ", curToken.r);
     }
     if (SY == CHARCONST) {
         strBuf[1] = getByte();
-        write(' value ');
+        write(" value ");
         write('\'');
         writeEscapedChar(strBuf[1], BACKSLASH);
         write('\'');

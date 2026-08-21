@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 int outer(int base) {
     const bias = 3;
@@ -16,5 +16,5 @@ int outer(int base) {
 }
 //
 void main() {
-    writeln('blocks ', outer(5):0);
+    writeln("blocks ", outer(5):0);
 }

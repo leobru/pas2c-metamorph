@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 int result;
 //
 int square(int x) {
@@ -7,5 +7,5 @@ int square(int x) {
 //
 void main() {
     result = square(7);
-    writeln('7 squared = ', result:0);
+    writeln("7 squared = ", result:0);
 }

@@ -1,7 +1,7 @@
-/*=l1,s8,y+,k8,l1*/
+/*=l1,s8,k8,l1*/
 //
 const
-    boilerplate = ' PASCAL 2 C METAMORPHOSIS (2026)';
+    boilerplate = " PASCAL 2 C METAMORPHOSIS (2026)";
 //
     fnABS = 0; fnSIZEOF = 1; fnOFFSETOF = 2; fnMALLOC = 3;
     fnCARD = 4; fnMINEL = 5;
@@ -459,7 +459,6 @@ int prevInsn,
     enableStdInput,
     fixMult,
     abort,
-    allowCompat,
     checkFortran;
 irptr outputFile,
     inputFile,
@@ -706,7 +705,7 @@ char c;
 //
     write(' ');
     if (errno >= 200)
-        write('system=', errno:0);
+        write("system=", errno:0);
     else {
         if (errno > 88)
             printErrMsg(86);
@@ -838,7 +837,7 @@ int err, errPos, prevPos, listMode,
     ++lineCnt;
     if (feof(&pasinput)) {
 //        error(errEOFEncountered);
-        writeln('EOF reached');
+        writeln("EOF reached");
         halt;
     }
 } /* endOfLine */
@@ -1274,7 +1273,6 @@ void readOptFlag(int *res) {
         nextCH();
         badOpt  =  true;
         switch (CH) {
-        case 'Y': readOptFlag(&allowCompat); break; // just for LINES STRUCTURE
         case 'E': readOptFlag(&declEntry); break;
         case 'S':
             curVal.i = readOptVal(8);
@@ -1635,8 +1633,14 @@ void lexer() {
             curToken.i = pck(&localBuf[6]);
             curVal  =  curToken;
             if (strLen <= 6) {
-                if (litQuote == '\'')
+                if (litQuote == '\'') {
                     SY  =  INTCONST;
+                    /* Right-aligned, as a one-character literal is: the
+                       characters end up in the low bytes and the space
+                       padding below them is shifted out. */
+                    curToken.i  =  curToken.i >> (8 * (6 - strLen));
+                    curVal  =  curToken;
+                }
                 return;
             } else if (litQuote == '\'' && charEncoding == 3 && strLen == 8) {
                 packt(&localBuf[6], &curToken.t, 8);
@@ -1644,6 +1648,12 @@ void lexer() {
                 SY = INTCONST;
                 return;
             } else {
+                /* Single quotes give one word, so they hold what a word
+                   holds: six ISO characters, or eight in TEXT.  A longer
+                   string is written in double quotes. */
+                if (litQuote == '\'' &&
+                    strLen > (charEncoding == 3 ? 8 : 6))
+                    error(errNumberTooLarge);
                 curToken.i  =  FcstCnt;
                 tokenLen  =  6;
                 while (1) {
@@ -1664,36 +1674,36 @@ void lexer() {
         /* Op-assigns: SY=BECOMES, charClass keeps the per-char op
            (PLUSOP/MINUSOP/MUL/RDIVOP/IMODOP/SETAND/SETOR/SETXOR) from
            chrClass[prevCH], so parsePrc can fold lhs = lhs op rhs. */
-        case tok('+=') >> 32:
-        case tok('-=') >> 32:
-        case tok('*=') >> 32:
-        case tok('/=') >> 32:
-        case tok('%=') >> 32:
-        case tok('&=') >> 32:
-        case tok('|=') >> 32:
-        case tok('^=') >> 32: SY = BECOMES; break;
-        case tok('<=') >> 32: charClass = LEOP; break;
-        case tok('<<') >> 32:
+        case tok('+='):
+        case tok('-='):
+        case tok('*='):
+        case tok('/='):
+        case tok('%='):
+        case tok('&='):
+        case tok('|='):
+        case tok('^='): SY = BECOMES; break;
+        case tok('<='): charClass = LEOP; break;
+        case tok('<<'):
             charClass = SHLEFT; nextCH();
             if (CH == '=') { SY = BECOMES; nextCH(); }
             return;
-        case tok('<:') >> 32: SY = BEGINSY; break;
-        case tok('>>') >> 32:
+        case tok('<:'): SY = BEGINSY; break;
+        case tok('>>'):
             charClass = SHRIGHT; nextCH();
             if (CH == '=') { SY = BECOMES; nextCH(); }
             return;
-        case tok('>=') >> 32: charClass = GEOP; break;
-        case tok(':>') >> 32: SY = ENDSY; break;
-        case tok('==') >> 32: SY = EXPROP; charClass = EQOP; break;
-        case tok('!=') >> 32: charClass = NEOP; break;
-        case tok('->') >> 32: SY = ARROW; break;
-        case tok('--') >> 32: charClass = DECROP; break;
-        case tok('++') >> 32: charClass = INCROP; break;
-        case tok('||') >> 32: charClass = OROP; break;
-        case tok('&&') >> 32: charClass = ANDOP; break;
-        case tok('/*') >> 32: parseComment(); longjmp(jb1473, 1);
-        case tok('//') >> 32: while (!atEOL) nextCH(); longjmp(jb1473, 1);
-        case tok('..') >> 32: SY = COLON; break;
+        case tok('>='): charClass = GEOP; break;
+        case tok(':>'): SY = ENDSY; break;
+        case tok('=='): SY = EXPROP; charClass = EQOP; break;
+        case tok('!='): charClass = NEOP; break;
+        case tok('->'): SY = ARROW; break;
+        case tok('--'): charClass = DECROP; break;
+        case tok('++'): charClass = INCROP; break;
+        case tok('||'): charClass = OROP; break;
+        case tok('&&'): charClass = ANDOP; break;
+        case tok('/*'): parseComment(); longjmp(jb1473, 1);
+        case tok('//'): while (!atEOL) nextCH(); longjmp(jb1473, 1);
+        case tok('..'): SY = COLON; break;
         default:
             return;
         } /* switch prevCH, CH */
@@ -4957,14 +4967,14 @@ pair *curSlot;
         write(' ':16);
         if (curField->pckfield)
             write("PACKED");
-        write(' FIELD ');
+        write(" FIELD ");
         printTextWord(curField->id);
-        write('.OFFSET=', curField->pck.p.offset:5 oct, 'B');
+        write(".OFFSET=", curField->pck.p.offset:5 oct, 'B');
         if (curField->pckfield) {
-            write('.<<=SHIFT=', curField->shift:2,
-                  '. WIDTH=', curField->width:2, " BITS");
+            write(".<<=SHIFT=", curField->shift:2,
+                  ". WIDTH=", curField->width:2, " BITS");
         } else {
-            write('.WORDS=', typeSize(curField->typ):0);
+            write(".WORDS=", typeSize(curField->typ):0);
         }
         writeLN;
     }
@@ -5363,7 +5373,7 @@ int l3int1z, frame, l3var3z;
         prevErrPos  =  0;
         write("IDENT ");
         printTextWord(l2var12z);
-        write(' IN LINE ', curIdRec->pck.p.offset:0);
+        write(" IN LINE ", curIdRec->pck.p.offset:0);
         break;
     case 2:
         padToLeft();
@@ -6577,7 +6587,7 @@ int oldLocalSize, oldFreeRegs, blockRegs;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void reportStmtType() {
-    writeln(' STATEMENT ', stmtname:0, " IN ", startLine:0, " LINE");
+    writeln(" STATEMENT ", stmtname:0, " IN ", startLine:0, " LINE");
 } /* reportStmtType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -8231,10 +8241,10 @@ void exitScope(int a) {
                 if (l2bool8z) {
                     curIdRec->value  =  localSize;
                     if (PASINFOR.listMode == 3) {
-                        write('VARIABLE ':25);
+                        write("VARIABLE ":25);
                         printTextWord(curDeclarator.name);
-                        writeln(' OFFSET (', curProcNesting:0, ") ",
-                                localSize:5 oct, 'B. WORDS=',
+                        writeln(" OFFSET (", curProcNesting:0, ") ",
+                                localSize:5 oct, "B. WORDS=",
                                 jj:5 oct, 'B');
                     }
                     localSize += jj;
@@ -8423,7 +8433,7 @@ void exitScope(int a) {
     defineRoutine(bodyBlock);
     if ((curProcNesting > 1) && ! retSeen &&
             (procName->typ != voidType)) {
-        writeln(' above function must return a value');
+        writeln(" above function must return a value");
         error(200);
     }
     l2bool8z  =  true;
@@ -8562,9 +8572,9 @@ int sizes[10];
     for (cnt = 1; cnt <= longSymCnt; ++cnt)
         fputw(longSyms[cnt], &_CHILD_);
     fclose(&_CHILD_);
-    if (allowCompat) {
-        writeln('     MODULE HEADER:   HDR REL    0    0 LSYM NCODE   0 CONST DATA SETS');
-        write((lineCnt - 1):6, ' LINES STRUCTURE ');
+    if (PASINFOR.listMode != 0) {
+        writeln("     MODULE HEADER:   HDR REL    0    0 LSYM NCODE   0 CONST DATA SETS");
+        write((lineCnt - 1):6, " LINES STRUCTURE ");
         for (idx = 0; idx <= 9; ++idx)
             write(sizes[idx]:idx?4:0, ' ');
         writeln;
@@ -8597,8 +8607,7 @@ void initOptions() {
     fixMult  =  true;
     declEntry  =
     enableStdInput  =
-    errors  =
-    allowCompat  =  false;
+    errors  =  false;
     fileBufSize  =  1;
     charEncoding  =  2;
     longSymCnt  =  0;
@@ -8614,7 +8623,7 @@ void main() {
     /*=A2*/
     if (PASINFOR.listMode != 0)
         writeln(boilerplate);
-    writeln(' INITHEAP = ', setup():5 oct);
+    writeln(" INITHEAP = ", setup():5 oct);
     if (setjmp(&jb9999)) goto 9999;
     initOptions();
     curInsnTemplate  =  0;
@@ -8623,11 +8632,11 @@ void main() {
     fopen(&INITBUF, 010000100000, 0);
     programme(&curInsnTemplate, hashTravPtr, false);
     if (errors) {
-9999:   writeln(" IN ", (lineCnt-1):0, ' LINES ',
-            totalErrors:0, ' ERRORS');
+9999:   writeln(" IN ", (lineCnt-1):0, " LINES ",
+            totalErrors:0, " ERRORS");
     } else {
         finalize();
         *PASINFOR.errors  =  false;
-        writeln(' MAXHEAP = ', maxHeap:5 oct);
+        writeln(" MAXHEAP = ", maxHeap:5 oct);
     }
 }

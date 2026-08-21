@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // Enum bodies with explicit '= constExpr' values; later enumerators
 // auto-increment from the last value. Values may reference earlier
@@ -19,5 +19,5 @@ void main() {
     ev = MID; writeln(" MID=", ev:0);
     ev = HI;  writeln(" HI=", ev:0);
     // A plain (sequential) enum still prints its enumerator name:
-    color = GREEN; writeln(' color=', color);
+    color = GREEN; writeln(" color=", color);
 }

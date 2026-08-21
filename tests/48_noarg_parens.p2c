@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 void later();
 //
@@ -16,6 +16,6 @@ void later() {
 //
 void main() {
     ping();
-    writeln('ANSWER=', answer():0);
+    writeln("ANSWER=", answer():0);
     later();
 }

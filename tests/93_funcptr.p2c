@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 // Variables of function pointer types.  'T (*name)(params)' declares one;
 // a routine named without an argument list is a function designator worth
 // its entry address, with '&' in front of it optional, as in C; and a call
@@ -64,12 +64,12 @@ void main() {
     writeln(" TBL=", tbl[0](2, 3):0, ' ', tbl[1](2, 3):0);
     gfn = NULL;
     if (gfn == NULL)
-        writeln(' NULL=YES');
+        writeln(" NULL=YES");
     else
-        writeln(' NULL=NO');
+        writeln(" NULL=NO");
     gfn = mul2;
     if (gfn == NULL)
-        writeln(' NULL2=YES');
+        writeln(" NULL2=YES");
     else
-        writeln(' NULL2=NO');
+        writeln(" NULL2=NO");
 }

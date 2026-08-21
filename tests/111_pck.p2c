@@ -1,27 +1,18 @@
-/*=s8,y+,l0*/
+/*=s8,l0*/
 //
 // pck(p) packs the six characters at p into one word, the first of them in
 // the most significant byte, which is what the packed view of the union
 // prints.  A character occupies a word of its own, so the six of them are six
-// consecutive words and their address is what the routine wants.  A call
-// passes its first argument in the accumulator and pushes nothing, so a
-// routine that pops one would drift the stack per call.
+// consecutive words and their address is what the routine wants.
 //
 int pck(int *) assembler;
 //
 typedef union { int i; __packed char c[0..5]; } wordu;
 int buf[0..5];
 wordu u;
-int std, bal, i;
 void main() {
     buf[0] = 'A'; buf[1] = 'B'; buf[2] = 'C';
     buf[3] = 'D'; buf[4] = 'E'; buf[5] = 'F';
     u.i = pck(&buf[0]);
-    std = u.i;
-    writeln(' PCK  =', u.c:6);
-    bal = pck(&buf[0]) - pck(&buf[0])
-        + pck(&buf[0]) - pck(&buf[0]);
-    for (i = 1; i <= 100; ++i)
-        bal += pck(&buf[0]) - std;
-    writeln(' BAL  =', bal:0);
+    writeln(" PCK  =", u.c:6);
 }

@@ -1,4 +1,4 @@
-/*=s8,y+,l0*/
+/*=s8,l0*/
 int setup() assembler;
 void rollup(int mark) assembler;
 //
@@ -12,5 +12,5 @@ void main() {
     rollup(mark);
     q = malloc(1);
     *q = 222;
-    writeln(' after rollup p=', *p:0);
+    writeln(" after rollup p=", *p:0);
 }

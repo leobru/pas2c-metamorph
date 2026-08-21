@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 void longjmp(int jmpbuf, int val) assembler;
 int setjmp(int *jmpbuf) assembler;
 //
@@ -6,25 +6,25 @@ int jb;
 int n;
 //
 void inner() {
-    writeln(' inner: about to longjmp');
+    writeln(" inner: about to longjmp");
     longjmp(jb, 1);
-    writeln(' inner: unreachable');
+    writeln(" inner: unreachable");
 }
 //
 void middle() {
-    writeln(' middle: calling inner');
+    writeln(" middle: calling inner");
     inner();
-    writeln(' middle: unreachable');
+    writeln(" middle: unreachable");
 }
 //
 void main() {
     n = setjmp(&jb);
-    writeln(' setjmp returned ', n:0);
+    writeln(" setjmp returned ", n:0);
     if (n == 0) {
         middle();
-        writeln(' main: unreachable');
+        writeln(" main: unreachable");
     } else {
-        writeln(' main: resumed via longjmp');
+        writeln(" main: resumed via longjmp");
     }
     writeln(" done");
 }

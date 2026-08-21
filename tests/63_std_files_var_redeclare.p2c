@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 int _input_;
 int _OUTPUT_;
 void main() {

@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 typedef struct {
     int x, y;
@@ -7,5 +7,5 @@ point p;
 void main() {
     p.x = 10;
     p.y = 20;
-    writeln('Point: (', p.x:0, ", ", p.y:0, ')');
+    writeln("Point: (", p.x:0, ", ", p.y:0, ')');
 }

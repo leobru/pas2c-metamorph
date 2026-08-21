@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 int g;
 // The predefined type names are reserved words carrying their type:
 // int, char, float and void, recognized in every position and
@@ -31,8 +31,8 @@ void main() {
     m = 11;
     writeln(" G=", g:0, " N=", r.n:0, " M=", m:0);
     writeln(" C=", c, " CH=", r.ch, " A=", a);
-    writeln(' DEREF=', *p:0, " ORD=", int(c):0);
-    writeln(' SIZES ', sizeof(int):0, sizeof(char):0, sizeof(float):0,
+    writeln(" DEREF=", *p:0, " ORD=", int(c):0);
+    writeln(" SIZES ", sizeof(int):0, sizeof(char):0, sizeof(float):0,
             sizeof(alfa):0, sizeof(rec):0);
     show(f, g);
 }

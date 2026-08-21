@@ -1,7 +1,7 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 
 int words[1..8];
 
 void main() {
-    writeln('RESULT ', sizeof(words):0);
+    writeln("RESULT ", sizeof(words):0);
 }

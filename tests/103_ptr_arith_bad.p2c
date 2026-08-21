@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // The rejections.  Pointer arithmetic scales by the pointee's size, so it
 // wants a pointer that has one: NULL, a void pointer, and a pointer to a
@@ -41,5 +41,5 @@ void main() {
     p3  =  NULL + 1;
     fp  =  fp + 1;
     fp++;
-    writeln(' UNREACHED ', k:0);
+    writeln(" UNREACHED ", k:0);
 }

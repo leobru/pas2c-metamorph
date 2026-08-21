@@ -1,17 +1,17 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 int a, b, c;
 void main() {
     a = 10;
     b = 3;
     c = a + b;
-    writeln(' 10 + 3 = ', c:0);
+    writeln(" 10 + 3 = ", c:0);
     c = a - b;
-    writeln(' 10 - 3 = ', c:0);
+    writeln(" 10 - 3 = ", c:0);
     c = a * b;
-    writeln(' 10 * 3 = ', c:0);
+    writeln(" 10 * 3 = ", c:0);
     c = a / b;
-    writeln(' 10 / 3 = ', c:0);
+    writeln(" 10 / 3 = ", c:0);
     c = a % b;
-    writeln(' 10 % 3 = ', c:0);
+    writeln(" 10 % 3 = ", c:0);
 }

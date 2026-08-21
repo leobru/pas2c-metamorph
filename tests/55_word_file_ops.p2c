@@ -1,4 +1,4 @@
-/*=s8,y+,l0*/
+/*=s8,l0*/
 //
 typedef struct {
     int w0;
@@ -22,7 +22,7 @@ void main() {
     writeln("open ", f.w4:0, ' ', f.w18:0, ' ', f.w27:0, ' ', f.w2:0);
 
     ftruncate(&f);
-    writeln('truncate ', f.w4:0, ' ', f.w14:0, ' ', f.w2:0, ' ', f.w16:0);
+    writeln("truncate ", f.w4:0, ' ', f.w14:0, ' ', f.w2:0, ' ', f.w16:0);
 
     fputw(1234, &f);
     fputw(2345, &f);
@@ -30,7 +30,7 @@ void main() {
     writeln("put ", f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
 
     frewind(&f);
-    writeln('rewind ', f.w4:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
+    writeln("rewind ", f.w4:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
     w = fgetw(&f);
     writeln("get1 ", w:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
     w = fgetw(&f);

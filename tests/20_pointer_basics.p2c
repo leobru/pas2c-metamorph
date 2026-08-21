@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 typedef int *intptr;
 intptr p;
@@ -6,5 +6,5 @@ int x;
 void main() {
     x = 42;
     p = &x;
-    writeln('Value through pointer: ', *p:0);
+    writeln("Value through pointer: ", *p:0);
 }

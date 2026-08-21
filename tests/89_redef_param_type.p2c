@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 // The definition's parameter list must agree with the declaration's.
 int f(int a);
 int f(char a) { return 1; }

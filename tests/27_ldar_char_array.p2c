@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // Test P/LDAR helper: char array with variable index
 char chars[1..5];
@@ -12,9 +12,9 @@ void main() {
     
     idx = 2;
     ch = chars[idx];           // Variable index, char type → P/LDAR
-    writeln('Character at index 2: ', ch);
+    writeln("Character at index 2: ", ch);
     
     idx = 4;
     ch = chars[idx];
-    writeln('Character at index 4: ', ch);
+    writeln("Character at index 4: ", ch);
 }

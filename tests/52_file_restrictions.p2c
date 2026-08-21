@@ -1,4 +1,4 @@
-/*=s8,y+,l0*/
+/*=s8,l0*/
 typedef file of char fchar;
 typedef file of fchar nested;
 typedef struct {
@@ -12,5 +12,5 @@ fchar arr[2];
 void main() {
     b = a;
     h.x = 52;
-    writeln('file restrictions ', h.x:0);
+    writeln("file restrictions ", h.x:0);
 }

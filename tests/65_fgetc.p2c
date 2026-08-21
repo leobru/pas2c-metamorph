@@ -1,4 +1,4 @@
-/*=s8,y+,l0*/
+/*=s8,l0*/
 //
 typedef struct {
     int *data;

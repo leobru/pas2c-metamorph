@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // A pinned base whose address costs more than one instruction is spilled to a
 // frame slot.  Calls whose callee clobbers the index register holding the base
@@ -58,5 +58,5 @@ void main() {
     writeln(" A1=", arr[1].pt.a:0, " B1=", arr[1].pt.b:0);
     writeln(" A2=", arr[2].pt.a:0, " B2=", arr[2].pt.b:0);
     writeln(" A3=", arr[3].pt.a:0, " B3=", arr[3].pt.b:0);
-    writeln(" TAGS=", arr[1].tag:0, ' ', arr[3].tag:0, ' PROBE=', probe:0);
+    writeln(" TAGS=", arr[1].tag:0, ' ', arr[3].tag:0, " PROBE=", probe:0);
 }

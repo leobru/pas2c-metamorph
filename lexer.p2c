@@ -1,4 +1,4 @@
-/*=p-,t-,s8,y+,k9,l1*/
+/*=p-,t-,s8,k9,l1*/
 extern _output_, pasinfor, isoptext;
 //
 const
@@ -208,19 +208,19 @@ void reportBadScan() {
 }
 //
 void error(errno: int) {
-    write(' line ', lineCnt:0, ' pos ', linePos:0, ' error ', errno:0, ': ');
-    if (errno == 12) write('ILLEGAL SYMBOL');
-    else if (errno == 20) write('DIGIT ABOVE 7');
-    else if (errno == 43) write('NUMBER TOO LARGE');
-    else if (errno == 52) write('END OF FILE ENCOUNTERED');
-    else if (errno == 54) write('ERROR IN PSEUDO COMMENT');
-    else if (errno == 55) write('NUMBER ABOVE 16 DIGITS');
-    else if (errno == 56) write('AFTER DOT NO MANTISSA');
-    else if (errno == 57) write('NO EXPONENT AFTER E');
-    else if (errno == 58) write('EXPONENT ABOVE 18');
-    else if (errno == 59) write('IN LINE EOLN TRUE');
-    else if (errno == 60) write('1ST DIGIT IN BYTE ABOVE 3');
-    else if (errno == 61) write('EMPTY LINE');
+    write(' line ', lineCnt:0, ' pos ', linePos:0, " error ", errno:0, ': ');
+    if (errno == 12) write("ILLEGAL SYMBOL");
+    else if (errno == 20) write("DIGIT ABOVE 7");
+    else if (errno == 43) write("NUMBER TOO LARGE");
+    else if (errno == 52) write("END OF FILE ENCOUNTERED");
+    else if (errno == 54) write("ERROR IN PSEUDO COMMENT");
+    else if (errno == 55) write("NUMBER ABOVE 16 DIGITS");
+    else if (errno == 56) write("AFTER DOT NO MANTISSA");
+    else if (errno == 57) write("NO EXPONENT AFTER E");
+    else if (errno == 58) write("EXPONENT ABOVE 18");
+    else if (errno == 59) write("IN LINE EOLN TRUE");
+    else if (errno == 60) write("1ST DIGIT IN BYTE ABOVE 3");
+    else if (errno == 61) write("EMPTY LINE");
     writeln;
     markBad();
     reportBadScan();
@@ -313,7 +313,7 @@ void scanComment() {
             if (badOpt)
                 error(54);
             else {
-                write(' PSEUDOSY value ', o);
+                write(" PSEUDOSY value ", o);
                 emitByte(PSEUDOSY);
                 emitByte(o);
                 if (boolOpt) {
@@ -719,10 +719,10 @@ void printToken() {
     emitByte(SY);
     switch (SY) {
     case EOLSY:
-        write(' of line ', lineCnt-1:0);
+        write(" of line ", lineCnt-1:0);
         break;
     case EXPROP: case BECOMES:
-        write(' operator ', charClass:1);
+        write(" operator ", charClass:1);
         emitByte(charClass);
         break;
     case IDENT:
@@ -731,22 +731,22 @@ void printToken() {
         emitWord(curToken.i);
         break;
     case INTCONST:
-        write(' value ', curToken oct);
+        write(" value ", curToken oct);
         emitWord(curToken.i);
         break;
     case REALCONST:
-        write(' value ', curToken.r);
+        write(" value ", curToken.r);
         emitWord(curToken.i);
         break;
     case CHARCONST:
-        write(' value ');
+        write(" value ");
         write('\'');
         writeEscapedChar(strBuf[1], BACKSLASH);
         emitByte(strBuf[1]);
         write('\'');
         break;
     case STRINGSY:
-        write(' value ');
+        write(" value ");
         emitByte(strLen);
         if (charEncoding == 2) {
             writeBuf(strBuf, strLen, '"');
@@ -809,7 +809,7 @@ void main() {
     } while (SY != EOFSY);
     PASISOCD();
     flushFPend();
-    write(' WASTED BYTES ', wasteByts:0);
+    write(" WASTED BYTES ", wasteByts:0);
     writeln;
     emitWord(~0U);
     fclose(&TOKENS);

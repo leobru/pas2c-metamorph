@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // Selecting a field of a function result.  A call leaves its result in the
 // accumulator -- an ilRVAL insnList with no address -- and GETFIELD then
@@ -65,19 +65,19 @@ plain vp;
     vp  =  mkplain(5);
     // int(...) only to print in decimal: a sub-word field's own type is a
     // narrow scalar, which writeln renders in octal.
-    writeln(' LSB VAR    ', int(vl.f.a):5, int(vl.f.b):6, int(vl.f.c):5);
-    writeln(' LSB CALL   ', int(mklsb(37).f.a):5, int(mklsb(37).f.b):6,
+    writeln(" LSB VAR    ", int(vl.f.a):5, int(vl.f.b):6, int(vl.f.c):5);
+    writeln(" LSB CALL   ", int(mklsb(37).f.a):5, int(mklsb(37).f.b):6,
                             int(mklsb(37).f.c):5);
-    writeln(' MSB VAR    ', int(vm.f.p):5, int(vm.f.q):6, int(vm.f.r):5);
-    writeln(' MSB CALL   ', int(mkmsb(37).f.p):5, int(mkmsb(37).f.q):6,
+    writeln(" MSB VAR    ", int(vm.f.p):5, int(vm.f.q):6, int(vm.f.r):5);
+    writeln(" MSB CALL   ", int(mkmsb(37).f.p):5, int(mkmsb(37).f.q):6,
                             int(mkmsb(37).f.r):5);
-    writeln(' PLAIN      ', vp.only:5, mkplain(5).only:5);
+    writeln(" PLAIN      ", vp.only:5, mkplain(5).only:5);
     // Through a returned pointer: genDeref's business, not prepLoad's.
-    writeln(' ARROW      ', pick(1)->v:5, pick(0)->v:5);
+    writeln(" ARROW      ", pick(1)->v:5, pick(0)->v:5);
     // The extraction has to work outside a plain assignment too.
     if (mklsb(9).f.a == 9)
-        write(' COND OK   ');
+        write(" COND OK   ");
     else
-        write(' COND BAD  ');
+        write(" COND BAD  ");
     writeln(twice(mklsb(21).f.a):5, int(mklsb(4).f.a + mklsb(6).f.a):5);
 }

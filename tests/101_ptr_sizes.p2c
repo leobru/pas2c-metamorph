@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // Operations on pointers to structures of one, two, three, five and thirty
 // words, plus a one-word structure whose fields are narrower than a word.
@@ -62,7 +62,7 @@ w30 *pick30(int f) {
 }
 //
 void main() {
-    writeln(' SIZES ', sizeof(w1):3, sizeof(w2):3, sizeof(w3):3, sizeof(w5):3,
+    writeln(" SIZES ", sizeof(w1):3, sizeof(w2):3, sizeof(w3):3, sizeof(w5):3,
             sizeof(w30):3, sizeof(pk1):3);
     s1.a  =  11;
     s2.a  =  21;  s2.b  =  22;
@@ -72,13 +72,13 @@ void main() {
         s30.x[i]  =  100 + i;
     p1  =  &s1;  p2  =  &s2;  p3  =  &s3;  p5  =  &s5;  p30  =  &s30;
     // The last field of each: offset 0, 1, 2, 4 and 29.
-    writeln(' READ  ', p1->a:4, p2->b:4, p3->c:4, p5->e:4, p30->x[29]:4);
+    writeln(" READ  ", p1->a:4, p2->b:4, p3->c:4, p5->e:4, p30->x[29]:4);
     p1->a  =  p1->a + 1;
     p2->b  =  p2->b + 1;
     p3->c  =  p3->c + 1;
     p5->e  =  p5->e + 1;
     p30->x[29]  =  p30->x[29] + 1;
-    writeln(' WRITE ', s1.a:4, s2.b:4, s3.c:4, s5.e:4, s30.x[29]:4);
+    writeln(" WRITE ", s1.a:4, s2.b:4, s3.c:4, s5.e:4, s30.x[29]:4);
     // Whole-value copy, both sides through pointers.
     q1  =  &d1;  q2  =  &d2;  q3  =  &d3;  q5  =  &d5;  q30  =  &d30;
     *q1  =  *p1;
@@ -86,14 +86,14 @@ void main() {
     *q3  =  *p3;
     *q5  =  *p5;
     copy30(q30, p30);
-    writeln(' COPY  ', d1.a:4, d2.b:4, d3.c:4, d5.e:4, d30.x[0]:4, d30.x[29]:4);
+    writeln(" COPY  ", d1.a:4, d2.b:4, d3.c:4, d5.e:4, d30.x[0]:4, d30.x[29]:4);
     // One side a variable, the other a pointee.
     d3.a  =  0;  d3.b  =  0;  d3.c  =  0;
     d3  =  *p3;
-    writeln(' LOAD  ', d3.a:4, d3.b:4, d3.c:4);
+    writeln(" LOAD  ", d3.a:4, d3.b:4, d3.c:4);
     s3.a  =  99;
     *q3  =  s3;
-    writeln(' STORE ', d3.a:4, d3.b:4, d3.c:4);
+    writeln(" STORE ", d3.a:4, d3.b:4, d3.c:4);
     // '&arr[i]' scales a variable index by the element size.
     for (i = 0; i <= 2; i = i + 1) {
         p3  =  &t3[i];
@@ -103,19 +103,19 @@ void main() {
         p5->a  =  500 + i;
         p5->e  =  510 + i;
     }
-    writeln(' ELT3  ', t3[0].a:4, t3[2].a:4, t3[0].c:4, t3[2].c:4);
-    writeln(' ELT5  ', t5[0].a:4, t5[2].a:4, t5[0].e:4, t5[2].e:4);
+    writeln(" ELT3  ", t3[0].a:4, t3[2].a:4, t3[0].c:4, t3[2].c:4);
+    writeln(" ELT5  ", t5[0].a:4, t5[2].a:4, t5[0].e:4, t5[2].e:4);
     // Comparison is on the one-word pointer, not on the pointee.
     p3  =  &t3[0];
     q3  =  &t3[2];
-    writeln(' CMP   ', (p3 == q3):2, (p3 != q3):2, (p3 < q3):2, (q3 > p3):2);
+    writeln(" CMP   ", (p3 == q3):2, (p3 != q3):2, (p3 < q3):2, (q3 > p3):2);
     q3  =  p3;
-    writeln(' SAME  ', (p3 == q3):2, (p3 != q3):2, (q3 == NULL):2);
+    writeln(" SAME  ", (p3 == q3):2, (p3 != q3):2, (q3 == NULL):2);
     // A pointer to a pointer to a five-word structure.
     p5  =  &s5;
     pp5  =  &p5;
     (*pp5)->a  =  77;
-    writeln(' PP    ', s5.a:4, (*pp5)->e:4);
+    writeln(" PP    ", s5.a:4, (*pp5)->e:4);
     // An array of pointers: index, then follow.
     ptab[0]  =  &t3[0];
     ptab[1]  =  &t3[1];
@@ -123,7 +123,7 @@ void main() {
     k  =  0;
     for (i = 0; i <= 2; i = i + 1)
         k  =  k + ptab[i]->a;
-    writeln(' PTAB  ', k:5, ptab[1]->c:5);
+    writeln(" PTAB  ", k:5, ptab[1]->c:5);
     // Heap objects of one, three and thirty words.
     p1  =  malloc(sizeof(w1));
     p3  =  malloc(sizeof(w3));
@@ -133,24 +133,24 @@ void main() {
     p3->c  =  5;
     p30->x[0]  =  30;
     p30->x[29]  =  59;
-    writeln(' HEAP  ', p1->a:4, p3->a:4, p3->c:4, p30->x[0]:4, p30->x[29]:4,
+    writeln(" HEAP  ", p1->a:4, p3->a:4, p3->c:4, p30->x[0]:4, p30->x[29]:4,
             (p1 != NULL):2);
     // Passed to a routine and returned from one.
     fill5(&d5, 60);
-    writeln(' PARAM ', sum5(&d5):5, d5.a:4, d5.e:4);
-    writeln(' RET   ', pick3(1)->a:4, pick3(0)->a:4, pick30(1)->x[3]:4);
+    writeln(" PARAM ", sum5(&d5):5, d5.a:4, d5.e:4);
+    writeln(" RET   ", pick3(1)->a:4, pick3(0)->a:4, pick30(1)->x[3]:4);
     // Fields narrower than a word, through a pointer.
     pk  =  &kk;
     pk->lo  =  1;
     pk->mid  =  2;
     pk->hi  =  3;
-    writeln(' PACK  ', int(pk->lo):4, int(pk->mid):4, int(pk->hi):4);
+    writeln(" PACK  ", int(pk->lo):4, int(pk->mid):4, int(pk->hi):4);
     // A pinned pointer at both ends of the size range.
     { register w30 *r = &s30;
-      writeln(' REG30 ', r->x[0]:4, r->x[29]:4);
+      writeln(" REG30 ", r->x[0]:4, r->x[29]:4);
     }
     { register w1 *r = &s1;
-      writeln(' REG1  ', r->a:4);
+      writeln(" REG1  ", r->a:4);
     }
     // A pointer field inside the structure it points to.
     n1.val  =  1;  n1.next  =  &n2;
@@ -162,5 +162,5 @@ void main() {
         k  =  k + pn->val;
         pn  =  pn->next;
     }
-    writeln(' CHAIN ', n1.next->val:4, n1.next->next->val:4, k:4);
+    writeln(" CHAIN ", n1.next->val:4, n1.next->next->val:4, k:4);
 }

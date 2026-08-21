@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 int a, b;
 void main() {
@@ -6,26 +6,26 @@ void main() {
     b = 20;
     
     if (a < b) {
-        writeln(' 10 < 20: true');
+        writeln(" 10 < 20: true");
     };
     
     if (a <= b) {
-        writeln(' 10 <= 20: true');
+        writeln(" 10 <= 20: true");
     };
     
     if (b > a) {
-        writeln(' 20 > 10: true');
+        writeln(" 20 > 10: true");
     };
     
     if (b >= a) {
-        writeln(' 20 >= 10: true');
+        writeln(" 20 >= 10: true");
     };
     
     if (a == a) {
-        writeln(' 10 == 10: true');
+        writeln(" 10 == 10: true");
     };
     
     if (a != b) {
-        writeln(' 10 != 20: true');
+        writeln(" 10 != 20: true");
     }
 }

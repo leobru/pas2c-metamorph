@@ -1,0 +1,9 @@
+/*=s8,l0*/
+//
+// Single quotes give one word, so they hold what a word holds: six ISO
+// characters, or eight in TEXT.  A string longer than that is written in
+// double quotes.
+//
+void main() {
+    writeln('SEVENCH');
+}

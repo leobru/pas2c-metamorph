@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // Test P/LDARIN via pointer dereference
 typedef int *intptr;
@@ -8,9 +8,9 @@ void main() {
     x = 42;
     p = &x;
     value = *p;                // Pointer dereference → st2 → P/LDARIN
-    writeln('Value via pointer: ', value:0);
+    writeln("Value via pointer: ", value:0);
     
     x = 99;
     value = *p;
-    writeln('Updated value: ', value:0);
+    writeln("Updated value: ", value:0);
 }

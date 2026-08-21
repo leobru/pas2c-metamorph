@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 int i, j;
 void main() {
@@ -10,7 +10,7 @@ void main() {
         else
         writeln("w ", i:0);
     }
-    writeln('after-w ', i:0);
+    writeln("after-w ", i:0);
 
     i = 0;
     do {
@@ -19,7 +19,7 @@ void main() {
         if (i == 5) break;
         writeln("d ", i:0);
     } while (i < 10);
-    writeln('after-d ', i:0);
+    writeln("after-d ", i:0);
 
     i = 0;
     while (i < 3) {

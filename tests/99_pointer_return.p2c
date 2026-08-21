@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // A routine header may carry '*' on its declarator: the result type is the
 // declarator's, not the bare type-spec.  The routine/variable dispatch used
@@ -62,16 +62,16 @@ void main() {
     c2.v  =  22;
     g  =  70;
     h  =  80;
-    writeln(' PICK  ', pick(1)->v:4, pick(0)->v:4);
-    writeln(' IP    ', *ip(1):4, *ip(0):4);
-    writeln(' PP    ', **pp(0):4);
-    writeln(' VP    ', (vp(0) == NULL):2, (vp(1) == NULL):2);
+    writeln(" PICK  ", pick(1)->v:4, pick(0)->v:4);
+    writeln(" IP    ", *ip(1):4, *ip(0):4);
+    writeln(" PP    ", **pp(0):4);
+    writeln(" VP    ", (vp(0) == NULL):2, (vp(1) == NULL):2);
     bump(5);
-    writeln(' BUMP  ', g:4);
-    writeln(' LATER ', later(0)->v:4, later(1)->v:4);
+    writeln(" BUMP  ", g:4);
+    writeln(" LATER ", later(0)->v:4, later(1)->v:4);
     fp  =  twice;
     arr[0]  =  3;
     arr[1]  =  4;
     arr[2]  =  5;
-    writeln(' FP    ', fp(9):4, " ARR", arr[0]:3, arr[1]:3, arr[2]:3);
+    writeln(" FP    ", fp(9):4, " ARR", arr[0]:3, arr[1]:3, arr[2]:3);
 }

@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 // A definition of a previously declared routine restates the whole header,
 // the way C requires.  The parameter list is matched against the
 // declaration's, and the body sees the names the definition gives.
@@ -18,6 +18,6 @@ void greet() { writeln(" GREET"); }
 void main() {
     total = add(3, 4);
     writeln(" ADD=", total:0);
-    writeln(' SCALED=', scaled(6, 7):0);
+    writeln(" SCALED=", scaled(6, 7):0);
     greet();
 }

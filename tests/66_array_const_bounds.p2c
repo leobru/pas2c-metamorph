@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // Array bounds given as constant expressions (not just literals or a
 // single const identifier): parseRange evaluates each bound through the
@@ -16,6 +16,6 @@ void main() {
         b[i] = i;
     }
     writeln(" a[0]=", a[0]:0);
-    writeln(' a[N+1]=', a[N+1]:0);
-    writeln(' b[N*M]=', b[N*M]:0);
+    writeln(" a[N+1]=", a[N+1]:0);
+    writeln(" b[N*M]=", b[N*M]:0);
 }

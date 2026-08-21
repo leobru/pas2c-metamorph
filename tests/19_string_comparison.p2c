@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 __packed char s1[1..6], s2[1..6];
 void main() {
@@ -6,8 +6,8 @@ void main() {
     s2 = "HELLO ";
     
     if (s1 == s2) {
-        writeln(' Strings are equal');
+        writeln(" Strings are equal");
     } else {
-        writeln(' Strings are different');
+        writeln(" Strings are different");
     }
 }

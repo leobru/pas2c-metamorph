@@ -7,7 +7,7 @@
           ,ITS,13
           ,ITS,8
          8,BASE,ONETENTH
-        15,XTS,-2    . VALUE
+        15,XTS,-3    . VALUE
           ,AAX,=:774 . & EXPONENT FIELD
           ,UZA,GOOD  . IF NONE, GOOD
         11,VTM,NOINT . *NO INTEGER*

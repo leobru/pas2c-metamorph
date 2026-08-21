@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 // A routine declared and never defined is reported at the end of the block,
 // by name.  The pending declarations form a list whose bottom is a marker
 // distinct from the link a defined routine keeps, so the first name declared

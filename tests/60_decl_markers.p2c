@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 void later();
 void extdecl() extern;
@@ -12,5 +12,5 @@ void later() {
 //
 void main() {
     later();
-    writeln('FORWARD=', forward:0);
+    writeln("FORWARD=", forward:0);
 }

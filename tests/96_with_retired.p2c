@@ -1,4 +1,4 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 // The `with` statement is retired, and `with` is an ordinary identifier
 // again: the reserved-word slot was emptied, though WITHSY keeps its place in

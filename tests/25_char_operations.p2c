@@ -1,9 +1,9 @@
-/*=s8,y+,k9,l0*/
+/*=s8,k9,l0*/
 //
 char c;
 void main() {
     c = 'A';
-    writeln('Character: ', c);
+    writeln("Character: ", c);
     c = c + 1;
-    writeln('Next character: ', c);
+    writeln("Next character: ", c);
 }
