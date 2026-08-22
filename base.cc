@@ -985,7 +985,9 @@ IdentRecPtr fieldHash[128]; //array [0..127] of IdentRecPtr;
 int64_t helperMap[58];
 extern int64_t helperNames[58]; // array [1..57] of int64_t;
 
-int64_t symTab[SYMTAB_LIMIT + 1]; // array [74000B..75500B] of int64_t;
+// Zero-based backing storage; symTabPos and stored references remain BESM
+// symbol-table addresses starting at 074000.
+int64_t symTab[SYMTAB_LIMIT - 074000 + 1];
 extern int64_t systemProcNames[5];
 extern int64_t resWordNameBase[19];
 int64_t longSymCnt;
@@ -1646,7 +1648,7 @@ void formAndAlign(int64_t arg)
 
 void putToSymTab(int64_t arg)
 {
-    symTab[symTabPos] = arg;
+    symTab[symTabPos - 074000] = arg;
     if (symTabPos == SYMTAB_LIMIT) {
         error(50); /* errSymbolTableOverflow */
         symTabPos = 074000;
@@ -6258,7 +6260,7 @@ void parseDecls(int64_t l3arg1z)
         l3arg1z = procName->pos();
         frame.ii = moduleOffset - 040000;
         if (l3arg1z != 0)
-            symTab[l3arg1z] = 041000000 + (frame.ii & halfWord);
+            symTab[l3arg1z - 074000] = 041000000 + (frame.ii & halfWord);
         procName->pos() = moduleOffset;
         l3arg1z = argCount(procName);
         if (l3var3z) {
@@ -6350,9 +6352,10 @@ void labCheckAndDefine(bool isDef)
         if (numLabs[labIdx].offset == 0) {
             /* empty */
         } else if (numLabs[labIdx].offset >= 074000) {
-            // symTab[offset] := [24,29] + curVal.ii * O77777
+            // symTab[offset-074000] := [24,29] + curVal.ii * O77777
             curVal.ii = moduleOffset - 040000;
-            symTab[numLabs[labIdx].offset] = 041000000 + (curVal.ii & 077777);
+            symTab[numLabs[labIdx].offset - 074000] =
+                041000000 + (curVal.ii & 077777);
         } else {
             fixup(0, numLabs[labIdx].offset);
         }
@@ -8547,8 +8550,8 @@ void defineRoutine(bool bodyBlock = false)
             // The module names itself NOPROGRA for the same reason: PASCOMPL
             // is the name of a program, and two libraries carrying it would
             // collide.
-            symTab[074002] = 040000000 | 020;
-            entryPtTable[1] = symTab[074000] = 05657606257476241L; /*NOPROGRA*/
+            symTab[2] = 040000000 | 020;
+            entryPtTable[1] = symTab[0] = 05657606257476241L; /*NOPROGRA*/
         }
     }
     lineStartOffset = moduleOffset;
@@ -8634,7 +8637,7 @@ void defineRoutine(bool bodyBlock = false)
             parseDecls(2);
             form1Insn(InsnTemp[UJ] + l3var1z.ii);
             curVal.ii = procName->pos() - 040000;
-            symTab[074002] = 041000000 | (curVal.ii & halfWord);
+            symTab[2] = 041000000 | (curVal.ii & halfWord);
         }
         curVal.ii = sizeCount;
         if (curProcNesting != 1) {
@@ -8805,9 +8808,9 @@ initScalars::initScalars() :
     curVal.ii = 06041634357556054L; /* PASCOMPL */
     programObj->id = curVal.ii;
     programObj->pos() = 0;
-    symTab[074000] = leftAlign(curVal.ii);
+    symTab[0] = leftAlign(curVal.ii);
 
-    entryPtTable[1] = symTab[074000];
+    entryPtTable[1] = symTab[0];
     entryPtTable[3] = (Bits(0,1,6,7) | Bits(10,12) | BitRange(14,18) |
                        BitRange(21,25) | Bits(28,30) | Bits(35,36) |
                        Bits(38,39) | Bits(41)); /*"PROGRAM "*/
@@ -8848,7 +8851,7 @@ initScalars::initScalars() :
     flushInitializers();
     readToPos80();
     curVal.ii = l3var6z;
-    symTab[074003] = (helperNames[13] | Bits(24,27,28,29)) |
+    symTab[3] = (helperNames[13] | Bits(24,27,28,29)) |
                      (curVal.ii & halfWord);
 } /* initScalars */
 
@@ -9600,7 +9603,7 @@ void finalize()
     sizes[9] = lookup2;
     sizes[10] = lookupMode;
     curVal.ii = moduleOffset - 040000;
-    symTab[074001] = 041000000 | curVal.ii;
+    symTab[1] = 041000000 | curVal.ii;
     // Forming the compact form of the module header.
     CHILD[7] = sizes[1] | (sizes[2] << 12);
     CHILD[8] = sizes[5] << 30 | sizes[9] << 15 | sizes[10];
@@ -9615,12 +9618,12 @@ void finalize()
     CHILD.insert(CHILD.end(), FCST.begin(), FCST.end());
     curVal.ii = (symTabPos - 070000L) * 0100000000L;
     for (cnt = 0; cnt < longSymCnt; ++cnt) {
-        idx = longSymTabBase[cnt];
+        idx = longSymTabBase[cnt] - 074000;
         symTab[idx] |= curVal.ii & leftAddr;
         curVal.ii = (curVal.ii + 0100000000L);
     }
     symTabPos = symTabPos - 1;
-    for (cnt = 074000; cnt <= symTabPos; ++cnt)
+    for (cnt = 0; cnt <= symTabPos - 074000; ++cnt)
         CHILD.push_back(symTab[cnt]);
     for (cnt = 0; cnt < longSymCnt; ++cnt)
         CHILD.push_back(longSyms[cnt]);

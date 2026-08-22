@@ -505,7 +505,7 @@ int symTabCnt;
 word symtabarray[80];
 int symtbidx[80];
 entries entryPtTable;
-int indexreg[1..15];
+int indexreg[16]; // indexreg[0] unused
 /* SHLEFT is 0, so the operators SHLEFT..STKLVAL are simply the first 35: the
    fill gives every one of them the quiet default, and the designators name
    the ones that differ. */
@@ -543,7 +543,7 @@ operator chrClass['\200'] = {
     ['%']=IMODOP, ['^']=SETXOR, ['=']=ASSIGNOP, ['&']=SETAND,
     ['>']=GTOP, ['<']=LTOP, ['!']=NOTOP, ['~']=BITNEGOP, ['?']=CONDOP };
 kword *kwordHash[128] = NULL:128;
-symbol charSym['\200'] = {
+symbol charSym[128] = {
     NOSY:128,
     ['0']=INTCONST:10, ['A']=IDENT:26, ['Ю']=IDENT:31,
     ['\'']=CHARCONST, ['"']=CHARCONST, ['_']=IDENT,
@@ -553,8 +553,8 @@ symbol charSym['\200'] = {
     [';']=SEMICOLON, ['[']=LBRACK, [']']=RBRACK, ['=']=BECOMES,
     [':']=COLON, ['!']=EXPROP, ['~']=EXPROP, ['?']=EXPROP };
 hashArray symHash = NULL:128, fieldHash = NULL:128;
-int helperMap[1..57] = 0:57;
-int helperNames[1..57] = {
+int helperMap[58] = 0:58;
+int helperNames[58] = { 0,
         t'P/1     ',
         t'C/2     ',
         t'C/3     ',
@@ -626,7 +626,9 @@ int opPrec[ALTERN+1] = {
     [PLUSOP]=precAdd, [MINUSOP]=precAdd,
     [MUL]=precMul, [RDIVOP]=precMul, [IDIVOP]=precMul, [IMODOP]=precMul };
 //
-int symTab[074000 .. 075500];
+/* Backing storage is zero-based; symTabPos and all references stored in the
+   compiler's records remain BESM symbol-table addresses starting at 074000. */
+int symTab[01501];
 // A name's index in this table is its procNo, which free and halt derive their
 // helper numbers from (getHelperProc(18 + procNo)).
 int systemProcNames[5] = {
@@ -660,7 +662,7 @@ int longSym[90];
 int longSyms[90];
 int constVals[500];
 int constNums[500];
-int objBuffer[1..1024];
+int objBuffer[1025];
 char iso2text[128-'*'];
 int maxHeap;
 ifcb fcst, initbuf;
@@ -1028,7 +1030,7 @@ int eltStep(tptr t) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void putToSymTab(int arg) {
-    symTab[symTabPos]  =  arg;
+    symTab[symTabPos - 074000]  =  arg;
     if (symTabPos == 075500) {
         error(50); /* errSymbolTableOverflow */
         symTabPos  =  074000;
@@ -2454,7 +2456,7 @@ int insnBufIdx;
 int i, l4var3z, l4var4z;
 oiptr l4inl6z, l4inl7z, l4inl8z;
 int l4var9z;
-int insnBuf[1..200];
+int insnBuf[201];
 int curInsn;
 int tempInsn;
 oiptr l4oi212z;
@@ -5481,7 +5483,7 @@ int l3int1z, frame, l3var3z;
             l3arg1z  =  ir->pos;
             frame  =  moduleOffset - 040000;
             if (l3arg1z != 0)
-                symTab[l3arg1z]  =  [24, 29] | frame & halfWord;
+                symTab[l3arg1z - 074000]  =  [24, 29] | frame & halfWord;
             ir->pos  =  moduleOffset;
         }
         l3arg1z  =  argCount(procName);
@@ -5573,7 +5575,8 @@ int labIdx;
                 /* empty */
             } else if (nlp->offset >= 074000) {
                 curVal.i  =  moduleOffset - 040000;
-                symTab[nlp->offset]  =  [24,29] | (curVal.i & 077777U);
+                symTab[nlp->offset - 074000]  =
+                    [24,29] | (curVal.i & 077777U);
             } else
                 fixup(0, nlp->offset);
             nlp->offset  =  moduleOffset;
@@ -7692,8 +7695,8 @@ int hasMain;
                The module names itself NOPROGRA for the same reason: PASCOMPL
                is the name of a program, and two libraries carrying it would
                collide. */
-            symTab[074002]  =  [24] | 020;
-            entryPtTable[0] = symTab[074000]  =  t'NOPROGRA';
+            symTab[2]  =  [24] | 020;
+            entryPtTable[0] = symTab[0]  =  t'NOPROGRA';
         }
     }
     l3var1z  =
@@ -7780,7 +7783,7 @@ int hasMain;
             parseDecls(2);
             form1Insn(KUJ + l3var1z);
             curVal.i  =  procName->pos - 040000;
-            symTab[074002]  =  [24,29] | (curVal.i & halfWord);
+            symTab[2]  =  [24,29] | (curVal.i & halfWord);
             entryPtTable[entryPtCnt]  = t'PROGRAM ';
             entryPtTable[entryPtCnt+1]  =  [1];
             entryPtCnt += 2;
@@ -7939,9 +7942,9 @@ void regSysProc(int l4arg1z) {
     { register identrec *ir = programObj;
         ir->id  =  t'PASCOMPL';
         ir->pos  =  0;
-        symTab[074000]  =  t'PASCOMPL';
+        symTab[0]  =  t'PASCOMPL';
     }
-    entryPtTable[0]  =  symTab[074000];
+    entryPtTable[0]  =  symTab[0];
     entryPtTable[1]  =  [1];
     entryPtCnt  =  2;
     fputw((KVTM+I8+074001) << 24 | KUJ+074002, &_CHILD_);
@@ -7977,7 +7980,7 @@ void regSysProc(int l4arg1z) {
     statement();
     readToPos80();
     curVal.i  =  l3var6z;
-    symTab[074003]  =  (helperNames[13] | [24,27,28,29]) |
+    symTab[3]  =  (helperNames[13] | [24,27,28,29]) |
                         (curVal.i & halfWord);
 } /* mainProgram */
 //
@@ -8689,19 +8692,19 @@ int sizes[10];
     sizes[8]  =  lookup2;
     sizes[9]  =  lookupMode;
     curVal.i  =  moduleOffset - 040000;
-    symTab[074001]  =  [24,29] | curVal.i;
+    symTab[1]  =  [24,29] | curVal.i;
     frewind(&FCST);
     while (! feof(&FCST)) {
         fputw(fgetw(&FCST), &_CHILD_);
     }
     curVal.i  =  (symTabPos - 070000) << 24;
     for (cnt = 0; cnt < longSymCnt; ++cnt) {
-        idx  =  longSym[cnt];
+        idx  =  longSym[cnt] - 074000;
         symTab[idx]  =  symTab[idx] | curVal.i & [9:23];
         curVal.i += 0100000000;
     }
     --symTabPos;
-    for (cnt  =  074000; cnt <= symTabPos; ++cnt)
+    for (cnt  =  0; cnt <= symTabPos - 074000; ++cnt)
         fputw(symTab[cnt], &_CHILD_);
     for (cnt = 0; cnt < longSymCnt; ++cnt)
         fputw(longSyms[cnt], &_CHILD_);
