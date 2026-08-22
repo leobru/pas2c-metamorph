@@ -13,6 +13,13 @@ void main() {
     writeln(" WORD   ",
             (t'ABCDEFGH' == 04142434445464750U):0, ' ',
             (T'ASSEMBLE' == t'ASSEMBLE'):0);
+    // Any length up to a word packs the same way, right-aligned: two
+    // characters are the first times 64 plus the second, and the ones below
+    // eight simply leave the top of the word empty.
+    writeln(" SHORT  ",
+            (t'AB' == 04142U):0, ' ', (t'ABC' == 0414243U):0, ' ',
+            (t'ABCDEFG' == 041424344454647U):0, ' ',
+            ((t'AB' >> 6) == (int)t'A'):0);
     writeln(" STRING ", (int)s[0]:0, ' ', (int)s[1]:0,
             ' ', sizeof(t"AB"):0);
 }

@@ -43,11 +43,6 @@ const int64_t
     fnABSI = 6;
 
 const int64_t
-    S3 = 0,
-    S4 = 1,
-    S5 = 2;
-
-const int64_t
     errBooleanNeeded = 0,
     errIdentAlreadyDefined = 2,
     errNoIdent = 3,
@@ -921,7 +916,6 @@ const int64_t litInput = 012515660656412L;    /* " *INPUT*" */
 int64_t leftInsn;
 int64_t curIdent;
 int64_t toAlloc, usedRegs, liveRegs, freeRegs, auxRegs;
-Word optSflags;
 int64_t litOct, litFortran, litAssembler, litLsb, litMain, litRegister;
 ExprPtr uVarPtr, curExpr;
 InsnList *  insnList;
@@ -1981,15 +1975,6 @@ void endOfLine()
         printf(" %05lo%5ld%3ld%c", (lineStartOffset + PASINFOR.startOffset),
                lineCnt, lineNesting, commentModeCH);
         startPos = 12;
-        if (has(optSflags.ii, S4)
-            and (maxLineLen == 72)
-            and (linePos >= 80)) {
-            for (err = 73; err <= 80; ++err)
-                putchar(lineBufBase[err]);
-            putchar(' ');
-            linePos = 73;
-            startPos += 9;
-        }; /* 1106 */
         do
             linePos = linePos-1;
         while ((lineBufBase[linePos]  == ' ') and (linePos != 0));
@@ -2104,6 +2089,7 @@ struct inSymbol {
     int64_t numstr[17];
     int64_t expLiteral;
     int64_t expMagnitude;
+    int64_t charBits, charMask;
     int64_t l3int162z;
     int64_t chord;
     int64_t l3var164z;
@@ -2193,13 +2179,6 @@ parseComment::parseComment()
             case 'E': case 'e':
                 readOptFlag(declEntry);
                 break;
-            case 'S': case 's': {
-                curVal.ii = readOptVal(7);
-                if (curVal.ii == 3)
-                    lineCnt = 1;
-                else if (4 <= curVal.ii && curVal.ii <= 7)
-                    optSflags.ii = optSflags.ii | Bits(curVal.ii - 3);
-            } break;
             case 'F': case 'f':
                 readOptFlag(checkFortran);
                 break;
@@ -2602,61 +2581,53 @@ exitLoop:
                 strLen = tokenIdx - 6;
                 if (strLen == 0) {
                    error(61); /* errEmptyString */
+                    strLen = 1;
                 }
-                if (strLen <= 1) {
-                    SY = CHARCONST;
-                    tokenLen = 1;
-                    curToken.ii = '\0';
-                    unpck(curToken.ii, &localBuf[0]);
-                    curToken.ii = pck(&localBuf[tokenLen]);
+                /* A character is eight bits in ISO and six in TEXT, so a word
+                   holds six of them or eight. */
+                charBits = literalEncoding == 3 ? 6 : 8;
+                charMask = literalEncoding == 3 ? 077 : 0377;
+                if (litQuote == '\'' and strLen * charBits <= 48) {
+                    /* A single-quoted literal is one word, right-aligned from
+                       one character up: the characters land in the low end, so
+                       'AB' is 'A' * 256 + 'B' and t'AB' is 'A' * 64 + 'B'.
+                       One character is a char, more are that word as an int. */
+                    curToken.ii = 0;
+                    for (tokenLen = 6; tokenLen < tokenIdx; ++tokenLen)
+                        curToken.ii = (curToken.ii << charBits)
+                                    | (localBuf[tokenLen] & charMask);
+                    curVal = curToken;
+                    SY = strLen == 1 ? CHARCONST : INTCONST;
                     goto exitLexer;
-                } else {
+                }
+                {
+                    /* Double quotes give a packed character array of the
+                       length written, left-aligned and padded with spaces: six
+                       characters to the word, and beyond that a word at a time
+                       into the constant pool. */
                     curVal.ii = 0x202020202020L; // curVal.a = '      '
                     SY = STRINGSY;
                     unpck(curVal.ii, &localBuf[tokenIdx]);
                     curToken.ii = pck(&localBuf[6]);
                     curVal = curToken;
-                    if (6 >= strLen) {
-                        if (litQuote == '\'') {
-                            SY = INTCONST;
-                            /* Right-aligned, as a one-character literal is:
-                               the characters end up in the low bytes and the
-                               space padding below them is shifted out. */
-                            curToken.ii = curToken.ii >> (8 * (6 - strLen));
-                            curVal = curToken;
-                        }
+                    if (6 >= strLen)
                         goto exitLexer;
-                    } else if (litQuote == '\'' and
-                               literalEncoding == 3 and strLen == 8) {
-                        // an 8-char string in 6-bit-text mode
-                        // packs into one 48-bit word (packt in work.p2c) and
-                        // becomes an INTCONST.  Pack localBuf[6..13] MSB-first.
-                        curToken.ii = 0;
-                        for (tokenLen = 0; tokenLen < 8; ++tokenLen)
-                            curToken.ii = (curToken.ii << 6)
-                                        | (localBuf[6 + tokenLen] & 077);
-                        curVal = curToken;
-                        SY = INTCONST;
-                        goto exitLexer;
-                    } else {
-                        /* Single quotes give one word, so they hold what a
-                           word holds: six ISO characters, or eight in TEXT.
-                           A longer string is written in double quotes. */
-                        if (litQuote == '\'' &&
-                            strLen > (literalEncoding == 3 ? 8 : 6))
-                            error(errNumberTooLarge);
-                        curToken.ii = FcstCnt;
-                        tokenLen = 6;
-loop:                   {
-                            toFCST();
-                            tokenLen = tokenLen + 6;
-                            if (tokenIdx < tokenLen) // strict <
-                                goto exitLexer;      // exact multiples of 6 get
-                                                     // a trailing 6-space word
-                            curVal.ii = pck(&localBuf[tokenLen]);
-                            goto loop;
-                       }
-                   }
+                    /* Single quotes give one word, so they hold what a word
+                       holds: six ISO characters, or eight in TEXT.  A longer
+                       string is written in double quotes. */
+                    if (litQuote == '\'')
+                        error(errNumberTooLarge);
+                    curToken.ii = FcstCnt;
+                    tokenLen = 6;
+loop:               {
+                        toFCST();
+                        tokenLen = tokenLen + 6;
+                        if (tokenIdx < tokenLen) // strict <
+                            goto exitLexer;      // exact multiples of 6 get
+                                                 // a trailing 6-space word
+                        curVal.ii = pck(&localBuf[tokenLen]);
+                        goto loop;
+                    }
                 };
                 } break; /* CHARCONST */
             default: break;
@@ -5086,10 +5057,6 @@ void formFileInit()
         formAndAlign(getHelperProc(36)); /*"FCLOSE"*/
     };
 
-    if (has(optSflags.ii, S5)) {
-        formAndAlign(KUJ+I13);
-        return;
-    }
     form2Insn(KITS+13, KATX+SP);
     if (inputFile != NULL) {
         fcloseFile(inputFile);
@@ -6229,12 +6196,7 @@ void parseDecls(int64_t l3arg1z)
         if (1 < l3arg1z) {
             frame.ii = getValueOrAllocSymtab(-(frame.ii+l3arg1z));
         }
-        if (has(optSflags.ii, S5) and
-            curProcNesting == 1)
-            l3int1z = 34;  /* P/LV */
-        else
-            l3int1z = curProcNesting;
-        l3int1z = getHelperProc(l3int1z) - (-04000000);
+        l3int1z = getHelperProc(curProcNesting) - (-04000000);
         if (l3arg1z == 1) {
             form1Insn((KATX+SP) + frame.ii);
         } else if (l3arg1z != 0) {
@@ -8459,8 +8421,9 @@ void defineRoutine(bool bodyBlock = false)
 {
     Word l3var1z, l3var2z;
     int64_t l3int4z;
-    IdentRecPtr l3idr5z;
+    IdentRecPtr l3idr5z = NULL;   /* only read when hasMain says it was found */
     Word l3var7z;
+    bool hasMain = false;
     IdentRecPtr &procName = programme::super.back()->procName;
     int64_t &sizeCount = programme::super.back()->sizeCount;
     int64_t &jj = programme::super.back()->jj;
@@ -8473,8 +8436,30 @@ void defineRoutine(bool bodyBlock = false)
     curInsnTemplate = InsnTemp[XTA];
     bool48z = has(procName->flags(), 22);
     if (curProcNesting == 1) {
-        fileExit = moduleOffset;
-        formFileInit();
+        // The level 1 block is a call of the routine named MAIN.  A module
+        // without one has nothing to run, so neither the block nor the file
+        // open/close that frames it is emitted, and the module keeps only the
+        // entry points its E+ routines declare.
+        bucket = litMain % 65535 % 128;
+        l3idr5z = symHash[bucket];
+        while (l3idr5z != NULL and l3idr5z->id != litMain)
+            l3idr5z = l3idr5z->next();
+        hasMain = l3idr5z != NULL and l3idr5z->pck.cl == ROUTINEID
+                  and l3idr5z->pck.offset != 0;
+        if (hasMain) {
+            fileExit = moduleOffset;
+            formFileInit();
+        } else {
+            // The module header's start word is emitted whatever happens, so
+            // its symbol must resolve to something: absolute 20, the abort
+            // entry, since a module with no MAIN is not meant to be started.
+            // 040000000 alone is the absolute tag; 041000000 would relocate it.
+            // The module names itself NOPROGRA for the same reason: PASCOMPL
+            // is the name of a program, and two libraries carrying it would
+            // collide.
+            symTab[074002] = 040000000 | 020;
+            entryPtTable[1] = symTab[074000] = 05657606257476241L; /*NOPROGRA*/
+        }
     }
     lineStartOffset = moduleOffset;
     l3var1z.ii = moduleOffset;    /* l3var1z := ; (accumulator = moduleOffset) */
@@ -8519,20 +8504,14 @@ void defineRoutine(bool bodyBlock = false)
         else
             inSymbol();
     } else if (curProcNesting == 1) {
-        // The level 1 block is not written, it is generated: a call of the
-        // routine named MAIN, if the program has one.  Anything left over
-        // here -- an explicit block above all -- is a bad symbol where a
-        // declaration was expected.
+        // The level 1 block is not written, it is generated, and MAIN was
+        // looked up above.  Anything left over here -- an explicit block above
+        // all -- is a bad symbol where a declaration was expected.
         if (CH != 0 or SY != NOSY) {
             error(errBadSymbol);
             skipToEnd();
         }
-        bucket = litMain % 65535 % 128;
-        l3idr5z = symHash[bucket];
-        while (l3idr5z != NULL and l3idr5z->id != litMain)
-            l3idr5z = l3idr5z->next();
-        if (l3idr5z != NULL and l3idr5z->pck.cl == ROUTINEID
-            and l3idr5z->pck.offset != 0) {
+        if (hasMain) {
             // The call node parseCallArgs would have built for 'main()',
             // with no arguments: op ALNUM, the routine in id2.
             curExpr = mkExpr(ALNUM, l3idr5z->typ, NULL, (ExprPtr) l3idr5z);
@@ -8558,7 +8537,7 @@ void defineRoutine(bool bodyBlock = false)
         objBuffer[1] = int64_t(KUJ+I13) << 24;          /* 13,UJ, */
         procName->flags() = procName->flags() | Bits(25);
         putLeft = true;
-    } else {
+    } else if (curProcNesting != 1 or hasMain) {
         jj = curProcNesting == 1 ? 16 /* C/EF */ : 15; /* C/E */
         form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
         if (curProcNesting == 1) {
@@ -9601,11 +9580,6 @@ void usage ()
     printf("                        -a2: KOI-7 (aka ISO, default)\n");
     printf("    -b0 -b1 ... -b4     Size of file buffer, in 256-word chunks\n");
     printf("    -c- -c+             Disable/enable checking of data types\n");
-    printf("    -d0 -d1 ... -d15    Bitmask of debug flags:\n");
-    printf("                        -d1: Trace function calls\n");
-    printf("                        -d2: Enable debug() as writeln()\n");
-    printf("                        -d4: Enable code enclosed in {=Z-}/{=Z+}\n");
-    printf("                        -d8: Invoke Pascal Debugger\n");
     printf("    -e- -e+             Make procedures external (-e+) or local (-e-)\n");
     printf("    -f- -f+             Compile procedures as Pascal (-f-) or Fortran (-f+)\n");
     printf("    -F                  Sort FCST literals by their unsigned 48-bit values\n");
@@ -9619,16 +9593,6 @@ void usage ()
     printf("                        -l3: Also print offsets for variables and fields\n");
     printf("    -m+ -m-             Optimize integer multiplication (positives only)\n");
     printf("    -r+ -r-             Compare reals with predefined tolerance\n");
-    printf("    -s0                 Use stars for commons (like *foobar*)\n");
-    printf("    -s1                 Append one star for external names (like foobar*)\n");
-    printf("    -s2                 No stars for external names (like foobar)\n");
-    printf("    -s3                 Re-start line numbering from this line\n");
-    printf("    -s4                 Print columns 73-80 as line tags\n");
-    printf("    -s5                 Disable external files\n");
-    printf("    -s6                 Pack record fields from right to left\n");
-    printf("    -s7                 Disable pointer checking\n");
-    printf("    -s8                 Disable checking for stack overflow\n");
-    printf("    -s9                 Unknown\n");
     printf("    -u- -u+             Set length of source lines: 120 or 72 columns\n");
     printf("    -v                  Output version information and exit\n");
     printf("    -h                  Display this help and exit\n");
@@ -9672,7 +9636,7 @@ void initOptions(int argc, char **argv)
     progname = progname ? progname+1 : argv[0];
 
     for (;;) {
-        switch (getopt(argc, argv, "vVhiFH:e:c:r:m:u:f:a:d:k:b:s:l:")) {
+        switch (getopt(argc, argv, "vVhiFH:e:c:r:m:u:f:a:k:b:l:")) {
         case EOF:
             break;
         case 'a':
@@ -9691,14 +9655,6 @@ void initOptions(int argc, char **argv)
             continue;
         case 'c':
             checkTypes = (optarg[0] == '+');
-            continue;
-        case 'd':
-            curVal.ii = strtoul(optarg, 0, 0);
-            if (curVal.ii > 15) {
-                fprintf(stderr, "%s: Bad option -d\n", progname);
-                exit(-1);
-            }
-            optSflags.ii = (optSflags.ii & BitRange(0, 40)) | (curVal.ii & BitRange(41, 47));
             continue;
         case 'e':
             declEntry = (optarg[0] == '+');
@@ -9748,18 +9704,6 @@ void initOptions(int argc, char **argv)
             continue;
         case 'r':
             // No fuzzy real comparison; the option is a no-op.
-            continue;
-        case 's':
-            curVal.ii = strtoul(optarg, 0, 0);
-            if (curVal.ii > 7) {
-                fprintf(stderr, "%s: Bad option -s\n", progname);
-                exit(-1);
-            }
-            if (curVal.ii == 3) {
-                lineCnt = 1;
-            } else if (4 <= curVal.ii && curVal.ii <= 7) {
-                optSflags.ii = optSflags.ii | Bits(curVal.ii - 3);
-            }
             continue;
         case 'u':
             // Source line length is a compile-time constant (maxLineLen),
