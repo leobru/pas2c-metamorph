@@ -71,17 +71,17 @@ void main() {
     writeln;
     // A packed array wider than a word: index 7 lies in the second word.
     for (i = 0; i <= 11; i = i + 1)
-        s[i]  =  char(65 + i);
+        s[i]  =  (char)(65 + i);
     cp  =  &s[7];
     writeln(" WIDE  ", *cp, *(cp - 1), *(cp + 4));
     // A packed array whose lower bound is not zero.
     for (i = 1; i <= 6; i = i + 1)
-        t[i]  =  char(64 + i);
+        t[i]  =  (char)(64 + i);
     cp  =  &t[3];
     writeln(" LOWB  ", *cp, *(cp + 2), *(cp - 2));
     // An unpacked char array still has its elements six bytes apart.
     for (i = 0; i <= 5; i = i + 1)
-        un[i]  =  char(80 + i);
+        un[i]  =  (char)(80 + i);
     cp  =  &un[2];
-    writeln(" UNPK  ", *cp, cp[6], int(cp[1]):4);
+    writeln(" UNPK  ", *cp, cp[6], (int)cp[1]:4);
 }

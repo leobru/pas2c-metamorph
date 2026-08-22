@@ -11,7 +11,7 @@
 // a pointer -- must be size-independent.
 //
 typedef void *anyptr;
-const NULL = anyptr(0);
+const NULL = (anyptr)0;
 //
 typedef struct { int a; } w1;
 typedef struct { int a, b; } w2;
@@ -144,7 +144,7 @@ void main() {
     pk->lo  =  1;
     pk->mid  =  2;
     pk->hi  =  3;
-    writeln(" PACK  ", int(pk->lo):4, int(pk->mid):4, int(pk->hi):4);
+    writeln(" PACK  ", (int)pk->lo:4, (int)pk->mid:4, (int)pk->hi:4);
     // A pinned pointer at both ends of the size range.
     { register w30 *r = &s30;
       writeln(" REG30 ", r->x[0]:4, r->x[29]:4);

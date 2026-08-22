@@ -131,6 +131,6 @@ void main() {
     write(wideVals(1000000):4, wideVals(-71):4, wideVals(5):4);
     writeln;
     calls  =  0;
-    k  =  small3(state(bump()));
+    k  =  small3((state)bump());
     writeln(" ONCE   ", k:4, calls:4);
 }

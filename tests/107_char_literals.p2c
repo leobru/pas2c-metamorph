@@ -36,7 +36,7 @@ void main() {
     writeln;
     // One character is still a char, and an escape is one character.
     c  =  'A';
-    writeln(" CHAR  ", int(c):4, int('A'):4, int('\052'):4, int('\''):4);
+    writeln(" CHAR  ", (int)c:4, (int)'A':4, (int)'\052':4, (int)'\'':4);
     // A one-word constant labels a case.
     switch (i) {
     case 'AB':

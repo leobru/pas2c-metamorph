@@ -14,22 +14,22 @@ char un[0..5];
 int i;
 //
 int firstOf(char *s) {
-    return int(*s);
+    return (int)*s;
 }
 //
 void main() {
-    c  =  char(88);
-    d  =  char(89);
+    c  =  (char)88;
+    d  =  (char)89;
     for (i = 0; i <= 5; i = i + 1)
-        un[i]  =  char(97 + i);
+        un[i]  =  (char)(97 + i);
     // Reading through a pointer, both spellings.
     cp  =  &c;
-    writeln(" DEREF ", int(*cp):4, int(cp[0]):4);
+    writeln(" DEREF ", (int)*cp:4, (int)cp[0]:4);
     // Writing through a pointer, both spellings.
-    *cp  =  char(70);
-    writeln(" STAR  ", int(c):4);
-    cp[0]  =  char(71);
-    writeln(" IDX   ", int(c):4);
+    *cp  =  (char)70;
+    writeln(" STAR  ", (int)c:4);
+    cp[0]  =  (char)71;
+    writeln(" IDX   ", (int)c:4);
     // Two pointers: a difference in bytes, ordering, equality.  Adjacent
     // one-word globals are six bytes apart.
     cp  =  &c;
@@ -54,5 +54,5 @@ void main() {
     // An unpacked char array holds one char per word, so its elements sit
     // six bytes apart in the flat view and cp[1] reads an empty byte.
     cp  =  &un[0];
-    writeln(" UNPK  ", int(*cp):4, int(cp[6]):4, int(cp[1]):4);
+    writeln(" UNPK  ", (int)*cp:4, (int)cp[6]:4, (int)cp[1]:4);
 }

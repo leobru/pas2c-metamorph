@@ -386,7 +386,7 @@ typedef void *anyptr;
 // collides with the global voidPtr, identifiers being case-insensitive.)
 // Zero is free to mean it: the heap starts above the static image and every
 // other address is taken relative to a base register, so no object has it.
-const NULL = anyptr(0);
+const NULL = (anyptr)0;
 // A word ordered as a bit pattern: comparison of a one-word non-scalar is
 // unsigned, where a scalar's is arithmetic.  The FCST pool is sorted and
 // binary-searched, and holds arbitrary literals, so that is the order it
@@ -770,13 +770,13 @@ int low, high, mid;
             if (curVal.i == constVals[mid]) {
                 return constNums[mid];
             }
-            if (uword(curval.i) < uword(constVals[mid]))
+            if ((uword)curval.i < (uword)constVals[mid])
                 high  =  mid - 1;
             else
                 low  =  mid + 1;
         } while (high >= low);
         if (FcstCountTo500 != 500) {
-            high  =  uword(curval.i) < uword(constVals[mid]) ? mid : mid + 1;
+            high  =  (uword)curval.i < (uword)constVals[mid] ? mid : mid + 1;
             for (mid  =  FcstCountTo500; mid >= high; --mid) {
                 low  =  mid + 1;
                 constVals[low]  =  constVals[mid];
@@ -818,7 +818,7 @@ int err, errPos, prevPos, listMode,
                 if (errPos != prevPos) {
                     if (prevPos + 1 != errPos)
                         write(' ':(errPos-prevPos-1));
-                    write(char(err + '0'));
+                    write((char)(err + '0'));
                 }
             }
             writeln;
@@ -973,7 +973,7 @@ tptr b;
     if (t.p.pad >= 020) {
         b.p.pad = t.p.pad - 010;
     } else {
-        b.p.pk = kind(t.p.pad & 7);
+        b.p.pk = (kind)(t.p.pad & 7);
         b.p.pad = 0;
     }
     return b;
@@ -992,7 +992,7 @@ int isCharPtr(tptr arg) {
    which a pointer with no descriptor of its own -- voidPtr -- does not
    have. */
 int isRoutinePtr(tptr arg) {
-    return isCompactP(arg) && (arg.p.pad == 010 + int(kindRoutine));
+    return isCompactP(arg) && (arg.p.pad == 010 + (int)kindRoutine);
 } /* isRoutinePtr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1065,14 +1065,14 @@ word value;
             if (value == symTabArray[mid]) {
                 return symtbidx[mid];
             }
-            if (uword(value.i) < uword(symTabArray[mid].i))
+            if ((uword)value.i < (uword)symTabArray[mid].i)
                  high  =  mid;
             else
                  low  =  mid + 1;
         } while (high > low);
         ret  =  symTabPos;
         if (symTabCnt != 80) {
-            high  =  uword(value.i) < uword(symTabArray[mid].i) ? mid : mid + 1;
+            high  =  (uword)value.i < (uword)symTabArray[mid].i ? mid : mid + 1;
             for (low  =  symTabCnt; low > high; --low) {
                 mid  =  low - 1;
                 symTabArray[low]  =  symTabArray[mid];
@@ -1678,40 +1678,40 @@ void lexer() {
     default:
         prevCH = CH;
         nextCH();
-        switch (tok(prevCH << 8 | CH)) {
+        switch ((tok)(prevCH << 8 | CH)) {
         /* Op-assigns: SY=BECOMES, charClass keeps the per-char op
            (PLUSOP/MINUSOP/MUL/RDIVOP/IMODOP/SETAND/SETOR/SETXOR) from
            chrClass[prevCH], so parsePrc can fold lhs = lhs op rhs. */
-        case tok('+='):
-        case tok('-='):
-        case tok('*='):
-        case tok('/='):
-        case tok('%='):
-        case tok('&='):
-        case tok('|='):
-        case tok('^='): SY = BECOMES; break;
-        case tok('<='): charClass = LEOP; break;
-        case tok('<<'):
+        case (tok)'+=':
+        case (tok)'-=':
+        case (tok)'*=':
+        case (tok)'/=':
+        case (tok)'%=':
+        case (tok)'&=':
+        case (tok)'|=':
+        case (tok)'^=': SY = BECOMES; break;
+        case (tok)'<=': charClass = LEOP; break;
+        case (tok)'<<':
             charClass = SHLEFT; nextCH();
             if (CH == '=') { SY = BECOMES; nextCH(); }
             return;
-        case tok('<:'): SY = BEGINSY; break;
-        case tok('>>'):
+        case (tok)'<:': SY = BEGINSY; break;
+        case (tok)'>>':
             charClass = SHRIGHT; nextCH();
             if (CH == '=') { SY = BECOMES; nextCH(); }
             return;
-        case tok('>='): charClass = GEOP; break;
-        case tok(':>'): SY = ENDSY; break;
-        case tok('=='): SY = EXPROP; charClass = EQOP; break;
-        case tok('!='): charClass = NEOP; break;
-        case tok('->'): SY = ARROW; break;
-        case tok('--'): charClass = DECROP; break;
-        case tok('++'): charClass = INCROP; break;
-        case tok('||'): charClass = OROP; break;
-        case tok('&&'): charClass = ANDOP; break;
-        case tok('/*'): parseComment(); longjmp(jb1473, 1);
-        case tok('//'): while (!atEOL) nextCH(); longjmp(jb1473, 1);
-        case tok('..'): SY = COLON; break;
+        case (tok)'>=': charClass = GEOP; break;
+        case (tok)':>': SY = ENDSY; break;
+        case (tok)'==': SY = EXPROP; charClass = EQOP; break;
+        case (tok)'!=': charClass = NEOP; break;
+        case (tok)'->': SY = ARROW; break;
+        case (tok)'--': charClass = DECROP; break;
+        case (tok)'++': charClass = INCROP; break;
+        case (tok)'||': charClass = OROP; break;
+        case (tok)'&&': charClass = ANDOP; break;
+        case (tok)'/*': parseComment(); longjmp(jb1473, 1);
+        case (tok)'//': while (!atEOL) nextCH(); longjmp(jb1473, 1);
+        case (tok)'..': SY = COLON; break;
         default:
             return;
         } /* switch prevCH, CH */
@@ -2126,7 +2126,7 @@ int top;
     /* Forget interned types allocated above the mark being rolled up: every
        arena rollback comes through here, and a statement's own rollback
        reclaims the types its string constants built. */
-    while (internHead != NULL && int(internHead) >= addr)
+    while (internHead != NULL && (int)internHead >= addr)
         internHead  =  internHead->inext;
     top = setup();
     if (top > maxHeap) {
@@ -2331,7 +2331,7 @@ eptr mkUnaryFold(operator op, tptr resTyp, eptr e) {
 eptr flatMemAt(eptr idx) {
     idx->typ = intType;
     return mkExpr(GETELT, charType,
-                  mkExpr(GETVAR, flatMemType, eptr(flatMemVar), NULL), idx);
+                  mkExpr(GETVAR, flatMemType, (eptr)flatMemVar, NULL), idx);
 } /* flatMemAt */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2364,7 +2364,7 @@ tptr t;
         }
     } else if (toType.p.pad == 0) {
         t = toType;
-        t.p.pad = 010 + int(toType.p.pk);
+        t.p.pad = 010 + (int)toType.p.pk;
         t.p.pk = kindPtr;
         return t;
     }
@@ -2474,7 +2474,7 @@ int findLabel() {
     while (l4inl7z != NULL) {
         if (l4inl7z->mode == curInsn) {
             while (l4inl7z->code == macro) {
-                l4inl7z  =  oiptr(l4inl7z->offset);
+                l4inl7z  =  (oiptr)l4inl7z->offset;
             }
             return true;
         } else {
@@ -2494,7 +2494,7 @@ void addJumpInsn(int opcode) {
         l4inl7z->offset  =  0;
         l4inl6z  =  l4inl7z;
     }
-    addInsnToBuf(macro + opcode + int(l4inl7z));
+    addInsnToBuf(macro + opcode + (int)l4inl7z);
 } /* addJumpInsn */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2565,7 +2565,7 @@ void processInsn() {
             return;
         }
         if (curInsn >= 2*macro) {
-            l4inl7z  =  oiptr(curInsn - 2*macro);
+            l4inl7z  =  (oiptr)(curInsn - 2*macro);
             fixup(0, l4inl7z->code);
             l4inl7z->offset  =  moduleOffset;
         } else {
@@ -2573,7 +2573,7 @@ void processInsn() {
             curVal.i  =  curInsn & 03700000;
             jumpType  =  curVal.i;
             curVal.i  =  curInsn & 077777;
-            l4inl7z  =  oiptr(curVal.i);
+            l4inl7z  =  (oiptr)curVal.i;
             formJump(&l4inl7z->code);
             jumpType  =  KUJ;
             return;
@@ -2624,7 +2624,7 @@ void processInsn() {
             // FALLTHRU
             case 21:
                 if (findLabel())
-                    addInsnToBuf(2*macro+int(l4inl7z));
+                    addInsnToBuf(2*macro+(int)l4inl7z);
                 else
                     error(206);
                 break;
@@ -2638,7 +2638,7 @@ void processInsn() {
                  if (l4var213z)
                     { register oneinsn *oi = l4inl7z;
                         oi->code  =  macro;
-                        oi->offset  =  int(l4inl8z);
+                        oi->offset  =  (int)l4inl8z;
                     }
                 else
                     error(207);
@@ -4671,6 +4671,11 @@ int moreDecls;
 // name at all.  A global, so parseOneDeclarator's other call sites, none of
 // which can accept an abstract declarator, stay as they are.
 int nameOptional;
+// Set by readCastType: the declarator being read is a cast's type name, so an
+// array suffix is refused.  parseRange reads a bound by running statement(),
+// which an expression cannot re-enter; an array type is named through a
+// typedef instead.
+int inCastTyp;
 // Scratch for the unified TYPESY/PACKEDSY/STRUCTSY/ENUMSY declaration-
 // dispatch loop in programme's own body: same reasoning as above.
 int declIsRoutine;
@@ -4733,6 +4738,11 @@ int wasGroup;
             ++declOpCount;
             declOps[declOpCount].opKind  =  opFun;
             declOps[declOpCount].sig  =  parseSignature();
+        } else if (inCastTyp) {
+            error(errBadSymbol);
+            while ((SY != RBRACK) && (CH != '\0'))
+                inSymbol();
+            inSymbol();
         } else {
             inSymbol();
             parseRange(&r.aleft, &r.aright);
@@ -4805,6 +4815,37 @@ int i;
 void parseOneDeclarator(declarator *d, tptr baseType, int packedFlag, int isForwardRef) {
     parseDclAt(d, baseType, packedFlag, isForwardRef, 0);
 } /* parseOneDeclarator */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// The type name of a cast: a type-spec and an abstract declarator, the pair
+// a parameter list takes, so '(char *)', '(int **)' and '(int (*)(char))' all
+// name a type.  An array suffix is the one form it refuses, through inCastTyp;
+// an array type is named through a typedef, '(quad)s'.
+// Entered with the '(' read and SY on the TYPESY that opens the name; leaves
+// SY on the token after the ')'.
+// The declarator lives here rather than in factor, whose frame every level of
+// expression nesting pays for.  The operator stack base is declOpCount, whose
+// value the enclosing declarator (if any) set: parseRange reads a constant
+// bound by running statement(), so a cast can be read while a declarator is
+// still open, and its operators must go above the ones already collected.
+// nameOptional and inCastTyp are restored rather than cleared, for that same
+// reason.
+tptr readCastType() {
+declarator d;
+tptr castBase;
+int wasOptional, wasCast;
+    castBase  =  symType;
+    inSymbol();
+    wasOptional  =  nameOptional;
+    wasCast  =  inCastTyp;
+    nameOptional  =  true;
+    inCastTyp  =  true;
+    parseDclAt(&d, castBase, false, false, declOpCount);
+    nameOptional  =  wasOptional;
+    inCastTyp  =  wasCast;
+    checkSymAndRead(RPAREN);
+    return d.typ;
+} /* readCastType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // '(' (typeref declarator (',' typeref declarator)*)? ')', with SY at the
@@ -5516,6 +5557,7 @@ int jb8888;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void expression();
+void parseUnaryExpression();
 void parseCallArgs(irptr subroutine, eptr callee);
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5545,7 +5587,7 @@ int l4step6z;
                    access costs the one instruction it costs under `with`. */
                 if ((curExpr->op == GETVAR) &&
                     (curExpr->id1->pck.p.cl == REGID))
-                    curExpr  =  eptr(curExpr->id1->value);
+                    curExpr  =  (eptr)curExpr->id1->value;
                 else
                     curExpr  =  mkExpr(DEREF, l4typ5z, curExpr, NULL);
                 l4typ3z  =  l4typ5z;
@@ -5569,7 +5611,7 @@ int l4step6z;
                 error(20); /* errDigitGreaterThan7 ??? */
             } else {
                 curExpr  =  mkExpr(GETFIELD, hashTravPtr->typ,
-                                   curExpr, eptr(hashTravPtr));
+                                   curExpr, (eptr)hashTravPtr);
             }
             inSymbol();
         } else {
@@ -5611,7 +5653,7 @@ int l4step6z;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseLval() {
-    curExpr  =  mkExpr(GETVAR, hashTravPtr->typ, eptr(hashTravPtr), NULL);
+    curExpr  =  mkExpr(GETVAR, hashTravPtr->typ, (eptr)hashTravPtr, NULL);
     inSymbol();
     parsePostfix();
     /* A register pointer that no '->' consumed stands for its own value, the
@@ -5621,7 +5663,7 @@ void parseLval() {
        the ordinary lvalue check. */
     if ((curExpr->op == GETVAR) &&
         (curExpr->id1->pck.p.cl == REGID)) {
-        curExpr  =  mkRef(eptr(curExpr->id1->value), curExpr->typ);
+        curExpr  =  mkRef((eptr)curExpr->id1->value, curExpr->typ);
     }
 } /* parseLval */
 //
@@ -6003,23 +6045,12 @@ int stProcNo, checkMode, resultValue;
     if (stProcNo == fnSIZEOF)
       curExpr  =  mkIntLit(typeSize(arg1Type));
    else
-      curExpr  =  mkExpr(STANDPROC, arg1Type, curExpr, eptr(stProcNo));
+      curExpr  =  mkExpr(STANDPROC, arg1Type, curExpr, (eptr)stProcNo);
     checkSymAndRead(RPAREN);
 } /* stdCall */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     switch (SY) {
-    case TYPESY:
-        l4typ11z = symType;
-        inSymbol();
-        if (SY != LPAREN)
-            error(88 + LPAREN);
-        expression();
-        if (typeSize(curExpr->typ) != typeSize(l4typ11z))
-            error(errNeedOtherTypesOfOperands);
-        checkSymAndRead(RPAREN);
-        curExpr->typ = l4typ11z;
-        break;
     case IDENT:
         if (hashTravPtr == NULL) {
             error(errNotDefined);
@@ -6066,7 +6097,7 @@ int stProcNo, checkMode, resultValue;
                            barely any heap to spare when compiling itself. */
                         curExpr  =  mkExpr(PROCADDR,
                                            getPtrType(makeRoutineType(routine)),
-                                           NULL, eptr(routine));
+                                           NULL, (eptr)routine);
                     }
                 }
                 break;
@@ -6075,13 +6106,28 @@ int stProcNo, checkMode, resultValue;
             } /* switch */
         break;
     case LPAREN:
-        expression();
-        checkSymAndRead(RPAREN);
+        inSymbol();
+        if (SY == TYPESY) {
+            /* '(' type-name ')' cast-expression.  int and float differ in
+               representation, so a cast between the two converts, the way an
+               assignment does; any other pair of types of the same size is a
+               reinterpretation, and costs nothing. */
+            l4typ11z  =  readCastType();
+            parseUnaryExpression();
+            castArith(l4typ11z, &curExpr);
+            if (typeSize(curExpr->typ) != typeSize(l4typ11z))
+                error(errNeedOtherTypesOfOperands);
+            curExpr->typ  =  l4typ11z;
+        } else {
+            readNext  =  false;
+            expression();
+            checkSymAndRead(RPAREN);
+        }
         break;
     case INTCONST: case REALCONST: case CHARCONST: case STRINGSY:
         curExpr = malloc(sizeof(expr));
         curExpr->typ = parseLiteral(&curExpr->num1, false);
-        curExpr->num2  =  int(numFormat);
+        curExpr->num2  =  (int)numFormat;
         curExpr->op  =  GETENUM;
         inSymbol();
         break;
@@ -6548,7 +6594,7 @@ int claimed, regOk;
             ir->pck.p.next  =  NULL;
             ir->typ  =  regDecl.typ;
             /* the pinList entry this name stands for */
-            ir->value  =  int(pinList);
+            ir->value  =  (int)pinList;
             /* chain of this block's own names, for the unlinking below */
             ir->list  =  *decls;
         }
@@ -6855,7 +6901,7 @@ void putInitEntry(int k, int a, int b) {
 // at '=').  formOperator(SETREG9) yields the base-register template with no
 // module/FCST side effect (it builds only into the object buffer).
 void beginInitSeg(irptr var, int designator) {
-    curExpr  =  mkExpr(GETVAR, var->typ, eptr(var), NULL);
+    curExpr  =  mkExpr(GETVAR, var->typ, (eptr)var, NULL);
     if (designator)
         parsePostfix();
     putLeft  =  true;
@@ -6878,12 +6924,12 @@ int braced, count, v;
     braced  =  SY == BEGINSY;
     if (braced)
         inSymbol();                   /* consume '{' */
-    boundary  =  eptr(setup());
+    boundary  =  (eptr)setup();
     beginInitSeg(var, false);
     while (true) {
         if (braced && (SY == LBRACK)) {
-            myrollup(int(boundary));
-            boundary  =  eptr(setup());
+            myrollup((int)boundary);
+            boundary  =  (eptr)setup();
             readNext  =  true;        /* parsePostfix's expression() eats '[' */
             beginInitSeg(var, true);
             checkSymAndRead(BECOMES);
@@ -6910,7 +6956,7 @@ int braced, count, v;
             break;
         }
     }
-    myrollup(int(boundary));
+    myrollup((int)boundary);
     if (braced)
         checkSymAndRead(ENDSY);
 } /* parseInitializer */
@@ -7304,7 +7350,7 @@ void writeProc() {
         inSymbol();
         return;
     }
-    boundary = eptr(setup());
+    boundary = (eptr)setup();
     abort  =  false;
     startLine  =  lineCnt;
     if (freeRegs == ceRegs) {
@@ -7315,7 +7361,7 @@ void writeProc() {
         takeConstFromExpr();
         ceTyp  =  curExpr->typ;
         ceVal  =  curVal.i;
-        myrollup(int(boundary));
+        myrollup((int)boundary);
         return;
     }
     if (freeRegs == initRegs) {
@@ -7494,7 +7540,7 @@ void writeProc() {
     }
     if (nest)
         --lineNesting;
-    myrollup(int(boundary));
+    myrollup((int)boundary);
     if (abort) {
         abort  =  false;
         goto 8888;
@@ -7601,7 +7647,7 @@ int l3var7z;
             (l3idr5z->pck.p.offset != 0)) {
             /* The call node parseCallArgs would have built for 'main()',
                with no arguments: op ALNUM, the routine in id2. */
-            curExpr  =  mkExpr(ALNUM, l3idr5z->typ, NULL, eptr(l3idr5z));
+            curExpr  =  mkExpr(ALNUM, l3idr5z->typ, NULL, (eptr)l3idr5z);
             formOperator(DOIT);
         }
     } else if (CH != '\0') {
@@ -7975,6 +8021,12 @@ void exitScope(int a) {
         return;
     }
     preDefHead  =  uProcPtr;
+    /* The declarator operator stack starts empty in every scope.  A cast's
+       type name takes declOpCount as its base (readCastType), and both it and
+       inCastTyp are locals of programme, so without this they hold whatever
+       the frame did. */
+    declOpCount  =  0;
+    inCastTyp  =  false;
     inTypeDef  =  false;
     typelist  =  NULL;
     retSeen  =  false;
@@ -8336,15 +8388,15 @@ void exitScope(int a) {
                 hadParens  =  (SY == LPAREN);
                 if (hadParens)
                     parseParameters(workidr);
-                scopeBound = irptr(setup());
+                scopeBound = (irptr)setup();
             }
             if (SY == BEGINSY) {
                 if (! hadParens)
                     error(42); /* errNoParamList */
-                scopeBound = irptr(setup());
+                scopeBound = (irptr)setup();
                 inSymbol();
                 programme(&l2int18z, curIdRec, true);
-                myrollup(int(scopeBound));
+                myrollup((int)scopeBound);
                 exitScope(0);
                 exitScope(1);
                 goto 23301;

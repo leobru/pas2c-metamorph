@@ -5505,6 +5505,11 @@ struct DclOp {
 // name at all.  A global, so parseOneDeclarator's other call sites, none of
 // which can accept an abstract declarator, stay as they are.
 bool nameOptional = false;
+// Set by readCastType: the declarator being read is a cast's type name, so an
+// array suffix is refused.  parseRange reads a bound by running statement(),
+// which an expression cannot re-enter; an array type is named through a
+// typedef instead.
+bool inCastTyp = false;
 
 // The parameter list of a function declarator, as a signature: types and
 // nothing else, the names (if any) discarded.  Defined below, after
@@ -5560,6 +5565,11 @@ void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
     while (SY == LBRACK or (wasGroup and SY == LPAREN)) {
         if (SY == LPAREN) {
             ops.push_back({opFun, parseSignature(), {}});
+        } else if (inCastTyp) {
+            error(errBadSymbol);
+            while (SY != RBRACK and CH != '\0')
+                inSymbol();
+            inSymbol();
         } else {
             inSymbol();
             rangeRec r{};
@@ -5611,6 +5621,29 @@ Declarator parseOneDeclarator(TPtr baseType, bool packedFlag = false,
         firstOp = false;
     }
     return d;
+}
+
+// The type name of a cast: a type-spec and an abstract declarator, the pair
+// a parameter list takes, so `(char *)`, `(int **)` and `(int (*)(char))` all
+// name a type.  An array suffix is the one form it refuses, through inCastTyp;
+// an array type is named through a typedef, `(quad)s`.
+// Entered with the '(' read and SY on the TYPESY that opens the name; leaves
+// SY on the token after the ')'.
+// nameOptional and inCastTyp are restored rather than cleared: parseRange
+// reads a constant bound by running statement(), so a cast can be read while
+// an enclosing declarator is still open.
+TPtr readCastType()
+{
+    TPtr castBase = symType;
+    inSymbol();
+    bool wasOptional = nameOptional, wasCast = inCastTyp;
+    nameOptional = true;
+    inCastTyp = true;
+    Declarator d = parseOneDeclarator(castBase);
+    nameOptional = wasOptional;
+    inCastTyp = wasCast;
+    checkSymAndRead(RPAREN);
+    return d.type;
 }
 
 // '(' (typeref declarator (',' typeref declarator)*)? ')', with SY at the
@@ -6731,6 +6764,8 @@ void bldCondOp(ExprPtr condExpr, ExprPtr thenExpr)
     curExpr = mkExpr(CONDOP, resType, condExpr, altExpr);
 } /* bldCondOp */
 
+void parseUnaryExpression();
+
 struct Factor {
     static std::vector<Factor*> super;
     Factor();
@@ -6834,18 +6869,9 @@ void Factor::stdCall()
 Factor::Factor()
 { /* factor */
     super.push_back(this);
-    if (SY == TYPESY) {
-        l4typ11z = symType;
-        inSymbol();
-        if (SY != LPAREN) error(88 + (int64_t)LPAREN);
-        expression();
-        if (typeSize(curExpr->vt.typ) != typeSize(l4typ11z))
-            error(errNeedOtherTypesOfOperands);
-        checkSymAndRead(RPAREN);
-        curExpr->vt.typ = l4typ11z;
-    } else if (SY == IDENT or SY == INTCONST or SY == REALCONST or
-               SY == CHARCONST or SY == STRINGSY or SY == LPAREN or
-               SY == LBRACK) {
+    if (SY == IDENT or SY == INTCONST or SY == REALCONST or
+        SY == CHARCONST or SY == STRINGSY or SY == LPAREN or
+        SY == LBRACK) {
         switch (SY) {
         case IDENT: {
             if (hashTravPtr == NULL) {
@@ -6905,8 +6931,23 @@ Factor::Factor()
                 } /* case */
         } break;
         case LPAREN: {
-            expression();
-            checkSymAndRead(RPAREN);
+            inSymbol();
+            if (SY == TYPESY) {
+                /* '(' type-name ')' cast-expression.  int and float differ in
+                   representation, so a cast between the two converts, the way
+                   an assignment does; any other pair of types of the same size
+                   is a reinterpretation, and costs nothing. */
+                l4typ11z = readCastType();
+                parseUnaryExpression();
+                castArith(l4typ11z, curExpr);
+                if (typeSize(curExpr->vt.typ) != typeSize(l4typ11z))
+                    error(errNeedOtherTypesOfOperands);
+                curExpr->vt.typ = l4typ11z;
+            } else {
+                readNext = false;
+                expression();
+                checkSymAndRead(RPAREN);
+            }
         } break;
         case INTCONST: case REALCONST: case CHARCONST: case STRINGSY: {
             curExpr = new Expr;

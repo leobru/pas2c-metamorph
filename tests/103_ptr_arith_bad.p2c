@@ -11,7 +11,7 @@
 // against a 'w3 *'.
 //
 typedef void *anyptr;
-const NULL = anyptr(0);
+const NULL = (anyptr)0;
 typedef struct { int a, b, c; } w3;
 typedef struct { int a, b, c, d, e; } w5;
 //
@@ -31,8 +31,8 @@ void main() {
     q3  =  &t3[2];
     p5  =  &s5;
     fp  =  twice;
-    k  =  int(p3 * 2);
-    k  =  int(p3 / 2);
+    k  =  (int)(p3 * 2);
+    k  =  (int)(p3 / 2);
     p3  =  2 - p3;
     p3  =  p3 + q3;
     k  =  p3 - p5;
