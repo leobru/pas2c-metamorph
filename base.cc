@@ -3768,6 +3768,8 @@ int64_t shift(int64_t val, int64_t amt)
     return ret;
 }
 
+ExprPtr stripIdx(ExprPtr idx, int64_t &offset);
+
 struct genFullExpr {
     static std::vector<genFullExpr*> super;
     genFullExpr(ExprPtr exprToGen_);
@@ -4115,20 +4117,24 @@ L33:        prepLoad();
        ASSIGNOP(stklval, op(stklval, rhs)) via the STKLVAL sentinel. */
     void genRMWAssign() {
         ExprPtr innerNode, rhsExpr, lhsExpr, rmwLhs;
-        ExprPtr synthOp, synthAsn;
+        ExprPtr synthOp, synthAsn, simpleIdx;
         Operator innerOp;
         bool needsMater;
+        int64_t idxOffset;
         bool &rhsMode = formOperator::super.back()->rhsMode;
 
         lhsExpr = exprToGen->expr1;
         innerNode = exprToGen->expr2;
         innerOp = innerNode->op;
         rhsExpr = innerNode->expr1;
+        simpleIdx = NULL;
+        if (lhsExpr->op == GETELT)
+            simpleIdx = stripIdx(lhsExpr->expr2, idxOffset);
         needsMater = (lhsExpr->op != GETVAR) and
                      ((lhsExpr->op != GETFIELD) or
                       (lhsExpr->expr1->op != GETVAR)) and
                      ((lhsExpr->op != GETELT) or
-                      (lhsExpr->expr2->op != GETVAR));
+                      (simpleIdx->op != GETVAR));
         if (needsMater) {
             rhsMode = false;
             (void) genFullExpr(lhsExpr);
@@ -4156,6 +4162,31 @@ L33:        prepLoad();
 };
 std::vector<genFullExpr*> genFullExpr::super;
 
+/* Peel constant terms from a dynamic array index.  Pointer subscripts do not
+   reach this helper: they are lowered to pointer arithmetic and DEREF before
+   code generation.  A constant-only index stays intact so genGetElt can keep
+   doing compile-time bounds checking against the declared bounds. */
+ExprPtr stripIdx(ExprPtr idx, int64_t &offset)
+{
+    offset = 0;
+    while (idx->op == INTPLUS or idx->op == INTMINUS) {
+        ExprPtr c = idx->expr2;
+        if (c->op == GETENUM and c->vt.typ == IntegerType) {
+            int64_t value = rawIntToI64(c->lit);
+            offset += idx->op == INTPLUS ? value : -value;
+            idx = idx->expr1;
+        } else if (idx->op == INTPLUS and
+                   idx->expr1->op == GETENUM and
+                   idx->expr1->vt.typ == IntegerType) {
+            offset += rawIntToI64(idx->expr1->lit);
+            idx = idx->expr2;
+        } else {
+            return idx;
+        }
+    }
+    return idx;
+} /* stripIdx */
+
 void genGetElt()
 {
     int64_t l5var1z, dimCnt, curDim, l5var4z, l5var5z, l5var6z,
@@ -4163,19 +4194,30 @@ void genGetElt()
     InsnList insnCopy;
     InsnListPtr copyPtr, l5ins21z;
     Word l5var22z, l5var23z;
-    bool l5var24z, l5var25z;
+    bool l5var24z, l5var25z, isFlatMem;
     TPtr l5var26z;
     ilmode l5ilm28z;
-    ExprPtr l5var29z;
+    ExprPtr l5var29z, idxExpr, baseExpr;
     InsnListPtr getEltInsns[11]; // array [1..10] of InsnListPtr;
+    int64_t idxOffsets[11];       // array [1..10] of integer;
     ExprPtr & exprToGen = genFullExpr::super.back()->exprToGen;
     InsnList * &saved = formOperator::super.back()->saved;
 
     dimCnt = 0;
+    baseExpr = exprToGen;
+    while (baseExpr->op == GETELT)
+        baseExpr = baseExpr->expr1;
+    isFlatMem = baseExpr->op == GETVAR and baseExpr->id1 == flatMemVar;
     l5var29z = exprToGen;
     while (l5var29z->op == GETELT) {
-        genFullExpr(l5var29z->expr2);
         dimCnt = dimCnt + 1;
+        if (isFlatMem) {
+            idxExpr = l5var29z->expr2;
+            idxOffsets[dimCnt] = 0;
+        } else {
+            idxExpr = stripIdx(l5var29z->expr2, idxOffsets[dimCnt]);
+        }
+        (void) genFullExpr(idxExpr);
         getEltInsns[dimCnt] = insnList;
         l5var29z = l5var29z->expr1;
     }
@@ -4191,10 +4233,15 @@ void genGetElt()
         l5var25z = insnCopy.typ.rep()->pck;
         l5var7z = insnCopy.typ.rep()->aleft;
         l5var8z = typeSize(l5var26z);
-        if (not l5var25z)
-            insnCopy.disp = insnCopy.disp - l5var8z * l5var7z;
         insnList = getEltInsns[curDim];
         l5ilm28z = insnList->ilm;
+        /* A literal index was deliberately not stripped: its declared bounds
+           still govern the compile-time check.  Only a dynamic index uses the
+           equivalent lower bound after its constant terms have been peeled. */
+        if (l5ilm28z != ilCONST)
+            l5var7z -= idxOffsets[curDim];
+        if (not l5var25z)
+            insnCopy.disp = insnCopy.disp - l5var8z * l5var7z;
         if (l5ilm28z == ilCONST) {
             curVal = insnList->payload;
             if (curVal.ii < l5var7z or
