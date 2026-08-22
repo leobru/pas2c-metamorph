@@ -117,7 +117,7 @@ const int64_t
     KARX =      0130000,
     KAVX =      0140000,
     KAOX =      0150000,
-//  KDIV =      0160000,
+    KDIV =      0160000,
     KMUL =      0170000,
     KAPX =      0200000,
     KAUX =      0210000,
@@ -190,19 +190,36 @@ enum Insn {
 };
 
 
+/* The order carries meaning, in four places:
+   -- every operator with a real and an integer flavour is immediately followed
+      by its integer twin (MUL/IMULOP, RDIVOP/IDIVOP, PLUSOP/INTPLUS,
+      MINUSOP/INTMINUS), so bldArithOp reaches the integer one by adding
+      'oper != IMODOP': one step along, and none for '%', which has no real
+      flavour to be distinguished from and so is already the integer one;
+   -- NEOP..INOP run contiguously in that order: genComparison indexes them as
+      curOP-NEOP, and takes the odd ones for the negated sense;
+   -- SHLEFT is 0, and SHLEFT..SETOR, GETELT..ALNUM and TOREAL..BITNEGOP are
+      each contiguous, being written as ranges;
+   -- GETELT sits above every binary operator and DEREF above every lvalue one,
+      which formOperator tests with '<'. */
 enum Operator {
     SHLEFT,     SHRIGHT,
     SETAND,     SETXOR,     SETOR,
-    MUL,        RDIVOP,     ANDOP,      IDIVOP,     IMODOP,
-    PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
-    LTOP,       GEOP,       GTOP,       LEOP,       INOP,
-    IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
+    MUL,        IMULOP,     RDIVOP,     IDIVOP,     IMODOP,
+    PLUSOP,     INTPLUS,    MINUSOP,    INTMINUS,   ANDOP,
+    OROP,       NEOP,       EQOP,       LTOP,       GEOP,
+    GTOP,       LEOP,       INOP,       CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
     RMWASSIGN,  GETENUM,    GETFIELD,   DEREF,
     STKLVAL,    INDCALL,    PROCADDR,   ALNUM,
     TOREAL,     TOINT,      NOTOP,      INEGOP,     RNEGOP,
     BITNEGOP,   STANDPROC,  ADDROF,     NOOP
 };
+
+static_assert(IMULOP == MUL + 1 and IDIVOP == RDIVOP + 1 and
+              INTPLUS == PLUSOP + 1 and INTMINUS == MINUSOP + 1,
+              "bldArithOp steps by one, so every arithmetic operator's integer "
+              "twin has to come immediately after it in the enum");
 
 enum OpGen {
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
@@ -890,9 +907,8 @@ ExtFileRec * externFileList;
 
 TPtr typ121z;
 TPtr voidType, voidPtr;
-// Expression-operator tables, filled in the initialize section
-// (intOpMap[MUL] = IMULOP,IDIVOP...; opPrec = precNone:48 ...).
-Operator intOpMap[64];
+// Expression-operator table, filled in the initialize section
+// (opPrec = precNone:48 ...).
 int64_t opPrec[64];
 TPtr BooleanType;
 TPtr IntegerType;
@@ -926,9 +942,32 @@ int64_t symTabArray[SYMTAB_MAX+1]; // array [1..80] of Word;
 int64_t symTabIndex[SYMTAB_MAX+1];
 Entries entryPtTable;
 int64_t indexreg[16];
-int64_t opToInsn[48];
+/* Positional, since g++ takes no designated array initialisers: the entries
+   run in Operator order from SHLEFT, and everything past ASSIGNOP is the
+   quiet default. */
+int64_t opToInsn[48] = {
+    /*SHLEFT*/ 56,   /*SHRIGHT*/  57,
+    /*SETAND*/ KAAX, /*SETXOR*/   KAEX, /*SETOR*/ KAOX,
+    /*MUL*/    KMUL, /*IMULOP*/   KMUL,
+    /*RDIVOP*/ KDIV, /*IDIVOP*/   11,          /* P/DI */
+    /*IMODOP*/ 7,                              /* P/MD */
+    /*PLUSOP*/ KADD, /*INTPLUS*/  KADD,
+    /*MINUSOP*/ KSUB, /*INTMINUS*/ KSUB };
 int64_t opToMode[48];
-OpFlg opFlags[48]; // array [MUL..op44] of OpFlg;
+OpFlg opFlags[48] = {
+    /*SHLEFT*/  opfSHIFT, /*SHRIGHT*/  opfSHIFT,
+    /*SETAND*/  opfCOMM,  /*SETXOR*/   opfCOMM, /*SETOR*/ opfCOMM,
+    /*MUL*/     opfCOMM,  /*IMULOP*/   opfMULMSK,
+    /*RDIVOP*/  opfCOMM,  /*IDIVOP*/   opfDIV,
+    /*IMODOP*/  opfMOD,
+    /*PLUSOP*/  opfCOMM,  /*INTPLUS*/  opfCOMM,
+    /*MINUSOP*/ opfCOMM,  /*INTMINUS*/ opfCOMM,
+    /*ANDOP*/   opfAND,   /*OROP*/     opfOR,
+    /*NEOP*/    opfCOMM,  /*EQOP*/     opfCOMM,
+    /*LTOP*/    opfCOMM,  /*GEOP*/     opfCOMM, /*GTOP*/ opfCOMM,
+    /*LEOP*/    opfCOMM,  /*INOP*/     opfCOMM,
+    /*CONDOP*/  opfCOMM,  /*ALTERN*/   opfCOMM,
+    /*INCROP*/  opfCOMM,  /*DECROP*/   opfCOMM, /*ASSIGNOP*/ opfASSN };
 int64_t funcInsn[7];
 int64_t InsnTemp[48];
 
@@ -975,9 +1014,9 @@ static const char *koi2utf[64] = {
 std::string Expr::p()
 {
     static const char * opName[] = {
-        "SHLEFT","SHRIGHT","SETAND","SETXOR","SETOR","MUL","RDIVOP","ANDOP",
-        "IDIVOP","IMODOP","PLUSOP","MINUSOP","OROP","NEOP","EQOP","LTOP",
-        "GEOP","GTOP","LEOP","INOP","IMULOP","INTPLUS","INTMINUS","CONDOP",
+        "SHLEFT","SHRIGHT","SETAND","SETXOR","SETOR","MUL","IMULOP","RDIVOP",
+        "IDIVOP","IMODOP","PLUSOP","INTPLUS","MINUSOP","INTMINUS","ANDOP",
+        "OROP","NEOP","EQOP","LTOP","GEOP","GTOP","LEOP","INOP","CONDOP",
         "ALTERN","INCROP","DECROP","ASSIGNOP","GETELT","GETVAR","RMWASSIGN",
         "GETENUM","GETFIELD","DEREF","STKLVAL","INDCALL","PROCADDR","ALNUM",
         "TOREAL","TOINT","NOTOP","INEGOP","RNEGOP","BITNEGOP","STANDPROC",
@@ -6657,7 +6696,8 @@ void bldArithOp(Operator oper, ExprPtr leftExpr, [[maybe_unused]] bool match)
        right-hand side. */
     if ((isCharPtr(arg1Type) and typeCheck(IntegerType, arg2Type)) or
         (isCharPtr(arg2Type) and typeCheck(IntegerType, arg1Type))) {
-        curExpr = mkExpr(intOpMap[oper], charPtrType, leftExpr, curExpr);
+        curExpr = mkExpr(Operator(oper + (oper != IMODOP)), charPtrType,
+                         leftExpr, curExpr);
         return;
     }
     /* Pointer arithmetic steps in pointee units: the integer operand is
@@ -6677,7 +6717,8 @@ void bldArithOp(Operator oper, ExprPtr leftExpr, [[maybe_unused]] bool match)
     } else if (lstep != 0) {
         if ((oper == PLUSOP or oper == MINUSOP) and
             typeCheck(IntegerType, arg2Type)) {
-            curExpr = mkExpr(intOpMap[oper], arg1Type,
+            /* Only PLUSOP and MINUSOP reach here, so the step is plain. */
+            curExpr = mkExpr(Operator(oper + 1), arg1Type,
                              leftExpr, scaleIdx(curExpr, lstep));
             return;
         }
@@ -6703,7 +6744,7 @@ void bldArithOp(Operator oper, ExprPtr leftExpr, [[maybe_unused]] bool match)
         resOp = oper;
         resTyp = RealType;
     } else {
-        resOp = intOpMap[oper];
+        resOp = Operator(oper + (oper != IMODOP));
         resTyp = IntegerType;
     }
     curExpr = mkExprFold(resOp, resTyp, leftExpr, curExpr);
@@ -6714,6 +6755,9 @@ void bldRelOp(Operator oper, ExprPtr ex2)
     Operator resOp;
 
     if (typeCheck(arg1Type, arg2Type)) {
+        /* A multi-word value compares only for equality; ordering it would
+           need the P/EQ family to report which way.  The ordering operators
+           are the ones from LTOP up, which genComparison relies on too. */
         if ((typeSize(arg1Type) != 1) and
             (oper >= LTOP) and
             not isCharArray(arg1Type))
@@ -9452,8 +9496,6 @@ struct initTables {
             indexreg[idx] = idx * frameRegTemplate;
         jumpType = InsnTemp[UJ];
         for (l3var2z = MUL; l3var2z<=ASSIGNOP; succ(l3var2z)) {
-            opFlags[l3var2z] = opfCOMM;
-            opToInsn[l3var2z] = 0;
             if (has(Bits(MUL, RDIVOP, PLUSOP, MINUSOP), l3var2z)) {
                 opToMode[l3var2z] = 3;
             } else if (has(Bits(IDIVOP, IMODOP), l3var2z)) {
@@ -9464,28 +9506,6 @@ struct initTables {
                 opToMode[l3var2z] = 0;
             }
         }
-        opToInsn[MUL] = InsnTemp[AMULX];
-        opToInsn[RDIVOP] = InsnTemp[ADIVX];
-        opToInsn[IDIVOP] = 11; /* P/DI */
-        opToInsn[IMODOP] = 7; /* P/MD */
-        opToInsn[PLUSOP] = InsnTemp[ADD];
-        opToInsn[MINUSOP] = InsnTemp[SUB];
-        opToInsn[IMULOP] = InsnTemp[AMULX];
-        opToInsn[SETAND] = InsnTemp[AAX];
-        opToInsn[SETXOR] = InsnTemp[AEX];
-        opToInsn[SETOR] = InsnTemp[AOX];
-        opToInsn[INTPLUS] = InsnTemp[ADD];
-        opToInsn[INTMINUS] = InsnTemp[SUB];
-        opToInsn[SHLEFT] = 56;
-        opToInsn[SHRIGHT] = 57;
-        opFlags[ANDOP] = opfAND;
-        opFlags[IDIVOP] = opfDIV;
-        opFlags[OROP] = opfOR;
-        opFlags[IMULOP] = opfMULMSK;
-        opFlags[IMODOP] = opfMOD;
-        opFlags[ASSIGNOP] = opfASSN;
-        opFlags[SHLEFT] = opfSHIFT;
-        opFlags[SHRIGHT] = opfSHIFT;
     } /* initInsnTemplates */
 
     void regKeyWords() {
@@ -9872,11 +9892,6 @@ int main(int argc, char **argv)
     charSymTabBase[037] = EXPROP;     // '~' -> BESM-6 037 (see chrClassTabBase)
     charSymTabBase['?'] = EXPROP;
 
-    intOpMap[MUL] = IMULOP;
-    intOpMap[RDIVOP] = IDIVOP;
-    intOpMap[IMODOP] = IMODOP;
-    intOpMap[PLUSOP] = INTPLUS;
-    intOpMap[MINUSOP] = INTMINUS;
 
     // Operator precedence table: default precNone, then the
     // per-operator levels used by parsePrc/getPrec.  Without this every EXPROP

@@ -161,12 +161,24 @@ typedef enum {
 //
 typedef int setofsys; // set of symbol
 //
+/* The order carries meaning, in four places:
+   -- every operator with a real and an integer flavour is immediately followed
+      by its integer twin (MUL/IMULOP, RDIVOP/IDIVOP, PLUSOP/INTPLUS,
+      MINUSOP/INTMINUS), so bldArithOp reaches the integer one by adding
+      'oper != IMODOP': one step along, and none for '%', which has no real
+      flavour to be distinguished from and so is already the integer one;
+   -- NEOP..INOP run contiguously in that order: genComparison indexes them as
+      curOP-NEOP, and takes the odd ones for the negated sense;
+   -- SHLEFT is 0, and SHLEFT..SETOR, GETELT..ALNUM and TOREAL..BITNEGOP are
+      each contiguous, being written as ranges;
+   -- GETELT sits above every binary operator and DEREF above every lvalue one,
+      which formOperator tests with '<'. */
 typedef enum {
-    SHLEFT,     SHRIGHT,    SETAND,    SETXOR,     SETOR,
-    MUL,        RDIVOP,     ANDOP,     IDIVOP,     IMODOP,
-    PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
-    LTOP,       GEOP,       GTOP,       LEOP,       INOP,
-    IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
+    SHLEFT,     SHRIGHT,    SETAND,     SETXOR,     SETOR,
+    MUL,        IMULOP,     RDIVOP,     IDIVOP,     IMODOP,
+    PLUSOP,     INTPLUS,    MINUSOP,    INTMINUS,   ANDOP,
+    OROP,       NEOP,       EQOP,       LTOP,       GEOP,
+    GTOP,       LEOP,       INOP,       CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
     RMWASSIGN,  GETENUM,    GETFIELD,   DEREF,      STKLVAL,
     INDCALL,    PROCADDR,   ALNUM,      TOREAL,     TOINT,
@@ -288,8 +300,8 @@ typedef union {
             int rflags; int szRtype; };
 } types;
 //
-typedef __packed char charmap['\0'..'\176'];
-typedef __packed int:6 textmap['\52'..'\177'];
+typedef __packed char charmap[128];
+typedef __packed int:6 textmap[128-'*'];
 //
 typedef int entries[42];
 //
@@ -492,14 +504,26 @@ extfilerec *fileForOutput, *fileForInput;
 int symTabCnt;
 word symtabarray[80];
 int symtbidx[80];
-operator intOpMap[MUL..MINUSOP] = {
-    [MUL] = IMULOP, IDIVOP,
-    [IMODOP] = IMODOP, INTPLUS, INTMINUS };
 entries entryPtTable;
 int indexreg[1..15];
-int opToInsn[SHLEFT..STKLVAL];
-int opToMode[SHLEFT..STKLVAL];
-opflg opFlags[SHLEFT..STKLVAL];
+/* SHLEFT is 0, so the operators SHLEFT..STKLVAL are simply the first 35: the
+   fill gives every one of them the quiet default, and the designators name
+   the ones that differ. */
+int opToInsn[STKLVAL+1] = {
+    0:35,
+    [SHLEFT]=56, [SHRIGHT]=57,
+    [SETAND]=KAAX, [SETXOR]=KAEX, [SETOR]=KAOX,
+    [MUL]=KMUL, [RDIVOP]=KDIV,
+    [IDIVOP]=11, /* C/DI */
+    [IMODOP]=7,  /* C/MD */
+    [PLUSOP]=KADD, [MINUSOP]=KSUB,
+    [IMULOP]=KMUL, [INTPLUS]=KADD, [INTMINUS]=KSUB };
+int opToMode[STKLVAL+1];
+opflg opFlags[STKLVAL+1] = {
+    opfCOMM:35,
+    [SHLEFT]=opfSHIFT, [SHRIGHT]=opfSHIFT,
+    [ANDOP]=opfAND, [IDIVOP]=opfDIV, [IMODOP]=opfMOD,
+    [OROP]=opfOR, [IMULOP]=opfMULMSK, [ASSIGNOP]=opfASSN };
 int funcInsn[7] = {
     [fnABS]    = KAMX,
     [fnCARD]   = KACX,
@@ -588,8 +612,8 @@ int helperNames[1..57] = {
         t'P/NN    ',
         t'C/SHL   ',
         t'C/SHR   ' };
-int opPrec[SHLEFT..ALTERN] = {
-    precNone:48,
+int opPrec[ALTERN+1] = {
+    precNone:25,
     [CONDOP]=precCond,
     [OROP]=precOr,
     [ANDOP]=precAnd,
@@ -637,7 +661,7 @@ int longSyms[90];
 int constVals[500];
 int constNums[500];
 int objBuffer[1..1024];
-char iso2text['*'..'\177'];
+char iso2text[128-'*'];
 int maxHeap;
 ifcb fcst, initbuf;
 extern ifcb pasinput, _child_;
@@ -974,6 +998,7 @@ tptr b;
     return b;
 } /* ptrBase */
 //
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int isCharPtr(tptr arg) {
     return arg.p.pk == kindPtr && typeSize(arg) == 1 &&
@@ -1384,7 +1409,7 @@ int advanced;
                     if (ch < '*' || '\176' < CH)
                         curChar  =  '\0';
                     else {
-                        curChar  =  iso2text[CH];
+                        curChar  =  iso2text[CH-'*'];
                     }
                 } else {
                     curChar  =  CH;
@@ -1402,7 +1427,7 @@ void lexer() {
         curToken.i  = 0U;
         tokenLen  =  1;
         do {
-            curVal.c  =  iso2text[CH];
+            curVal.c  =  iso2text[CH-'*'];
             nextCH();
             if (8 >= tokenLen) {
                 ++tokenLen;
@@ -5870,7 +5895,7 @@ int lstep, rstep;
        right-hand side. */
     if ((isCharPtr(arg1Type) && typeCheck(intType, arg2Type)) ||
         (isCharPtr(arg2Type) && typeCheck(intType, arg1Type))) {
-        curExpr = mkExpr(intOpMap[oper], charPtrType, leftExpr, curExpr);
+        curExpr = mkExpr(oper + (oper != IMODOP), charPtrType, leftExpr, curExpr);
         return;
     }
     /* Pointer arithmetic steps in pointee units: the integer operand is
@@ -5889,7 +5914,8 @@ int lstep, rstep;
     } else if (lstep != 0) {
         if ((oper == PLUSOP || oper == MINUSOP) &&
             typeCheck(intType, arg2Type)) {
-            curExpr = mkExpr(intOpMap[oper], arg1Type,
+            /* Only PLUSOP and MINUSOP reach here, so the step is plain. */
+            curExpr = mkExpr(oper + 1, arg1Type,
                              leftExpr, scaleIdx(curExpr, lstep));
             return;
         }
@@ -5916,7 +5942,7 @@ int lstep, rstep;
         resOp = oper;
         resTyp = realType;
     } else {
-        resOp = intOpMap[oper];
+        resOp = oper + (oper != IMODOP);
         resTyp = intType;
     }
     curExpr = mkExprFold(resOp, resTyp, leftExpr, curExpr);
@@ -5926,6 +5952,9 @@ int lstep, rstep;
 void bldRelOp(operator oper, eptr ex2) {
 operator resOp;
     if (typeCheck(arg1Type, arg2Type)) {
+        /* A multi-word value compares only for equality; ordering it would
+           need the P/EQ family to report which way.  The ordering operators
+           are the ones from LTOP up, which genComparison relies on too. */
         if ((typeSize(arg1Type) != 1) &&
             (oper >= LTOP) &&
             !isCharArray(arg1Type)) {
@@ -8592,8 +8621,6 @@ operator op;
         indexreg[idx]  =  idx << 20;
     jumpType  =  KUJ;
     for (op = MUL; op <= ASSIGNOP; ++op) {
-        opFlags[op]  =  opfCOMM;
-        opToInsn[op]  =  0;
         if (op IN [MUL, RDIVOP, PLUSOP, MINUSOP]) {
             opToMode[op]  =  3;
         } else if (op IN [IDIVOP, IMODOP]) {
@@ -8604,28 +8631,6 @@ operator op;
             opToMode[op]  =  0;
         }
     }
-    opToInsn[MUL]  =  KMUL;
-    opToInsn[RDIVOP]  =  KDIV;
-    opToInsn[IDIVOP]  =  11; /* C/DI */
-    opToInsn[IMODOP]  =  7; /* C/MD */
-    opToInsn[PLUSOP]  =  KADD;
-    opToInsn[MINUSOP]  =  KSUB;
-    opToInsn[IMULOP]  =  KMUL;
-    opToInsn[SETAND]  =  KAAX;
-    opToInsn[SETXOR]  =  KAEX;
-    opToInsn[SETOR]  =  KAOX;
-    opToInsn[INTPLUS]  =  KADD;
-    opToInsn[INTMINUS]  =  KSUB;
-    opToInsn[SHLEFT]  =  56;
-    opToInsn[SHRIGHT]  =  57;
-    opFlags[ANDOP]  =  opfAND;
-    opFlags[IDIVOP]  =  opfDIV;
-    opFlags[OROP]  =  opfOR;
-    opFlags[IMULOP]  =  opfMULMSK;
-    opFlags[IMODOP]  =  opfMOD;
-    opFlags[ASSIGNOP]  =  opfASSN;
-    opFlags[SHLEFT]  =  opfSHIFT;
-    opFlags[SHRIGHT]  =  opfSHIFT;
 } /* initInsnTemplates */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -8653,8 +8658,8 @@ void regKeywords() { /* regKeywords */
     FcstCount  =  0;
     initInsnTemplates();
     skipToSet  =  blockBegSys | statBegSys & (~[SWITCHSY]);
-    unpackt(pasinfor.a3, &iso2text, '\177' - '*' + 1);
-    iso2text['_'] = t'*';
+    unpackt(pasinfor.a3, &iso2text, 128 - '*');
+    iso2text['_'-'*'] = t'*';
     ftruncate(&_CHILD_);
     for (jdx = 1; jdx <= 10; ++jdx)
         fputw(0, &_CHILD_);
