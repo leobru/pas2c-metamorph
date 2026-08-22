@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 int outer(int base) {
     const bias = 3;

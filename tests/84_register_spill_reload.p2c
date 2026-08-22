@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // A pinned base whose address costs more than one instruction is spilled to a
 // frame slot.  Calls whose callee clobbers the index register holding the base

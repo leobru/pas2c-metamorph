@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // Assigning a real to an integer converts, the way the retired standard
 // function TRUNC did.  The same conversion applies to an actual passed by

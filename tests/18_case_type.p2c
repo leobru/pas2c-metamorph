@@ -1,4 +1,4 @@
-/*=s8,k9*/
+/*=k9*/
 typedef int:10 tenbit;
 tenbit c1, c2;
 void main() {

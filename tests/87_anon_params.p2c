@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 // A formal parameter's name is optional: the declarator in a parameter list
 // may be abstract ('int', 'int *', 'int [0..2]').  An unnamed parameter takes
 // its argument slot, so the named parameters keep their offsets, and the body

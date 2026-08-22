@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // Ordering of a one-word value follows its type.  A scalar is compared
 // arithmetically; anything else -- a pointer, a packed array, a struct --

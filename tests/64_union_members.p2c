@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 // True-C unions: standalone union type, individual (bare) variable members,
 // overlap semantics, and an anonymous union member inside a struct.
 //

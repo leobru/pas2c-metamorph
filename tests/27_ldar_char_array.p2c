@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // Test P/LDAR helper: char array with variable index
 char chars[1..5];

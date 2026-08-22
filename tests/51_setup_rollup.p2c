@@ -1,4 +1,4 @@
-/*=s8,l0*/
+/*=l0*/
 int setup() assembler;
 void rollup(int mark) assembler;
 //

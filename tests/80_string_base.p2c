@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // A string constant and a declared packed char array are the same
 // zero-based type.

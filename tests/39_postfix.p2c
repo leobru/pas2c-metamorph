@@ -1,4 +1,4 @@
-/*=s8,l0*/
+/*=l0*/
 //
 typedef struct { int x, y; } point;
 typedef point *ptpr;

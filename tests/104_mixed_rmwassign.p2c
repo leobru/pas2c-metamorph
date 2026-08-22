@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // Mixed-type operands, where the two sides of an operator have different
 // types and it therefore matters which one the type checker is looking at.

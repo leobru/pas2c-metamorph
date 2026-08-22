@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // A block may open with 'register TYPE *p = expr;'.  The pointer's value is
 // pinned in an index register until the closing brace, so 'p->field' costs

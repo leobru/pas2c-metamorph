@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // A switch arm whose label is not introduced by `case`.  requiredSymErr
 // reports the missing keyword; recovery then has to leave the label's own

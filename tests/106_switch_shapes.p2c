@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // A switch reaches its arms in one of two shapes.  With caseTabMin labels or
 // more, running consecutively, the dispatch is an indexed jump into a table

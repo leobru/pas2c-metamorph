@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 // A definition of a previously declared routine restates the whole header,
 // the way C requires.  The parameter list is matched against the
 // declaration's, and the body sees the names the definition gives.

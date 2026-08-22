@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // Enum bodies with explicit '= constExpr' values; later enumerators
 // auto-increment from the last value. Values may reference earlier

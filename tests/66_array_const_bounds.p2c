@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // Array bounds given as constant expressions (not just literals or a
 // single const identifier): parseRange evaluates each bound through the

@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // A routine header may carry '*' on its declarator: the result type is the
 // declarator's, not the bare type-spec.  The routine/variable dispatch used

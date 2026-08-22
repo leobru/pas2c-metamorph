@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // A 'char *' is a byte index into flat memory -- six 8-bit bytes to a 48-bit
 // word -- and carries its own rules: '&c' on a char variable is the

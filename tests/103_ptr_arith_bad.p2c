@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // The rejections.  Pointer arithmetic scales by the pointee's size, so it
 // wants a pointer that has one: NULL, a void pointer, and a pointer to a

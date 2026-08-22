@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 // Variables of function pointer types.  'T (*name)(params)' declares one;
 // a routine named without an argument list is a function designator worth
 // its entry address, with '&' in front of it optional, as in C; and a call

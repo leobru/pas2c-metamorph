@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 // Bit-field packing order is a property of the struct, marked at the
 // declaration: unmarked packs from the high end of the word, '__packed __lsb'
 // packs from bit 0 up.  '__lsb' is recognized only after '__packed', so it

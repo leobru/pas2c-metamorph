@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 /*
  * Comprehensive test of integer division and modulo when one operand
  * is a compile-time constant.  The compiler picks among five distinct

@@ -1,4 +1,4 @@
-/*=s8,l0*/
+/*=l0*/
 typedef __packed char pair[0..1];
 
 pair s;

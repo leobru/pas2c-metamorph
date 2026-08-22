@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // A ternary whose value is consumed as a condition.  genCondOp unions the
 // regsused sets of the condition and both arms into the result, and bit 16

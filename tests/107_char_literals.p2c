@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // The delimiter decides what a literal is.  Single quotes give a character
 // constant: one character is a char, and two to six characters -- as many as

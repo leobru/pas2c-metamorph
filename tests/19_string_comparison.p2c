@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 __packed char s1[1..6], s2[1..6];
 void main() {

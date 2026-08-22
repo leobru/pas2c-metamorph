@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // Pointer arithmetic steps in pointee units: 'p + 1' advances by one whole
 // structure, however many words that is, and 'q - p' counts structures, not

@@ -1,4 +1,4 @@
-/*=s8,l0*/
+/*=l0*/
 typedef struct { int *data; int rest[29]; } ifcb;
 extern ifcb _child_, pasinput;
 int i;

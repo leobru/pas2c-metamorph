@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // C-style declaration-site load-time initializers for globals and arrays,
 // replacing the retired trailing '.data' section:

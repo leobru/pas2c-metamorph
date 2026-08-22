@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // '&' yields a pointer to the lvalue's type, as in C.  '&x' on an int is an
 // 'int *', '&a[i]' points at the element and '&s.f' at the field, '&p' adds

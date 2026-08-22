@@ -1,4 +1,4 @@
-/*=s8,l0*/
+/*=l0*/
 //
 // pck(p) packs the six characters at p into one word, the first of them in
 // the most significant byte, which is what the packed view of the union

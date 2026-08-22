@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // Selecting a field of a function result.  A call leaves its result in the
 // accumulator -- an ilRVAL insnList with no address -- and GETFIELD then

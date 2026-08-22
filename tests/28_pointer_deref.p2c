@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // Test P/LDARIN via pointer dereference
 typedef int *intptr;

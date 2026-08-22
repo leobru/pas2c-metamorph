@@ -1,4 +1,4 @@
-/*=s8,k9,l0*/
+/*=k9,l0*/
 //
 // Operations on pointers to structures of one, two, three, five and thirty
 // words, plus a one-word structure whose fields are narrower than a word.

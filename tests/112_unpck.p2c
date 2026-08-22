@@ -1,4 +1,4 @@
-/*=s8,l0*/
+/*=l0*/
 //
 // unpck(value, p) writes the six characters of value to the six words at p,
 // the most significant byte of value first, so unpacking a word that pck made

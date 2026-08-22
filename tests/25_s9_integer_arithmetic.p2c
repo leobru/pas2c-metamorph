@@ -1,4 +1,4 @@
-/*=s8,m+,l0*/
+/*=m+,l0*/
 //
 int a, b, c;
 void main() {

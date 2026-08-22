@@ -1,4 +1,4 @@
-/*=s8,l0*/
+/*=l0*/
 //
 // packt(src, dst, count) packs COUNT six-bit characters, a word each, into
 // eight-to-a-word slots at dst, and unpackt puts them back.  Six bits is two
