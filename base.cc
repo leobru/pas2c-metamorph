@@ -4521,15 +4521,15 @@ genEntry::genEntry()
         and (isIndir or ((Bits(20, 21) & calleeFl) != Bits()))) {
         addToInsnList(KVTM+040074001);
     }
-    /* A `with` base that lives in a frame slot outlives a call that clobbers
-       the register holding it: reload the register right here, so that every
-       path reaching the clobber also reaches the restore and the body can go
-       on addressing the record through the register.  WTC takes the saved
-       address from the slot into C, VTM then lands it in the register --
-       neither touches the accumulator, which may hold a function result. */
+    /* Registers 2..6 are callee-saved, so a pinned base in one of them already
+       survives the call.  Reload only a spilled base in a caller-clobbered
+       fallback register (normally M14).  WTC takes the saved address from the
+       slot into C, VTM then lands it in the register; neither touches the
+       accumulator, which may hold a function result. */
     l5exp2z = pinList;
     while (l5exp2z != NULL) {
         if (l5exp2z->vt.typ.p.psize != 0
+            and (6 < l5exp2z->vt.typ.p.pad)
             and (Bits(l5exp2z->vt.typ.p.pad) & calleeFl) != Bits()) {
             addInsnAndOffset(curFrameRegTemplate + KWTC,
                              l5exp2z->vt.typ.p.psize - 1);

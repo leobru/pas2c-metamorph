@@ -1,9 +1,9 @@
 /*=k9,l0*/
 //
-// A pinned base whose address costs more than one instruction is spilled to a
-// frame slot.  Calls whose callee clobbers the index register holding the base
-// force the body to re-address the record from that slot, and the base must
-// stay the one computed on entry even when the index changes inside the body.
+// A pinned base whose address costs more than one instruction is also spilled
+// to a frame slot.  Its normal M2..M6 register is callee-saved, so a call must
+// preserve the base without a caller-side reload; the base must stay the one
+// computed on entry even when the index changes inside the body.
 //
 typedef struct {
     int a, b;
@@ -16,8 +16,8 @@ outer arr[0..3];
 int i, j, k;
 int probe;
 //
-// Both callees pin a base of their own, so their clobber masks cover the
-// index register the caller's pinned pointer is using.
+// Both callees pin a base of their own, exercising the same register set that
+// their entry/exit convention must save and restore for the caller.
 //
 void proc() {
     k = 3;
