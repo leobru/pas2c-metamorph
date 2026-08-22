@@ -1,4 +1,4 @@
-/*=l1,s8,k8,l1*/
+/*=l1,k8,l1*/
 //
 const
     boilerplate = " PASCAL 2 C METAMORPHOSIS (2026)";
@@ -1275,7 +1275,7 @@ void readOptFlag(int *res) {
         switch (CH) {
         case 'E': readOptFlag(&declEntry); break;
         case 'S':
-            curVal.i = readOptVal(8);
+            curVal.i = readOptVal(7);
             if (curVal.i == 3)  lineCnt  =  1;
             else if (curVal.i in [4..7])
                 optSflags  |=  E48 >> (curVal.i - 3);
@@ -2094,7 +2094,7 @@ int fileExit;
 int bodyStatSys;
 int l2var12z;
 tptr l2typ13z, l2typ14z, typedRetType, ceTyp;
-int ceVal, ceRegs;
+int ceVal;
 int initRegs, flushRegs;
 irptr initVar;
 int labFence;
@@ -4590,36 +4590,50 @@ typedef struct {
 typedef rangeRec rangeList[1..20];
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// Array bounds are const-expressions.  parseRange evaluates each bound
-// with the shared const-expression evaluator: statement() run in ceRegs
-// mode parses one expression, const-folds it, and leaves the value in
-// ceVal / its type in ceTyp (the freeRegs==ceRegs branch of statement();
-// parseConstDeclValue drives it the same way).  statement() is a
-// PROGRAMM-level sibling of parseRange, hence the forward declaration --
-// promoted out of parseTypeRef like makeArrayType above so
-// readDeclaratorCore can call it at the same level.
-void statement();
+// Array bounds are const-expressions.  parseRange evaluates each bound with
+// constExpr, which parses one expression, const-folds it and leaves the value
+// in ceVal / its type in ceTyp.  Both are PROGRAMM-level siblings, constExpr
+// defined below beside the expression parser it drives, hence the forward
+// declaration -- parseRange itself was promoted out of parseTypeRef like
+// makeArrayType above so readDeclaratorCore can call it at the same level.
+void constExpr();
+// SY is on the '[' that opens the range; parseRange reads past it itself.  A
+// bound is a constant expression, so it names ordinary identifiers -- a const,
+// an enumerator, a type for sizeof -- and never a record field: the lookup
+// goes to lookUse for the whole range and back to the caller's afterwards,
+// which is what lets a bound inside a record body reach them at all.  lookup2
+// must move with lookupMode, since every inSymbol() resets lookupMode from it.
 void parseRange(int *aleft, int *aright) {
-    freeRegs = ceRegs;
-    statement();
+int savedLookup, ok;
+    savedLookup  =  lookup2;
+    lookup2  =  lookUse;
+    lookupMode  =  lookUse;
+    inSymbol();
+    ok  =  false;
+    constExpr();
     if (ceTyp.rep != NULL && ceTyp.p.pk == kindScalar) {
         *aleft = ceVal;
         if (SY != COLON) {
 // Handle a single value N as a range 0..N-1
             *aright = *aleft - 1;
             *aleft = 0;
-            return;
-        }
-        inSymbol();
-        statement();
-        if (ceTyp.rep != NULL && ceTyp.p.pk == kindScalar) {
-            *aright = ceVal;
-            return;
+            ok  =  true;
+        } else {
+            inSymbol();
+            constExpr();
+            if (ceTyp.rep != NULL && ceTyp.p.pk == kindScalar) {
+                *aright = ceVal;
+                ok  =  true;
+            }
         }
     }
-    error(64); /* errIncorrectRangeDefinition */
-    *aleft = 0;
-    *aright = 0;
+    if (! ok) {
+        error(64); /* errIncorrectRangeDefinition */
+        *aleft = 0;
+        *aright = 0;
+    }
+    lookup2  =  savedLookup;
+    lookupMode  =  savedLookup;
 } /* parseRange */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4671,11 +4685,6 @@ int moreDecls;
 // name at all.  A global, so parseOneDeclarator's other call sites, none of
 // which can accept an abstract declarator, stay as they are.
 int nameOptional;
-// Set by readCastType: the declarator being read is a cast's type name, so an
-// array suffix is refused.  parseRange reads a bound by running statement(),
-// which an expression cannot re-enter; an array type is named through a
-// typedef instead.
-int inCastTyp;
 // Scratch for the unified TYPESY/PACKEDSY/STRUCTSY/ENUMSY declaration-
 // dispatch loop in programme's own body: same reasoning as above.
 int declIsRoutine;
@@ -4738,13 +4747,7 @@ int wasGroup;
             ++declOpCount;
             declOps[declOpCount].opKind  =  opFun;
             declOps[declOpCount].sig  =  parseSignature();
-        } else if (inCastTyp) {
-            error(errBadSymbol);
-            while ((SY != RBRACK) && (CH != '\0'))
-                inSymbol();
-            inSymbol();
         } else {
-            inSymbol();
             parseRange(&r.aleft, &r.aright);
             checkSymAndRead(RBRACK);
             ++declOpCount;
@@ -4817,35 +4820,30 @@ void parseOneDeclarator(declarator *d, tptr baseType, int packedFlag, int isForw
 } /* parseOneDeclarator */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// The type name of a cast: a type-spec and an abstract declarator, the pair
-// a parameter list takes, so '(char *)', '(int **)' and '(int (*)(char))' all
-// name a type.  An array suffix is the one form it refuses, through inCastTyp;
-// an array type is named through a typedef, '(quad)s'.
-// Entered with the '(' read and SY on the TYPESY that opens the name; leaves
-// SY on the token after the ')'.
+// A type name: a type-spec and an abstract declarator, the pair a parameter
+// list takes, so 'char *', 'int **', 'int (*)(char)' and 'int[0..3]' all name
+// a type.  A cast reads one, and so do sizeof and offsetof.
+// Entered with SY on the TYPESY that opens the name; leaves SY on the token
+// that follows it, which the caller checks -- ')' for a cast or sizeof, ',' or
+// ')' for offsetof.
 // The declarator lives here rather than in factor, whose frame every level of
 // expression nesting pays for.  The operator stack base is declOpCount, whose
-// value the enclosing declarator (if any) set: parseRange reads a constant
-// bound by running statement(), so a cast can be read while a declarator is
+// value the enclosing declarator (if any) set: parseRange evaluates a constant
+// bound where it stands, so a type name can be read while a declarator is
 // still open, and its operators must go above the ones already collected.
-// nameOptional and inCastTyp are restored rather than cleared, for that same
-// reason.
-tptr readCastType() {
+// nameOptional is restored rather than cleared, for that same reason.
+tptr readTypeName() {
 declarator d;
-tptr castBase;
-int wasOptional, wasCast;
-    castBase  =  symType;
+tptr nameBase;
+int wasOptional;
+    nameBase  =  symType;
     inSymbol();
     wasOptional  =  nameOptional;
-    wasCast  =  inCastTyp;
     nameOptional  =  true;
-    inCastTyp  =  true;
-    parseDclAt(&d, castBase, false, false, declOpCount);
+    parseDclAt(&d, nameBase, false, false, declOpCount);
     nameOptional  =  wasOptional;
-    inCastTyp  =  wasCast;
-    checkSymAndRead(RPAREN);
     return d.typ;
-} /* readCastType */
+} /* readTypeName */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // '(' (typeref declarator (',' typeref declarator)*)? ')', with SY at the
@@ -5183,12 +5181,11 @@ pair *curSlot;
             enumBucket  =  bucket;
             inSymbol();
             // Optional '= constExpr': an explicit enumerator value.  Later
-            // enumerators auto-increment from it. Evaluated through the shared
-            // const-expression path (statement() in freeRegs==ceRegs mode).
+            // enumerators auto-increment from it, through the shared
+            // const-expression path.
             if (charClass == ASSIGNOP) {
                 inSymbol();
-                freeRegs  =  ceRegs;
-                statement();
+                constExpr();
                 if (ceTyp.rep != NULL && ceTyp.p.pk == kindScalar)
                     nextEnum  =  ceVal;
                 else
@@ -5345,7 +5342,6 @@ pair *curSlot;
     tempType  =  curType;
     rangeCnt  =  0;
     while (SY == LBRACK) {
-        inSymbol();
         parseRange(&curRange.aleft, &curRange.aright);
         if (rangeCnt == 20) {
             error(errVarTooComplex);
@@ -5542,23 +5538,25 @@ int labIdx;
 } /* labCheckAndDefine */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void statement() { /* statement */
-eptr boundary;
-strLabel *strLabPtr;
-int nest;
-int flag;
-idclass l3var6z;
-int curOffset;
-int startLine;
-int ifWhlTarget, elseJump;
-eptr whileExpr;
-irptr l3idr12z;
-int jb8888;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// The expression parser.  It sits at programme's own level, beside the
+// declaration parsers, so a constant expression in a declaration can reach it
+// without going through statement().
 void expression();
 void parseUnaryExpression();
 void parseCallArgs(irptr subroutine, eptr callee);
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* Recovery for an error that leaves nothing to build a value from: skip to a
+   token a statement can end on, and stand an undefined-variable node in for
+   the value.  The caller reports the error and returns, so the expression
+   finishes with a well-typed placeholder and the parse carries on from the
+   terminator. */
+void badExpr() {
+    skip(skipToSet | statEndSys);
+    curExpr  =  uVarPtr;
+} /* badExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 /* parsePostfix: consume any chain of postfix operators (->field,
@@ -5762,7 +5760,8 @@ tptr routTyp, formType;
                 inSymbol();
                 if (SY != RPAREN) {
                     error(errTooManyArguments);
-                    longjmp(jb8888, 1);
+                    badExpr();
+                    return;
                 }
                 curExpr = callExpr;
                 inSymbol();
@@ -5781,7 +5780,8 @@ tptr routTyp, formType;
                 }
                 if (tooMany) {
                     error(errTooManyArguments);
-                    longjmp(jb8888, 1);
+                    badExpr();
+                    return;
                 }
             }
             expression();
@@ -5972,17 +5972,20 @@ operator l5op1z;
 tptr l5var2z;
 int asBitset;
 int stProcNo, checkMode, resultValue;
+int hasFields;
     stProcNo  =  routine->low;
     if (SY != LPAREN) {
         requiredSymErr(LPAREN);
-        longjmp(jb8888, 1);
+        badExpr();
+        return;
     }
     if (stProcNo IN [fnSIZEOF, fnOFFSETOF]) {
         lookupMode = lookUse;
         inSymbol();
         if (SY == TYPESY) {
-            l5var2z = symType;
-            inSymbol();
+            /* A whole type name, declarator and all: sizeof(char *),
+               sizeof(int[0..3]), offsetof(rec, f). */
+            l5var2z = readTypeName();
         } else {
             if (stProcNo == fnSIZEOF) {
                 readNext = false;
@@ -5996,8 +5999,14 @@ int stProcNo, checkMode, resultValue;
             }
         }
         if (stProcNo == fnOFFSETOF) {
-            if (l5var2z.p.pk != kindStruct)
+            /* Only a record has fields.  Error 22 names the construct it is
+               reporting on, since stmtName otherwise still holds whatever
+               operator set it last. */
+            hasFields  =  l5var2z.p.pk == kindStruct;
+            if (! hasFields) {
+                stmtName  =  "OFFSET";
                 error(errWrongVarTypeBefore);
+            }
             if (SY != COMMA)
                 requiredSymErr(COMMA);
             else {
@@ -6005,15 +6014,17 @@ int stProcNo, checkMode, resultValue;
                 lookupMode = lookField;
                 inSymbol();
             }
+            resultValue = 0;
             if (SY != IDENT) {
                 error(errNoIdent);
-                resultValue = 0;
             } else {
-                if (hashTravPtr == NULL) {
-                    error(errNotDefined);
-                    resultValue = 0;
-                } else {
-                    resultValue = hashTravPtr->pck.p.offset;
+                /* The name is read either way, to keep the parse in step, but
+                   looked up only where a field could be found. */
+                if (hasFields) {
+                    if (hashTravPtr == NULL)
+                        error(errNotDefined);
+                    else
+                        resultValue = hashTravPtr->pck.p.offset;
                 }
                 inSymbol();
             }
@@ -6112,7 +6123,8 @@ int stProcNo, checkMode, resultValue;
                representation, so a cast between the two converts, the way an
                assignment does; any other pair of types of the same size is a
                reinterpretation, and costs nothing. */
-            l4typ11z  =  readCastType();
+            l4typ11z  =  readTypeName();
+            checkSymAndRead(RPAREN);
             parseUnaryExpression();
             castArith(l4typ11z, &curExpr);
             if (typeSize(curExpr->typ) != typeSize(l4typ11z))
@@ -6189,7 +6201,8 @@ int stProcNo, checkMode, resultValue;
     }; /* LBRACK */
     default:
         error(errBadSymbol);
-        longjmp(jb8888, 1);
+        badExpr();
+        return;
     } /* switch */
     /* Any factor producing an rvalue/lvalue may be followed by postfix
        operators (->field for ptr-to-struct deref+select, .field for struct member,
@@ -6465,6 +6478,40 @@ void expression() {
     parsePrc(precAssign);
 } /* expression */
 //
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* One constant expression, with SY already on its first token: parse it, take
+   the folded value into ceVal and its type into ceTyp.  The nodes it builds
+   live no longer than the expression, so the arena goes back to where it
+   stood. */
+void constExpr() {
+eptr boundary;
+    boundary  =  (eptr)setup();
+    ceTyp  =  voidType;
+    ceVal  =  1;
+    readNext  =  false;
+    expression();
+    takeConstFromExpr();
+    ceTyp  =  curExpr->typ;
+    ceVal  =  curVal.i;
+    myrollup((int)boundary);
+} /* constExpr */
+//
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void statement() { /* statement */
+eptr boundary;
+strLabel *strLabPtr;
+int nest;
+int flag;
+idclass l3var6z;
+int curOffset;
+int startLine;
+int ifWhlTarget, elseJump;
+eptr whileExpr;
+irptr l3idr12z;
+int jb8888;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void setStrLab(int id) {
@@ -7346,24 +7393,13 @@ void writeProc() {
 } /* standProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    if (freeRegs != ceRegs && SY == SEMICOLON) {
+    if (SY == SEMICOLON) {
         inSymbol();
         return;
     }
     boundary = (eptr)setup();
     abort  =  false;
     startLine  =  lineCnt;
-    if (freeRegs == ceRegs) {
-        readNext  =  false;
-        ceTyp  =  voidType;
-        ceVal  =  1;
-        expression();
-        takeConstFromExpr();
-        ceTyp  =  curExpr->typ;
-        ceVal  =  curVal.i;
-        myrollup((int)boundary);
-        return;
-    }
     if (freeRegs == initRegs) {
         parseInitializer(initVar);
         return;
@@ -7549,16 +7585,12 @@ void writeProc() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseConstDeclValue(tptr *typ, int *value) {
-int savedFreeRegs;
     if (SY == STRINGSY) {
         *typ  =  parseLiteral(value, true);
         inSymbol();
         return;
     }
-    savedFreeRegs  =  freeRegs;
-    freeRegs  =  ceRegs;
-    statement();
-    freeRegs  =  savedFreeRegs;
+    constExpr();
     *typ  =  ceTyp;
     *value  =  ceVal;
 } /* parseConstDeclValue */
@@ -8013,7 +8045,6 @@ void exitScope(int a) {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //
     localSize  =  *retSizePtr;
-    ceRegs  =  halfWord | (E48 >> 23);
     initRegs  =  halfWord | (E48 >> 22);
     flushRegs  =  halfWord | (E48 >> 21);
     if (localSize == 0) {
@@ -8022,11 +8053,9 @@ void exitScope(int a) {
     }
     preDefHead  =  uProcPtr;
     /* The declarator operator stack starts empty in every scope.  A cast's
-       type name takes declOpCount as its base (readCastType), and both it and
-       inCastTyp are locals of programme, so without this they hold whatever
-       the frame did. */
+       type name takes declOpCount as its base (readTypeName), and it is a
+       local of programme, so without this it holds whatever the frame did. */
     declOpCount  =  0;
-    inCastTyp  =  false;
     inTypeDef  =  false;
     typelist  =  NULL;
     retSeen  =  false;

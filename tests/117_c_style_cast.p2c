@@ -1,0 +1,81 @@
+/*=k9,l0*/
+//
+// A cast is written the way C writes it: a type name in parentheses in front
+// of a unary expression.  The type name is a type-spec and an abstract
+// declarator -- the same pair a parameter list takes -- so a pointer, a
+// pointer to a pointer, a pointer to a routine and an array are all named in
+// place.
+//
+// A cast retypes its value and emits no code, so the two types must occupy
+// the same number of words.  int and float are the one exception: they differ
+// in representation, so a cast between them converts, exactly as an
+// assignment between them does.
+//
+typedef void *anyptr;
+typedef void *uword;
+typedef struct { int a, b, c, d; } four;
+typedef int quad[0..3];
+const NULL = (anyptr)0;
+//
+int i, j, k;
+char c;
+float f;
+int *ip;
+int **ipp;
+anyptr ap;
+int (*fp)(int);
+four s;
+quad q;
+//
+int twice(int n) {
+    return n + n;
+}
+//
+void main() {
+    // A character and an integer are one word each, so either names the
+    // other's value.
+    c  =  (char)65;
+    writeln(" CHAR   ", (int)c:4, (int)'B':4);
+    // A pointer casts to a void pointer and back.
+    i  =  7;
+    ip  =  &i;
+    ap  =  (anyptr)ip;
+    writeln(" PTR    ", (*(int *)ap):4, ((int *)ap == ip):3, (ap == NULL):3);
+    // Two stars in the type name are two levels of pointer.
+    ipp  =  &ip;
+    writeln(" PTRPTR ", (**(int **)(anyptr)ipp):4);
+    // A parenthesized declarator names a pointer to a routine.
+    fp  =  (int (*)(int))twice;
+    writeln(" FNPTR  ", fp(21):4);
+    // Ordering follows the type: a pointer type compares its bits.
+    i  =  -1;
+    j  =  1;
+    writeln(" ORDER  ", (i < j):3, ((uword)i < (uword)j):3);
+    // int and float convert in both directions, and a constant folds.
+    i  =  7;
+    f  =  (float)i;
+    writeln(" WIDEN  ", f:9:2, (float)3:9:2);
+    f  =  6.75;
+    writeln(" TRUNC  ", (int)f:4, (int)-f:4, (int)6.75:4);
+    // The cast binds tighter than a binary operator and looser than a
+    // postfix one, so the parentheses below say two different things.
+    writeln(" PREC   ", ((int)f * 2):4, ((int)(f * 2)):4);
+    writeln(" PRECF  ", ((float)i / 2):9:2, ((float)(i / 2)):9:2);
+    // A cast is not limited to one word: a four-word struct names a
+    // four-word array, and the copy follows the type.  The bound is a
+    // constant expression, spelled out here and behind a typedef below.
+    s.a  =  10;
+    s.b  =  20;
+    s.c  =  30;
+    s.d  =  40;
+    q  =  (int[0..3])s;
+    writeln(" MULTI  ", q[0]:4, q[1]:4, q[2]:4, q[3]:4);
+    s.a  =  50;
+    q  =  (quad)s;
+    writeln(" TYPEDEF", q[0]:4, q[1]:4, q[2]:4, q[3]:4);
+    // Its operand is a unary expression, so a sign, a dereference and an
+    // address-of all belong to the operand.
+    k  =  3;
+    ip  =  &k;
+    writeln(" UNARY  ", (int)*ip:4, (int)-c:6, (int)*&i:4);
+}

@@ -1,0 +1,16 @@
+/*=k9,l0*/
+//
+// A cast retypes a value and emits no code, so the two types must occupy the
+// same number of words.  A three-word struct is not an int.
+//
+typedef struct {
+    int a, b, c;
+} three;
+three t;
+int k;
+//
+void main() {
+    t.a  =  1;
+    k  =  (int)t;
+    writeln(" NEVER ", k:0);
+}

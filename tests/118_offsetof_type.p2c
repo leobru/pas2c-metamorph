@@ -1,0 +1,16 @@
+/*=k9,l0*/
+//
+// offsetof reads a type name, but only a record has fields: any other type is
+// error 22, which names OFFSET rather than whatever operator last reported.
+// The field name is still read, so the parse stays in step, but it is not
+// looked up -- there is nothing it could be found in.
+//
+typedef struct {
+    int a, b, c;
+} three;
+int k;
+//
+void main() {
+    k  =  offsetof(int, a);
+    writeln(" NEVER ", k:0);
+}

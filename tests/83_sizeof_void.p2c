@@ -1,6 +1,54 @@
 /*=k9,l0*/
-// sizeof(void) is 1, as in GNU C.
+//
+// sizeof takes a type name -- a type-spec and an abstract declarator, the same
+// pair a cast takes -- so a pointer, a pointer to a routine and an array are
+// named where they are used rather than through a typedef standing in for
+// them.  sizeof(void) is 1, as in GNU C, and a pointer is one word whatever it
+// addresses.  offsetof reads the same type name ahead of its field, and
+// sizeof still takes an expression when what follows is not a type.
+//
+// A sizeof is a constant, so it may stand in any constant expression: a const
+// value, an array bound, an enumerator, and a field's bound inside a record
+// body -- which is where the lookup has to leave field scope to find the type
+// at all.
+//
+// A routine named without an argument list is a function designator worth its
+// entry address, so sizeof of one is the size of that address, a word, the
+// same as sizeof of a variable holding it.
+//
 typedef void *anyptr;
+typedef struct { int a, b, c; } three;
+typedef int trip[0..2];
+const N = sizeof(three);
+typedef enum { p = sizeof(three), q } sizes;
+typedef struct {
+    int x[0..sizeof(three)];
+    int y[0..N];
+} outer;
+outer o;
+int a[0..sizeof(outer) - 1];
+three r;
+int i;
+int (*fp)(int);
+//
+int twice(int n) {
+    return n + n;
+}
+//
 void main() {
-    writeln("VOID=", sizeof(void):0, " PTR=", sizeof(anyptr):0);
+    writeln(" PLAIN ", sizeof(void):0, ' ', sizeof(int):0, ' ', sizeof(char):0);
+    writeln(" PTR   ", sizeof(anyptr):0, ' ', sizeof(char *):0,
+            ' ', sizeof(int **):0, ' ', sizeof(int (*)(int)):0);
+    writeln(" ARRAY ", sizeof(trip):0, ' ', sizeof(int[0..3]):0,
+            ' ', sizeof(three):0);
+    writeln(" EXPR  ", sizeof(r):0, ' ', sizeof(i):0);
+    writeln(" ROUT  ", sizeof(twice):0, ' ', sizeof(fp):0, ' ', sizeof(twice(1)):0);
+    writeln(" OFF   ", offsetof(three, a):0, ' ', offsetof(three, b):0,
+            ' ', offsetof(three, c):0);
+    o.x[3]  =  9;
+    o.y[3]  =  4;
+    a[sizeof(outer) - 1]  =  5;
+    writeln(" CONST ", N:0, ' ', (int)p:0, ' ', (int)q:0);
+    writeln(" FIELD ", sizeof(outer):0, ' ', o.x[3]:0, ' ', o.y[3]:0);
+    writeln(" BOUND ", sizeof(a):0, ' ', a[sizeof(outer) - 1]:0);
 }

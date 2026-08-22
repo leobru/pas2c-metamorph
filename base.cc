@@ -1092,7 +1092,6 @@ struct programme {
     int64_t l2var12z;
     TPtr l2typ13z, l2typ14z, typedRetType, ceTyp;
     Word ceVal;
-    int64_t ceRegs;
     SetOfSYs bodyStatSys;
     StrLabel * strLabList;
 
@@ -2195,7 +2194,7 @@ parseComment::parseComment()
                 readOptFlag(declEntry);
                 break;
             case 'S': case 's': {
-                curVal.ii = readOptVal(8);
+                curVal.ii = readOptVal(7);
                 if (curVal.ii == 3)
                     lineCnt = 1;
                 else if (4 <= curVal.ii && curVal.ii <= 7)
@@ -5464,6 +5463,7 @@ std::vector<parseTypeRef*> parseTypeRef::super;
 // the forward declaration.
 void parseRange(int64_t & aleft, int64_t & aright);
 void parseConstDeclValue(TPtr &typ, Word &value);
+void constExpr();
 
 struct Declarator {
     int64_t name = 0;
@@ -5505,11 +5505,6 @@ struct DclOp {
 // name at all.  A global, so parseOneDeclarator's other call sites, none of
 // which can accept an abstract declarator, stay as they are.
 bool nameOptional = false;
-// Set by readCastType: the declarator being read is a cast's type name, so an
-// array suffix is refused.  parseRange reads a bound by running statement(),
-// which an expression cannot re-enter; an array type is named through a
-// typedef instead.
-bool inCastTyp = false;
 
 // The parameter list of a function declarator, as a signature: types and
 // nothing else, the names (if any) discarded.  Defined below, after
@@ -5565,13 +5560,7 @@ void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
     while (SY == LBRACK or (wasGroup and SY == LPAREN)) {
         if (SY == LPAREN) {
             ops.push_back({opFun, parseSignature(), {}});
-        } else if (inCastTyp) {
-            error(errBadSymbol);
-            while (SY != RBRACK and CH != '\0')
-                inSymbol();
-            inSymbol();
         } else {
-            inSymbol();
             rangeRec r{};
             parseRange(r.aleft, r.aright);
             checkSymAndRead(RBRACK);
@@ -5623,26 +5612,23 @@ Declarator parseOneDeclarator(TPtr baseType, bool packedFlag = false,
     return d;
 }
 
-// The type name of a cast: a type-spec and an abstract declarator, the pair
-// a parameter list takes, so `(char *)`, `(int **)` and `(int (*)(char))` all
-// name a type.  An array suffix is the one form it refuses, through inCastTyp;
-// an array type is named through a typedef, `(quad)s`.
-// Entered with the '(' read and SY on the TYPESY that opens the name; leaves
-// SY on the token after the ')'.
-// nameOptional and inCastTyp are restored rather than cleared: parseRange
-// reads a constant bound by running statement(), so a cast can be read while
-// an enclosing declarator is still open.
-TPtr readCastType()
+// A type name: a type-spec and an abstract declarator, the pair a parameter
+// list takes, so `char *`, `int **`, `int (*)(char)` and `int[0..3]` all name
+// a type.  A cast reads one, and so do sizeof and offsetof.
+// Entered with SY on the TYPESY that opens the name; leaves SY on the token
+// that follows it, which the caller checks -- ')' for a cast or sizeof, ',' or
+// ')' for offsetof.
+// nameOptional is restored rather than cleared: parseRange evaluates a
+// constant bound where it stands, so a type name can be read while an
+// enclosing declarator is still open.
+TPtr readTypeName()
 {
-    TPtr castBase = symType;
+    TPtr nameBase = symType;
     inSymbol();
-    bool wasOptional = nameOptional, wasCast = inCastTyp;
+    bool wasOptional = nameOptional;
     nameOptional = true;
-    inCastTyp = true;
-    Declarator d = parseOneDeclarator(castBase);
+    Declarator d = parseOneDeclarator(nameBase);
     nameOptional = wasOptional;
-    inCastTyp = wasCast;
-    checkSymAndRead(RPAREN);
     return d.type;
 }
 
@@ -5930,10 +5916,9 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion
     checkSymAndRead(ENDSY);
 } /* parseRecordDecl */
 
-// parseRange's definition lives past the Statement struct (near
-// parseConstDeclValue): array bounds are const-expressions, evaluated by
-// running Statement() in ceRegs mode, which needs the full Statement
-// definition in scope.  Only the forward declaration (above) is visible here.
+// parseRange's definition lives past the Statement struct, next to
+// parseConstDeclValue, the other caller of constExpr.  Only the forward
+// declaration (above) is visible here.
 
 parseTypeRef::parseTypeRef(TPtr & newtype, int64_t skipTarget_)
     : skipTarget(skipTarget_)
@@ -5963,15 +5948,15 @@ L12247:
             enumBucket = bucket;
             inSymbol();
             // Optional '= constExpr': an explicit enumerator value.  Later
-            // enumerators auto-increment from it. Evaluated through the shared
-            // const-expression path (Statement() in freeRegs==ceRegs mode).
+            // enumerators auto-increment from it, through the shared
+            // const-expression path.
             if (charClass == ASSIGNOP) {
-                TPtr enumTyp{};
-                Word enumVal;
+                TPtr &ceTyp = programme::super.back()->ceTyp;
+                Word &ceVal = programme::super.back()->ceVal;
                 inSymbol();
-                parseConstDeclValue(enumTyp, enumVal);
-                if (enumTyp != NULL and enumTyp.p.pk == kindScalar)
-                    nextEnum = enumVal.ii;
+                constExpr();
+                if (ceTyp != NULL and ceTyp.p.pk == kindScalar)
+                    nextEnum = ceVal.ii;
                 else
                     error(62); /* errIntNeeded */
                 hasExplicit = true;
@@ -6128,7 +6113,6 @@ L12366:             error(errNotAType);
     tempType = curType;
     rangeCnt = 0;
     while (SY == LBRACK) {
-        inSymbol();
         parseRange(curRange.aleft, curRange.aright);
         if (rangeCnt == 20) {
             error(errVarTooComplex);
@@ -6362,6 +6346,17 @@ bool isCharArray(TPtr arg)
 void expression();
 void parseCallArgs(IdentRecPtr subroutine, ExprPtr callee);
 
+/* Recovery for an error that leaves nothing to build a value from: skip to a
+   token a statement can end on, and stand an undefined-variable node in for
+   the value.  The caller reports the error and returns, so the expression
+   finishes with a well-typed placeholder and the parse carries on from the
+   terminator. */
+void badExpr()
+{
+    skip(skipToSet | statEndSys);
+    curExpr = uVarPtr;
+} /* badExpr */
+
 /* parsePostfix: consume any chain of postfix operators (@, .field, [idx],
    (args)) acting on curExpr.  Returns with SY pointing at the first token that is
    neither a postfix operator nor the trailing `]` of an index list.  Safe
@@ -6558,7 +6553,8 @@ void parseCallArgs(IdentRecPtr subroutine, ExprPtr callee)
                 inSymbol();
                 if (SY != RPAREN) {
                     error(errTooManyArguments);
-                    throw 8888;
+                    badExpr();
+                    return;
                 }
                 curExpr = callExpr;
                 inSymbol();
@@ -6577,7 +6573,8 @@ void parseCallArgs(IdentRecPtr subroutine, ExprPtr callee)
                 }
                 if (tooMany) {
                     error(errTooManyArguments);
-                    throw 8888;
+                    badExpr();
+                    return;
                 }
             }
             expression();
@@ -6792,14 +6789,16 @@ void Factor::stdCall()
     stProcNo = curVal.ii;
     if (SY != LPAREN) {
         requiredSymErr(LPAREN);
-        throw 8888;
+        badExpr();
+        return;
     }
     if (stProcNo == fnSIZEOF or stProcNo == fnOFFSETOF) {
         lookupMode = lookUse;
         inSymbol();
         if (SY == TYPESY) {
-            l5var2z = symType;
-            inSymbol();
+            /* A whole type name, declarator and all: sizeof(char *),
+               sizeof(int[0..3]), offsetof(rec, f). */
+            l5var2z = readTypeName();
         } else {
             if (stProcNo == fnSIZEOF) {
                 readNext = false;
@@ -6813,8 +6812,14 @@ void Factor::stdCall()
             }
         }
         if (stProcNo == fnOFFSETOF) {
-            if (l5var2z.p.pk != kindStruct)
+            /* Only a record has fields.  Error 22 names the construct it is
+               reporting on, since stmtName otherwise still holds whatever
+               operator set it last. */
+            bool hasFields = l5var2z.p.pk == kindStruct;
+            if (not hasFields) {
+                stmtName = "OFFSET";
                 error(errWrongVarTypeBefore);
+            }
             if (SY != COMMA)
                 requiredSymErr(COMMA);
             else {
@@ -6822,15 +6827,17 @@ void Factor::stdCall()
                 lookupMode = lookField;
                 inSymbol();
             }
+            resultValue = 0;
             if (SY != IDENT) {
                 error(errNoIdent);
-                resultValue = 0;
             } else {
-                if (hashTravPtr == NULL) {
-                    error(errNotDefined);
-                    resultValue = 0;
-                } else {
-                    resultValue = hashTravPtr->pck.offset;
+                /* The name is read either way, to keep the parse in step, but
+                   looked up only where a field could be found. */
+                if (hasFields) {
+                    if (hashTravPtr == NULL)
+                        error(errNotDefined);
+                    else
+                        resultValue = hashTravPtr->pck.offset;
                 }
                 inSymbol();
             }
@@ -6937,7 +6944,8 @@ Factor::Factor()
                    representation, so a cast between the two converts, the way
                    an assignment does; any other pair of types of the same size
                    is a reinterpretation, and costs nothing. */
-                l4typ11z = readCastType();
+                l4typ11z = readTypeName();
+                checkSymAndRead(RPAREN);
                 parseUnaryExpression();
                 castArith(l4typ11z, curExpr);
                 if (typeSize(curExpr->vt.typ) != typeSize(l4typ11z))
@@ -7015,7 +7023,8 @@ L14567:             ;
         } /* case */
     } else {
         error(errBadSymbol);
-        throw 8888;
+        badExpr();
+        return;
     }
     /* Any factor producing an rvalue/lvalue may be followed by postfix
        operators (@ for pointer/file deref, .field for struct member,
@@ -7850,21 +7859,26 @@ void flushInitializers() {
 } /* flushInitializers */
 
 
-void parseConstExpression()
+/* One constant expression, with SY already on its first token: parse it, take
+   the folded value into ceVal and its type into ceTyp.  The nodes it builds
+   live no longer than the expression, so the arena goes back to where it
+   stood. */
+void constExpr()
 {
     TPtr &ceTyp = programme::super.back()->ceTyp;
     Word &ceVal = programme::super.back()->ceVal;
-    ExprPtr &boundary = Statement::super.back()->boundary;
+    ExprPtr boundary;
 
-    readNext = false;
+    setup(boundary);
     ceTyp = voidType;
     ceVal.ii = 1;
+    readNext = false;
     expression();
     takeConstFromExpr();
     ceTyp = curExpr->vt.typ;
     ceVal = curVal;
     myrollup(boundary);
-} /* parseConstExpression */
+} /* constExpr */
 
 void returnOp() {
     IdentRecPtr &procName = programme::super.back()->procName;
@@ -8144,21 +8158,17 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
 
 Statement::Statement()
 {
-    int64_t &ceRegs = programme::super.back()->ceRegs;
     StrLabel * &strLabList = programme::super.back()->strLabList;
 
     super.push_back(this);
-    if (freeRegs != ceRegs and SY == SEMICOLON) {
+    if (SY == SEMICOLON) {
         inSymbol();
         return; /* empty statement */
     }
     setup(boundary);
     bool110z = false;
     startLine = lineCnt;
-    if (freeRegs == ceRegs) {
-        parseConstExpression();
-        return;
-    } else {
+    {
         try {
             if (SY == INTCONST) {
                 liveRegs = Bits();
@@ -8372,43 +8382,54 @@ Statement::Statement()
     /* 20766 */
 } /* Statement */
 
-// Array bounds are const-expressions.  Each bound is evaluated by running
-// Statement() in ceRegs mode (parses one expression, const-folds it, and
-// leaves the value in ceVal / its type in ceTyp), exactly as
-// parseConstDeclValue below drives it.  Forward-declared far above (near
-// parseTypeRef); defined here because it needs the Statement definition.
+// Array bounds are const-expressions.  Each bound is evaluated by constExpr,
+// which parses one expression, const-folds it and leaves the value in ceVal /
+// its type in ceTyp, exactly as parseConstDeclValue below drives it.
+// Forward-declared far above (near parseTypeRef).
+// SY is on the '[' that opens the range; parseRange reads past it itself.  A
+// bound is a constant expression, so it names ordinary identifiers -- a const,
+// an enumerator, a type for sizeof -- and never a record field: the lookup
+// goes to lookUse for the whole range and back to the caller's afterwards,
+// which is what lets a bound inside a record body reach them at all.  lookup2
+// must move with lookupMode, since every inSymbol() resets lookupMode from it.
 void parseRange(int64_t & aleft, int64_t & aright)
 {
-    int64_t &ceRegs = programme::super.back()->ceRegs;
     TPtr &ceTyp = programme::super.back()->ceTyp;
     Word &ceVal = programme::super.back()->ceVal;
 
-    freeRegs = ceRegs;
-    Statement();
+    int64_t savedLookup = lookup2;
+    bool ok = false;
+    lookup2 = lookUse;
+    lookupMode = lookUse;
+    inSymbol();
+    constExpr();
     if (ceTyp != NULL and ceTyp.p.pk == kindScalar) {
         aleft = ceVal.ii;
         if (SY != COLON) {
             // Handle a single value N as a range 0..N-1
             aright = aleft - 1;
             aleft = 0;
-            return;
-        }
-        inSymbol();
-        Statement();
-        if (ceTyp != NULL and ceTyp.p.pk == kindScalar) {
-            aright = ceVal.ii;
-            return;
+            ok = true;
+        } else {
+            inSymbol();
+            constExpr();
+            if (ceTyp != NULL and ceTyp.p.pk == kindScalar) {
+                aright = ceVal.ii;
+                ok = true;
+            }
         }
     }
-    error(64); /* errIncorrectRangeDefinition */
-    aleft = 0;
-    aright = 0;
+    if (not ok) {
+        error(64); /* errIncorrectRangeDefinition */
+        aleft = 0;
+        aright = 0;
+    }
+    lookup2 = savedLookup;
+    lookupMode = savedLookup;
 } /* parseRange */
 
 void parseConstDeclValue(TPtr &typ, Word &value)
 {
-    int64_t savedFreeRegs;
-    int64_t &ceRegs = programme::super.back()->ceRegs;
     TPtr &ceTyp = programme::super.back()->ceTyp;
     Word &ceVal = programme::super.back()->ceVal;
 
@@ -8417,10 +8438,7 @@ void parseConstDeclValue(TPtr &typ, Word &value)
         inSymbol();
         return;
     }
-    savedFreeRegs = freeRegs;
-    freeRegs = ceRegs;
-    Statement();
-    freeRegs = savedFreeRegs;
+    constExpr();
     typ = ceTyp;
     value = ceVal;
 } /* parseConstDeclValue */
@@ -8918,7 +8936,6 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
 {
     super.push_back(this);
     localSize = l2arg1z;
-    ceRegs = halfWord | Bits(23);   /* halfWord + [23] */
     if (localSize == 0) {
         initScalars();          // reads the first token itself
         return;
@@ -9734,7 +9751,7 @@ void initOptions(int argc, char **argv)
             continue;
         case 's':
             curVal.ii = strtoul(optarg, 0, 0);
-            if (curVal.ii > 9) {
+            if (curVal.ii > 7) {
                 fprintf(stderr, "%s: Bad option -s\n", progname);
                 exit(-1);
             }

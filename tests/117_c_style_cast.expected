@@ -1,0 +1,12 @@
+ CHAR     65  66
+ PTR       7  1  0
+ PTRPTR    7
+ FNPTR    42
+ ORDER    1  0
+ WIDEN   7.00E+00 3.00E+00
+ TRUNC     6  -6   6
+ PREC     12  13
+ PRECF   3.50E+00 3.00E+00
+ MULTI    10  20  30  40
+ TYPEDEF  50  20  30  40
+ UNARY     3   -65   7
