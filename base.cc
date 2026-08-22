@@ -602,7 +602,6 @@ struct SigRec : public BESM6Obj {
 typedef char charmap[128];
 typedef char textmap[128];
 
-typedef int64_t four[5]; // [1..4]
 typedef int64_t Entries[43]; // [1..42]
 
 struct Expr : public BESM6Obj {
@@ -904,7 +903,7 @@ IdentRecPtr flatMemVar;
 
 TPtr arg1Type, arg2Type;
 
-NumLabel numLabs[21];    // array [1..20] of numLabel
+NumLabel numLabs[20];
 int64_t numLabTop;
 Word curToken, curVal;
 const int64_t extSymMask = 043000000L;
@@ -951,10 +950,10 @@ int64_t symTab[SYMTAB_LIMIT + 1]; // array [74000B..75500B] of int64_t;
 extern int64_t systemProcNames[5];
 extern int64_t resWordNameBase[19];
 int64_t longSymCnt;
-int64_t longSymTabBase[91];
-int64_t longSyms[91]; // array [1..90] of int64_t;
-Word constVals[MAXLIT+1]; // array [1..500] of Alfa;
-int64_t constNums[MAXLIT+1];
+int64_t longSymTabBase[90];
+int64_t longSyms[90];
+Word constVals[MAXLIT];
+int64_t constNums[MAXLIT];
 int64_t objBuffer[OBJBUF_SIZE+1]; // array [1..1024] of int64_t;
 char koi2text[256];
 std::vector<int64_t> FCST; // file of int64_t; /* last */
@@ -1626,18 +1625,18 @@ int64_t allocExtSymbol(int64_t newSym)
     curVal.ii &= 0xFFFFFFFFFFFFL; // 48-bit word; see allocSymtab
     if (curVal.ii & halfWord) {
         int64_t i;
-        for (i = 1; i <= longSymCnt; ++i) {
+        for (i = 0; i < longSymCnt; ++i) {
             if (curVal.ii == longSyms[i]) {
                 return longSymTabBase[i];
             }
         }
-        longSymCnt++;
         if (longSymCnt >= 90) {
             error(51); /* errLongSymbolOverflow */
-            longSymCnt = 1;
+            longSymCnt = 0;
         };
         longSymTabBase[longSymCnt] = symTabPos;
         longSyms[longSymCnt] = curVal.ii;
+        longSymCnt++;
         newSym |= 020000000;
     } else {
         newSym |= curVal.ii;
@@ -1673,17 +1672,17 @@ int64_t addCurValToFCST()
 {
     int64_t ret;
     int64_t low, high, mid;
-    low = 1;
+    low = 0;
     static std::set<int64_t> lits;
     if (FcstTotal == 0) {
         ret = FcstCnt;
         FcstTotal = 1;
-        constVals[1] = curVal;
-        constNums[1] = FcstCnt;
+        constVals[0] = curVal;
+        constNums[0] = FcstCnt;
         toFCST();
         lits.insert(curVal.ii);
     } else {
-        high = FcstTotal;
+        high = FcstTotal - 1;
         do {
             mid = (low + high) / 2;
             if (curVal.a.val == constVals[mid].a.val) {
@@ -1700,7 +1699,7 @@ int64_t addCurValToFCST()
                 high = mid;
             else
                 high = mid + 1;
-            for (mid = FcstTotal; mid >= high; --mid) {
+            for (mid = FcstTotal - 1; mid >= high; --mid) {
                 low = mid + 1;
                 constVals[low] = constVals[mid];
                 constNums[low] = constNums[mid];
@@ -4198,8 +4197,8 @@ void genGetElt()
     TPtr l5var26z;
     ilmode l5ilm28z;
     ExprPtr l5var29z, idxExpr, baseExpr;
-    InsnListPtr getEltInsns[11]; // array [1..10] of InsnListPtr;
-    int64_t idxOffsets[11];       // array [1..10] of integer;
+    InsnListPtr getEltInsns[10];
+    int64_t idxOffsets[10];
     ExprPtr & exprToGen = genFullExpr::super.back()->exprToGen;
     InsnList * &saved = formOperator::super.back()->saved;
 
@@ -4210,7 +4209,6 @@ void genGetElt()
     isFlatMem = baseExpr->op == GETVAR and baseExpr->id1 == flatMemVar;
     l5var29z = exprToGen;
     while (l5var29z->op == GETELT) {
-        dimCnt = dimCnt + 1;
         if (isFlatMem) {
             idxExpr = l5var29z->expr2;
             idxOffsets[dimCnt] = 0;
@@ -4219,6 +4217,7 @@ void genGetElt()
         }
         (void) genFullExpr(idxExpr);
         getEltInsns[dimCnt] = insnList;
+        dimCnt = dimCnt + 1;
         l5var29z = l5var29z->expr1;
     }
     (void) genFullExpr(l5var29z);
@@ -4226,9 +4225,9 @@ void genGetElt()
     insnCopy = *insnList;
     copyPtr = &insnCopy;
     l5var22z.ii = freeRegs;
-    for (curDim = 1; curDim <= dimCnt; ++curDim)
+    for (curDim = 0; curDim < dimCnt; ++curDim)
         l5var22z.ii = l5var22z.ii & ~ getEltInsns[curDim]->regsused;
-    for (curDim = dimCnt; curDim >= 1; curDim--) {
+    for (curDim = dimCnt - 1; curDim >= 0; curDim--) {
         l5var26z = insnCopy.typ.rep()->base;
         l5var25z = insnCopy.typ.rep()->pck;
         l5var7z = insnCopy.typ.rep()->aleft;
@@ -5339,7 +5338,7 @@ void markTypeSym()
 // and a struct type nested inside a function is only visible within that
 // function's own scope in this codebase's Pascal-mirroring conventions.
 struct rangeRec { int64_t aleft, aright; };
-typedef rangeRec rangeList[21]; // array [1..20] of rangeRec;
+typedef rangeRec rangeList[20];
 
 TPtr makeArrayType(int64_t aleft, int64_t aright, TPtr elem, bool makePacked)
 {
@@ -5412,7 +5411,7 @@ struct parseTypeRef {
     parseTypeRef(TPtr & newtype, int64_t skipTarget_);
     ~parseTypeRef() { super.pop_back(); }
     typedef std::pair<int64_t, int64_t> pair;
-    typedef pair pair7[8]; // array [1..7] of pair;
+    typedef pair pair7[7];
     typedef struct {
             int64_t size, count;
             pair7 pairs;
@@ -5749,7 +5748,7 @@ static bool unionMemberBigger(const parseTypeRef::caserec & mx,
     return (mx.size < c.size) or
            (packed and (c.size == 1) and (mx.size == 1) and
             (c.count == 1) and (mx.count == 1) and
-            (c.pairs[1].first < mx.pairs[1].first));
+            (c.pairs[0].first < mx.pairs[0].first));
 }
 
 // Assigns fld's offset (and, in a __packed struct, its bit shift/width)
@@ -5771,7 +5770,7 @@ void packOneField(IdentRecPtr fld, TPtr fldType)
         fieldWidth = typeBits(fldType);
         fld->width() = fieldWidth;
         if (fieldWidth != 48) {
-            for (pairIdx = 1; pairIdx <= cases.count; ++pairIdx) {
+            for (pairIdx = 0; pairIdx < cases.count; ++pairIdx) {
 L11523:         curSlot = &cases.pairs[pairIdx];
                 if (curSlot->first >= fieldWidth) {
                     fld->shift() = 48 - curSlot->first;
@@ -5780,18 +5779,18 @@ L11523:         curSlot = &cases.pairs[pairIdx];
                         fld->shift() = 48 - fld->width() - fld->shift();
                     curSlot->first = curSlot->first - fieldWidth;
                     if (curSlot->first == 0) {
-                        cases.pairs[pairIdx] = cases.pairs[cases.count];
                         cases.count = cases.count - 1;
+                        cases.pairs[pairIdx] = cases.pairs[cases.count];
                     }
                     goto L11622;
                 }
             }
             if (cases.count != 7) {
-                cases.count = cases.count + 1;
                 pairIdx = cases.count;
+                cases.count = cases.count + 1;
             } else {
                 minFirst = 48;
-                for (scanIdx = 1; scanIdx <= 7; ++scanIdx) {
+                for (scanIdx = 0; scanIdx < 7; ++scanIdx) {
                     curFirst = cases.pairs[scanIdx].first;
                     if (curFirst < minFirst) {
                         minFirst = curFirst;
@@ -5917,7 +5916,7 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion
     if (isOuterDecl_) {
         rectype.p.psize = cases.size;
         if (isPacked and (cases.size == 1) and (cases.count == 1))
-            rectype.p.bits = 48 - cases.pairs[1].first;
+            rectype.p.bits = 48 - cases.pairs[0].first;
         else
             rectype.p.bits = 48;
         prevField = rectype.rep()->fields;
@@ -6131,15 +6130,15 @@ L12366:             error(errNotAType);
         if (rangeCnt == 20) {
             error(errVarTooComplex);
         } else {
-            rangeCnt = rangeCnt + 1;
             ranges[rangeCnt] = curRange;
+            rangeCnt = rangeCnt + 1;
         }
         checkSymAndRead(RBRACK);
     }
     curType = tempType;
-    for (curDim = rangeCnt; curDim >= 1; --curDim) {
+    for (curDim = rangeCnt - 1; curDim >= 0; --curDim) {
         curType = makeArrayType(ranges[curDim].aleft, ranges[curDim].aright,
-                                curType, isPacked and (curDim == 1));
+                                curType, isPacked and (curDim == 0));
     }
     if (rangeCnt != 0)
         isPacked = false;
@@ -6286,20 +6285,20 @@ void labCheckAndDefine(bool isDef)
     int64_t labIdx;
     int64_t &labFence = programme::super.back()->labFence;
 
-    labIdx = numLabTop;
-    while (labIdx > labFence and numLabs[labIdx].id != curToken)
+    labIdx = numLabTop - 1;
+    while (labIdx >= labFence and numLabs[labIdx].id != curToken)
         labIdx = labIdx - 1;
-    if (labIdx == labFence) {
+    if (labIdx < labFence) {
         if (numLabTop >= 20) {
             error(50); /* errSymbolTableOverflow */
             return;
         }
-        numLabTop = numLabTop + 1;
         numLabs[numLabTop].id = curToken;
         numLabs[numLabTop].offset = 0;
         numLabs[numLabTop].line = lineCnt;
         numLabs[numLabTop].defined = false;
         labIdx = numLabTop;
+        numLabTop = numLabTop + 1;
     }
     if (isDef) {
         if (numLabs[labIdx].defined) {
@@ -9420,11 +9419,11 @@ L23301:
     }
     done = true;
     while (numLabTop > labFence) {
+        numLabTop = numLabTop - 1;
         if (not numLabs[numLabTop].defined) {
             printf(" %ld:", int64_t(numLabs[numLabTop].id.ii));
             done = false;
         }
-        numLabTop = numLabTop - 1;
     }
     if (not done) {
         printTextWord(procName->id);
@@ -9595,7 +9594,7 @@ void finalize()
     */
     CHILD.insert(CHILD.end(), FCST.begin(), FCST.end());
     curVal.ii = (symTabPos - 070000L) * 0100000000L;
-    for (cnt = 1; cnt <= longSymCnt; ++cnt) {
+    for (cnt = 0; cnt < longSymCnt; ++cnt) {
         idx = longSymTabBase[cnt];
         symTab[idx] |= curVal.ii & leftAddr;
         curVal.ii = (curVal.ii + 0100000000L);
@@ -9603,7 +9602,7 @@ void finalize()
     symTabPos = symTabPos - 1;
     for (cnt = 074000; cnt <= symTabPos; ++cnt)
         CHILD.push_back(symTab[cnt]);
-    for (cnt = 1; cnt <= longSymCnt; ++cnt)
+    for (cnt = 0; cnt < longSymCnt; ++cnt)
         CHILD.push_back(longSyms[cnt]);
     if (PASINFOR.listMode != 0) {
         printf("%6ld LINES STRUCTURE ", lineCnt - 1);

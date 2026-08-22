@@ -291,7 +291,6 @@ typedef union {
 typedef __packed char charmap['\0'..'\176'];
 typedef __packed int:6 textmap['\52'..'\177'];
 //
-typedef int four[1..4];
 typedef int entries[42];
 //
 typedef struct {
@@ -473,7 +472,7 @@ irptr flatMemVar;
 tptr symType; // the type denoted by the current TYPESY
 tptr arg1Type;
 tptr arg2Type;
-numLabel numLabs[1..20];
+numLabel numLabs[20];
 int numLabTop;
 word curToken;
 word curVal;
@@ -633,10 +632,10 @@ int resWordName[19] = {
         t'   UNION',
         t'  RETURN' };
 int longSymCnt;
-int longSym[1..90];
-int longSyms[1..90];
-int constVals[1..500];
-int constNums[1..500];
+int longSym[90];
+int longSyms[90];
+int constVals[500];
+int constNums[500];
 int objBuffer[1..1024];
 char iso2text['*'..'\177'];
 int maxHeap;
@@ -754,13 +753,13 @@ void toFCST() {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int addCurValToFCST() {
 int low, high, mid;
-    low  =  1;
+    low  =  0;
     if (FcstCountTo500 == 0) {
         FcstCountTo500  =  1;
-        constVals[1]  =  curVal.i;
-        constNums[1]  =  FcstCnt;
+        constVals[0]  =  curVal.i;
+        constNums[0]  =  FcstCnt;
     } else {
-        high  =  FcstCountTo500;
+        high  =  FcstCountTo500 - 1;
         do {
             mid  =  (low + high) / 2;
             if (curVal.i == constVals[mid]) {
@@ -773,7 +772,7 @@ int low, high, mid;
         } while (high >= low);
         if (FcstCountTo500 != 500) {
             high  =  (uword)curval.i < (uword)constVals[mid] ? mid : mid + 1;
-            for (mid  =  FcstCountTo500; mid >= high; --mid) {
+            for (mid  =  FcstCountTo500 - 1; mid >= high; --mid) {
                 low  =  mid + 1;
                 constVals[low]  =  constVals[mid];
                 constNums[low]  =  constNums[mid];
@@ -1016,17 +1015,17 @@ void putToSymTab(int arg) {
 int allocExtSymbol(int sym) {
 int i;
     if (curVal.i & halfWord) {
-        for (i = 1; i <= longSymCnt; ++i)
+        for (i = 0; i < longSymCnt; ++i)
             if (curVal.i == longSyms[i]) {
                 return longSym[i];
             }
-        ++longSymCnt;
         if (longSymCnt >= 90) {
             error(51); /* errLongSymbolOverflow */
-            longSymCnt  =  1;
+            longSymCnt  =  0;
         }
         longSym[longSymCnt]  =  symTabPos;
         longSyms[longSymCnt]  =  curVal.i;
+        ++longSymCnt;
         sym  |=  020000000U;
     } else
         sym  |=  curVal.i;
@@ -3352,8 +3351,8 @@ int l5var25z, isFlatMem;
 tptr l5var26z;
 ilmode l5ilm28z;
 eptr l5var29z, idxExpr, baseExpr;
-insnltyp *getEltInsns[1..10];
-int idxOffsets[1..10];
+insnltyp *getEltInsns[10];
+int idxOffsets[10];
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     dimCnt  =  0;
@@ -3364,7 +3363,6 @@ int idxOffsets[1..10];
                 (baseExpr->id1 == flatMemVar);
     l5var29z  =  exprToGen;
     while (l5var29z->op == GETELT) {
-        ++dimCnt;
         if (isFlatMem) {
             idxExpr = l5var29z->expr2;
             idxOffsets[dimCnt] = 0;
@@ -3372,6 +3370,7 @@ int idxOffsets[1..10];
             idxExpr = stripIdx(l5var29z->expr2, &idxOffsets[dimCnt]);
         genFullExpr(idxExpr);
         getEltInsns[dimCnt]  =  insnList;
+        ++dimCnt;
         l5var29z  =  l5var29z->expr1;
     }
     genFullExpr(l5var29z);
@@ -3379,9 +3378,9 @@ int idxOffsets[1..10];
     insnCopy  =  *insnList;
     copyPtr  =  &insnCopy;
     l5var22z  =  freeRegs;
-    for (curDim = 1; curDim <= dimCnt; ++curDim)
+    for (curDim = 0; curDim < dimCnt; ++curDim)
         l5var22z &= ~getEltInsns[curDim]->regsused;
-    for (curDim = dimCnt; curDim >= 1; --curDim) {
+    for (curDim = dimCnt - 1; curDim >= 0; --curDim) {
         l5var26z  =  insnCopy.typ.rep->base;
         l5var25z  =  insnCopy.typ.rep->pck;
         l5var7z  =  insnCopy.typ.rep->aleft;
@@ -4615,7 +4614,7 @@ void markTypeSym() {
 typedef struct {
             int aleft, aright;
 } rangeRec;
-typedef rangeRec rangeList[1..20];
+typedef rangeRec rangeList[20];
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Array bounds are const-expressions.  parseRange evaluates each bound with
@@ -4698,7 +4697,7 @@ typedef struct {
             sigptr sig;
             rangeRec range;
 } dclOp;
-typedef dclOp dclOpList[1..24];
+typedef dclOp dclOpList[24];
 
 dclOpList declOps;
 int declOpCount;
@@ -4743,8 +4742,8 @@ int wasGroup;
     if (charClass == MUL) {
         inSymbol();
         readDeclaratorCore(d);
-        ++declOpCount;
         declOps[declOpCount].opKind  =  opPtr;
+        ++declOpCount;
     } else if (SY == LPAREN) {
         inSymbol();
         readDeclaratorCore(d);
@@ -4772,34 +4771,36 @@ int wasGroup;
     }
     while ((SY == LBRACK) || (wasGroup && (SY == LPAREN))) {
         if (SY == LPAREN) {
-            ++declOpCount;
             declOps[declOpCount].opKind  =  opFun;
-            declOps[declOpCount].sig  =  parseSignature();
+            /* parseSignature takes declOpCount as its own stack base, so this
+               entry's slot is claimed before the call rather than after. */
+            ++declOpCount;
+            declOps[declOpCount-1].sig  =  parseSignature();
         } else {
             parseRange(&r.aleft, &r.aright);
             checkSymAndRead(RBRACK);
-            ++declOpCount;
             declOps[declOpCount].opKind  =  opArray;
             declOps[declOpCount].range  =  r;
+            ++declOpCount;
         }
     }
 } /* readDeclaratorCore */
 
 // packedFlag mirrors parseTypeRef's own array-suffix handling ('TYPE
-// [range]', its curDim==1 case): only the outermost array dimension of
+// [range]', its curDim==0 case): only the outermost array dimension of
 // a multi-dim declarator (e.g. int matrix[2][3]'s [2]) carries it, since
 // makeArrayType's flag describes how elements of the final array are
 // packed, not
 // each nesting level. declOps is applied innermost-first (index
-// declOpCount down to base+1, i.e. reverse of source order), so the
-// outermost dimension is declOps[base+1], processed last.
+// declOpCount-1 down to base, i.e. reverse of source order), so the
+// outermost dimension is declOps[base], processed last.
 //
 // isForwardRef: baseType is already the forward-reference placeholder
 // pointer itself (see parseTypeRef's isForwardRef output above) --
 // applying getPtrType on top would compact-encode a second, bogus
 // pointer-to-pointer layer that never gets patched when the real type
 // is later defined. Only the very first op can be this case (index
-// declOpCount, applied directly to baseType).
+// declOpCount-1, applied directly to baseType).
 // Out-param, not return-by-value: 'declarator' is a multi-word struct,
 // and P2C routines (like the Pascal they're translated from) can only
 // return a single-word result.
@@ -4819,12 +4820,12 @@ int i;
     readDeclaratorCore(d);
     d->typ  =  baseType;
     d->ptrOnly  =  true;
-    for (i = declOpCount; i > base; --i) {
+    for (i = declOpCount - 1; i >= base; --i) {
         /* A switch loads the indexed field once per operator and turns each
            kind into a label. */
         switch (declOps[i].opKind) {
         case opPtr:
-            if (! ((i == declOpCount) && isForwardRef))
+            if (! ((i == declOpCount - 1) && isForwardRef))
                 d->typ  =  getPtrType(d->typ);
             break;
         case opFun:
@@ -4834,7 +4835,7 @@ int i;
         default:
             d->typ  =  makeArrayType(declOps[i].range.aleft,
                                     declOps[i].range.aright, d->typ,
-                                    packedFlag && (i == base + 1));
+                                    packedFlag && (i == base));
             d->ptrOnly  =  false;
         }
     }
@@ -4919,7 +4920,7 @@ tptr parseTypeRef(setofsys skipTarget) {
 typedef struct {
             int first, second;
 } pair;
-typedef pair pair7[1..7];
+typedef pair pair7[7];
 typedef struct {
             int size, count;
             pair7 pairs;
@@ -4991,8 +4992,8 @@ pair *curSlot;
             wholeWord  =  false;
             placed  =  false;
             while (! placed) {
-                pairIdx  =  1;
-                while ((pairIdx <= cases.count) && (! placed)) {
+                pairIdx  =  0;
+                while ((pairIdx < cases.count) && (! placed)) {
                     curSlot  =  &cases.pairs[pairIdx];
                     if (curSlot->first >= fieldWidth) {
                         curField->shift  =  48 - curSlot->first;
@@ -5002,9 +5003,9 @@ pair *curSlot;
                                                   curField->shift;
                         curSlot->first  =  curSlot->first - fieldWidth;
                         if (curSlot->first == 0) {
+                            --cases.count;
                             cases.pairs[pairIdx]  =
                                 cases.pairs[cases.count];
-                            --cases.count;
                         }
                         placed  =  true;
                     }
@@ -5012,11 +5013,11 @@ pair *curSlot;
                 }
                 if (! placed) {
                     if (cases.count != 7) {
-                        ++cases.count;
                         pairIdx  =  cases.count;
+                        ++cases.count;
                     } else {
                         minFirst  =  48;
-                        for (scanIdx = 1; scanIdx <= 7; ++scanIdx) {
+                        for (scanIdx = 0; scanIdx < 7; ++scanIdx) {
                             curFirst  =  cases.pairs[scanIdx].first;
                             if (curFirst < minFirst) {
                                 minFirst  =  curFirst;
@@ -5095,7 +5096,7 @@ pair *curSlot;
             if (isUnion && ((cases2.size < cases.size) ||
                 isPacked && (cases.size == 1) && (cases2.size == 1) &&
                 (cases.count == 1) && (cases2.count == 1) &&
-                (cases.pairs[1].first < cases2.pairs[1].first)))
+                (cases.pairs[0].first < cases2.pairs[0].first)))
                 cases2  =  cases;
             if (SY == SEMICOLON) {
                 lookupMode  =  lookField;
@@ -5154,7 +5155,7 @@ pair *curSlot;
                     if (isUnion && ((cases2.size < cases.size) ||
                         isPacked && (cases.size == 1) && (cases2.size == 1) &&
                         (cases.count == 1) && (cases2.count == 1) &&
-                        (cases.pairs[1].first < cases2.pairs[1].first)))
+                        (cases.pairs[0].first < cases2.pairs[0].first)))
                         cases2  =  cases;
                     cond  =  (curField == curEnum);
                     curField  =  curField->list;
@@ -5173,7 +5174,7 @@ pair *curSlot;
     if (isOuterDecl) {
         rectype->p.psize  =  cases.size;
         if (isPacked && (cases.size == 1) && (cases.count == 1)) {
-            rectype->p.bits  =  48 - cases.pairs[1].first;
+            rectype->p.bits  =  48 - cases.pairs[0].first;
         } else {
             rectype->p.bits  =  48;
         }
@@ -5374,16 +5375,16 @@ pair *curSlot;
         if (rangeCnt == 20) {
             error(errVarTooComplex);
         } else {
-            ++rangeCnt;
             ranges[rangeCnt]  =  curRange;
+            ++rangeCnt;
         }
         checkSymAndRead(RBRACK);
     }
     curType  =  tempType;
-    for (curDim = rangeCnt; curDim >= 1; --curDim) {
+    for (curDim = rangeCnt - 1; curDim >= 0; --curDim) {
         curType  =  makeArrayType(ranges[curDim].aleft,
                                   ranges[curDim].aright, curType,
-                                  isPacked && (curDim == 1));
+                                  isPacked && (curDim == 0));
     }
     if (rangeCnt != 0)
         isPacked  =  false;
@@ -5517,15 +5518,14 @@ int l3int1z, frame, l3var3z;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void labCheckAndDefine(int isDef) {
 int labIdx;
-    labIdx  =  numLabTop;
-    while ((labIdx > labFence) && (numLabs[labIdx].id != curToken.i))
+    labIdx  =  numLabTop - 1;
+    while ((labIdx >= labFence) && (numLabs[labIdx].id != curToken.i))
         --labIdx;
-    if (labIdx == labFence) {
+    if (labIdx < labFence) {
             if (numLabTop >= 20) {
                 error(50); /* errSymbolTableOverflow */
                 return;
             }
-            ++numLabTop;
             { register numLabel *nlp = &numLabs[numLabTop];
                 nlp->id  =  curToken.i;
                 nlp->offset  =  0;
@@ -5533,6 +5533,7 @@ int labIdx;
                 nlp->defined  =  false;
             }
             labIdx  =  numLabTop;
+            ++numLabTop;
     }
     { register numLabel *nlp = &numLabs[labIdx];
         if (isDef) {
@@ -8566,11 +8567,11 @@ void exitScope(int a) {
     }
     l2bool8z  =  true;
     while (numLabTop > labFence) {
+        --numLabTop;
         if (! numLabs[numLabTop].defined) {
             write(' ', numLabs[numLabTop].id:0, ':');
             l2bool8z  =  false;
         }
-        --numLabTop;
     }
     if (! l2bool8z) {
         printTextWord(procName->id);
@@ -8689,7 +8690,7 @@ int sizes[10];
         fputw(fgetw(&FCST), &_CHILD_);
     }
     curVal.i  =  (symTabPos - 070000) << 24;
-    for (cnt = 1; cnt <= longSymCnt; ++cnt) {
+    for (cnt = 0; cnt < longSymCnt; ++cnt) {
         idx  =  longSym[cnt];
         symTab[idx]  =  symTab[idx] | curVal.i & [9:23];
         curVal.i += 0100000000;
@@ -8697,7 +8698,7 @@ int sizes[10];
     --symTabPos;
     for (cnt  =  074000; cnt <= symTabPos; ++cnt)
         fputw(symTab[cnt], &_CHILD_);
-    for (cnt = 1; cnt <= longSymCnt; ++cnt)
+    for (cnt = 0; cnt < longSymCnt; ++cnt)
         fputw(longSyms[cnt], &_CHILD_);
     fclose(&_CHILD_);
     if (PASINFOR.listMode != 0) {
