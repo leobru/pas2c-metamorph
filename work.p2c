@@ -211,7 +211,7 @@ typedef __packed __lsb struct {
     typptr rep;
     int:6 bits;
     int:15 psize;
-    int:8 pad;
+    int:8 pad;             /* packed-array element width, or pointer metadata */
     kind pk;
 } pckrep;
 typedef union {
@@ -280,9 +280,7 @@ typedef struct {
 //
 typedef union {
     struct { tptr abase;
-            int pck;
-            int perword,
-            pcksize, asize; int szArray; };
+            int perword, asize; int szArray; };
     struct { irptr enums;
             int numen,
             start; int szScalar; };
@@ -1806,7 +1804,7 @@ inptr icand;
         if (arrayType.p.pk == kindArray &&
             arrayType.rep->base == elementType &&
             arrayType.rep->asize == asize &&
-            arrayType.rep->pck == makePacked)
+            ((arrayType.p.pad != 0) == makePacked))
             return arrayType;
         icand  =  icand->inext;
     }
@@ -1837,12 +1835,11 @@ inptr icand;
     { register types *ty = (arrayType.rep);
         ty->asize  =  asize;
         ty->base  =  elementType;
-        ty->pck  =  makePacked;
         ty->perword  =  perwordVal;
-        ty->pcksize  =  pcksizeVal;
     }
     arrayType.p.psize  =  sizeVal;
     arrayType.p.bits  =  bitsVal;
+    arrayType.p.pad  =  pcksizeVal;
     arrayType.p.pk  =  kindArray;
     icand  =  malloc(sizeof(internrec));
     icand->ityp  =  arrayType;
@@ -2225,13 +2222,8 @@ sigptr p1, p2;
                 case kindArray:
                     if (typeCheck(type1.rep->base, type2.rep->base) &&
                        (type1.rep->asize == type2.rep->asize) &&
-                       (type1.rep->pck == type2.rep->pck)) {
-                        if (type1.rep->pck) {
-                            if (type1.rep->pcksize == type2.rep->pcksize)
-                                goto 1;
-                        } else
-                            goto 1;
-                    }
+                       (type1.p.pad == type2.p.pad))
+                        goto 1;
                     break;
                 case kindRoutine:
                     if (sameRoutineType(type1, type2))
@@ -3368,7 +3360,7 @@ insnltyp insnCopy;
 insnltyp *copyPtr, *l5ins21z;
 int l5var22z, l5var23z;
 int l5var24z;
-int l5var25z, isFlatMem;
+int isPacked, isFlatMem;
 tptr l5var26z;
 ilmode l5ilm28z;
 eptr l5var29z, idxExpr, baseExpr;
@@ -3403,7 +3395,7 @@ int idxOffsets[10];
         l5var22z &= ~getEltInsns[curDim]->regsused;
     for (curDim = dimCnt - 1; curDim >= 0; --curDim) {
         l5var26z  =  insnCopy.typ.rep->base;
-        l5var25z  =  insnCopy.typ.rep->pck;
+        isPacked  =  insnCopy.typ.p.pad;
         l5var7z  =  0;
         l5var8z  =  typeSize(l5var26z);
         insnList  =  getEltInsns[curDim];
@@ -3413,27 +3405,27 @@ int idxOffsets[10];
            an effective base after its constant terms have been peeled. */
         if (l5ilm28z != ilCONST)
             l5var7z -= idxOffsets[curDim];
-        if (! l5var25z)
+        if (! isPacked)
             insnCopy.disp  =  insnCopy.disp - l5var8z * l5var7z;
         if (l5ilm28z == ilCONST) {
             curVal.i  =  insnList->payload;
             if ((curVal.i < l5var7z) ||
                (insnCopy.typ.rep->asize <= curVal.i))
                 error(29); /* errIndexOutOfBounds */
-            if (l5var25z) {
+            if (isPacked) {
                 l5var4z  =  curVal.i - l5var7z;
                 l5var5z  =  insnCopy.typ.rep->perword;
                 insnCopy.regsused |= E48;
                 insnCopy.disp  =  l5var4z / l5var5z + insnCopy.disp;
                 l5var6z  =  (l5var5z-1-l5var4z % l5var5z) *
-                           insnCopy.typ.rep->pcksize;
+                           insnCopy.typ.p.pad;
                 switch (insnCopy.st) {
                 case stWORD: insnCopy.shift  =  l5var6z; break;
                 case stSLICE: insnCopy.shift  =  insnCopy.shift + l5var6z +
                                            typeBits(insnCopy.typ) - 48; break;
                 case stPACKED: error(errUsingVarAfterIndexingPackedArray);
                 } /* switch */
-                insnCopy.width  =  insnCopy.typ.rep->pcksize;
+                insnCopy.width  =  insnCopy.typ.p.pad;
                 insnCopy.st  =  stSLICE;
             }  else {
                 insnCopy.disp  =  curVal.i  * typeSize(l5var26z) +
@@ -3454,7 +3446,7 @@ int idxOffsets[10];
               (insnList->st != stWORD))
                prepLoad();
            l5var23z  =  insnCopy.regsused | insnList->regsused;
-           if (! l5var25z) {
+           if (! isPacked) {
                if (insnCopy.addrmd == 18) {
                     if (insnList->ilm == ilRVAL) {
                         insnCopy.addrmd  =  15;
@@ -3527,7 +3519,7 @@ int idxOffsets[10];
                     insnCopy.st  =  stPACKED;
                     insnCopy.disp  =  0;
                     insnCopy.payload  =  0;
-                    insnCopy.width  =  insnCopy.typ.rep->pcksize;
+                    insnCopy.width  =  insnCopy.typ.p.pad;
                     curVal.i  =  insnCopy.width;
                     if (curVal.i == 24)
                         curVal.i  =  7;
@@ -6327,7 +6319,7 @@ eptr leftExpr;
                 curExpr->typ = charPtrType;
             } else if ((curExpr->op == GETELT) &&
                        isCharArray(curExpr->expr1->typ) &&
-                       curExpr->expr1->typ.rep->pck) {
+                       (curExpr->expr1->typ.p.pad != 0)) {
                 /* A packed char array holds six 8-bit bytes to a word, so an
                    element's byte index is the array's word address times six
                    plus the zero-based index. */
@@ -7259,7 +7251,7 @@ void checkElement() {
     }
     if (isCharArray(l4typ3z)) {
         defWidth  =  l4typ3z.rep->asize;
-        if (! l4typ3z.rep->pck)
+        if (l4typ3z.p.pad == 0)
             helperNo  =  49;            /* P/WA */
         else if (6 >= defWidth)
             helperNo  =  23;            /* P/A6 */
@@ -7842,13 +7834,12 @@ void regSysProc(int l4arg1z) {
     flatMemType.rep = malloc(offsetof(types, szArray));
     { register types *ty = (flatMemType.rep);
         ty->base = charType;
-        ty->pck = true;
         ty->perword = 6;
-        ty->pcksize = 8;
         ty->asize = 32768 * 6;
     }
     flatMemType.p.psize = 32767;
     flatMemType.p.bits = 48;
+    flatMemType.p.pad = 8;
     flatMemType.p.pk = kindArray;
     flatMemVar = malloc(offsetof(identrec, szIdent));
     { register identrec *ir = flatMemVar;

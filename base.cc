@@ -429,7 +429,7 @@ struct PckRep {
     uint64_t bits  : 6;
     uint64_t pk    : 3;    // Kind
     uint64_t psize : 15;
-    uint64_t pad   : 8;    // multi-use
+    uint64_t pad   : 8;    // packed-array element width, or pointer metadata
 };
 
 struct TPtr {
@@ -561,8 +561,7 @@ struct Types : public BESM6Obj {
     union {
         struct {                       // kindArray
             TPtr base;
-            int64_t pck;               // boolean
-            int64_t perword, pcksize, asize;
+            int64_t perword, asize;
             int64_t szArray;
         };
         struct {                       // kindScalar
@@ -3081,13 +3080,8 @@ L1:     return true;
             case kindArray:
                 if (typeCheck(type1.rep()->base, type2.rep()->base) and
                     (type1.rep()->asize == type2.rep()->asize) and
-                    (type1.rep()->pck == type2.rep()->pck)) {
-                    if (type1.rep()->pck) {
-                        if (type1.rep()->pcksize == type2.rep()->pcksize)
-                            goto L1;
-                    } else
-                        goto L1;
-                }
+                    (type1.p.pad == type2.p.pad))
+                    goto L1;
                 break;
             case kindRoutine:
                 if (sameRoutineType(type1, type2))
@@ -4264,7 +4258,7 @@ void genGetElt()
         l5var22z.ii = l5var22z.ii & ~ getEltInsns[curDim]->regsused;
     for (curDim = dimCnt - 1; curDim >= 0; curDim--) {
         l5var26z = insnCopy.typ.rep()->base;
-        l5var25z = insnCopy.typ.rep()->pck;
+        l5var25z = insnCopy.typ.p.pad != 0;
         l5var7z = 0;
         l5var8z = typeSize(l5var26z);
         insnList = getEltInsns[curDim];
@@ -4287,7 +4281,7 @@ void genGetElt()
                 insnCopy.regsused = insnCopy.regsused | Bits(0L);
                 insnCopy.disp = l5var4z / l5var5z + insnCopy.disp;
                 l5var6z = (l5var5z-1-l5var4z % l5var5z) *
-                    insnCopy.typ.rep()->pcksize;
+                    insnCopy.typ.p.pad;
                 switch (insnCopy.st) {
                 case stWORD: insnCopy.shift = l5var6z;
                     break;
@@ -4297,7 +4291,7 @@ void genGetElt()
                 case stPACKED: error(errUsingVarAfterIndexingPackedArray);
                     break;
                 } /* case */
-                insnCopy.width = insnCopy.typ.rep()->pcksize;
+                insnCopy.width = insnCopy.typ.p.pad;
                 insnCopy.st = stSLICE;
             } /* 6116 */ else {
                 insnCopy.disp = curVal.ii  * typeSize(l5var26z) +
@@ -4391,7 +4385,7 @@ void genGetElt()
                     insnCopy.st = stPACKED;
                     insnCopy.disp = 0;
                     insnCopy.payload.ii = 0;
-                    insnCopy.width = insnCopy.typ.rep()->pcksize;
+                    insnCopy.width = insnCopy.typ.p.pad;
                     curVal.ii = insnCopy.width;
                     if (curVal.ii == 24)
                         curVal.ii = 7;
@@ -5392,7 +5386,7 @@ TPtr makeArrayType(int64_t asize, TPtr elem, bool makePacked)
         if (arrayType.p.pk == kindArray and
             arrayType.rep()->base == elem and
             arrayType.rep()->asize == asize and
-            arrayType.rep()->pck == makePacked)
+            ((arrayType.p.pad != 0) == makePacked))
             return arrayType;
         icand = icand->inext;
     }
@@ -5425,11 +5419,10 @@ TPtr makeArrayType(int64_t asize, TPtr elem, bool makePacked)
     arrayType.setRep(besm6_alloc_record<Types>(offsetof(Types, szArray)));
     arrayType.rep()->asize = asize;
     arrayType.rep()->base = elem;
-    arrayType.rep()->pck = makePacked;
     arrayType.rep()->perword = perwordVal;
-    arrayType.rep()->pcksize = pcksizeVal;
     arrayType.p.psize = sizeVal;
     arrayType.p.bits = bitsVal;
+    arrayType.p.pad = pcksizeVal;
     arrayType.p.pk = kindArray;
     icand = new InternRec;
     icand->ityp = arrayType;
@@ -7162,7 +7155,7 @@ void parseUnaryExpression()
                 curExpr->vt.typ = charPtrType;
             } else if (curExpr->op == GETELT and
                        isCharArray(curExpr->expr1->vt.typ) and
-                       curExpr->expr1->vt.typ.rep()->pck) {
+                       curExpr->expr1->vt.typ.p.pad != 0) {
                 /* A packed char array holds six 8-bit bytes to a word, so an
                    element's byte index is the array's word address times six
                    plus the zero-based index. */
@@ -8032,7 +8025,7 @@ struct standProc {
             defWidth = 10;
         } else if (isCharArray(l4typ3z)) {
             defWidth = l4typ3z.rep()->asize;
-            if (not l4typ3z.rep()->pck)
+            if (l4typ3z.p.pad == 0)
                 helperNo = 49;            /* P/WA */
             else if (6 >= defWidth)
                 helperNo = 23;            /* P/A6 */
@@ -8702,12 +8695,11 @@ initScalars::initScalars() :
     flatMemType.setRep(
         besm6_alloc_record<Types>(offsetof(Types, szArray)));
     flatMemType.rep()->base = CharType;
-    flatMemType.rep()->pck = true;
     flatMemType.rep()->perword = 6;
-    flatMemType.rep()->pcksize = 8;
     flatMemType.rep()->asize = 32768 * 6;
     flatMemType.p.psize = 32767;
     flatMemType.p.bits = 48;
+    flatMemType.p.pad = 8;
     flatMemType.p.pk = kindArray;
 
     flatMemVar = besm6_alloc_record<IdentRec>(
