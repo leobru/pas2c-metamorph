@@ -8,7 +8,7 @@ typedef __packed struct {
     int c;
 } tiny;
 point p;
-int words[1..8];
+int words[8];
 void main() {
     writeln(" size int=", sizeof(int):0);
     writeln(" size point=", sizeof(point):0);

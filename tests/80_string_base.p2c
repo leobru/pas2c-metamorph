@@ -2,7 +2,7 @@
 //
 // A string constant and a declared packed char array are the same
 // zero-based type.
-typedef __packed char alfa[0..5];
+typedef __packed char alfa[6];
 alfa a;
 char s[6];
 int i;

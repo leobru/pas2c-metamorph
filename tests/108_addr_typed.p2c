@@ -8,25 +8,25 @@
 //
 // A char lvalue keeps its own rule, a 'char *' being a byte index into flat
 // memory: an element of a packed char array, six bytes to a word, is the
-// array's word address times six plus the index counted from the array's
-// lower bound, while an unpacked array's element has a word to itself and
+// array's word address times six plus the index, while an unpacked array's
+// element has a word to itself and
 // its value sits in the rightmost byte.
 //
 typedef struct { int a, b, c; } w3;
 //
 int x;
-int arr[0..4];
-int (*pa)[0..4];
-w3 t3[0..3];
+int arr[5];
+int (*pa)[5];
+w3 t3[4];
 w3 *p3;
-w3 *ptab[0..3];
+w3 *ptab[4];
 w3 **pp;
 int *p, *q;
-typedef __packed char alfa[0..5];
+typedef __packed char alfa[6];
 alfa al;
-__packed char s[0..11];
-__packed char t[1..6];
-char un[0..5];
+__packed char s[12];
+__packed char t[6];
+char un[6];
 char *cp;
 int i;
 //
@@ -74,10 +74,10 @@ void main() {
         s[i]  =  (char)(65 + i);
     cp  =  &s[7];
     writeln(" WIDE  ", *cp, *(cp - 1), *(cp + 4));
-    // A packed array whose lower bound is not zero.
-    for (i = 1; i <= 6; i = i + 1)
-        t[i]  =  (char)(64 + i);
-    cp  =  &t[3];
+    // The same address calculation on another packed array.
+    for (i = 0; i < 6; i = i + 1)
+        t[i]  =  (char)(65 + i);
+    cp  =  &t[2];
     writeln(" LOWB  ", *cp, *(cp + 2), *(cp - 2));
     // An unpacked char array still has its elements six bytes apart.
     for (i = 0; i <= 5; i = i + 1)

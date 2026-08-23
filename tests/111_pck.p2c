@@ -7,8 +7,8 @@
 //
 int pck(int *) assembler;
 //
-typedef union { int i; __packed char c[0..5]; } wordu;
-int buf[0..5];
+typedef union { int i; __packed char c[6]; } wordu;
+int buf[6];
 wordu u;
 void main() {
     buf[0] = 'A'; buf[1] = 'B'; buf[2] = 'C';

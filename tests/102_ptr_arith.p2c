@@ -14,19 +14,19 @@ typedef struct { int a; } w1;
 typedef struct { int a, b; } w2;
 typedef struct { int a, b, c; } w3;
 typedef struct { int a, b, c, d, e; } w5;
-typedef struct { int x[0..29]; } w30;
+typedef struct { int x[30]; } w30;
 //
-w1 t1[0..3];
-w2 t2[0..3];
-w3 t3[0..3];
-w5 t5[0..3];
-w30 t30[0..3];
+w1 t1[4];
+w2 t2[4];
+w3 t3[4];
+w5 t5[4];
+w30 t30[4];
 w1 *p1, *q1;
 w2 *p2, *q2;
 w3 *p3, *q3;
 w5 *p5, *q5;
 w30 *p30, *q30;
-w3 *ptab[0..3];
+w3 *ptab[4];
 w3 **pp;
 int i, k;
 //

@@ -1,0 +1,6 @@
+/*=k9,l0*/
+// Array brackets contain a size only; the former low..high form is rejected.
+int a[1..3];
+void main() {
+    writeln(" UNREACHED ", a[1]:0);
+}

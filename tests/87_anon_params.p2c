@@ -1,9 +1,9 @@
 /*=k9,l0*/
 // A formal parameter's name is optional: the declarator in a parameter list
-// may be abstract ('int', 'int *', 'int [0..2]').  An unnamed parameter takes
+// may be abstract ('int', 'int *', 'int [3]').  An unnamed parameter takes
 // its argument slot, so the named parameters keep their offsets, and the body
 // has no way to refer to it.
-typedef int triple[0..2];
+typedef int triple[3];
 triple arr = { 11, 22, 33 };
 int cell;
 

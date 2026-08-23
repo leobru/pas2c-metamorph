@@ -23,32 +23,32 @@ int chkWords(int tag, int got, int exp) {
 }
 
 int tsz08() {
-    __packed int:8 a[1..12];
+    __packed int:8 a[12];
     return chkWords(8, sizeof(a), wrdsExp(8));
 }
 
 int tsz16() {
-    __packed int:16 b[1..12];
+    __packed int:16 b[12];
     return chkWords(16, sizeof(b), wrdsExp(16));
 }
 
 int tsz24() {
-    __packed int:24 c[1..12];
+    __packed int:24 c[12];
     return chkWords(24, sizeof(c), wrdsExp(24));
 }
 
 int tsz32() {
-    __packed int:32 d[1..12];
+    __packed int:32 d[12];
     return chkWords(32, sizeof(d), wrdsExp(32));
 }
 
 int tsz40() {
-    __packed int:40 e[1..12];
+    __packed int:40 e[12];
     return chkWords(40, sizeof(e), wrdsExp(40));
 }
 
 int trw08() {
-    __packed int:8 buf[0..13];
+    __packed int:8 buf[14];
     int i;
     int lo;
     int hi;
@@ -102,7 +102,7 @@ int trw08() {
 }
 
 int trw16() {
-    __packed int:16 buf[0..13];
+    __packed int:16 buf[14];
     int i;
     int lo;
     int fail;
@@ -147,7 +147,7 @@ int trw16() {
 }
 
 int trw24() {
-    __packed int:24 buf[0..13];
+    __packed int:24 buf[14];
     int i;
     int lo;
     int fail;
@@ -184,7 +184,7 @@ int trw24() {
 }
 
 int tdense() {
-    __packed int:1 a[1..48];
+    __packed int:1 a[48];
     int i;
     int fail;
     int:1 one;
@@ -196,21 +196,21 @@ int tdense() {
         writeln("FAIL int:1 dense words got=", sizeof(a):0);
         fail = 1;
     }
-    for (i = 1; i <= 48; i = i + 1) {
+    for (i = 0; i < 48; i = i + 1) {
         a[i] = one;
     }
-    for (i = 1; i <= 48; i = i + 1) {
+    for (i = 0; i < 48; i = i + 1) {
         if (a[i] != one) {
             writeln("FAIL int:1 dense at i=", i:0);
             fail = 1;
         }
     }
-    a[25] = zero;
-    if (a[24] != one) {
+    a[24] = zero;
+    if (a[23] != one) {
         writeln("FAIL int:1 dense neighbor");
         fail = 1;
     }
-    if (a[26] != one) {
+    if (a[25] != one) {
         writeln("FAIL int:1 dense neighbor hi");
         fail = 1;
     }

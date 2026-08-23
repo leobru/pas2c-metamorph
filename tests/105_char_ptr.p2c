@@ -10,7 +10,7 @@
 //
 char c, d;
 char *cp, *cq;
-char un[0..5];
+char un[6];
 int i;
 //
 int firstOf(char *s) {

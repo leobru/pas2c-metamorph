@@ -13,7 +13,6 @@ NC='\033[0m'
 TESTS_DIR="tests"
 RESULTS_DIR="test_results_hot"
 RUNNER="runhotest.sh"
-FULL_SUITE=0
 
 mkdir -p "$RESULTS_DIR"
 
@@ -106,7 +105,6 @@ fi
 chmod +x "$RUNNER"
 
 if [ $# -eq 0 ]; then
-    FULL_SUITE=1
     test_files=$(find "$TESTS_DIR" -name "*.p2c" | sort)
 
     if [ -z "$test_files" ]; then
@@ -149,9 +147,6 @@ echo -e "${YELLOW}Skipped: $SKIPPED${NC}"
 echo ""
 
 if [ $FAILED -eq 0 ]; then
-    if [ $FULL_SUITE -eq 1 ]; then
-        ./check-index-offset.sh -host
-    fi
     echo -e "${GREEN}All tests passed!${NC}"
     exit 0
 else

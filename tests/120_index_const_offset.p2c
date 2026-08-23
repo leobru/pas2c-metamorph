@@ -2,11 +2,11 @@
 // Constant terms in true-array indices are absorbed into the array's lower
 // bound during code generation.  Pointer indexing keeps its existing path.
 typedef struct { int x, y, z; } triple;
-int neg[0..7], pos[0..7], leftc[0..7], nested[0..7], rev[0..7];
-__packed int:8 packed[0..11];
-triple wide[0..4];
-int matrix[0..3][0..4];
-int backing[0..7];
+int neg[8], pos[8], leftc[8], nested[8], rev[8];
+__packed int:8 packed[12];
+triple wide[5];
+int matrix[4][5];
+int backing[8];
 int *ptr;
 int i, j;
 

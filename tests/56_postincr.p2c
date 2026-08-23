@@ -4,7 +4,7 @@ typedef int *intptr;
 typedef struct { int x, y; } rec;
 typedef rec *recptr;
 int i, j, k, n, a;
-int arr[1..4];
+int arr[4];
 intptr p;
 recptr rp;
 rec r;
@@ -35,10 +35,10 @@ void main() {
     writeln(" s05 ", (a++ + 1):0, ' ', a:0);
 
     /* array element via variable index */
-    arr[1] = 10; arr[2] = 20;
-    i = 2;
+    arr[0] = 10; arr[1] = 20;
+    i = 1;
     j = arr[i]++;
-    writeln(" a01 ", j:0, ' ', arr[2]:0);
+    writeln(" a01 ", j:0, ' ', arr[1]:0);
 
     /* pointer deref */
     n = 50;

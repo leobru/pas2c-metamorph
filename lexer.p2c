@@ -52,10 +52,10 @@ typedef
             struct { m: bitset };
         };
     };
-    charmap = __packed char['\0'..'\176'];
-    textmap = __packed int:6['\052'..'\177'];
+    charmap = __packed char[127];
+    textmap = __packed int:6[86];
     entries = bitset[42];
-    charbuf = char[1..130];
+    charbuf = char[130];
     kword = struct {
         next: *kword;
         w: word;
@@ -89,7 +89,7 @@ var
     kwordHash: *kword[128];
     charSym: symbol['\200'];
     chrClass: operator['\200'];
-    iso2text: int:6['\052'..'\177'];
+    iso2text: int:6[86];
     keywordName: int[22];
     keywordHashPtr: *kword;
     intZero: bitset;
@@ -177,7 +177,7 @@ void nextCH() {
     get(PASINPUT);
     if (linePos < maxLineLen) {
         ++linePos;
-        lineBuf[linePos] = CH;
+        lineBuf[linePos - 1] = CH;
     }
 }
 //
@@ -413,7 +413,7 @@ void inSymbol() {
             curToken.i = 0U;
             tokenLen = 1;
             do {
-                curVal.c = iso2text[CH];
+                curVal.c = iso2text[CH - 42];
                 nextCH();
                 if (tokenLen <= 8) {
                     ++tokenLen;
@@ -572,7 +572,7 @@ void inSymbol() {
             else
                 SY = STRINGSY;
             for (tokenLen = 1; tokenLen <= strLen; ++tokenLen)
-                strBuf[tokenLen] = localBuf[5 + tokenLen];
+                strBuf[tokenLen - 1] = localBuf[5 + tokenLen];
             return;
         } /* CHARCONST */
         default:
@@ -685,10 +685,10 @@ void writeBuf(buf: charbuf; len: int; quote: char) {
     var i: int;
     var w: word;
     write(quote);
-    for (i = 1; i <= len; ++i)
+    for (i = 0; i < len; ++i)
         writeEscapedChar(buf[i], quote);
     write(quote);
-    i = 1;
+    i = 0;
     do {
         pck(buf[i], w.a);
         emitWord(w.i);
@@ -724,8 +724,8 @@ void printToken() {
     case CHARCONST:
         write(" value ");
         write('\'');
-        writeEscapedChar(strBuf[1], BACKSLASH);
-        emitByte(strBuf[1]);
+        writeEscapedChar(strBuf[0], BACKSLASH);
+        emitByte(strBuf[0]);
         write('\'');
         break;
     case STRINGSY:
@@ -738,8 +738,8 @@ void printToken() {
 }
 //
 void initTables() {
-    unpack(ISOPTEXT, iso2text, '\052');
-    iso2text['_'] = iso2text['*'];
+    unpack(ISOPTEXT, iso2text, 0);
+    iso2text['_' - 42] = iso2text['*' - 42];
     regKeywords();
 }
 //

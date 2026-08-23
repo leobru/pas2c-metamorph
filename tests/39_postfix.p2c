@@ -5,7 +5,7 @@ typedef point *ptpr;
 //
 point obj;
 ptpr p;
-int arr[1..3];
+int arr[3];
 //
 ptpr getp() {
     return p;
@@ -15,9 +15,9 @@ void main() {
     p = &obj;
     p->x = 7;
     p->y = 8;
-    arr[1] = 10;
-    arr[2] = 20;
-    arr[3] = 30;
+    arr[0] = 10;
+    arr[1] = 20;
+    arr[2] = 30;
 
     /* postfix on parenthesised expression: (p)->x */
     writeln("(p)->x   = ", (p)->x:0);

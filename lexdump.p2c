@@ -45,7 +45,7 @@ typedef
             struct { m: bitset };
         };
     };
-    charbuf = char[1..130];
+    charbuf = char[130];
 //
 var
     TOKENS: ifcb;
@@ -54,7 +54,7 @@ var
     lineCnt, strLen, charEncoding: int;
     curToken, w: word;
     strBuf, localBuf: charbuf;
-    byteQ: int[1..6];
+    byteQ: int[6];
     byteQHead, byteQTail: int;
     symTab: symbol[64];
     opTab: operator[64];
@@ -72,8 +72,8 @@ int readWord() {
 }
 //
 void clearByteQ() {
-    byteQHead = 1;
-    byteQTail = 0;
+    byteQHead = 0;
+    byteQTail = -1;
 }
 //
 void pushByte(b: int) {
@@ -90,8 +90,8 @@ void enqueueWord(val: int) {
 //
 int getByte() {
     if (byteQHead > byteQTail) {
-        byteQHead = 1;
-        byteQTail = 0;
+        byteQHead = 0;
+        byteQTail = -1;
         w.i = readWord();
         enqueueWord(w.i);
     }
@@ -141,8 +141,8 @@ void prStrA2() {
     nWords = (strLen + 5) / 6;
     for (idx = 1; idx <= nWords; ++idx) {
         curToken.i = getStrWord();
-        unpck(localBuf[1], curToken.a);
-        for (pos = 1; pos <= 6; ++pos) {
+        unpck(localBuf[0], curToken.a);
+        for (pos = 0; pos < 6; ++pos) {
             if (i <= strLen) {
                 writeEscapedChar(localBuf[pos], '"');
                 ++i;
@@ -207,10 +207,10 @@ void printToken() {
         write(" value ", curToken.r);
     }
     if (SY == CHARCONST) {
-        strBuf[1] = getByte();
+        strBuf[0] = getByte();
         write(" value ");
         write('\'');
-        writeEscapedChar(strBuf[1], BACKSLASH);
+        writeEscapedChar(strBuf[0], BACKSLASH);
         write('\'');
     }
     if (SY == STRINGSY) {

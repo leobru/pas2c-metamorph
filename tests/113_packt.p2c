@@ -10,9 +10,9 @@ typedef int:6 textchar;
 void packt(void *, void *, int) assembler;
 void unpackt(void *, void *, int) assembler;
 //
-typedef union { __packed textchar c[16]; int w[0..1]; } pk16;
-textchar plain[0..15], back[0..15];
-char cback[0..7];
+typedef union { __packed textchar c[16]; int w[2]; } pk16;
+textchar plain[16], back[16];
+char cback[8];
 pk16 u;
 int i, j, same;
 void main() {

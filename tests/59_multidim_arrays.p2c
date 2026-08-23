@@ -1,6 +1,6 @@
 /*=k9,l0*/
 //
-int a[0..4][0..4];
+int a[5][5];
 int i, j, sum;
 void main() {
     sum = 0;

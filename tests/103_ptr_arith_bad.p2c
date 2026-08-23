@@ -15,7 +15,7 @@ const NULL = (anyptr)0;
 typedef struct { int a, b, c; } w3;
 typedef struct { int a, b, c, d, e; } w5;
 //
-w3 t3[0..3];
+w3 t3[4];
 w3 *p3, *q3;
 w5 s5;
 w5 *p5;

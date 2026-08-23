@@ -282,7 +282,7 @@ typedef union {
     struct { tptr abase;
             int pck;
             int perword,
-            pcksize, aleft, aright; int szArray; };
+            pcksize, asize; int szArray; };
     struct { irptr enums;
             int numen,
             start; int szScalar; };
@@ -1790,12 +1790,11 @@ void errAndSkip(int errno, setofsys toset)
 // Every array type is interned: identical types share one heap record,
 // which a string constant relies on as much as a declaration does.  At
 // file scope because parseLiteral, below, types string constants with it.
-tptr makeArrayType(int aleft, int aright, tptr elementType, int makePacked) {
-int span, l3int22z, numBits;
+tptr makeArrayType(int asize, tptr elementType, int makePacked) {
+int l3int22z, numBits;
 int sizeVal, bitsVal, perwordVal, pcksizeVal;
 tptr arrayType;
 inptr icand;
-    span  =  aright - aleft + 1;
     l3int22z  =  typeBits(elementType);
     /* Nothing wider than half a word packs, so the request is refused here
        and the type records what it was given. */
@@ -1806,8 +1805,7 @@ inptr icand;
         arrayType  =  icand->ityp;
         if (arrayType.p.pk == kindArray &&
             arrayType.rep->base == elementType &&
-            arrayType.rep->aleft == aleft &&
-            arrayType.rep->aright == aright &&
+            arrayType.rep->asize == asize &&
             arrayType.rep->pck == makePacked)
             return arrayType;
         icand  =  icand->inext;
@@ -1824,21 +1822,20 @@ inptr icand;
         }
         perwordVal  =  l3int22z;
         pcksizeVal  =  48 / l3int22z;
-        l3int22z  =  span * pcksizeVal;
+        l3int22z  =  asize * pcksizeVal;
         numBits  =  (l3int22z % 48 == 0) ? 0 : 1;
         sizeVal  =  l3int22z / 48 + numBits;
         if (sizeVal == 1)
             bitsVal  =  l3int22z;
     } else {
-        sizeVal  =  span * typeSize(elementType);
+        sizeVal  =  asize * typeSize(elementType);
         curVal.i  =  typeSize(elementType);
         curVal.i  =  curVal.i & [7:47] | E48;
         perwordVal  =  KMUL+ I8 + getFCSToffset();
     }
     arrayType.rep = malloc(offsetof(types, szArray));
     { register types *ty = (arrayType.rep);
-        ty->aleft  =  aleft;
-        ty->aright  =  aright;
+        ty->asize  =  asize;
         ty->base  =  elementType;
         ty->pck  =  makePacked;
         ty->perword  =  perwordVal;
@@ -1898,7 +1895,7 @@ tptr ret;
             break;
         case STRINGSY:
             /* A string constant is a packed char array of its own length. */
-            ret = makeArrayType(0, strLen - 1, charType, true);
+            ret = makeArrayType(strLen, charType, true);
         }; /* switch */
     return ret;
 } /* parseLiteral */
@@ -2115,9 +2112,9 @@ int l2int18z, ii, localSize, sizeCount, jj;
 //
 // File scope, so the shared declarator parser below -- a sibling of
 // parseTypeRef, not nested inside it -- can read them right after each
-// type-spec call: isPacked mirrors '__packed TYPE[range]' (parseTypeRef
+// type-spec call: isPacked mirrors '__packed TYPE[size]' (parseTypeRef
 // resets it false on entry, sets it true on 'packed', and would
-// normally consume it itself via its own trailing '[range]' handling,
+// normally consume it itself via its own trailing '[size]' handling,
 // but here the range is a declarator suffix, not part of the type-spec
 // tokens, so nothing resets it -- the caller must). isForwardRef marks
 // a base type resolved via the forward-reference placeholder path (an
@@ -2168,7 +2165,6 @@ int typeCheck(tptr type1, tptr type2) { /* typeCheck */
 int baseMatch;
 kind kind1, kind2;
 irptr enums1, enums2;
-int span1, span2;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int sameRoutineType(tptr type1, tptr type2) {
@@ -2227,10 +2223,8 @@ sigptr p1, p2;
                         goto 1;
                     break;
                 case kindArray:
-                    span1  =  type1.rep->aright - type1.rep->aleft;
-                    span2  =  type2.rep->aright - type2.rep->aleft;
                     if (typeCheck(type1.rep->base, type2.rep->base) &&
-                       (span1 == span2) &&
+                       (type1.rep->asize == type2.rep->asize) &&
                        (type1.rep->pck == type2.rep->pck)) {
                         if (type1.rep->pck) {
                             if (type1.rep->pcksize == type2.rep->pcksize)
@@ -3250,8 +3244,8 @@ int l5var9z;
         l5var5z  =  condLabCnt;
         ++condLabCnt;
         forValue  =  false;
-        l5var6z  =  (l5var1z|0) + macro;
-        l5var7z  =  (l5var2z|0) + macro;
+        l5var6z  =  l5var1z + macro;
+        l5var7z  =  l5var2z + macro;
         if (insnList->ilm == ilCOND) {
             l5var3z  =  insnList->payload;
         } else {
@@ -3410,13 +3404,13 @@ int idxOffsets[10];
     for (curDim = dimCnt - 1; curDim >= 0; --curDim) {
         l5var26z  =  insnCopy.typ.rep->base;
         l5var25z  =  insnCopy.typ.rep->pck;
-        l5var7z  =  insnCopy.typ.rep->aleft;
+        l5var7z  =  0;
         l5var8z  =  typeSize(l5var26z);
         insnList  =  getEltInsns[curDim];
         l5ilm28z  =  insnList->ilm;
-        /* A literal index was deliberately not stripped: its declared bounds
-           still govern the compile-time check.  Only a dynamic index uses the
-           equivalent lower bound after its constant terms have been peeled. */
+        /* A literal index was deliberately not stripped: the declared size
+           still governs the compile-time check.  Only a dynamic index uses
+           an effective base after its constant terms have been peeled. */
         if (l5ilm28z != ilCONST)
             l5var7z -= idxOffsets[curDim];
         if (! l5var25z)
@@ -3424,7 +3418,7 @@ int idxOffsets[10];
         if (l5ilm28z == ilCONST) {
             curVal.i  =  insnList->payload;
             if ((curVal.i < l5var7z) ||
-               (insnCopy.typ.rep->aright < curVal.i))
+               (insnCopy.typ.rep->asize <= curVal.i))
                 error(29); /* errIndexOutOfBounds */
             if (l5var25z) {
                 l5var4z  =  curVal.i - l5var7z;
@@ -4632,32 +4626,32 @@ void markTypeSym() {
 } /* markTypeSym */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// The shared declarator parser below constructs and consumes range
-// bounds, and a type nested inside a function is only visible within
+// The shared declarator parser below constructs and consumes array
+// sizes, and a type nested inside a function is only visible within
 // that function's own scope in this codebase's Pascal-style nesting --
 // so rangeRec lives here, at programme's own level, declared before
 // parseTypeRef so that parseRecordDecl (nested inside it) can also see
 // it.
 typedef struct {
-            int aleft, aright;
+            int asize;
 } rangeRec;
 typedef rangeRec rangeList[20];
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// Array bounds are const-expressions.  parseRange evaluates each bound with
+// An array size is a const-expression.  parseArrSz evaluates it with
 // constExpr, which parses one expression, const-folds it and leaves the value
 // in ceVal / its type in ceTyp.  Both are PROGRAMM-level siblings, constExpr
 // defined below beside the expression parser it drives, hence the forward
-// declaration -- parseRange itself was promoted out of parseTypeRef like
+// declaration -- parseArrSz itself was promoted out of parseTypeRef like
 // makeArrayType above so readDeclaratorCore can call it at the same level.
 void constExpr();
-// SY is on the '[' that opens the range; parseRange reads past it itself.  A
-// bound is a constant expression, so it names ordinary identifiers -- a const,
+// SY is on the '[' that opens the size; parseArrSz reads past it itself.  A
+// size is a constant expression, so it names ordinary identifiers -- a const,
 // an enumerator, a type for sizeof -- and never a record field: the lookup
-// goes to lookUse for the whole range and back to the caller's afterwards,
-// which is what lets a bound inside a record body reach them at all.  lookup2
+// goes to lookUse for the whole expression and back to the caller's afterwards,
+// which is what lets a size inside a record body reach them at all.  lookup2
 // must move with lookupMode, since every inSymbol() resets lookupMode from it.
-void parseRange(int *aleft, int *aright) {
+void parseArrSz(int *asize) {
 int savedLookup, ok;
     savedLookup  =  lookup2;
     lookup2  =  lookUse;
@@ -4665,30 +4659,17 @@ int savedLookup, ok;
     inSymbol();
     ok  =  false;
     constExpr();
-    if (ceTyp.rep != NULL && ceTyp.p.pk == kindScalar) {
-        *aleft = ceVal;
-        if (SY != COLON) {
-// Handle a single value N as a range 0..N-1
-            *aright = *aleft - 1;
-            *aleft = 0;
-            ok  =  true;
-        } else {
-            inSymbol();
-            constExpr();
-            if (ceTyp.rep != NULL && ceTyp.p.pk == kindScalar) {
-                *aright = ceVal;
-                ok  =  true;
-            }
-        }
+    if (ceTyp.rep != NULL && ceTyp.p.pk == kindScalar && SY == RBRACK) {
+        *asize = ceVal;
+        ok  =  true;
     }
     if (! ok) {
         error(64); /* errIncorrectRangeDefinition */
-        *aleft = 0;
-        *aright = 0;
+        *asize = 1;
     }
     lookup2  =  savedLookup;
     lookupMode  =  savedLookup;
-} /* parseRange */
+} /* parseArrSz */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Unified C declarator parsing: one declarator grammar shared by
@@ -4786,7 +4767,7 @@ int wasGroup;
         inSymbol();
     } else if (nameOptional && (SY IN [RPAREN, COMMA, LBRACK])) {
         /* Abstract declarator: a formal parameter's name is optional
-           ('int', 'int *', 'int [0..2]').  curDeclarator is a global, so
+           ('int', 'int *', 'int [3]').  curDeclarator is a global, so
            the fields the name would have filled are cleared here; the
            previous declarator's values would otherwise persist. */
         { register declarator *dcl = d;
@@ -4804,7 +4785,7 @@ int wasGroup;
             ++declOpCount;
             declOps[declOpCount-1].sig  =  parseSignature();
         } else {
-            parseRange(&r.aleft, &r.aright);
+            parseArrSz(&r.asize);
             checkSymAndRead(RBRACK);
             declOps[declOpCount].opKind  =  opArray;
             declOps[declOpCount].range  =  r;
@@ -4814,7 +4795,7 @@ int wasGroup;
 } /* readDeclaratorCore */
 
 // packedFlag mirrors parseTypeRef's own array-suffix handling ('TYPE
-// [range]', its curDim==0 case): only the outermost array dimension of
+// [size]', its curDim==0 case): only the outermost array dimension of
 // a multi-dim declarator (e.g. int matrix[2][3]'s [2]) carries it, since
 // makeArrayType's flag describes how elements of the final array are
 // packed, not
@@ -4860,8 +4841,7 @@ int i;
             d->ptrOnly  =  false;
             break;
         default:
-            d->typ  =  makeArrayType(declOps[i].range.aleft,
-                                    declOps[i].range.aright, d->typ,
+            d->typ  =  makeArrayType(declOps[i].range.asize, d->typ,
                                     packedFlag && (i == base));
             d->ptrOnly  =  false;
         }
@@ -4877,14 +4857,14 @@ void parseOneDeclarator(declarator *d, tptr baseType, int packedFlag, int isForw
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // A type name: a type-spec and an abstract declarator, the pair a parameter
-// list takes, so 'char *', 'int **', 'int (*)(char)' and 'int[0..3]' all name
+// list takes, so 'char *', 'int **', 'int (*)(char)' and 'int[4]' all name
 // a type.  A cast reads one, and so do sizeof and offsetof.
 // Entered with SY on the TYPESY that opens the name; leaves SY on the token
 // that follows it, which the caller checks -- ')' for a cast or sizeof, ',' or
 // ')' for offsetof.
 // The declarator lives here rather than in factor, whose frame every level of
 // expression nesting pays for.  The operator stack base is declOpCount, whose
-// value the enclosing declarator (if any) set: parseRange evaluates a constant
+// value the enclosing declarator (if any) set: parseArrSz evaluates a constant
 // bound where it stands, so a type name can be read while a declarator is
 // still open, and its operators must go above the ones already collected.
 // nameOptional is restored rather than cleared, for that same reason.
@@ -5398,7 +5378,7 @@ pair *curSlot;
     tempType  =  curType;
     rangeCnt  =  0;
     while (SY == LBRACK) {
-        parseRange(&curRange.aleft, &curRange.aright);
+        parseArrSz(&curRange.asize);
         if (rangeCnt == 20) {
             error(errVarTooComplex);
         } else {
@@ -5409,8 +5389,7 @@ pair *curSlot;
     }
     curType  =  tempType;
     for (curDim = rangeCnt - 1; curDim >= 0; --curDim) {
-        curType  =  makeArrayType(ranges[curDim].aleft,
-                                  ranges[curDim].aright, curType,
+        curType  =  makeArrayType(ranges[curDim].asize, curType,
                                   isPacked && (curDim == 0));
     }
     if (rangeCnt != 0)
@@ -6040,7 +6019,7 @@ int hasFields;
         inSymbol();
         if (SY == TYPESY) {
             /* A whole type name, declarator and all: sizeof(char *),
-               sizeof(int[0..3]), offsetof(rec, f). */
+               sizeof(int[4]), offsetof(rec, f). */
             l5var2z = readTypeName();
         } else {
             if (stProcNo == fnSIZEOF) {
@@ -6351,11 +6330,8 @@ eptr leftExpr;
                        curExpr->expr1->typ.rep->pck) {
                 /* A packed char array holds six 8-bit bytes to a word, so an
                    element's byte index is the array's word address times six
-                   plus the index, counted from the array's lower bound. */
+                   plus the zero-based index. */
                 leftExpr = curExpr->expr2;
-                if (curExpr->expr1->typ.rep->aleft != 0)
-                    leftExpr = mkExprFold(INTMINUS, intType, leftExpr,
-                                 mkIntLit(curExpr->expr1->typ.rep->aleft));
                 curExpr = mkExpr(INTPLUS, charPtrType,
                     mkExpr(IMULOP, intType,
                            mkRef(curExpr->expr1, intType),
@@ -7282,7 +7258,7 @@ void checkElement() {
         return;
     }
     if (isCharArray(l4typ3z)) {
-        defWidth  =  l4typ3z.rep->aright - l4typ3z.rep->aleft + 1;
+        defWidth  =  l4typ3z.rep->asize;
         if (! l4typ3z.rep->pck)
             helperNo  =  49;            /* P/WA */
         else if (6 >= defWidth)
@@ -7869,8 +7845,7 @@ void regSysProc(int l4arg1z) {
         ty->pck = true;
         ty->perword = 6;
         ty->pcksize = 8;
-        ty->aleft = 0;
-        ty->aright = 32768 * 6 - 1;
+        ty->asize = 32768 * 6;
     }
     flatMemType.p.psize = 32767;
     flatMemType.p.bits = 48;

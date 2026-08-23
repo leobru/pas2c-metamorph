@@ -10,9 +10,9 @@
 // packed char array orders the same way with no cast.
 //
 typedef void *uword;
-typedef __packed char alfa[0..5];
+typedef __packed char alfa[6];
 //
-int w[0..3];
+int w[4];
 alfa a, b;
 int i, j;
 //

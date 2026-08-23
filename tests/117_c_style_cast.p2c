@@ -14,7 +14,7 @@
 typedef void *anyptr;
 typedef void *uword;
 typedef struct { int a, b, c, d; } four;
-typedef int quad[0..3];
+typedef int quad[4];
 const NULL = (anyptr)0;
 //
 int i, j, k;
@@ -68,7 +68,7 @@ void main() {
     s.b  =  20;
     s.c  =  30;
     s.d  =  40;
-    q  =  (int[0..3])s;
+    q  =  (int[4])s;
     writeln(" MULTI  ", q[0]:4, q[1]:4, q[2]:4, q[3]:4);
     s.a  =  50;
     q  =  (quad)s;

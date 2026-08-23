@@ -13,7 +13,7 @@
 // characters sit in the low bytes, so 'AB' is its first character times 256
 // plus its second, and shifting it right by eight leaves the first.
 //
-typedef __packed char alfa[0..5];
+typedef __packed char alfa[6];
 alfa a;
 int i, k;
 char c;

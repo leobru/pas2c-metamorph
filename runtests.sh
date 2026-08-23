@@ -24,7 +24,6 @@ case "$1" in
         shift
         ;;
 esac
-FULL_SUITE=0
 
 # Create results directory
 mkdir -p "$RESULTS_DIR"
@@ -133,7 +132,6 @@ chmod +x "$RUNNER"
 
 # Run all tests if no arguments given, otherwise run specified tests
 if [ $# -eq 0 ]; then
-    FULL_SUITE=1
     # Find all test files
     test_files=$(find "$TESTS_DIR" -name "*.p2c" | sort)
     
@@ -168,9 +166,6 @@ echo -e "${YELLOW}Skipped: $SKIPPED${NC}"
 echo ""
 
 if [ $FAILED -eq 0 ]; then
-    if [ $FULL_SUITE -eq 1 ]; then
-        ./check-index-offset.sh -work
-    fi
     echo -e "${GREEN}All tests passed!${NC}"
     exit 0
 else

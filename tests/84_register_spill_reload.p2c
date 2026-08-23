@@ -12,7 +12,7 @@ typedef struct {
     inner pt;
     int tag;
 } outer;
-outer arr[0..3];
+outer arr[4];
 int i, j, k;
 int probe;
 //

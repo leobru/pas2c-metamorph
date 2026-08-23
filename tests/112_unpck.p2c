@@ -9,8 +9,8 @@
 int pck(int *) assembler;
 void unpck(int, int *) assembler;
 //
-typedef union { int i; __packed char c[0..5]; } wordu;
-int buf[0..5], lib[0..5];
+typedef union { int i; __packed char c[6]; } wordu;
+int buf[6], lib[6];
 wordu u, v;
 int i, same;
 void main() {

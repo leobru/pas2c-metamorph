@@ -1,6 +1,6 @@
 /*=k9,l0*/
 
-int words[1..8];
+int words[8];
 
 void main() {
     writeln("RESULT ", sizeof(words):0);

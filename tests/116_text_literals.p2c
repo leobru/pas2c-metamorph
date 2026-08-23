@@ -1,5 +1,5 @@
 /*=l0*/
-typedef __packed char pair[0..1];
+typedef __packed char pair[2];
 
 pair s;
 int t;
