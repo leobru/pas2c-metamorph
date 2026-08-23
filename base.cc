@@ -3798,6 +3798,70 @@ int64_t shift(int64_t val, int64_t amt)
 
 ExprPtr stripIdx(ExprPtr idx, int64_t &offset);
 
+void startLVal()
+{
+    prepLoad();
+    insnList->ilm = ilLVAL;
+    insnList->st = stWORD;
+    insnList->disp = 0;
+    insnList->payload.ii = 0;
+    insnList->addrmd = 18;
+} /* startLVal */
+
+void genDeref()
+{
+    Word l5var1z, l5var2z;
+
+    /* The optimised path manipulates addrmd/disp/payload, which only carry
+       meaning for ilLVAL operands; for ilRVAL fall through to mcACC2ADDR. */
+    if (insnList->ilm == ilLVAL and (
+            (insnList->st == stWORD) or
+            (insnList->st == stSLICE and
+             insnList->shift == 0))) {
+        l5var1z.ii = insnList->addrmd;
+        l5var2z.ii = insnList->disp;
+        if (l5var1z.ii == 18 or l5var1z.ii == 16) {
+L5220:          addInsnAndOffset((insnList->payload.ii + InsnTemp[WTC]), l5var2z.ii);
+        } else {
+            if (l5var1z.ii == 17) {
+                if (l5var2z.ii == 0) {
+                    insnList->tail->code = insnList->tail->code +
+                        InsnTemp[XTA];
+                } else
+                    goto L5220;
+            } else if (l5var1z.ii == 15) {
+                addToInsnList(macro + mcACC2ADDR);
+                goto L5220;
+            } else {
+                addInsnAndOffset((indexreg[l5var1z.ii] + InsnTemp[WTC]),
+                                 l5var2z.ii);
+            }
+        }
+    } else {
+        // A right-aligned pointer field needs no extraction in this mode
+        // either: mcACC2ADDR is ATI, which takes A[15:1], exactly the
+        // bits WTC takes above.  Without this, prepLoad's stSLICE arm
+        // would emit a redundant shift/mask first.
+        if (insnList->st == stSLICE and insnList->shift == 0)
+            insnList->st = stWORD;
+        startLVal();
+        addToInsnList(macro + mcACC2ADDR);
+    }
+    insnList->disp = 0;
+    insnList->payload.ii = 0;
+    insnList->addrmd = 16;
+    insnList->st = stWORD;
+} /* genDeref */
+
+void negateCond()
+{
+    if (insnList->ilm == ilCONST) {
+        insnList->payload.ii = not insnList->payload.ii;
+    } else {
+        insnList->regsused = insnList->regsused ^ Bits(16);
+    }
+} /* negateCond */
+
 struct genFullExpr {
     static std::vector<genFullExpr*> super;
     genFullExpr(ExprPtr exprToGen_);
@@ -3809,59 +3873,6 @@ struct genFullExpr {
     Word arg1Val, arg2Val;
     Operator curOP;
     int64_t work;
-
-    void startLVal() {
-        prepLoad();
-        insnList->ilm = ilLVAL;
-        insnList->st = stWORD;
-        insnList->disp = 0;
-        insnList->payload.ii = 0;
-        insnList->addrmd = 18;
-    }; /* startLVal */
-
-    void genDeref() {
-        Word l5var1z, l5var2z;
-
-        /* The optimised path manipulates addrmd/disp/payload, which only carry
-           meaning for ilLVAL operands; for ilRVAL fall through to mcACC2ADDR. */
-        if (insnList->ilm == ilLVAL and (
-                (insnList->st == stWORD) or
-                (insnList->st == stSLICE and
-                 insnList->shift == 0))) {
-            l5var1z.ii = insnList->addrmd;
-            l5var2z.ii = insnList->disp;
-            if (l5var1z.ii == 18 or l5var1z.ii == 16) {
-L5220:          addInsnAndOffset((insnList->payload.ii + InsnTemp[WTC]), l5var2z.ii);
-            } else {
-                if (l5var1z.ii == 17) {
-                    if (l5var2z.ii == 0) {
-                        insnList->tail->code = insnList->tail->code +
-                            InsnTemp[XTA];
-                    } else
-                        goto L5220;
-                } else if (l5var1z.ii == 15) {
-                    addToInsnList(macro + mcACC2ADDR);
-                    goto L5220;
-                } else {
-                    addInsnAndOffset((indexreg[l5var1z.ii] + InsnTemp[WTC]),
-                                     l5var2z.ii);
-                }
-            }
-        } else {
-            // A right-aligned pointer field needs no extraction in this mode
-            // either: mcACC2ADDR is ATI, which takes A[15:1], exactly the
-            // bits WTC takes above.  Without this, prepLoad's stSLICE arm
-            // would emit a redundant shift/mask first.
-            if (insnList->st == stSLICE and insnList->shift == 0)
-                insnList->st = stWORD;
-            startLVal();
-            addToInsnList(macro + mcACC2ADDR);
-        }
-        insnList->disp = 0;
-        insnList->payload.ii = 0;
-        insnList->addrmd = 16;
-        insnList->st = stWORD;
-    }; /* genDeref */
 
     void genHelper() {
         InsnList * &saved = formOperator::super.back()->saved;
@@ -3897,14 +3908,6 @@ L5220:          addInsnAndOffset((insnList->payload.ii + InsnTemp[WTC]), l5var2z
         l5var2z->tail = insnList->tail;
         insnList = l5var2z;
     }; /* prepMultiWord */
-
-    void negateCond () {
-        if (insnList->ilm == ilCONST) {
-            insnList->payload.ii = not insnList->payload.ii;
-        } else {
-            insnList->regsused = insnList->regsused ^ Bits(16);
-        }
-    }; /* negateCond */
 
     void tryFlip(bool commutes) {
         int64_t l5var1z;
@@ -4738,7 +4741,7 @@ L7514:
         }; /* 7554 */
         insnList->regsused = insnList->regsused & ~ Bits(16);
         if (negate)
-            genFullExpr::super.back()->negateCond();
+            negateCond();
     } /* 7562 */
 } /* genComparison */
 

@@ -159,8 +159,6 @@ typedef enum {
         FORMALID,   FIELDID,    REGID
 } idclass;
 //
-typedef int setofsys; // set of symbol
-//
 /* The order carries meaning, in four places:
    -- every operator with a real and an integer flavour is immediately followed
       by its integer twin (MUL/IMULOP, RDIVOP/IDIVOP, PLUSOP/INTPLUS,
@@ -385,25 +383,17 @@ typedef enum {DECIMAL, OCTAL, FULLWORD, HEX} NumberFormat;
 typedef irptr hashArray[128];
 typedef int:15 tok;
 typedef struct { int rest[30]; } ifcb;
-typedef void *anyptr;
-// The null pointer is not predefined: like any program, the compiler says
-// what it means.  anyptr is the compiler's own void-pointer type (getPtrType
-// returns that singleton), which typeCheck accepts on either side of a
-// pointer comparison or assignment.  (It cannot be called voidptr: that
-// collides with the global voidPtr, identifiers being case-insensitive.)
-// Zero is free to mean it: the heap starts above the static image and every
-// other address is taken relative to a base register, so no object has it.
-const NULL = (anyptr)0;
+const NULL = (void*)0;
 // A word ordered as a bit pattern: comparison of a one-word non-scalar is
 // unsigned, where a scalar's is arithmetic.  The FCST pool is sorted and
 // binary-searched, and holds arbitrary literals, so that is the order it
-// needs.  uword denotes the voidPtr singleton, as anyptr does.
+// needs.  uword denotes the voidPtr singleton.
 typedef void *uword;
 // Six characters in a word, the shape a six-character string constant has.
 typedef __packed char alfa[6];
 //
 NumberFormat numFormat;
-setofsys statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
+int statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
     blockBegSys = [CONSTSY, TYPEDEFSY, TYPESY, BEGINSY],
     statBegSys = [IDENT, EXPROP, LPAREN, INTCONST, REALCONST,
                   CHARCONST, STRINGSY, LBRACK, BEGINSY, IFSY,
@@ -1772,13 +1762,13 @@ void error(int errno) {
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void skip(setofsys toset) {
+void skip(int toset) {
     while (!(SY IN toset))
         inSymbol();
 } /* skip */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void errAndSkip(int errno, setofsys toset)
+void errAndSkip(int errno, int toset)
 {
     error(errno);
     skip(toset);
@@ -2092,38 +2082,6 @@ irptr idRec;
     curExternFile->location  =  512;
 }
 
-void programme(int *retSizePtr, irptr procName, int bodyBlock) { /* programme */
-irptr preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr;
-int isPredefined, l2bool8z, retSeen, inTypeDef, hadParens, externDecl;
-int fileExit;
-int bodyStatSys;
-int l2var12z;
-tptr l2typ13z, l2typ14z, typedRetType, ceTyp;
-int ceVal;
-int initRegs, flushRegs;
-irptr initVar;
-int labFence;
-strLabel *strLabList;
-//
-int l2int18z, ii, localSize, sizeCount, jj;
-//
-// File scope, so the shared declarator parser below -- a sibling of
-// parseTypeRef, not nested inside it -- can read them right after each
-// type-spec call: isPacked mirrors '__packed TYPE[size]' (parseTypeRef
-// resets it false on entry, sets it true on 'packed', and would
-// normally consume it itself via its own trailing '[size]' handling,
-// but here the range is a declarator suffix, not part of the type-spec
-// tokens, so nothing resets it -- the caller must). isForwardRef marks
-// a base type resolved via the forward-reference placeholder path (an
-// undefined name used mid-typedef, e.g. 'typedef expr *eptr;' parsed
-// before 'expr' itself is defined): the returned type is a
-// heap-allocated (definePtrType, not compact getPtrType) pointer-to-int
-// stand-in whose base field the *later* real definition of the name
-// patches in place, so a declarator '*' applied directly to it must
-// reuse it as-is instead of wrapping it in another pointer.
-int isPacked;
-int lsbOrder;                   // '__packed __lsb': fields fill the word from bit 0
-int isForwardRef;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void myrollup(int addr) {
@@ -2142,26 +2100,7 @@ int top;
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// name: parseTypeRef's '*Name' branch passes curIdent, since the lexer is
-// still sitting on Name there.  Forward-referenced typedef patching (see
-// TYPEDEFSY) calls this after the declarator's own name has been read and
-// the lexer has moved on, so it passes the saved declarator.name.
-int knownInType(irptr *rec, int name) {
-irptr it;
-    for (it = typelist; it != NULL; it = it->pck.p.next) {
-        if (it->id == name) {
-            *rec = it;
-            return true;
-        }
-    }
-    return false;
-} /* knownInType */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int typeCheck(tptr type1, tptr type2) { /* typeCheck */
-int baseMatch;
-kind kind1, kind2;
-irptr enums1, enums2;
+int typeCheck(tptr type1, tptr type2);
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int sameRoutineType(tptr type1, tptr type2) {
@@ -2195,6 +2134,12 @@ sigptr p1, p2;
     }
     return p1 == NULL && p2 == NULL;
 } /* sameRoutineType */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int typeCheck(tptr type1, tptr type2) { /* typeCheck */
+int baseMatch;
+kind kind1, kind2;
+irptr enums1, enums2;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if (!checkTypes || type1 == type2)
@@ -2348,7 +2293,6 @@ eptr scaleIdx(eptr n, int step) {
 } /* scaleIdx */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 tptr getPtrType(tptr toType) {
 tptr t;
     if (toType == voidType)
@@ -2426,15 +2370,281 @@ void fcloseFile(irptr fileSym) {
 } /* formFileInit */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formOperator(opgen l3arg1z) { /* formOperator */
-int l3int1z, l3int2z, l3int3z;
-int nextInsn;
-eptr helpExpr;
-int direction;
-int noTarget;
-int l3var10z, l3var11z;
-insnltyp *saved;
-int rhsMode;
+/* Extract the value of a constant expression into curVal.  With folding at
+   construction a constant expression is already a GETENUM node, so read it
+   directly instead of lowering it through genFullExpr, which saves an
+   insnList allocation per constant. */
+void takeConstFromExpr() {
+    if (errors || curExpr == NULL)
+        return;
+    if (curExpr->op != GETENUM)
+        error(errNoConstant);
+    else if (typeSize(curExpr->typ) != 1)
+        error(errConstOfOtherTypeNeeded);
+    else
+        curVal.i  =  curExpr->num1;
+} /* takeConstFromExpr */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void markTypeSym() {
+    if (SY == IDENT) {
+        curVal.i  =  curIdent & hashMask;
+        bucket = mapAI(curVal.i);
+        hashTravPtr  =  symHash[bucket];
+        while ((hashTravPtr != NULL) && (hashTravPtr->id != curIdent))
+            hashTravPtr  =  hashTravPtr->pck.p.next;
+        if ((hashTravPtr != NULL) && (hashTravPtr->pck.p.cl == TYPEID)) {
+            SY  =  TYPESY;
+            symType  =  hashTravPtr->typ;
+        }
+    }
+} /* markTypeSym */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void dumpEnumNames(tptr l3arg1z) {
+irptr l3var1z;
+    if (l3arg1z.rep->start == 0) {
+        l3arg1z.rep->start  =  FcstCnt;
+        l3var1z  =  l3arg1z.rep->enums;
+        while (l3var1z != NULL) {
+            curVal.i  =  l3var1z->id;
+            l3var1z  =  l3var1z->list;
+            toFCST();
+        }
+    }
+} /* dumpEnumNames */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void fopenFile(irptr fileSym, extfilerec *extFileP) {
+int fileAddr;
+    fileAddr  =  fileSym->value;
+    if (fileAddr < 074000) {
+        form1Insn(getValueOrAllocSymtab(fileAddr) + KUTC + I7);
+        fileAddr  =  0;
+    }
+    form1Insn(KVTM+I14 + fileAddr);
+    form1Insn(KITS+14);
+// The only files opened this way are *INPUT* and *OUTPUT*
+// with known characteristics (1 word, 8 bits).
+    curVal.i  =  fileBufSize * 010000000000 + 0100010;
+    form1Insn(KXTS+I8 + getFCSToffset());
+    if (extFileP == NULL) {
+        form1Insn(KXTS);
+    } else {
+        curVal.i  =  extFileP->location;
+        if (curVal.i == 512)
+            curVal.i  =  extFileP->offset;
+        form1Insn(KXTS+I8 + getFCSToffset());
+    }
+    formAndAlign(getHelperProc(35)); /*"FOPEN   "*/
+}
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* Recovery for an error that leaves nothing to build a value from: skip to a
+   token a statement can end on, and stand an undefined-variable node in for
+   the value.  The caller reports the error and returns, so the expression
+   finishes with a well-typed placeholder and the parse carries on from the
+   terminator. */
+void badExpr() {
+    skip(skipToSet | statEndSys);
+    curExpr  =  uVarPtr;
+} /* badExpr */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void castToReal(eptr *value) {
+    /* Fold at construction when the operand is already constant, so a mixed
+       int/real constant expression collapses to a single GETENUM node (the
+       one case bldArithOp routes through here). */
+    *value = mkUnaryFold(TOREAL, realType, *value);
+} /* castToReal */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* C's assignment conversions between integer and real, applied wherever a
+   value is assigned to a destination of the other type: plain assignment,
+   an actual passed by value to a formal, and return.  Widening goes through
+   castToReal; narrowing drops the fraction.  Returns false if the mismatch
+   is not one of those,
+   leaving the caller to report it. */
+int castArith(tptr dest, eptr *value) {
+eptr arg;
+    arg  =  *value;
+    if (dest == realType && typeCheck(intType, arg->typ)) {
+        castToReal(value);
+        return true;
+    }
+    if ((arg->typ != realType) || ! typeCheck(intType, dest))
+        return false;
+    /* mkUnaryFold folds a constant real in place, the way it does for
+       castToReal's TOREAL. */
+    *value = mkUnaryFold(TOINT, intType, arg);
+    return true;
+} /* castArith */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int areTypesCompatible(eptr *l4arg1z) {
+    if (arg1Type == realType) {
+        if (typeCheck(intType, arg2Type)) {
+            castToReal(&curExpr);
+            return true;
+        }
+    } else if ((arg2Type == realType) &&
+               typeCheck(intType, arg1Type)) {
+        castToReal(l4arg1z);
+        return true;
+    }
+    return false;
+} /* areTypesCompatible */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void bldBitOp(operator oper, eptr leftArg) {
+    if (arg1Type.p.pk != kindScalar || arg2Type.p.pk != kindScalar) {
+        error(errNeedOtherTypesOfOperands);
+        curExpr = uVarPtr;
+        return;
+    }
+    curExpr = mkExprFold(oper, arg2Type, leftArg, curExpr);
+} /* bldBitOp */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void bldArithOp(operator oper, eptr leftExpr, int match) {
+kind k1, k2;
+operator resOp;
+tptr resTyp;
+int lstep, rstep;
+    k1 = arg1Type.p.pk;
+    k2 = arg2Type.p.pk;
+    /* A char pointer is a byte index into flat memory: the byte is already
+       its unit, so a count applies as it stands, and either operand may be
+       the pointer.  The operands stay in source order, which an op-assign
+       depends on -- it drops this node's expr1 and takes expr2 as the
+       right-hand side. */
+    if ((isCharPtr(arg1Type) && typeCheck(intType, arg2Type)) ||
+        (isCharPtr(arg2Type) && typeCheck(intType, arg1Type))) {
+        curExpr = mkExpr(oper + (oper != IMODOP), charPtrType, leftExpr, curExpr);
+        return;
+    }
+    /* Pointer arithmetic steps in pointee units: the integer operand is
+       scaled to words here, so codegen sees an ordinary integer add.  Any
+       combination not taken apart below -- a scaling operator, 'int - ptr',
+       a sum of two pointers -- falls into the rejection that follows. */
+    lstep  =  eltStep(arg1Type);
+    rstep  =  eltStep(arg2Type);
+    if (lstep != 0 && rstep != 0) {
+        if (oper == MINUSOP && typeCheck(arg1Type, arg2Type)) {
+            curExpr = mkExpr(INTMINUS, intType, leftExpr, curExpr);
+            if (lstep != 1)
+                curExpr = mkExprFold(IDIVOP, intType, curExpr, mkIntLit(lstep));
+            return;
+        }
+    } else if (lstep != 0) {
+        if ((oper == PLUSOP || oper == MINUSOP) &&
+            typeCheck(intType, arg2Type)) {
+            /* Only PLUSOP and MINUSOP reach here, so the step is plain. */
+            curExpr = mkExpr(oper + 1, arg1Type,
+                             leftExpr, scaleIdx(curExpr, lstep));
+            return;
+        }
+    } else if (rstep != 0 && oper == PLUSOP &&
+               typeCheck(intType, arg1Type)) {
+        curExpr = mkExpr(INTPLUS, arg2Type,
+                         scaleIdx(leftExpr, rstep), curExpr);
+        return;
+    }
+    if (k1 > kindScalar || k2 > kindScalar) {
+        error(errNeedOtherTypesOfOperands);
+1:      curExpr = uVarPtr;
+        return;
+    }
+    if (k1 == kindReal || k2 == kindReal) {
+        if (oper == IMODOP) {
+            error(62); // errIntNeeded
+            goto 1;
+        }
+        if (k1 != kindReal)
+            castToReal(&leftExpr);
+        if (k2 != kindReal)
+            castToReal(&curExpr);
+        resOp = oper;
+        resTyp = realType;
+    } else {
+        resOp = oper + (oper != IMODOP);
+        resTyp = intType;
+    }
+    curExpr = mkExprFold(resOp, resTyp, leftExpr, curExpr);
+} /* bldArithOp */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void bldRelOp(operator oper, eptr ex2) {
+operator resOp;
+    if (typeCheck(arg1Type, arg2Type)) {
+        /* A multi-word value compares only for equality; ordering it would
+           need the P/EQ family to report which way.  The ordering operators
+           are the ones from LTOP up, which genComparison relies on too. */
+        if ((typeSize(arg1Type) != 1) &&
+            (oper >= LTOP) &&
+            !isCharArray(arg1Type)) {
+1:          error(errNeedOtherTypesOfOperands);
+            curExpr = uVarPtr;
+            return;
+        }
+    } else  {
+        if (!areTypesCompatible(&ex2) &&
+            ((arg2Type != intType) ||
+             (arg1Type.p.pk != kindScalar) ||
+            (oper != INOP))) {
+            goto 1;
+        }
+    }
+    if (oper IN [GTOP, LEOP]) {
+        resOp = (oper == GTOP) ? LTOP : GEOP;
+        curExpr = mkExpr(resOp, boolType, curExpr, ex2);
+    } else {
+        curExpr = mkExpr(oper, boolType, ex2, curExpr);
+    }
+} /* bldRelOp */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void bldLogOp(operator oper, eptr leftExpr, int match) {
+    if (!match || ((arg1Type != boolType) && (arg1Type != intType))) {
+        error(errNeedOtherTypesOfOperands);
+        curExpr = uVarPtr;
+    } else {
+        curExpr = mkExprFold(oper, boolType, leftExpr, curExpr);
+    }
+} /* bldLogOp */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void bldCondOp(eptr condExpr, eptr thenExpr) {
+tptr resType;
+eptr altExpr;
+    if (condExpr->typ.p.pk > kindPtr) {
+        error(errBooleanNeeded);
+        return;
+    }
+    arg1Type = thenExpr->typ;
+    arg2Type = curExpr->typ;
+    if (!typeCheck(arg1Type, arg2Type)) {
+        error(errNeedOtherTypesOfOperands);
+        return;
+    }
+    resType = arg1Type;
+    if (typeSize(resType) != 1) {
+        error(errNeedOtherTypesOfOperands);
+        return;
+    }
+    altExpr = mkExpr(ALTERN, resType, thenExpr, curExpr);
+    curExpr = mkExpr(CONDOP, resType, condExpr, altExpr);
+} /* bldCondOp */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void outputObjFile() {
+int idx;
+    padToLeft();
+    for (idx = 1; idx < objBufIdx; ++idx)
+        fputw(objBuffer[idx], &_CHILD_);
+    lineStartOffset  =  moduleOffset;
+    prevOpcode  =  0;
+} /* outputObjFile */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genOneOp() { /* genOneOp */
@@ -3062,14 +3272,6 @@ oiptr cur;
 } /* insnCount */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void genFullExpr(eptr exprToGen) { /* genFullExpr */
-int arg1Const, arg2Const;
-insnltyp *otherIns;
-word arg1Val, arg2Val;
-operator curOP;
-int work;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void startLVal() {
     prepLoad();
     insnList->ilm  =  ilLVAL;
@@ -3128,6 +3330,245 @@ int l5var1z, l5var2z;
 } /* genDeref */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void negateCond() {
+    if (insnList->ilm == ilCONST) {
+        insnList->payload  =  ! insnList->payload;
+    } else {
+        insnList->regsused  =  insnList->regsused ^ [16];
+    }
+} /* negateCond */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* Peel constant terms from a dynamic array index.  Pointer subscripts do not
+   reach this helper: they are lowered to pointer arithmetic and DEREF before
+   code generation.  A constant-only index stays intact so genGetElt can keep
+   doing compile-time bounds checking against the declared bounds. */
+eptr stripIdx(eptr idx, int *offset) {
+eptr c;
+    *offset = 0;
+    while ((idx->op == INTPLUS) || (idx->op == INTMINUS)) {
+        c = idx->expr2;
+        if ((c->op == GETENUM) && (c->typ == intType)) {
+            if (idx->op == INTPLUS)
+                *offset += c->num1;
+            else
+                *offset -= c->num1;
+            idx = idx->expr1;
+        } else if ((idx->op == INTPLUS) &&
+                   (idx->expr1->op == GETENUM) &&
+                   (idx->expr1->typ == intType)) {
+            *offset += idx->expr1->num1;
+            idx = idx->expr2;
+        } else
+            return idx;
+    }
+    return idx;
+} /* stripIdx */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int allocGlobalObject(irptr arg) {
+    if (arg->pos == 0) {
+        if (arg->flags & [20, 21]) {
+            curVal.i  =  leftAlign(arg->id);
+            arg->pos  =  allocExtSymbol(extSymMask);
+        } else {
+            arg->pos  =  symTabPos;
+            putToSymTab(0U);
+        }
+    }
+    return arg->pos;
+} /* allocGlobalObject */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int allocDataRef(int l6arg1z) {
+    if (l6arg1z >= 2048) {
+        curVal.i  =  l6arg1z;
+        return allocSymtab((curVal.i | 040000000U) & halfWord);
+    } else {
+        return l6arg1z;
+    }
+} /* allocDataRef */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Declaration-site initializers (C-style).  Each global '= initializer' is
+// buffered into the INITBUF scratch file as a stream of 3-word entries --
+// (0, base, 0) opens a target segment, (1, value, count) is an item -- and
+// materialized once, at program end, by flushInitializers as the contiguous
+// trailing data region of FCST (which must follow the whole constant pool:
+// finalize describes it only by length+count).
+void putInitEntry(int k, int a, int b) {
+    fputw(k, &INITBUF);
+    fputw(a, &INITBUF);
+    fputw(b, &INITBUF);
+} /* putInitEntry */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Materialize all buffered initializers as the contiguous trailing data region
+// of FCST.  Called at program end, after the whole constant pool has been laid
+// down; replays the INITBUF stream with one-entry lookahead so 'hasNext' drives
+// the list/fill record emission (consecutive single values coalesce into one
+// record; a 'value:count' is a fill).
+void flushInitializers() {
+int dsize, setcount, dataLoc, length, dataSegLen, base;
+int ck, ca, cb, nk, na, nb;
+int curEnd, nextEnd, rep, hasNext;
+word savedVal;
+ifcb F;
+//
+void putDataRec(int cnt) {
+int rec;
+    rec  =  allocDataRef(length) << 36;
+    if (FcstCnt == dataLoc) {
+        curVal  =  savedVal;
+        curVal.i  =  addCurValToFCST();
+    } else {
+        curVal.i  =  dataLoc;
+    }
+    rec  =  rec | (07777U & allocSymtab(0400100000000U | curVal.i & halfWord)) << 24;
+    rec  =  rec | allocDataRef(cnt) << 12;
+    if (dataSegLen == 0) {
+        curVal.i  =  base >> 24;
+    } else {
+        curVal.i  =  allocSymtab(base | dataSegLen & halfWord);
+    }
+    rec  =  rec | curVal.i & 07777U;
+    dataSegLen  =  cnt * length + dataSegLen;
+    fputw(rec, &F);
+    ++setcount;
+    length  =  0;
+    dataLoc  =  FcstCnt;
+} /* putDataRec */
+//
+    fopen(&F, 010000100000, 0);
+    frewind(&INITBUF);
+    dsize  =  FcstCnt;
+    setcount  =  0;
+    length  =  0;
+    dataSegLen  =  0;
+    dataLoc  =  FcstCnt;
+    base  =  0;
+    curEnd  =  feof(&INITBUF);
+    if (! curEnd) {
+        ck  =  fgetw(&INITBUF);
+        ca  =  fgetw(&INITBUF);
+        cb  =  fgetw(&INITBUF);
+    }
+    while (! curEnd) {
+        nextEnd  =  feof(&INITBUF);
+        if (! nextEnd) {
+            nk  =  fgetw(&INITBUF);
+            na  =  fgetw(&INITBUF);
+            nb  =  fgetw(&INITBUF);
+        }
+        if (ck == 0) {
+            base  =  ca;
+            dataLoc  =  FcstCnt;
+            length  =  0;
+            dataSegLen  =  0;
+        } else {
+            savedVal.i  =  ca;
+            rep  =  cb;
+            hasNext  =  (! nextEnd) && (nk == 1);
+            if (rep != 1) {
+                if (length != 0)
+                    putDataRec(1);
+                length  =  1;
+                putDataRec(rep);
+            } else {
+                ++length;
+                if (hasNext) {
+                    curVal  =  savedVal;
+                    toFCST();
+                } else {
+                    if (length != 1) {
+                        curVal  =  savedVal;
+                        toFCST();
+                    }
+                    putDataRec(1);
+                }
+            }
+        }
+        ck  =  nk;  ca  =  na;  cb  =  nb;
+        curEnd  =  nextEnd;
+    }
+    frewind(&F);
+    while (! feof(&F)) {
+        fputw(fgetw(&F), &FCST);
+    }
+    lookup2  =  FcstCnt - dsize;
+    FcstCnt  =  dsize;
+    lookupMode  =  setcount;
+} /* flushInitializers */
+
+void programme(int *retSizePtr, irptr procName, int bodyBlock) { /* programme */
+irptr preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr;
+int isPredefined, l2bool8z, retSeen, inTypeDef, hadParens, externDecl;
+int fileExit;
+int bodyStatSys;
+int l2var12z;
+tptr l2typ13z, l2typ14z, typedRetType, ceTyp;
+int ceVal;
+int initRegs, flushRegs;
+irptr initVar;
+int labFence;
+strLabel *strLabList;
+//
+int l2int18z, ii, localSize, sizeCount, jj;
+//
+// File scope, so the shared declarator parser below -- a sibling of
+// parseTypeRef, not nested inside it -- can read them right after each
+// type-spec call: isPacked mirrors '__packed TYPE[size]' (parseTypeRef
+// resets it false on entry, sets it true on 'packed', and would
+// normally consume it itself via its own trailing '[size]' handling,
+// but here the range is a declarator suffix, not part of the type-spec
+// tokens, so nothing resets it -- the caller must). isForwardRef marks
+// a base type resolved via the forward-reference placeholder path (an
+// undefined name used mid-typedef, e.g. 'typedef expr *eptr;' parsed
+// before 'expr' itself is defined): the returned type is a
+// heap-allocated (definePtrType, not compact getPtrType) pointer-to-int
+// stand-in whose base field the *later* real definition of the name
+// patches in place, so a declarator '*' applied directly to it must
+// reuse it as-is instead of wrapping it in another pointer.
+int isPacked;
+int lsbOrder;                   // '__packed __lsb': fields fill the word from bit 0
+int isForwardRef;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// name: parseTypeRef's '*Name' branch passes curIdent, since the lexer is
+// still sitting on Name there.  Forward-referenced typedef patching (see
+// TYPEDEFSY) calls this after the declarator's own name has been read and
+// the lexer has moved on, so it passes the saved declarator.name.
+int knownInType(irptr *rec, int name) {
+irptr it;
+    for (it = typelist; it != NULL; it = it->pck.p.next) {
+        if (it->id == name) {
+            *rec = it;
+            return true;
+        }
+    }
+    return false;
+} /* knownInType */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void formOperator(opgen l3arg1z) { /* formOperator */
+int l3int1z, l3int2z, l3int3z;
+int nextInsn;
+eptr helpExpr;
+int direction;
+int noTarget;
+int l3var10z, l3var11z;
+insnltyp *saved;
+int rhsMode;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void genFullExpr(eptr exprToGen) { /* genFullExpr */
+int arg1Const, arg2Const;
+insnltyp *otherIns;
+word arg1Val, arg2Val;
+operator curOP;
+int work;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genHelper() {
     push();
     saved  =  insnList;
@@ -3161,15 +3602,6 @@ insnltyp *l5var2z;
     l5var2z->tail  =  insnList->tail;
     insnList  =  l5var2z;
 } /* prepMultiWord */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void negateCond() {
-    if (insnList->ilm == ilCONST) {
-        insnList->payload  =  ! insnList->payload;
-    } else {
-        insnList->regsused  =  insnList->regsused ^ [16];
-    }
-} /* negateCond */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void tryFlip(int commutes) {
@@ -3324,33 +3756,6 @@ int l5var9z;
         forValue  =  true;
     }
 } /* genBoolAnd */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-/* Peel constant terms from a dynamic array index.  Pointer subscripts do not
-   reach this helper: they are lowered to pointer arithmetic and DEREF before
-   code generation.  A constant-only index stays intact so genGetElt can keep
-   doing compile-time bounds checking against the declared bounds. */
-eptr stripIdx(eptr idx, int *offset) {
-eptr c;
-    *offset = 0;
-    while ((idx->op == INTPLUS) || (idx->op == INTMINUS)) {
-        c = idx->expr2;
-        if ((c->op == GETENUM) && (c->typ == intType)) {
-            if (idx->op == INTPLUS)
-                *offset += c->num1;
-            else
-                *offset -= c->num1;
-            idx = idx->expr1;
-        } else if ((idx->op == INTPLUS) &&
-                   (idx->expr1->op == GETENUM) &&
-                   (idx->expr1->typ == intType)) {
-            *offset += idx->expr1->num1;
-            idx = idx->expr2;
-        } else
-            return idx;
-    }
-    return idx;
-} /* stripIdx */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genGetElt() { /* genGetElt */
@@ -3541,20 +3946,6 @@ int idxOffsets[10];
     insnList  =  l5ins21z;
     *insnList  =  insnCopy;
 } /* genGetElt */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int allocGlobalObject(irptr arg) {
-    if (arg->pos == 0) {
-        if (arg->flags & [20, 21]) {
-            curVal.i  =  leftAlign(arg->id);
-            arg->pos  =  allocExtSymbol(extSymMask);
-        } else {
-            arg->pos  =  symTabPos;
-            putToSymTab(0U);
-        }
-    }
-    return arg->pos;
-} /* allocGlobalObject */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genEntry() { /* genEntry */
@@ -4587,37 +4978,6 @@ int needsMater, idxOffset;
 } /* formOperator */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-/* Extract the value of a constant expression into curVal.  With folding at
-   construction a constant expression is already a GETENUM node, so read it
-   directly instead of lowering it through genFullExpr, which saves an
-   insnList allocation per constant. */
-void takeConstFromExpr() {
-    if (errors || curExpr == NULL)
-        return;
-    if (curExpr->op != GETENUM)
-        error(errNoConstant);
-    else if (typeSize(curExpr->typ) != 1)
-        error(errConstOfOtherTypeNeeded);
-    else
-        curVal.i  =  curExpr->num1;
-} /* takeConstFromExpr */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void markTypeSym() {
-    if (SY == IDENT) {
-        curVal.i  =  curIdent & hashMask;
-        bucket = mapAI(curVal.i);
-        hashTravPtr  =  symHash[bucket];
-        while ((hashTravPtr != NULL) && (hashTravPtr->id != curIdent))
-            hashTravPtr  =  hashTravPtr->pck.p.next;
-        if ((hashTravPtr != NULL) && (hashTravPtr->pck.p.cl == TYPEID)) {
-            SY  =  TYPESY;
-            symType  =  hashTravPtr->typ;
-        }
-    }
-} /* markTypeSym */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // The shared declarator parser below constructs and consumes array
 // sizes, and a type nested inside a function is only visible within
 // that function's own scope in this codebase's Pascal-style nesting --
@@ -4671,7 +5031,7 @@ int savedLookup, ok;
 // procedural values to factor a callback through) and routine
 // parameters (individual: each comma-separated item carries its own
 // type-spec).
-tptr parseTypeRef(setofsys skipTarget);
+tptr parseTypeRef(int skipTarget);
 
 typedef struct {
             int name;
@@ -4915,7 +5275,7 @@ int packedFlag, noComma;
 } /* parseSignature */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-tptr parseTypeRef(setofsys skipTarget) {
+tptr parseTypeRef(int skipTarget) {
 typedef struct {
             int first, second;
 } pair;
@@ -5393,45 +5753,6 @@ pair *curSlot;
 } /* parseTypeRef */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void dumpEnumNames(tptr l3arg1z) {
-irptr l3var1z;
-    if (l3arg1z.rep->start == 0) {
-        l3arg1z.rep->start  =  FcstCnt;
-        l3var1z  =  l3arg1z.rep->enums;
-        while (l3var1z != NULL) {
-            curVal.i  =  l3var1z->id;
-            l3var1z  =  l3var1z->list;
-            toFCST();
-        }
-    }
-} /* dumpEnumNames */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void fopenFile(irptr fileSym, extfilerec *extFileP) {
-int fileAddr;
-    fileAddr  =  fileSym->value;
-    if (fileAddr < 074000) {
-        form1Insn(getValueOrAllocSymtab(fileAddr) + KUTC + I7);
-        fileAddr  =  0;
-    }
-    form1Insn(KVTM+I14 + fileAddr);
-    form1Insn(KITS+14);
-// The only files opened this way are *INPUT* and *OUTPUT*
-// with known characteristics (1 word, 8 bits).
-    curVal.i  =  fileBufSize * 010000000000 + 0100010;
-    form1Insn(KXTS+I8 + getFCSToffset());
-    if (extFileP == NULL) {
-        form1Insn(KXTS);
-    } else {
-        curVal.i  =  extFileP->location;
-        if (curVal.i == 512)
-            curVal.i  =  extFileP->offset;
-        form1Insn(KXTS+I8 + getFCSToffset());
-    }
-    formAndAlign(getHelperProc(35)); /*"FOPEN   "*/
-}
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseDecls(int l3arg1z) {
 int l3int1z, frame, l3var3z;
     switch (l3arg1z) {
@@ -5571,17 +5892,6 @@ void parseUnaryExpression();
 void parseCallArgs(irptr subroutine, eptr callee);
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-/* Recovery for an error that leaves nothing to build a value from: skip to a
-   token a statement can end on, and stand an undefined-variable node in for
-   the value.  The caller reports the error and returns, so the expression
-   finishes with a well-typed placeholder and the parse carries on from the
-   terminator. */
-void badExpr() {
-    skip(skipToSet | statEndSys);
-    curExpr  =  uVarPtr;
-} /* badExpr */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 /* parsePostfix: consume any chain of postfix operators (->field,
    .field, [idx], (args)) acting on curExpr.  Returns with SY pointing at
    the first token that is neither a postfix operator nor the trailing `]`
@@ -5687,51 +5997,6 @@ void parseLval() {
         curExpr  =  mkRef((eptr)curExpr->id1->value, curExpr->typ);
     }
 } /* parseLval */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void castToReal(eptr *value) {
-    /* Fold at construction when the operand is already constant, so a mixed
-       int/real constant expression collapses to a single GETENUM node (the
-       one case bldArithOp routes through here). */
-    *value = mkUnaryFold(TOREAL, realType, *value);
-} /* castToReal */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-/* C's assignment conversions between integer and real, applied wherever a
-   value is assigned to a destination of the other type: plain assignment,
-   an actual passed by value to a formal, and return.  Widening goes through
-   castToReal; narrowing drops the fraction.  Returns false if the mismatch
-   is not one of those,
-   leaving the caller to report it. */
-int castArith(tptr dest, eptr *value) {
-eptr arg;
-    arg  =  *value;
-    if (dest == realType && typeCheck(intType, arg->typ)) {
-        castToReal(value);
-        return true;
-    }
-    if ((arg->typ != realType) || ! typeCheck(intType, dest))
-        return false;
-    /* mkUnaryFold folds a constant real in place, the way it does for
-       castToReal's TOREAL. */
-    *value = mkUnaryFold(TOINT, intType, arg);
-    return true;
-} /* castArith */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int areTypesCompatible(eptr *l4arg1z) {
-    if (arg1Type == realType) {
-        if (typeCheck(intType, arg2Type)) {
-            castToReal(&curExpr);
-            return true;
-        }
-    } else if ((arg2Type == realType) &&
-               typeCheck(intType, arg1Type)) {
-        castToReal(l4arg1z);
-        return true;
-    }
-    return false;
-} /* areTypesCompatible */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 /* The arguments of a call, matched against the callee's formals.  A direct
@@ -5843,147 +6108,6 @@ tptr routTyp, formType;
     }
     curExpr  =  callExpr;
 } /* parseCallArgs */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldBitOp(operator oper, eptr leftArg) {
-    if (arg1Type.p.pk != kindScalar || arg2Type.p.pk != kindScalar) {
-        error(errNeedOtherTypesOfOperands);
-        curExpr = uVarPtr;
-        return;
-    }
-    curExpr = mkExprFold(oper, arg2Type, leftArg, curExpr);
-} /* bldBitOp */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldArithOp(operator oper, eptr leftExpr, int match) {
-kind k1, k2;
-operator resOp;
-tptr resTyp;
-int lstep, rstep;
-    k1 = arg1Type.p.pk;
-    k2 = arg2Type.p.pk;
-    /* A char pointer is a byte index into flat memory: the byte is already
-       its unit, so a count applies as it stands, and either operand may be
-       the pointer.  The operands stay in source order, which an op-assign
-       depends on -- it drops this node's expr1 and takes expr2 as the
-       right-hand side. */
-    if ((isCharPtr(arg1Type) && typeCheck(intType, arg2Type)) ||
-        (isCharPtr(arg2Type) && typeCheck(intType, arg1Type))) {
-        curExpr = mkExpr(oper + (oper != IMODOP), charPtrType, leftExpr, curExpr);
-        return;
-    }
-    /* Pointer arithmetic steps in pointee units: the integer operand is
-       scaled to words here, so codegen sees an ordinary integer add.  Any
-       combination not taken apart below -- a scaling operator, 'int - ptr',
-       a sum of two pointers -- falls into the rejection that follows. */
-    lstep  =  eltStep(arg1Type);
-    rstep  =  eltStep(arg2Type);
-    if (lstep != 0 && rstep != 0) {
-        if (oper == MINUSOP && typeCheck(arg1Type, arg2Type)) {
-            curExpr = mkExpr(INTMINUS, intType, leftExpr, curExpr);
-            if (lstep != 1)
-                curExpr = mkExprFold(IDIVOP, intType, curExpr, mkIntLit(lstep));
-            return;
-        }
-    } else if (lstep != 0) {
-        if ((oper == PLUSOP || oper == MINUSOP) &&
-            typeCheck(intType, arg2Type)) {
-            /* Only PLUSOP and MINUSOP reach here, so the step is plain. */
-            curExpr = mkExpr(oper + 1, arg1Type,
-                             leftExpr, scaleIdx(curExpr, lstep));
-            return;
-        }
-    } else if (rstep != 0 && oper == PLUSOP &&
-               typeCheck(intType, arg1Type)) {
-        curExpr = mkExpr(INTPLUS, arg2Type,
-                         scaleIdx(leftExpr, rstep), curExpr);
-        return;
-    }
-    if (k1 > kindScalar || k2 > kindScalar) {
-        error(errNeedOtherTypesOfOperands);
-1:      curExpr = uVarPtr;
-        return;
-    }
-    if (k1 == kindReal || k2 == kindReal) {
-        if (oper == IMODOP) {
-            error(62); // errIntNeeded
-            goto 1;
-        }
-        if (k1 != kindReal)
-            castToReal(&leftExpr);
-        if (k2 != kindReal)
-            castToReal(&curExpr);
-        resOp = oper;
-        resTyp = realType;
-    } else {
-        resOp = oper + (oper != IMODOP);
-        resTyp = intType;
-    }
-    curExpr = mkExprFold(resOp, resTyp, leftExpr, curExpr);
-} /* bldArithOp */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldRelOp(operator oper, eptr ex2) {
-operator resOp;
-    if (typeCheck(arg1Type, arg2Type)) {
-        /* A multi-word value compares only for equality; ordering it would
-           need the P/EQ family to report which way.  The ordering operators
-           are the ones from LTOP up, which genComparison relies on too. */
-        if ((typeSize(arg1Type) != 1) &&
-            (oper >= LTOP) &&
-            !isCharArray(arg1Type)) {
-1:          error(errNeedOtherTypesOfOperands);
-            curExpr = uVarPtr;
-            return;
-        }
-    } else  {
-        if (!areTypesCompatible(&ex2) &&
-            ((arg2Type != intType) ||
-             (arg1Type.p.pk != kindScalar) ||
-            (oper != INOP))) {
-            goto 1;
-        }
-    }
-    if (oper IN [GTOP, LEOP]) {
-        resOp = (oper == GTOP) ? LTOP : GEOP;
-        curExpr = mkExpr(resOp, boolType, curExpr, ex2);
-    } else {
-        curExpr = mkExpr(oper, boolType, ex2, curExpr);
-    }
-} /* bldRelOp */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldLogOp(operator oper, eptr leftExpr, int match) {
-    if (!match || ((arg1Type != boolType) && (arg1Type != intType))) {
-        error(errNeedOtherTypesOfOperands);
-        curExpr = uVarPtr;
-    } else {
-        curExpr = mkExprFold(oper, boolType, leftExpr, curExpr);
-    }
-} /* bldLogOp */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void bldCondOp(eptr condExpr, eptr thenExpr) {
-tptr resType;
-eptr altExpr;
-    if (condExpr->typ.p.pk > kindPtr) {
-        error(errBooleanNeeded);
-        return;
-    }
-    arg1Type = thenExpr->typ;
-    arg2Type = curExpr->typ;
-    if (!typeCheck(arg1Type, arg2Type)) {
-        error(errNeedOtherTypesOfOperands);
-        return;
-    }
-    resType = arg1Type;
-    if (typeSize(resType) != 1) {
-        error(errNeedOtherTypesOfOperands);
-        return;
-    }
-    altExpr = mkExpr(ALTERN, resType, thenExpr, curExpr);
-    curExpr = mkExpr(CONDOP, resType, condExpr, altExpr);
-} /* bldCondOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void factor() { /* factor */
@@ -6944,29 +7068,6 @@ void ifWhileStatement() {
 } /* ifWhileStatement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int allocDataRef(int l6arg1z) {
-    if (l6arg1z >= 2048) {
-        curVal.i  =  l6arg1z;
-        return allocSymtab((curVal.i | 040000000U) & halfWord);
-    } else {
-        return l6arg1z;
-    }
-} /* allocDataRef */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// Declaration-site initializers (C-style).  Each global '= initializer' is
-// buffered into the INITBUF scratch file as a stream of 3-word entries --
-// (0, base, 0) opens a target segment, (1, value, count) is an item -- and
-// materialized once, at program end, by flushInitializers as the contiguous
-// trailing data region of FCST (which must follow the whole constant pool:
-// finalize describes it only by length+count).
-void putInitEntry(int k, int a, int b) {
-    fputw(k, &INITBUF);
-    fputw(a, &INITBUF);
-    fputw(b, &INITBUF);
-} /* putInitEntry */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Open a new destination segment: 'var' bare (offset 0) or, when 'designator',
 // 'var[index]...' (SY at '['; parsePostfix builds the GETELT chain, leaving SY
 // at '=').  formOperator(SETREG9) yields the base-register template with no
@@ -7031,104 +7132,6 @@ int braced, count, v;
     if (braced)
         checkSymAndRead(ENDSY);
 } /* parseInitializer */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// Materialize all buffered initializers as the contiguous trailing data region
-// of FCST.  Called at program end, after the whole constant pool has been laid
-// down; replays the INITBUF stream with one-entry lookahead so 'hasNext' drives
-// the list/fill record emission (consecutive single values coalesce into one
-// record; a 'value:count' is a fill).
-void flushInitializers() {
-int dsize, setcount, dataLoc, length, dataSegLen, base;
-int ck, ca, cb, nk, na, nb;
-int curEnd, nextEnd, rep, hasNext;
-word savedVal;
-ifcb F;
-//
-void putDataRec(int cnt) {
-int rec;
-    rec  =  allocDataRef(length) << 36;
-    if (FcstCnt == dataLoc) {
-        curVal  =  savedVal;
-        curVal.i  =  addCurValToFCST();
-    } else {
-        curVal.i  =  dataLoc;
-    }
-    rec  =  rec | (07777U & allocSymtab(0400100000000U | curVal.i & halfWord)) << 24;
-    rec  =  rec | allocDataRef(cnt) << 12;
-    if (dataSegLen == 0) {
-        curVal.i  =  base >> 24;
-    } else {
-        curVal.i  =  allocSymtab(base | dataSegLen & halfWord);
-    }
-    rec  =  rec | curVal.i & 07777U;
-    dataSegLen  =  cnt * length + dataSegLen;
-    fputw(rec, &F);
-    ++setcount;
-    length  =  0;
-    dataLoc  =  FcstCnt;
-} /* putDataRec */
-//
-    fopen(&F, 010000100000, 0);
-    frewind(&INITBUF);
-    dsize  =  FcstCnt;
-    setcount  =  0;
-    length  =  0;
-    dataSegLen  =  0;
-    dataLoc  =  FcstCnt;
-    base  =  0;
-    curEnd  =  feof(&INITBUF);
-    if (! curEnd) {
-        ck  =  fgetw(&INITBUF);
-        ca  =  fgetw(&INITBUF);
-        cb  =  fgetw(&INITBUF);
-    }
-    while (! curEnd) {
-        nextEnd  =  feof(&INITBUF);
-        if (! nextEnd) {
-            nk  =  fgetw(&INITBUF);
-            na  =  fgetw(&INITBUF);
-            nb  =  fgetw(&INITBUF);
-        }
-        if (ck == 0) {
-            base  =  ca;
-            dataLoc  =  FcstCnt;
-            length  =  0;
-            dataSegLen  =  0;
-        } else {
-            savedVal.i  =  ca;
-            rep  =  cb;
-            hasNext  =  (! nextEnd) && (nk == 1);
-            if (rep != 1) {
-                if (length != 0)
-                    putDataRec(1);
-                length  =  1;
-                putDataRec(rep);
-            } else {
-                ++length;
-                if (hasNext) {
-                    curVal  =  savedVal;
-                    toFCST();
-                } else {
-                    if (length != 1) {
-                        curVal  =  savedVal;
-                        toFCST();
-                    }
-                    putDataRec(1);
-                }
-            }
-        }
-        ck  =  nk;  ca  =  na;  cb  =  nb;
-        curEnd  =  nextEnd;
-    }
-    frewind(&F);
-    while (! feof(&F)) {
-        fputw(fgetw(&F), &FCST);
-    }
-    lookup2  =  FcstCnt - dsize;
-    FcstCnt  =  dsize;
-    lookupMode  =  setcount;
-} /* flushInitializers */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void returnOp() {
@@ -7618,16 +7621,6 @@ void parseConstDeclValue(tptr *typ, int *value) {
     *typ  =  ceTyp;
     *value  =  ceVal;
 } /* parseConstDeclValue */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void outputObjFile() {
-int idx;
-    padToLeft();
-    for (idx = 1; idx < objBufIdx; ++idx)
-        fputw(objBuffer[idx], &_CHILD_);
-    lineStartOffset  =  moduleOffset;
-    prevOpcode  =  0;
-} /* outputObjFile */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void defineRoutine(int bodyBlock) {
