@@ -586,7 +586,6 @@ struct Types : public BESM6Obj {
         struct {                       // kindRoutine
             TPtr rresult;
             SigPtr rparams;
-            int64_t rargc;
             int64_t rflags;
             int64_t szRtype;
         };
@@ -929,6 +928,14 @@ const int64_t litInput = 012515660656412L;    /* " *INPUT*" */
 int64_t leftInsn;
 int64_t curIdent;
 int64_t toAlloc, usedRegs, liveRegs, freeRegs, auxRegs;
+
+/* M2-M6.  Every C/n entry helper saves all five in the callee's own frame and
+   C/E puts them back, so a call hands them over exactly as it found them.  A
+   pinned base always lives in this range -- freeRegs is a subrange of it --
+   so no call may take one out of liveRegs, whatever the callee's flags say
+   about the registers it touches.  An ASSEMBLER external has no entry helper
+   to do the saving and is held to the same rule by hand. */
+const int64_t calleeSaved = BitRange(2,6);
 int64_t litOct, litFortran, litAssembler, litLsb, litMain, litRegister;
 ExprPtr uVarPtr, curExpr;
 InsnList *  insnList;
@@ -1526,6 +1533,36 @@ ExprPtr bldIncDec(ExprPtr lval, bool isInc, bool isPost)
     }
     return mkExpr(op2, t, rmw, one);
 } /* bldIncDec */
+
+// Not enabled -- to switch it on, uncomment this and its call in
+// formOperator.  It saves one A-X per discarded ++/-- in a compiled
+// program, and costs more object words than that in this compiler, whose
+// own source spells every discarded step as a prefix ++.
+//
+// The value of a post-increment is the lvalue's old value, which bldIncDec
+// forms by undoing the step afterwards: the inverse operator applied to the
+// RMWASSIGN, stepping by the very literal node the RMWASSIGN steps by.
+// Where the value is discarded -- an expression statement, a for's step --
+// that undo is dead code, so hand back the RMWASSIGN alone.  The shared
+// literal node is what identifies the pair.
+//
+// ExprPtr dropPostFixup(ExprPtr e)
+// {
+//     ExprPtr rmw, step;
+//     if (e->op != INTPLUS and e->op != INTMINUS)
+//         return e;
+//     rmw = e->expr1;
+//     if (rmw->op != RMWASSIGN)
+//         return e;
+//     step = rmw->expr2;
+//     // The inner operator is the outer one's inverse, so it is the other
+//     // member of the same pair.
+//     if (step->op == e->op or (step->op != INTPLUS and step->op != INTMINUS))
+//         return e;
+//     if (step->expr1 != e->expr2)
+//         return e;
+//     return rmw;
+// } /* dropPostFixup */
 
 void addToHashTab(IdentRecPtr arg)
 {
@@ -3027,9 +3064,8 @@ bool sameRoutineType(TPtr type1, TPtr type2)
     // 24 all-by-reference, 26 assembler.  Bit 20 (extern) is linkage, and
     // including it would keep every declared function pointer type (flags 0)
     // from ever accepting an extern routine.
-    if ((type1.rep()->rargc != type2.rep()->rargc) or
-        ((Bits(21,24,26) & type1.rep()->rflags) !=
-         (Bits(21,24,26) & type2.rep()->rflags))) {
+    if ((Bits(21,24,26) & type1.rep()->rflags) !=
+        (Bits(21,24,26) & type2.rep()->rflags)) {
         return false;
     }
     if ((type1.rep()->rresult != type2.rep()->rresult) and
@@ -3115,18 +3151,14 @@ int64_t argCount(IdentRecPtr l3arg1z)
 TPtr mkRoutineTyp(TPtr result, SigPtr params, int64_t flags)
 {
     TPtr resultTyp{};
-    SigPtr p;
 
     resultTyp.setRep(besm6_alloc_record<Types>(offsetof(Types, szRtype)));
     resultTyp.rep()->rresult = result;
     resultTyp.rep()->rparams = params;
-    resultTyp.rep()->rargc = 0;
     resultTyp.rep()->rflags = flags;
     resultTyp.p.psize = 1;
     resultTyp.p.bits = 15;
     resultTyp.p.pk = kindRoutine;
-    for (p = params; p != NULL; p = p->next)
-        resultTyp.rep()->rargc = resultTyp.rep()->rargc + 1;
     return resultTyp;
 }
 
@@ -3599,7 +3631,7 @@ void prepLoad()
                 if ((l4int2z == 0) and (insnList->st == stWORD)) {
                     addInsnAndOffset(helper + curInsnTemplate,
                                      l4int3z);
-                    goto L4602;
+                    break;
                 } else {
                     addToInsnList(helper + InsnTemp[UTC]);
                 }
@@ -3625,16 +3657,15 @@ void prepLoad()
                 addToInsnList(getHelperProc(isSimple ? P_LDAR : P_RR));
                 insnList->tail->mode = 1;
             }
-            goto L4545;
-        } break;
+        } // FALLTHRU
         case ilRVAL: {
             // A value already in ACC can still be a slice: GETFIELD on a
             // function result records shift/width without an address to
-            // load from.  genSliceExtract clears st, so the jump in from
-            // ilLVAL cannot extract twice.
+            // load from.  genSliceExtract clears st, so the fallthrough
+            // from ilLVAL cannot extract twice.
             if (insnList->st == stSLICE)
                 genSliceExtract();
-L4545:      if (forValue and (valueType == BooleanType) and
+            if (forValue and (valueType == BooleanType) and
                 has(insnList->regsused, 16))
                 addToInsnList(KAEX+E1);
         } break;
@@ -3644,7 +3675,6 @@ L4545:      if (forValue and (valueType == BooleanType) and
                                  has(insnList->regsused, 16)*010000 + insnList->payload.ii);
         } break;
     } /* case */
-L4602:
     insnList->ilm = ilRVAL;
     insnList->st = stWORD;      // the value is a plain word in ACC now
     insnList->regsused = insnList->regsused | Bits(0L);
@@ -3861,6 +3891,30 @@ void negateCond()
         insnList->regsused = insnList->regsused ^ Bits(16);
     }
 } /* negateCond */
+
+/* An lvalue whose address is reached without touching the accumulator and
+   without side effects: a plain variable, a dereference of one, a field of
+   such an lvalue, or an element at a variable index.  genRMWAssign may walk
+   one of these twice instead of materializing its address on the stack.
+   The element case does not look at the base for the same reason the field
+   case does not add code: reaching it only adjusts the displacement.
+   A pinned base (NOOP) is the cheapest of all -- genFullExpr answers it
+   with a bare descriptor and no instructions -- but only on that path: the
+   arm that finds the register no longer live rebuilds the address from
+   expr2, which does cost instructions and the accumulator. */
+bool isCheapLval(ExprPtr e)
+{
+    int64_t idxOffset;
+    switch (e->op) {
+    case GETVAR:   return true;
+    case DEREF:    return e->expr1->op == GETVAR;
+    case GETFIELD: return isCheapLval(e->expr1);
+    case GETELT:   return stripIdx(e->expr2, idxOffset)->op == GETVAR;
+    case NOOP:     return e->vt.typ.p.psize != 0
+                       or has(liveRegs, e->vt.typ.p.pad);
+    default:       return false;
+    }
+} /* isCheapLval */
 
 struct genFullExpr {
     static std::vector<genFullExpr*> super;
@@ -4148,25 +4202,15 @@ L33:        prepLoad();
        ASSIGNOP(stklval, op(stklval, rhs)) via the STKLVAL sentinel. */
     void genRMWAssign() {
         ExprPtr innerNode, rhsExpr, lhsExpr, rmwLhs;
-        ExprPtr synthOp, synthAsn, simpleIdx;
+        ExprPtr synthOp, synthAsn;
         Operator innerOp;
-        bool needsMater;
-        int64_t idxOffset;
         bool &rhsMode = formOperator::super.back()->rhsMode;
 
         lhsExpr = exprToGen->expr1;
         innerNode = exprToGen->expr2;
         innerOp = innerNode->op;
         rhsExpr = innerNode->expr1;
-        simpleIdx = NULL;
-        if (lhsExpr->op == GETELT)
-            simpleIdx = stripIdx(lhsExpr->expr2, idxOffset);
-        needsMater = (lhsExpr->op != GETVAR) and
-                     ((lhsExpr->op != GETFIELD) or
-                      (lhsExpr->expr1->op != GETVAR)) and
-                     ((lhsExpr->op != GETELT) or
-                      (simpleIdx->op != GETVAR));
-        if (needsMater) {
+        if (not isCheapLval(lhsExpr)) {
             rhsMode = false;
             (void) genFullExpr(lhsExpr);
             rhsMode = true;
@@ -4417,7 +4461,8 @@ struct genEntry {
     ExprPtr l5exp1z, l5exp2z, calleeExp;
     IdentRecPtr l5idr5z;
     bool isProc, firstArg, isIndir, isFortrn, isAssembler, allByRef;
-    int64_t calleeFl, frameSiz, numArgs;
+    int64_t calleeFl, frameSiz;
+    bool manyArgs;
     InsnListPtr l5inl20z;
     TPtr routTyp, resTyp;
     IdClass paramClass;
@@ -4444,18 +4489,19 @@ genEntry::genEntry()
     isIndir = exprToGen->op == INDCALL;
     if (isIndir) {
         // Everything about the callee comes from the type it is reached
-        // through: the result, the argument count, and the flags that shape
+        // through: the result, the parameter list, and the flags that shape
         // the call.  Nothing is known about the registers the routine at the
         // other end uses, so every one of them counts as clobbered.
         calleeExp = exprToGen->expr2;
         routTyp = ptrBase(calleeExp->vt.typ);
         resTyp = routTyp.rep()->rresult;
-        numArgs = routTyp.rep()->rargc;
+        manyArgs = routTyp.rep()->rparams != NULL and
+                   routTyp.rep()->rparams->next != NULL;
         calleeFl = routTyp.rep()->rflags | BitRange(0,15);
     } else {
         l5idr5z = exprToGen->id2;
         resTyp = l5idr5z->typ;
-        numArgs = argCount(l5idr5z);
+        manyArgs = argCount(l5idr5z) >= 2;
         calleeFl = l5idr5z->flags();
     }
     isProc = (resTyp == NULL);
@@ -4467,7 +4513,12 @@ genEntry::genEntry()
     insnList->head = NULL;
     insnList->tail = NULL;
     insnList->typ = resTyp;
-    insnList->regsused = (calleeFl | BitRange(7,15)) & (BitRange(0,8)|BitRange(10,15));
+    /* The display registers the callee names are not the caller's business:
+       calleeSaved is put back before the call returns.  Leaving them in
+       regsused would fold them into usedRegs when the list is emitted, and
+       genOneOp would then take a base pinned there out of liveRegs. */
+    insnList->regsused = ((calleeFl & ~ calleeSaved) | BitRange(7,15))
+                         & (BitRange(0,8)|BitRange(10,15));
     insnList->ilm = ilRVAL;
     insnList->st = stWORD;      // prepLoad reads st on every ilRVAL list
     if (isFortrn) {
@@ -4480,7 +4531,7 @@ genEntry::genEntry()
         // are pushed.  An assembler routine reads those off the stack top and
         // has no frame of its own, so nothing is skipped for it.
         firstArg = true;
-        if (not isAssembler and numArgs >= 2) {
+        if (not isAssembler and manyArgs) {
             addToInsnList(KUTM+SP + frameSiz);
         }
     }
@@ -4568,7 +4619,7 @@ genEntry::genEntry()
         }
         l5exp2z = l5exp2z->expr1;
     }
-    usedRegs = (usedRegs | calleeFl) & BitRange(1,15);
+    usedRegs = (usedRegs | (calleeFl & ~ calleeSaved)) & BitRange(1,15);
     if (isFortrn) {
         if (not checkFortran)
             addToInsnList(KNTR+7);
@@ -4582,7 +4633,7 @@ genEntry::genEntry()
         insnList->typ = resTyp;
         insnList->regsused = insnList->regsused | Bits(0L);
         insnList->ilm = ilRVAL;
-        liveRegs = liveRegs & ~ calleeFl;
+        liveRegs = liveRegs & ~ (calleeFl & ~ calleeSaved);
     }
     /* 7237 */
 } /* genEntry */
@@ -5155,6 +5206,8 @@ formOperator::formOperator(OpGen op)
     rhsMode = true;
     if ((errors and (op != SETREG)) or curExpr == NULL)
         return;
+//  if (op == DOIT)                             /* see dropPostFixup */
+//      curExpr = dropPostFixup(curExpr);
     if (op != FORMOP &&
         op != STOREAT9 &&
         op != DFLTWDTH)
@@ -6561,7 +6614,7 @@ void parseCallArgs(IdentRecPtr subroutine, ExprPtr callee)
 
     if (callee == NULL) {
         if (subroutine->typ != voidType)
-            liveRegs = liveRegs & ~ subroutine->flags();
+            liveRegs = liveRegs & ~ (subroutine->flags() & ~ calleeSaved);
         noArgs = not has(subroutine->flags(), 24);
     } else {
         routTyp = ptrBase(callee->vt.typ);

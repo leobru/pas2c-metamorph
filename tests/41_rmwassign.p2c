@@ -1,20 +1,30 @@
 /*=k9,l0*/
 /*
- * Exercise op-assign and ++/-- on ACC-using lvalues.  Each lvalue
- * needs the accumulator to compute its address, so the prior AST
- * lowering (ASSIGNOP(lhs, op(lhs, rhs))) would evaluate lhs twice
- * and clobber ACC mid-RMW.  RMWASSIGN materialises the address
- * once in a spill slot and reuses it for load and store.
+ * Exercise op-assign and ++/-- on lvalues of every shape.  The naked
+ * AST lowering (ASSIGNOP(lhs, op(lhs, rhs))) evaluates lhs twice, so
+ * RMWASSIGN materialises the address once in a spill slot and reuses
+ * it for load and store wherever reaching the lvalue costs the
+ * accumulator: a constant subscript, a computed index, a deref of
+ * anything but a plain variable.  The shapes isCheapLval admits --
+ * a variable, a deref of one, a field of either, an element at a
+ * variable index -- are walked twice instead, and both paths must
+ * produce the same values.
  * Labels avoid leading +/-/0 to keep BESM-6 carriage control quiet.
  */
 typedef int *intptr;
+typedef intptr *intpp;
 typedef struct { int x, y; } rec;
 typedef rec *recptr;
+typedef struct { int v; } part;
+typedef struct { part sub; int t; } whole;
 int arr[4];
 int mat[3][3];
 intptr p;
+intpp pp;
 recptr rp;
 rec r;
+rec ra[3];
+whole o;
 int n;
 int i, j;
 void main() {
@@ -66,4 +76,27 @@ void main() {
     arr[0] ^= 2;        writeln(" b03 ", arr[0]:0);
     arr[0] <<= 1;       writeln(" b04 ", arr[0]:0);
     arr[0] >>= 2;       writeln(" b05 ", arr[0]:0);
+
+    /* field of a field: no code beyond a displacement, so walked twice */
+    o.sub.v = 7; o.t = 1;
+    o.sub.v += 3;       writeln(" n01 ", o.sub.v:0);
+    ++o.sub.v;          writeln(" n02 ", o.sub.v:0);
+
+    /* field of an element at a variable index: likewise */
+    ra[0].x = 1; ra[1].x = 2; ra[2].x = 3;
+    i = 2;
+    ra[i].x += 6;       writeln(" e01 ", ra[2].x:0);
+    --ra[i].x;          writeln(" e02 ", ra[2].x:0);
+
+    /* deref of a deref: the inner one needs ACC, so the address is spilled */
+    n = 60;
+    p = &n;
+    pp = &p;
+    **pp += 5;          writeln(" d01 ", n:0);
+    ++(**pp);           writeln(" d02 ", n:0);
+
+    /* address arithmetic under the deref: spilled for the same reason */
+    arr[0] = 3; arr[1] = 4;
+    p = &arr[0];
+    *(p+1) += 9;        writeln(" d03 ", arr[1]:0);
 }

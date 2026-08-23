@@ -133,6 +133,13 @@ const
     FALSE  =  0U;
     TRUE  =  1U;
     E48 = 1 << 47;
+// M2-M6.  Every C/n entry helper saves all five in the callee's own frame and
+// C/E puts them back, so a call hands them over exactly as it found them.  A
+// pinned base always lives in this range -- freeRegs is a subrange of it --
+// so no call may take one out of liveRegs, whatever the callee's flags say
+// about the registers it touches.  An ASSEMBLER external has no entry helper
+// to do the saving and is held to the same rule by hand.
+    calleeSaved = [2:6];
     P_RR = 32;
     P_LDAR = 46;
 //
@@ -292,7 +299,6 @@ typedef union {
             tptr alt; int szCases; };
     struct { tptr rresult;
             sigptr rparams;
-            int rargc;
             int rflags; int szRtype; };
 } types;
 //
@@ -1951,22 +1957,15 @@ irptr it;
    out 0 and getPtrType can compact-encode a pointer to this type. */
 tptr mkRoutineTyp(tptr result, sigptr params, int flags) {
 tptr resultTyp;
-sigptr p;
     resultTyp.rep = malloc(offsetof(types, szRtype));
     { register types *ty = (resultTyp.rep);
         ty->rresult  =  result;
         ty->rparams  =  params;
-        ty->rargc  =  0;
         ty->rflags  =  flags;
     }
     resultTyp.p.psize  =  1;
     resultTyp.p.bits  =  15;
     resultTyp.p.pk  =  kindRoutine;
-    p  =  params;
-    while (p != NULL) {
-        ++resultTyp.rep->rargc;
-        p  =  p->next;
-    }
     return resultTyp;
 } /* mkRoutineTyp */
 //
@@ -2109,9 +2108,8 @@ sigptr p1, p2;
        24 all-by-reference, 26 assembler.  Bit 20 (extern) is linkage, and
        including it would keep every declared function pointer type (flags 0)
        from ever accepting an extern routine. */
-    if (type1.rep->rargc != type2.rep->rargc ||
-        ((type1.rep->rflags & [21,24,26]) !=
-         (type2.rep->rflags & [21,24,26]))) {
+    if ((type1.rep->rflags & [21,24,26]) !=
+        (type2.rep->rflags & [21,24,26])) {
         return false;
     }
     if (type1.rep->rresult != type2.rep->rresult &&
@@ -2340,6 +2338,36 @@ int step;
         return rmw;
     return mkExpr(INTPLUS + INTMINUS - op, t, rmw, one);
 } /* bldIncDec */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Not enabled -- to switch it on, uncomment this and its call in
+// formOperator.  It saves one A-X per discarded ++/-- in a compiled
+// program, and costs more object words than that in this compiler, whose
+// own source spells every discarded step as a prefix ++.
+//
+// The value of a post-increment is the lvalue's old value, which bldIncDec
+// forms by undoing the step afterwards: the inverse operator applied to the
+// RMWASSIGN, stepping by the very literal node the RMWASSIGN steps by.
+// Where the value is discarded -- an expression statement, a for's step --
+// that undo is dead code, so hand back the RMWASSIGN alone.  The shared
+// literal node is what identifies the pair.
+//
+// eptr dropPostFixup(eptr e) {
+// eptr rmw, step;
+//     if (e->op != INTPLUS && e->op != INTMINUS)
+//         return e;
+//     rmw = e->expr1;
+//     if (rmw->op != RMWASSIGN)
+//         return e;
+//     step = rmw->expr2;
+//     // The inner operator is the outer one's inverse, so it is the other
+//     // member of the same pair.
+//     if (step->op == e->op || step->op != INTPLUS && step->op != INTMINUS)
+//         return e;
+//     if (step->expr1 != e->expr2)
+//         return e;
+//     return rmw;
+// } /* dropPostFixup */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void formFileInit() {
@@ -3048,8 +3076,8 @@ tptr valueType;
 kind l4var5z;
 state l4st6z;
 int isSimple;
-    valueType  =  insnList->typ;
     { register insnltyp *il = insnList;
+        valueType  =  il->typ;
         switch (il->ilm) {
         case ilCONST:
             curVal.i  =  il->payload;
@@ -3058,24 +3086,24 @@ int isSimple;
             addToInsnList(constRegTemplate + curInsnTemplate + curVal.i);
             break;
         case ilLVAL: {
-            helper  =  insnList->addrmd;
-            l4int2z  =  insnList->payload;
-            l4int3z  =  insnList->disp;
+            helper  =  il->addrmd;
+            l4int2z  =  il->payload;
+            l4int3z  =  il->disp;
             if (15 < helper) {
                 /* empty */
             } else if (helper == 15) {
                 addToInsnList(macro + mcACC2ADDR);
             } else {
-                helper  =  indexreg[insnList->addrmd];
-                if ((l4int2z == 0) && (insnList->st == stWORD)) {
+                helper  =  indexreg[il->addrmd];
+                if ((l4int2z == 0) && (il->st == stWORD)) {
                     addInsnAndOffset(helper + curInsnTemplate,
                                      l4int3z);
-                    goto 4602;
+                    break; // goto 4602;
                 } else {
                     addToInsnList(helper + KUTC);
                 }
             }
-            l4st6z  =  insnList->st;
+            l4st6z  =  il->st;
             if (l4st6z == stWORD) {
                 addInsnAndOffset(l4int2z + curInsnTemplate, l4int3z);
             } else if (l4st6z == stSLICE) {
@@ -3094,7 +3122,7 @@ int isSimple;
                     isSimple  =  false;
                 }
                 addToInsnList(getHelperProc(isSimple ? P_LDAR : P_RR));
-                insnList->tail->mode  =  1;
+                il->tail->mode  =  1;
             }
             // FALLTHRU
         } /* ilLVAL */
@@ -3103,20 +3131,17 @@ int isSimple;
                function result records shift/width without an address to
                load from.  genSliceExtract clears st, so the fallthrough
                from ilLVAL cannot extract twice. */
-            if (insnList->st == stSLICE)
+            if (il->st == stSLICE)
                 genSliceExtract();
             if (forValue && (valueType == boolType) &&
-               (16 in insnList->regsused))
+               (16 in il->regsused))
                 addToInsnList(KAEX+E1);
             break;
         case ilCOND:
             if (forValue)
                 addInsnAndOffset(macro+mcCOND2INT,
-                    (16 IN insnList->regsused)*010000 + insnList->payload);
+                    (16 IN il->regsused)*010000 + il->payload);
         } /* switch */
-4602:
-    } /* register block */
-    { register insnltyp *il = insnList;
         il->ilm  =  ilRVAL;
         il->st   =  stWORD;   /* the value is a plain word in ACC now */
         il->regsused |= E48;
@@ -3274,11 +3299,14 @@ oiptr cur;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void startLVal() {
     prepLoad();
-    insnList->ilm  =  ilLVAL;
-    insnList->st  =  stWORD;
-    insnList->disp  =  0;
-    insnList->payload  =  0;
-    insnList->addrmd  =  18;
+    {
+        register insnltyp * il = insnList;
+        il->ilm  =  ilLVAL;
+        il->st  =  stWORD;
+        il->disp  =  0;
+        il->payload  =  0;
+        il->addrmd  =  18;
+    }
 } /* startLVal */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3952,7 +3980,7 @@ void genEntry() { /* genEntry */
 eptr l5exp1z, l5exp2z, calleeExp;
 irptr l5idr5z;
 int isProc, firstArg, isIndir, isFortrn, isAssembler, allByRef;
-int calleeFl, frameSiz, numArgs;
+int calleeFl, frameSiz, manyArgs;
 insnltyp *l5inl20z;
 tptr routTyp, resTyp;
 idclass paramClass;
@@ -3961,18 +3989,19 @@ idclass paramClass;
     isIndir  =  exprToGen->op == INDCALL;
     if (isIndir) {
         /* Everything about the callee comes from the type it is reached
-           through: the result, the argument count, and the flags that shape
+           through: the result, the parameter list, and the flags that shape
            the call.  Nothing is known about the registers the routine at the
            other end uses, so every one of them counts as clobbered. */
         calleeExp  =  exprToGen->expr2;
         routTyp  =  ptrBase(calleeExp->typ);
         resTyp  =  routTyp.rep->rresult;
-        numArgs  =  routTyp.rep->rargc;
+        manyArgs  =  routTyp.rep->rparams != NULL &&
+                     routTyp.rep->rparams->next != NULL;
         calleeFl  =  routTyp.rep->rflags | [0:15];
     } else {
         l5idr5z  =  exprToGen->id2;
         resTyp  =  l5idr5z->typ;
-        numArgs  =  argCount(l5idr5z);
+        manyArgs  =  argCount(l5idr5z) >= 2;
         calleeFl  =  l5idr5z->flags;
     }
     isProc  =  resTyp == voidType;
@@ -3984,7 +4013,11 @@ idclass paramClass;
     insnList->head  =  NULL;
     insnList->tail  =  NULL;
     insnList->typ  =  resTyp;
-    insnList->regsused  =  (calleeFl | [7:15]) & [0:8, 10:15];
+    /* The display registers the callee names are not the caller's business:
+       calleeSaved is put back before the call returns.  Leaving them in
+       regsused would fold them into usedRegs when the list is emitted, and
+       genOneOp would then take a base pinned there out of liveRegs. */
+    insnList->regsused  =  ((calleeFl & ~calleeSaved) | [7:15]) & [0:8, 10:15];
     insnList->ilm  =  ilRVAL;
     insnList->st  =  stWORD;   /* prepLoad reads st on every ilRVAL list */
     if (isFortrn) {
@@ -3997,7 +4030,7 @@ idclass paramClass;
            are pushed.  An assembler routine reads those off the stack top and
            has no frame of its own, so nothing is skipped for it. */
         firstArg  =  true;
-        if (! isAssembler && numArgs >= 2) {
+        if (! isAssembler && manyArgs) {
             addToInsnList(KUTM+SP + frameSiz);
         }
     }
@@ -4081,7 +4114,7 @@ idclass paramClass;
         }
         l5exp2z  =  l5exp2z->expr1;
     }
-    usedRegs  =  (usedRegs | calleeFl) & [1:15];
+    usedRegs  =  (usedRegs | (calleeFl & ~calleeSaved)) & [1:15];
     if (isFortrn) {
         addToInsnList(checkFortran ? getHelperProc(54) /* "P/FM" */
                                    : KNTR+7);
@@ -4091,7 +4124,7 @@ idclass paramClass;
         insnList->typ  =  resTyp;
         insnList->regsused  =  insnList->regsused | E48;
         insnList->ilm  =  ilRVAL;
-        liveRegs &= ~calleeFl;
+        liveRegs &= ~(calleeFl & ~calleeSaved);
     }
 } /* genEntry */
 //
@@ -4389,6 +4422,29 @@ insnltyp *condChain, *thenChain;
 } /* genCondOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int isCheapLval(eptr e) {
+/* An lvalue whose address is reached without touching the accumulator and
+   without side effects: a plain variable, a dereference of one, a field of
+   such an lvalue, or an element at a variable index.  genRMWAssign may walk
+   one of these twice instead of materializing its address on the stack.
+   The element case does not look at the base for the same reason the field
+   case does not add code: reaching it only adjusts the displacement.
+   A pinned base (NOOP) is the cheapest of all -- genFullExpr answers it
+   with a bare descriptor and no instructions -- but only on that path: the
+   arm that finds the register no longer live rebuilds the address from
+   expr2, which does cost instructions and the accumulator. */
+int idxOffset;
+    switch (e->op) {
+    case GETVAR:   return true;
+    case DEREF:    return e->expr1->op == GETVAR;
+    case GETFIELD: return isCheapLval(e->expr1);
+    case GETELT:   return stripIdx(e->expr2, &idxOffset)->op == GETVAR;
+    case NOOP:     return (e->typ.p.psize != 0) || (e->typ.p.pad IN liveRegs);
+    default:       return false;
+    }
+} /* isCheapLval */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genRMWAssign() {
 /* Code-gen for RMWASSIGN(lhs, inner-op(rhs, NULL)): a read-modify-write
    assignment (compound op-assign such as `lhs += rhs`, or pre-++/--).
@@ -4404,30 +4460,19 @@ void genRMWAssign() {
    append `XTA 0' / `ATX 0' to do the actual transfer.  Pushing twice
    (rather than peeking SP-1) works around the BESM-6 not having a
    non-popping SP-relative read.
-   For trivial lvalues that don't touch ACC (plain GETVAR / GETFIELD
-   off GETVAR / GETELT with GETVAR index) the synthetic AST may share
-   the original lvalue node directly -- re-walking is cheap and side-
-   effect free, and skips the push/pop traffic entirely. */
+   For trivial lvalues that don't touch ACC (see isCheapLval) the
+   synthetic AST may share the original lvalue node directly -- re-
+   walking is cheap and side-effect free, and skips the push/pop
+   traffic entirely. */
 eptr innerNode, rhsExpr, lhsExpr, rmwLhs;
-eptr synthOp, synthAsn, simpleIdx;
+eptr synthOp, synthAsn;
 operator innerOp;
-int needsMater, idxOffset;
     lhsExpr = exprToGen->expr1;
     innerNode = exprToGen->expr2;
     innerOp = innerNode->op;
     rhsExpr = innerNode->expr1;
 
-    simpleIdx = NULL;
-    if (lhsExpr->op == GETELT)
-        simpleIdx = stripIdx(lhsExpr->expr2, &idxOffset);
-
-    needsMater = lhsExpr->op != GETVAR &&
-                (lhsExpr->op != GETFIELD ||
-                 lhsExpr->expr1->op != GETVAR) &&
-                (lhsExpr->op != GETELT ||
-                 simpleIdx->op != GETVAR);
-
-    if (needsMater) {
+    if (!isCheapLval(lhsExpr)) {
         rhsMode = false;
         genFullExpr(lhsExpr);
         rhsMode = true;
@@ -4805,6 +4850,8 @@ int needsMater, idxOffset;
     rhsMode  =  true;
     if (errors && l3arg1z != SETREG || curExpr == NULL)
         return;
+//  if (l3arg1z == DOIT)                        /* see dropPostFixup */
+//      curExpr = dropPostFixup(curExpr);
     if (! (l3arg1z IN [FORMOP, STOREAT9, DFLTWDTH]))
         genFullExpr(curExpr);
     switch (l3arg1z) {
@@ -6016,7 +6063,7 @@ tptr routTyp, formType;
     if (callee == NULL) {
         { register identrec *ir = subroutine;
             if (ir->typ != voidType)
-                liveRegs &= ~ir->flags;
+                liveRegs &= ~(ir->flags & ~calleeSaved);
             noArgs  =  ! (24 in ir->flags);
         }
     } else {
@@ -8108,9 +8155,9 @@ void exitScope(int a) {
                 ir->pck.next  =  symHash[bucket];
                 ir->id  =  curIdent;
                 ir->list  =  NULL;
+                ir->pck.p.offset  =  curFrameRegTemplate;
+                ir->pck.p.cl  =  ENUMID;
             }
-            workidr->pck.p.offset  =  curFrameRegTemplate;
-            workidr->pck.p.cl  =  ENUMID;
             symHash[bucket]  =  workidr;
             inSymbol();
             if (charClass != ASSIGNOP)

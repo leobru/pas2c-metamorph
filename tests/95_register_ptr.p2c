@@ -55,6 +55,20 @@ void main() {
     { register rec *p = &r1;
       writeln(" BARE=", sum3(p):0);
     }
+    // Read-modify-write through a register pointer: the pinned base is the
+    // cheapest lvalue there is, so genRMWAssign shares it between the read
+    // and the write rather than spilling its address.  The call in the
+    // middle covers the other arm, where the register no longer holds the
+    // base and the address has to be rebuilt.
+    { register rec *p = &r1;
+      p->a += 5;
+      ++p->b;
+      p->c--;
+      writeln(" RMW=", p->a:0, ',', p->b:0, ',', p->c:0);
+      clobber();
+      p->a += 100;
+      writeln(" RMWX=", p->a:0, " R2=", r2.a:0);
+    }
     // 'register' is recognized by spelling, so it stays an ordinary
     // identifier everywhere else.
     register = 42;
