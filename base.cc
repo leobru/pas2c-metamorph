@@ -33,6 +33,16 @@ const char * boilerplate = " PASCAL METAMORPH HELPER (2025) ";
 
 const int MAXLIT = 500;
 const int SYMTAB_LIMIT = 075500;
+// The most formals one routine may have.  Like cases.pairs and declOps this
+// is a fixed scratch bound, not a heap chain: the names are only needed
+// between reading the list and making the formals just after the scope mark.
+// To lift it entirely, give SigRec a pname field: makeFormals would take the
+// name from the signature and formalNames would go away, bucket included,
+// since addToHashTab derives one from the name.  That costs a word per formal
+// of permanent heap, about 106 on a self-compile, which is roughly half of
+// what making the formals transient bought in the first place.  The whole
+// change is written out above makeFormals.
+const int MAXFORMALS = 16;
 const int SYMTAB_MAX = 80;
 const int OBJBUF_SIZE = 8192;    // initially 1024
 const int caseTabMin = 9;        // clause count from which a switch indexes
@@ -607,11 +617,23 @@ inline void TPtr::setRep(TypesPtr t)
 inline bool TPtr::operator==(const void * q) const { return rep() == q; }
 inline bool TPtr::operator!=(const void * q) const { return rep() != q; }
 
+// A routine's signature: the permanent record of its parameters.  The
+// formals' own identrecs live only as long as the body that names them, so
+// everything a later call site or a definition needs is here -- the class,
+// the type, and the frame slot the formal occupies.  pclass is three bits
+// and poffset a frame offset, so the two share a word and the record stays
+// three, mirroring work.p2c's sigrec.
 struct SigRec : public BESM6Obj {
-    IdClass pclass;
+    union {
+        int64_t s1word;
+        struct {
+            uint64_t pclass  : 3;
+            int64_t  poffset : 24;
+        };
+    } s1;
     TPtr ptyp;
     SigPtr next;
-    SigRec() : pclass(TYPEID), ptyp(), next(nullptr) {}
+    SigRec() : s1{0}, ptyp(), next(nullptr) { s1.pclass = TYPEID; }
 };
 
 typedef char charmap[128];
@@ -702,6 +724,9 @@ struct IdentRec : public BESM6Obj {
     TPtr typ;
     // TYPEID, VARID classes end here
     union {
+        struct {                // TYPEID: nothing past typ
+            int64_t szBase;
+        };
         struct {                // ENUMID, FORMALID
             IdentRecPtr list_;
             int64_t value_;
@@ -710,15 +735,44 @@ struct IdentRec : public BESM6Obj {
         struct {                // FIELDID
             int64_t maybeUnused_;
             TPtr uptype_;
-            bool pckfield_;
-            int64_t shift_, width_;
+            // A packed field's placement, one word instead of three,
+            // mirroring work.p2c's fldpck union.  shift and width both run
+            // 0..48, so six bits each; they are read only when pckfield is
+            // set, and a fresh record is zero, which is what a 48-bit packed
+            // member (whose shift is never assigned) relies on.
+            union {
+                int64_t fpkword;
+                struct {
+                    uint64_t pckfield : 1;
+                    uint64_t shift    : 6;
+                    uint64_t width    : 6;
+                };
+            } fpk;
             int64_t szField;
         };
         struct {                // ROUTINEID
             int64_t low_;
             int64_t high_;
-            IdentRecPtr argList_, preDefLink_;
-            int64_t level_, pos_;
+            // Four small fields in two words, mirroring work.p2c's rtnpck1
+            // and rtnpck2.  Both pointers are 15-bit arena word-indices at
+            // the bottom of their word (as pck.nidx is), so a dereference
+            // costs nothing extra; pos is a symbol-table position and level
+            // the frame size the definition inherits from its declaration,
+            // 8 or 9.
+            union {
+                int64_t r1word;
+                struct {
+                    uint64_t sig : 15;
+                    int64_t  pos : 24;
+                };
+            } r1;
+            union {
+                int64_t r2word;
+                struct {
+                    uint64_t preDefLink : 15;
+                    int64_t  level      : 9;
+                };
+            } r2;
             int64_t flags_;
             int64_t szRoutine;
         };
@@ -759,34 +813,19 @@ struct IdentRec : public BESM6Obj {
         assert(pck.cl == FIELDID);
         return uptype_;
     }
-    bool & pckfield() {
-        assert(pck.cl == FIELDID);
-        return pckfield_;
+    // Arena-index accessors, exactly as next() is: 0 reads back as NULL,
+    // and heap + index skips ptr()'s bounds check because a link may outlive
+    // its record across a rollup.
+    SigPtr sig() const {
+        return r1.sig == 0 ? NULL
+             : reinterpret_cast<SigPtr>(heap + r1.sig);
     }
-    int64_t & shift() {
-        assert(pck.cl == FIELDID);
-        return shift_;
+    void setSig(SigPtr p) { r1.sig = ord(p); }
+    IdentRecPtr preDefLink() const {
+        return r2.preDefLink == 0 ? NULL
+             : reinterpret_cast<IdentRecPtr>(heap + r2.preDefLink);
     }
-    int64_t & width() {
-        assert(pck.cl == FIELDID);
-        return width_;
-    }
-    IdentRecPtr & argList() {
-        assert(pck.cl == ROUTINEID);
-        return argList_;
-    }
-    IdentRecPtr & preDefLink() {
-        assert(pck.cl == ROUTINEID);
-        return preDefLink_;
-    }
-    int64_t & level() {
-        assert(pck.cl == ROUTINEID);
-        return level_;
-    }
-    int64_t & pos() {
-        assert(pck.cl == ROUTINEID);
-        return pos_;
-    }
+    void setPreDef(IdentRecPtr p) { r2.preDefLink = ord(p); }
     int64_t & flags() {
         assert(pck.cl == ROUTINEID);
         return flags_;
@@ -801,8 +840,9 @@ struct IdentRec : public BESM6Obj {
         case ROUTINEID:
             ret = toAscii(id);
             if (verbose) {
-                if (0 <= asprintf(&strp, "(routine) procno: %ld value: %ld argl: %ld predef: %ld level: %ld pos: %ld flags: %lx",
-                                  low_, value_, ord(argList_), ord(preDefLink_), level_, pos_, flags_)) {
+                if (0 <= asprintf(&strp, "(routine) procno: %ld value: %ld sig: %ld predef: %ld level: %ld pos: %ld flags: %lx",
+                                  low_, value_, (long)r1.sig, (long)r2.preDefLink,
+                                  (long)r2.level, (long)r1.pos, flags_)) {
                     ret += strp;
                     free(strp);
                 } else perror("asprintf");
@@ -3076,7 +3116,7 @@ bool sameRoutineType(TPtr type1, TPtr type2)
     p1 = type1.rep()->rparams;
     p2 = type2.rep()->rparams;
     while (p1 != NULL and p2 != NULL) {
-        if (p1->pclass != p2->pclass)
+        if (p1->s1.pclass != p2->s1.pclass)
             return false;
         if ((p1->ptyp != p2->ptyp) and
             (p1->ptyp == NULL or p2->ptyp == NULL or
@@ -3134,14 +3174,13 @@ L1:     return true;
 int64_t argCount(IdentRecPtr l3arg1z)
 {
     int64_t l3var1z;
-    IdentRecPtr l3var2z;
-    l3var2z = l3arg1z->argList();
+    SigPtr l3var2z;
+    l3var2z = l3arg1z->sig();
     l3var1z = 0;
-    if (l3var2z != NULL)
-        while (l3var2z != l3arg1z) {
-            l3var1z = l3var1z + 1;
-            l3var2z = l3var2z->list();
-        }
+    while (l3var2z != NULL) {
+        l3var1z = l3var1z + 1;
+        l3var2z = l3var2z->next;
+    }
     return l3var1z;
 } /* argCount */
 
@@ -3162,30 +3201,11 @@ TPtr mkRoutineTyp(TPtr result, SigPtr params, int64_t flags)
     return resultTyp;
 }
 
-// The type of an already declared routine, from its parameter records.
+// The type of an already declared routine.  Its signature is kept from the
+// declaration, so there is nothing to rebuild.
 TPtr makeRoutineType(IdentRecPtr routine)
 {
-    IdentRecPtr srcParam;
-    SigPtr newParam, lastParam, head;
-
-    head = NULL;
-    lastParam = NULL;
-    srcParam = routine->argList();
-    if (srcParam != NULL) {
-        while (srcParam != routine) {
-            newParam = new SigRec;
-            newParam->pclass = (IdClass)srcParam->pck.cl;
-            newParam->ptyp = srcParam->typ;
-            newParam->next = NULL;
-            if (lastParam == NULL)
-                head = newParam;
-            else
-                lastParam->next = newParam;
-            lastParam = newParam;
-            srcParam = srcParam->list();
-        }
-    }
-    return mkRoutineTyp(routine->typ, head, routine->flags());
+    return mkRoutineTyp(routine->typ, routine->sig(), routine->flags());
 }
 
 struct formOperator {
@@ -4470,16 +4490,16 @@ struct genEntry {
 
 int64_t allocGlobalObject(IdentRecPtr l6arg1z)
 {
-    if (l6arg1z->pos() == 0) {
+    if (l6arg1z->r1.pos == 0) {
         if ((l6arg1z->flags() & Bits(20, 21)) != Bits()) {
             curVal.ii = leftAlign(l6arg1z->id);
-            l6arg1z->pos() = allocExtSymbol(extSymMask);
+            l6arg1z->r1.pos = allocExtSymbol(extSymMask);
         } else {
-            l6arg1z->pos() = symTabPos;
+            l6arg1z->r1.pos = symTabPos;
             putToSymTab(0);
         }
     }
-    return l6arg1z->pos();
+    return l6arg1z->r1.pos;
 }
 
 genEntry::genEntry()
@@ -4982,13 +5002,13 @@ L10122:
                 genFullExpr(exprToGen->expr1);
                 curIdRec = exprToGen->id2;
                 insnList->disp = insnList->disp + curIdRec->pck.offset;
-                if (curIdRec->pckfield()) {
+                if (curIdRec->fpk.pckfield) {
                     switch (insnList->st) {
                     case stWORD:
-                        insnList->shift = curIdRec->shift();
+                        insnList->shift = curIdRec->fpk.shift;
                         break;
                     case stSLICE: {
-                        insnList->shift = insnList->shift + curIdRec->shift();
+                        insnList->shift = insnList->shift + curIdRec->fpk.shift;
                         if (not curIdRec->uptype().rep()->lsbord)
                             insnList->shift = insnList->shift + typeBits(curIdRec->uptype()) - 48;
                     } break;
@@ -4997,11 +5017,11 @@ L10122:
                             error(errUsingVarAfterIndexingPackedArray);
                         else {
                             startLVal();
-                            insnList->shift = curIdRec->shift();
+                            insnList->shift = curIdRec->fpk.shift;
                         }
                         break;
                     } /* 10235*/
-                    insnList->width = curIdRec->width();
+                    insnList->width = curIdRec->fpk.width;
                     insnList->st = stSLICE;
                     insnList->regsused = insnList->regsused | Bits(0L);
                 }
@@ -5533,7 +5553,7 @@ struct parseTypeRef {
         curType.p.psize = 1;
         curType.p.bits = 15;
         curType.p.pk = kindPtr;
-        curEnum = besm6_alloc_record<IdentRec>(offsetof(IdentRec, szIdent));
+        curEnum = besm6_alloc_record<IdentRec>(offsetof(IdentRec, szBase));
         curEnum->pck.nidx = ord(typelist);
         curEnum->id = curIdent;
         curEnum->pck.offset = lineCnt;
@@ -5750,7 +5770,7 @@ SigPtr parseSignature()
             Declarator d = parseOneDeclarator(paramType, packedFlag);
             nameOptional = false;
             cur = new SigRec;
-            cur->pclass = VARID;
+            cur->s1.pclass = VARID;
             cur->ptyp = d.type;
             cur->next = NULL;
             if (last == NULL)
@@ -5849,15 +5869,15 @@ void packOneField(IdentRecPtr fld, TPtr fldType)
     fld->typ = fldType;
     if (isPacked) {
         fieldWidth = typeBits(fldType);
-        fld->width() = fieldWidth;
+        fld->fpk.width = fieldWidth;
         if (fieldWidth != 48) {
             for (pairIdx = 0; pairIdx < cases.count; ++pairIdx) {
 L11523:         curSlot = &cases.pairs[pairIdx];
                 if (curSlot->first >= fieldWidth) {
-                    fld->shift() = 48 - curSlot->first;
+                    fld->fpk.shift = 48 - curSlot->first;
                     fld->pck.offset = curSlot->second;
                     if (not lsbOrder)
-                        fld->shift() = 48 - fld->width() - fld->shift();
+                        fld->fpk.shift = 48 - fld->fpk.width - fld->fpk.shift;
                     curSlot->first = curSlot->first - fieldWidth;
                     if (curSlot->first == 0) {
                         cases.count = cases.count - 1;
@@ -5884,20 +5904,20 @@ L11523:         curSlot = &cases.pairs[pairIdx];
             goto L11523;
         }
     }
-    fld->pckfield() = false;
+    fld->fpk.pckfield = false;
     fld->pck.offset = cases.size;
     cases.size = cases.size + typeSize(fldType);
 L11622:
     if (PASINFOR.listMode == 3) {
         printf("%16c", ' ');
-        if (fld->pckfield())
+        if (fld->fpk.pckfield)
             printf("PACKED");
         printf(" FIELD ");
         printTextWord(fld->id);
         printf(".OFFSET=%05loB", (long)fld->pck.offset);
-        if (fld->pckfield()) {
-            printf(".<<=SHIFT=%2ld. WIDTH=%2ld BITS", fld->shift(),
-                   fld->width());
+        if (fld->fpk.pckfield) {
+            printf(".<<=SHIFT=%2ld. WIDTH=%2ld BITS", (long)fld->fpk.shift,
+                   (long)fld->fpk.width);
         } else {
             printf(".WORDS=%ld", typeSize(fldType));
         }
@@ -5974,7 +5994,7 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion
                     curEnum->pck.nidx = ord(fieldHash[d.bucket]);
                     curEnum->pck.cl = FIELDID;
                     curEnum->uptype() = curType;
-                    curEnum->pckfield() = isPacked;
+                    curEnum->fpk.pckfield = isPacked;
                     fieldHash[d.bucket] = curEnum;
                     if (curType.rep()->fields == NULL)
                         curType.rep()->fields = curEnum;
@@ -6297,11 +6317,11 @@ void parseDecls(int64_t l3arg1z)
     case 2: {
         padToLeft();
         l3var3z = has(procName->flags(), 22);
-        l3arg1z = procName->pos();
+        l3arg1z = procName->r1.pos;
         frame.ii = moduleOffset - 040000;
         if (l3arg1z != 0)
             symTab[l3arg1z - 074000] = 041000000 + (frame.ii & halfWord);
-        procName->pos() = moduleOffset;
+        procName->r1.pos = moduleOffset;
         l3arg1z = argCount(procName);
         if (l3var3z) {
             if (41 >= entryPtCnt) {
@@ -6608,7 +6628,6 @@ void parseCallArgs(IdentRecPtr subroutine, ExprPtr callee)
 {
     bool noArgs, tooMany;
     ExprPtr curActual, callExpr, argList;
-    IdentRecPtr curFormal = NULL;
     SigPtr curSig = NULL;
     TPtr routTyp{}, formType{};
 
@@ -6636,10 +6655,10 @@ void parseCallArgs(IdentRecPtr subroutine, ExprPtr callee)
     if (SY == LPAREN) {
         if (noArgs) {
             if (callee == NULL)
-                curFormal = subroutine->argList();
+                curSig = subroutine->sig();
             else
                 curSig = routTyp.rep()->rparams;
-            if (curFormal == NULL and curSig == NULL) {
+            if (curSig == NULL) {
                 inSymbol();
                 if (SY != RPAREN) {
                     error(errTooManyArguments);
@@ -6653,14 +6672,9 @@ void parseCallArgs(IdentRecPtr subroutine, ExprPtr callee)
         }
         do {
             if (noArgs) {
-                if (callee == NULL) {
-                    tooMany = subroutine == curFormal;
-                    formType = curFormal->typ;
-                } else {
-                    tooMany = curSig == NULL;
-                    if (not tooMany)
-                        formType = curSig->ptyp;
-                }
+                tooMany = curSig == NULL;
+                if (not tooMany)
+                    formType = curSig->ptyp;
                 if (tooMany) {
                     error(errTooManyArguments);
                     badExpr();
@@ -6684,16 +6698,10 @@ void parseCallArgs(IdentRecPtr subroutine, ExprPtr callee)
             curActual->expr2 = curExpr;
             argList->expr1 = curActual;
             argList = curActual;
-            if (noArgs) {
-                if (callee == NULL)
-                    curFormal = curFormal->list();
-                else
-                    curSig = curSig->next;
-            }
+            if (noArgs)
+                curSig = curSig->next;
         } while (SY == COMMA);
-        if ((SY != RPAREN) or
-            (noArgs and (callee == NULL ? curFormal != subroutine
-                                        : curSig != NULL)))
+        if ((SY != RPAREN) or (noArgs and curSig != NULL))
             error(errNoCommaOrParenOrTooFewArgs);
         else
             inSymbol();
@@ -7765,6 +7773,9 @@ void ifWhileStatement()
 
     disableNorm();
     parentExpression();
+    // Anything a branch can test: a scalar, a pointer, or a packed field of
+    // either, which is a type of its own and so not IntegerType.  bldCondOp
+    // admits the same set for the ternary.
     if (curExpr->vt.typ.p.pk > (uint64_t)kindPtr) {
         error(errBooleanNeeded);
     } else {
@@ -8425,8 +8436,10 @@ Statement::Statement()
                 }
                 disableNorm();
                 parentExpression();
-                if (curExpr->vt.typ != BooleanType and
-                    curExpr->vt.typ != IntegerType) {
+                // The same set ifWhileStatement and bldCondOp take: NOTOP
+                // only flips the polarity of the list BRANCH is about to
+                // read, so whatever one can branch on the other can too.
+                if (curExpr->vt.typ.p.pk > (uint64_t)kindPtr) {
                     error(errBooleanNeeded);
                 } else {
                     jumpTarget = curOffset.ii;
@@ -8539,6 +8552,7 @@ void defineRoutine(bool bodyBlock = false)
     Word l3var1z, l3var2z;
     int64_t l3int4z;
     IdentRecPtr l3idr5z = NULL;   /* only read when hasMain says it was found */
+    SigPtr curSig5z;
     Word l3var7z;
     bool hasMain = false;
     IdentRecPtr &procName = programme::super.back()->procName;
@@ -8594,22 +8608,22 @@ void defineRoutine(bool bodyBlock = false)
     if (not bodyBlock and SY != BEGINSY and CH != 0)
         requiredSymErr(BEGINSY);
     if (has(procName->flags(), 23)) {
-        l3idr5z = procName->argList();
+        curSig5z = procName->sig();
         l3int4z = 8;
         if (procName->typ != voidType)
             l3int4z = 9;
-        while (l3idr5z != procName) {
-            if (l3idr5z->pck.cl == VARID) {
-                l3var2z.ii = typeSize(l3idr5z->typ);
+        while (curSig5z != NULL) {
+            if (curSig5z->s1.pclass == VARID) {
+                l3var2z.ii = typeSize(curSig5z->ptyp);
                 if (l3var2z.ii != 1) {
                     form3Insn(KVTM+I14 + l3int4z,
                               KVTM+I12 + l3var2z.ii,
-                              KVTM+I11 + l3idr5z->value());
+                              KVTM+I11 + curSig5z->s1.poffset);
                     formAndAlign(getHelperProc(45)); /* "P/LNGPAR" */
                 }
             }
             l3int4z = l3int4z + 1;
-            l3idr5z = l3idr5z->list();
+            curSig5z = curSig5z->next;
         }
     } /* 21105 */
     l3var2z.ii = lineNesting;
@@ -8660,7 +8674,7 @@ void defineRoutine(bool bodyBlock = false)
         if (curProcNesting == 1) {
             parseDecls(2);
             form1Insn(InsnTemp[UJ] + l3var1z.ii);
-            curVal.ii = procName->pos() - 040000;
+            curVal.ii = procName->r1.pos - 040000;
             symTab[2] = 041000000 | (curVal.ii & halfWord);
         }
         curVal.ii = sizeCount;
@@ -8795,9 +8809,9 @@ initScalars::initScalars() :
     uProcPtr->pck.cl = ROUTINEID;
     uProcPtr->typ.setRep(NULL);
     uProcPtr->list() = NULL;
-    uProcPtr->argList() = NULL;
-    uProcPtr->preDefLink() = NULL;
-    uProcPtr->pos() = 0;
+    uProcPtr->setSig(NULL);
+    uProcPtr->setPreDef(NULL);
+    uProcPtr->r1.pos = 0;
 
     temptype.setRep(NULL);
     sysProcNum = 0;
@@ -8829,7 +8843,7 @@ initScalars::initScalars() :
     programObj->pck.cl = ROUTINEID; 
     curVal.ii = 06041634357556054L; /* PASCOMPL */
     programObj->id = curVal.ii;
-    programObj->pos() = 0;
+    programObj->r1.pos = 0;
     symTab[0] = leftAlign(curVal.ii);
 
     entryPtTable[1] = symTab[0];
@@ -8842,7 +8856,7 @@ initScalars::initScalars() :
     CHILD.push_back((Bits(0,4,6) | BitRange(9,12) | Bits(23,28,29) |
                      BitRange(33,36) | Bits(46))); /*10 24 74001 00 30 74002*/
     moduleOffset = 040001;
-    programObj->argList() = NULL;
+    programObj->setSig(NULL);
     programObj->flags() = int64_t();
     objBufIdx = 1;
     lookupMode = lookDef;
@@ -8889,24 +8903,37 @@ initScalars::initScalars() :
 // the list.  Those records are reused, keeping their offsets, the routine's
 // multi-word flag and the saved level; the types are checked and the names
 // this definition gives are installed.
-void parseParameters(IdentRecPtr matchTo)
+// A parameter list is read once, into the routine's signature -- the record
+// that outlives the body.  The formals' own identrecs are not made here:
+// makeFormals does that after the caller has taken the scope mark, so the
+// rollback that ends the body takes them with it.  A declaration without a
+// body therefore builds no identrecs at all.
+struct FormalName {
+    int64_t name, bucket;
+};
+FormalName formalNames[MAXFORMALS];
+int64_t formalCnt;
+
+void parseParameters(SigPtr matchTo)
 {
-    IdentRecPtr l3var2z;
+    SigPtr newSig, lastSig;
     int64_t extraWords;
-    bool noComma;
+    bool noComma, matching;
     IdentRecPtr &curIdRec = programme::super.back()->curIdRec;
     int64_t &l2int18z = programme::super.back()->l2int18z;
 
     extraWords = 0;
+    formalCnt = 0;
+    lastSig = NULL;
+    matching = matchTo != NULL;
     // lookup2 (not just lookupMode) must carry lookDef through
     // parseTypeRef's own internal inSymbol() calls -- see the identical
     // note on TYPEDEFSY/parseRecordDecl.
     lookup2 = lookDef;
     lookupMode = lookDef;
     inSymbol();
-    l3var2z = NULL;
     if (SY == RPAREN) {
-        if (matchTo != NULL and matchTo != curIdRec)
+        if (matching)
             error(errNoCommaOrParenOrTooFewArgs);
         inSymbol();
         lookup2 = lookUse;
@@ -8929,52 +8956,48 @@ void parseParameters(IdentRecPtr matchTo)
         nameOptional = true;
         Declarator d = parseOneDeclarator(paramType, packedFlag);
         nameOptional = false;
-        if (matchTo != NULL) {
-            if (matchTo == curIdRec)
+        if (matching) {
+            if (matchTo == NULL)
                 error(errTooManyArguments);
             else {
                 // Exact identity: typeCheck's assignment compatibility
                 // would let a 'char' definition complete an 'int'
                 // declaration.
-                if (matchTo->typ != d.type)
+                if (matchTo->ptyp != d.type)
                     error(40); /* errIncompatibleArgumentTypes */
-                // A name given here reaches the symbol table.  Either
-                // side may leave the parameter unnamed.
-                if (d.name != 0) {
-                    if (d.wasDefined)
-                        error(errIdentAlreadyDefined);
-                    matchTo->id = d.name;
-                    addToHashTab(matchTo);
-                }
-                matchTo = matchTo->list();
+                matchTo = matchTo->next;
             }
         } else {
-        IdentRecPtr np = besm6_alloc_record<IdentRec>(
-            offsetof(IdentRec, szIdent));
-        np->id = d.name;
-        np->pck.offset = curFrameRegTemplate;
-        np->pck.cl = VARID;
-        np->typ = d.type;
-        np->list() = curIdRec;
-        np->value() = l2int18z;
-        // An unnamed parameter takes its argument slot like any other.  It
-        // never enters the symbol table, so the body has no way to name it.
-        // besm6_alloc_record zero-fills and nidx == 0 reads back as NULL, so
-        // the link stays unset.
-        if (d.name != 0) {
-            if (d.wasDefined)
-                error(errIdentAlreadyDefined);
-            np->pck.nidx = ord(symHash[d.bucket]);
-            symHash[d.bucket] = np;
+            newSig = new SigRec;
+            newSig->s1.pclass = VARID;
+            newSig->ptyp = d.type;
+            newSig->s1.poffset = l2int18z;
+            newSig->next = NULL;
+            if (lastSig == NULL)
+                curIdRec->setSig(newSig);
+            else
+                lastSig->next = newSig;
+            lastSig = newSig;
+            l2int18z = l2int18z + 1;
+            if (typeSize(d.type) != 1)
+                extraWords = extraWords + typeSize(d.type);
         }
-        l2int18z = l2int18z + 1;
-        if (l3var2z == NULL)
-            curIdRec->argList() = np;
-        else
-            l3var2z->list() = np;
-        l3var2z = np;
-        if (typeSize(d.type) != 1)
-            extraWords = extraWords + typeSize(d.type);
+        // The name is remembered, not registered: with no identrec yet there
+        // is nothing to hash, so a repeated formal is caught against the
+        // names already collected rather than by lookDef.
+        if (formalCnt == MAXFORMALS)
+            error(errTooManyArguments);
+        else {
+            if (d.name != 0) {
+                if (d.wasDefined)
+                    error(errIdentAlreadyDefined);
+                for (int64_t ii = 0; ii < formalCnt; ++ii)
+                    if (formalNames[ii].name == d.name)
+                        error(errIdentAlreadyDefined);
+            }
+            formalNames[formalCnt].name = d.name;
+            formalNames[formalCnt].bucket = d.bucket;
+            formalCnt = formalCnt + 1;
         }
         noComma = (SY != COMMA);
         if (not noComma) {
@@ -8983,26 +9006,24 @@ void parseParameters(IdentRecPtr matchTo)
         }
     } while (!noComma);
     /* 22276 */
-    if (matchTo != NULL) {
-        // The declaration already ran the fix-up below and stashed the
-        // resulting offset counter in level, so nothing here may move it.
-        if (matchTo != curIdRec)
+    if (matching) {
+        // The declaration settled the frame layout and recorded it in the
+        // signature, so nothing here may move it.
+        if (matchTo != NULL)
             error(errNoCommaOrParenOrTooFewArgs);
     } else if (extraWords != 0) {
         curIdRec->flags() = (curIdRec->flags() | Bits(23));
         int64_t base = l2int18z;
         l2int18z = l2int18z + extraWords;
-        l3var2z = curIdRec->argList();
         /* 22306 */
-        while (l3var2z != curIdRec) {
-            if (l3var2z->pck.cl == VARID) {
-                int64_t sz = typeSize(l3var2z->typ);
+        for (newSig = curIdRec->sig(); newSig != NULL; newSig = newSig->next) {
+            if (newSig->s1.pclass == VARID) {
+                int64_t sz = typeSize(newSig->ptyp);
                 if (sz != 1) {
-                    l3var2z->value() = base;
+                    newSig->s1.poffset = base;
                     base = base + sz;
                 }
             }
-            l3var2z = l3var2z->list();
         }
     }
     /* 22322 */
@@ -9010,6 +9031,90 @@ void parseParameters(IdentRecPtr matchTo)
     lookup2 = lookUse;
     lookupMode = lookUse;
 } /* parseParameters */
+
+// Lifting MAXFORMALS.  The bound exists only because a formal's name has to
+// survive from parseParameters, which reads it, to makeFormals, which runs
+// after the scope mark -- and nothing allocated in between can be anything
+// but permanent.  Carrying the name in the signature removes the need for a
+// scratch array at all.  In full:
+//
+//   struct SigRec : public BESM6Obj {
+//       union { ... } s1;
+//       TPtr ptyp;
+//       int64_t pname;            // <-- added, SigRec goes 3 words to 4
+//       SigPtr next;
+//   };
+//
+// In parseParameters, store the name where the offset already goes, and
+// check for a repeated formal against the chain instead of the array:
+//
+//       newSig->s1.poffset = l2int18z;
+//       newSig->pname = d.name;
+//   ...
+//       if (d.name != 0) {
+//           if (d.wasDefined)
+//               error(errIdentAlreadyDefined);
+//           for (SigPtr dup = curIdRec->sig(); dup != NULL; dup = dup->next)
+//               if (dup != newSig and dup->pname == d.name)
+//                   error(errIdentAlreadyDefined);
+//       }
+//
+// and the formalNames/formalCnt bookkeeping goes away with the MAXFORMALS
+// test that guards it.  makeFormals then walks the signature alone -- no
+// index, no count -- and lets addToHashTab work the bucket out:
+//
+//   void makeFormals() {
+//       IdentRecPtr np;
+//       SigPtr curSig;
+//       IdentRecPtr &curIdRec = programme::super.back()->curIdRec;
+//
+//       for (curSig = curIdRec->sig(); curSig != NULL; curSig = curSig->next) {
+//           np = besm6_alloc_record<IdentRec>(offsetof(IdentRec, szIdent));
+//           np->id = curSig->pname;
+//           np->pck.offset = curFrameRegTemplate;
+//           np->pck.cl = (IdClass)curSig->s1.pclass;
+//           np->typ = curSig->ptyp;
+//           np->list() = NULL;
+//           np->value() = curSig->s1.poffset;
+//           if (np->id != 0)
+//               addToHashTab(np);
+//       }
+//   } /* makeFormals */
+//
+// work.p2c mirrors it, with pname a plain int beside ptyp.  Cost: one word
+// per formal that never goes away, against a bound nothing has hit.
+
+// The formals themselves, made once the caller has taken the scope mark so
+// that myrollup reclaims them with the body.  Names come from the list just
+// read, everything else from the signature, which is the record of record.
+void makeFormals()
+{
+    IdentRecPtr np;
+    SigPtr curSig;
+    int64_t ii;
+    IdentRecPtr &curIdRec = programme::super.back()->curIdRec;
+
+    curSig = curIdRec->sig();
+    for (ii = 0; ii < formalCnt and curSig != NULL; ++ii) {
+        np = besm6_alloc_record<IdentRec>(offsetof(IdentRec, szIdent));
+        np->id = formalNames[ii].name;
+        np->pck.offset = curFrameRegTemplate;
+        np->pck.cl = (IdClass)curSig->s1.pclass;
+        np->typ = curSig->ptyp;
+        // Nothing chains the formals: the signature is the list.
+        np->list() = NULL;
+        np->value() = curSig->s1.poffset;
+        // An unnamed parameter takes its argument slot like any other.  It
+        // never enters the symbol table, so the body has no way to name it.
+        // besm6_alloc_record zero-fills and nidx == 0 reads back as NULL, so
+        // the link stays unset.
+        if (np->id != 0) {
+            np->pck.nidx = ord(symHash[formalNames[ii].bucket]);
+            symHash[formalNames[ii].bucket] = np;
+        }
+        curSig = curSig->next;
+    }
+} /* makeFormals */
 
 void exitScope(IdentRecPtr arg[128])
 {
@@ -9143,7 +9248,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                         curIdRec = pending;
                     } else {
                         curIdRec = besm6_alloc_record<IdentRec>(
-                            offsetof(IdentRec, szIdent));
+                            offsetof(IdentRec, szBase));
                         curIdRec->id = d.name;
                         curIdRec->pck.offset = curFrameRegTemplate;
                         curIdRec->typ = d.type;
@@ -9333,13 +9438,13 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 curIdRec->pck.cl = ROUTINEID;
                 curIdRec->list() = NULL;
                 curIdRec->value() = 0;
-                curIdRec->argList() = NULL;
-                curIdRec->preDefLink() = NULL;
+                curIdRec->setSig(NULL);
+                curIdRec->setPreDef(NULL);
                 if (declEntry)
                     curIdRec->flags() = BitRange(0,15) | Bits(22);
                 else
                     curIdRec->flags() = BitRange(0,15);
-                curIdRec->pos() = 0;
+                curIdRec->r1.pos = 0;
                 curFrameRegTemplate = curFrameRegTemplate + frameRegTemplate;
                 if (done)
                     l2int18z = 8;
@@ -9359,7 +9464,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                         error(errTypeMustNotBeFile);
                 }
             } else /*23167*/ {
-                l2int18z = hashTravPtr->level();
+                l2int18z = hashTravPtr->r2.level;
                 curFrameRegTemplate = curFrameRegTemplate + indexreg[1];
                 curProcNesting = curProcNesting + 1;
                 if (preDefHead == hashTravPtr) {
@@ -9370,30 +9475,29 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                         workidr = curIdRec;
                         curIdRec = curIdRec->preDefLink();
                     }
-                    workidr->preDefLink() = hashTravPtr->preDefLink();
+                    workidr->setPreDef(hashTravPtr->preDefLink());
                 }
-                hashTravPtr->preDefLink() = NULL;
+                hashTravPtr->setPreDef(NULL);
                 curIdRec = hashTravPtr;
                 // The definition restates the parameter list; it is matched
-                // against the declaration's, whose records are reused.
-                // parseParameters puts the names in the symbol table.
-                workidr = curIdRec->argList();
-                if (workidr == NULL)
-                    workidr = curIdRec;
+                // against the signature the declaration left behind, which
+                // also settled the frame layout.
                 hadParens = (SY == LPAREN);
                 if (hadParens)
-                    parseParameters(workidr);
-                setup(scopeBound);
+                    parseParameters(curIdRec->sig());
             } /* 23224 */
             if (SY == BEGINSY) {
                 if (not hadParens)
                     error(42); /* errNoParamList */
                 setup(scopeBound);
+                makeFormals();
                 inSymbol();
                 programme(l2int18z, curIdRec, true);
-                myrollup(scopeBound);
+                // The formals are above the mark now, so the hash buckets
+                // have to be walked before the rollback releases them.
                 exitScope(symHash);
                 exitScope(fieldHash);
+                myrollup(scopeBound);
                 goto L23301;
             }
             if (SY == EXTERNSY or
@@ -9416,19 +9520,15 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 checkSymAndRead(SEMICOLON);
                 if (isPredefined)
                     error(83); /* errRepeatedPredefinition */
-                curIdRec->level() = l2int18z;
-                curIdRec->preDefLink() = preDefHead;
+                curIdRec->r2.level = l2int18z;
+                curIdRec->setPreDef(preDefHead);
                 preDefHead = curIdRec;
             }
 L23301:
-            workidr = curIdRec->argList();
-            if (workidr != NULL) {
-                while (workidr != curIdRec) {
-                    scopeBound = NULL;
-                    hash(scopeBound, workidr);
-                    workidr = workidr->list();
-                }
-            } /* 23314 */
+            /* Nothing to unhash: a formal is entered in the symbol table
+               only by makeFormals, above the scope mark, and exitScope has
+               already dropped it.  A declaration without a body never made
+               one at all. */
             curFrameRegTemplate = curFrameRegTemplate - indexreg[1];
             curProcNesting = curProcNesting - 1;
         }

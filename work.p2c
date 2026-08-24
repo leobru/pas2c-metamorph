@@ -133,6 +133,16 @@ const
     FALSE  =  0U;
     TRUE  =  1U;
     E48 = 1 << 47;
+/* The most formals one routine may have.  Like caserec.pairs and declOps this
+   is a fixed scratch bound, not a heap chain: the names are only needed
+   between reading the list and making the formals just after the scope mark.
+   To lift it entirely, give sigrec a pname field: makeFormals would take the
+   name from the signature and formalNames/formalBkts would go away, bucket
+   included, since addToHashTab derives one from the name.  That costs a word
+   per formal of permanent heap, about 106 on a self-compile, which is roughly
+   half of what making the formals transient bought in the first place.  The
+   whole change is written out above makeFormals. */
+    MAXFORMALS = 16;
 // M2-M6.  Every C/n entry helper saves all five in the callee's own frame and
 // C/E puts them back, so a call hands them over exactly as it found them.  A
 // pinned base always lives in this range -- freeRegs is a subrange of it --
@@ -228,8 +238,22 @@ typedef union {
 } tptr;
 typedef identrec *irptr;
 typedef sigrec *sigptr;
-typedef struct {
+/* A routine's signature: the permanent record of its parameters.  The
+   formals' own identrecs live only as long as the body that names them, so
+   everything a later call site or a definition needs is here -- the class,
+   the type, and the frame slot the formal occupies.  pclass is three bits
+   and poffset a frame offset, so the two share a word and the record stays
+   three. */
+typedef __packed __lsb struct {
     idclass pclass;
+    int:24  poffset;
+} sigpckp;
+typedef union {
+    int     w;
+    sigpckp p;
+} sigpck;
+typedef struct {
+    sigpck s1;
     tptr ptyp;
     sigptr next;
 } sigrec;
@@ -358,20 +382,47 @@ typedef union {
     irptr  next;
     idpckp p;
 } idpck;
+/* A packed field's placement, one word instead of three: pckfield says the
+   member is packed at all, shift and width describe the slice.  Both run
+   0..48, so six bits each.  Only read when pckfield is set, and a fresh
+   record is zero, which is what a 48-bit packed member (whose shift is never
+   assigned) relies on. */
+typedef __packed __lsb struct {
+    int:1   pckfield;
+    int:6   shift;
+    int:6   width;
+} fldpckp;
+typedef union {
+    int     w;
+    fldpckp p;
+} fldpck;
+/* A routine record's four small fields, two words instead of four.  Both
+   pointers sit at the bottom of their word so a dereference costs nothing
+   extra (see genDeref's shift == 0 case).  pos is a symbol-table position,
+   level the frame size the definition inherits from the declaration -- 8 or
+   9 -- and both are dead space at full width. */
+typedef __packed __lsb struct {
+    sigptr  sig;
+    int:24  pos;
+} rtnpck1;
+typedef __packed __lsb struct {
+    irptr   preDefLink;
+    int:9   level;
+} rtnpck2;
 typedef struct {
     idpck pck;
     int id;
     tptr typ;
     union {
+        /* A TYPEID owns nothing past typ -- list and value both belong to
+           other arms -- so it is allocated at szBase, three words. */
+        struct { int szBase; };
         struct { irptr list; int value; int szIdent; };
         struct { int maybeUnused;
                 tptr uptype;
-                int pckfield;
-                int shift;
-                int width; int szField; };
+                fldpck fpk; int szField; };
         struct { int low, high;
-                irptr argList, preDefLink;
-                int level, pos;
+                rtnpck1 r1; rtnpck2 r2;
                 int flags; int szRoutine; };
         struct { int sysnum; int szSys; };
     };
@@ -1940,13 +1991,12 @@ void checkSymAndRead(symbol sym) {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int argCount(irptr p) {
 int i;
-irptr it;
-    it  =  p->argList;
+sigptr it;
+    it  =  p->r1.sig;
     i  =  0;
-    if (it != NULL)
-        while (it != p) {
-            ++i;
-            it  =  it->list;
+    while (it != NULL) {
+        ++i;
+        it  =  it->next;
     }
     return i;
 } /* argCount */
@@ -1972,27 +2022,9 @@ tptr resultTyp;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 /* The type of an already declared routine, from its parameter records. */
 tptr makeRoutineType(irptr routine) {
-irptr srcParam;
-sigptr newParam, lastParam, head;
-    head  =  NULL;
-    lastParam  =  NULL;
-    srcParam  =  routine->argList;
-    if (srcParam != NULL)
-        while (srcParam != routine) {
-            newParam = malloc(sizeof(sigrec));
-            { register sigrec *sg = newParam;
-                sg->pclass  =  srcParam->pck.p.cl;
-                sg->ptyp  =  srcParam->typ;
-                sg->next  =  NULL;
-            }
-            if (lastParam == NULL)
-                head  =  newParam;
-            else
-                lastParam->next  =  newParam;
-            lastParam  =  newParam;
-            srcParam  =  srcParam->list;
-        }
-    return mkRoutineTyp(routine->typ, head, routine->flags);
+/* The type of an already declared routine.  Its signature is kept from the
+   declaration, so there is nothing to rebuild. */
+    return mkRoutineTyp(routine->typ, routine->r1.sig, routine->flags);
 } /* makeRoutineType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2120,7 +2152,7 @@ sigptr p1, p2;
     p1  =  type1.rep->rparams;
     p2  =  type2.rep->rparams;
     while (p1 != NULL && p2 != NULL) {
-        if (p1->pclass != p2->pclass)
+        if (p1->s1.p.pclass != p2->s1.p.pclass)
             return false;
         if (p1->ptyp != p2->ptyp &&
             (p1->ptyp.rep == NULL || p2->ptyp.rep == NULL ||
@@ -3395,16 +3427,16 @@ eptr c;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int allocGlobalObject(irptr arg) {
-    if (arg->pos == 0) {
+    if (arg->r1.pos == 0) {
         if (arg->flags & [20, 21]) {
             curVal.i  =  leftAlign(arg->id);
-            arg->pos  =  allocExtSymbol(extSymMask);
+            arg->r1.pos  =  allocExtSymbol(extSymMask);
         } else {
-            arg->pos  =  symTabPos;
+            arg->r1.pos  =  symTabPos;
             putToSymTab(0U);
         }
     }
-    return arg->pos;
+    return arg->r1.pos;
 } /* allocGlobalObject */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4654,14 +4686,14 @@ operator innerOp;
             curIdRec  =  exprToGen->id2;
             { register insnltyp *il = insnList;
                 il->disp += curIdRec->pck.p.offset;
-                if (curIdRec->pckfield) {
+                if (curIdRec->fpk.p.pckfield) {
                     switch (il->st) {
                     case stWORD: {
-                        il->shift  =  curIdRec->shift;
+                        il->shift  =  curIdRec->fpk.p.shift;
                         break;
                     }
                     case stSLICE: {
-                        il->shift += curIdRec->shift;
+                        il->shift += curIdRec->fpk.p.shift;
                         if (! curIdRec->uptype.rep->lsbord)
                             il->shift  =  il->shift +
                                        typeBits(curIdRec->uptype) - 48;
@@ -4672,10 +4704,10 @@ operator innerOp;
                             error(errUsingVarAfterIndexingPackedArray);
                         else {
                             startLVal();
-                            insnList->shift  =  curIdRec->shift;
+                            insnList->shift  =  curIdRec->fpk.p.shift;
                         }
                     }
-                    insnList->width  =  curIdRec->width;
+                    insnList->width  =  curIdRec->fpk.p.width;
                     insnList->st  =  stSLICE;
                     insnList->regsused  =  insnList->regsused | E48;
                 }
@@ -5113,6 +5145,9 @@ int declOpCount;
 // for the same reason as declOps/declOpCount above -- the body of a
 // do-while cannot declare locals of its own.
 declarator curDeclarator;
+int formalNames[MAXFORMALS];
+int formalBkts[MAXFORMALS];
+int formalCnt;
 int moreDecls;
 // Set by parseParameters and parseSignature around their parseOneDeclarator
 // calls: in a parameter list the declarator may be abstract, i.e. carry no
@@ -5303,7 +5338,7 @@ int packedFlag, noComma;
             nameOptional  =  false;
             cur = malloc(sizeof(sigrec));
             { register sigrec *sg = cur;
-                sg->pclass  =  VARID;
+                sg->s1.p.pclass  =  VARID;
                 sg->ptyp  =  sigDecl.typ;
                 sg->next  =  NULL;
             }
@@ -5351,7 +5386,7 @@ void definePtrType(tptr toType) {
     curType.p.psize = 1;
     curType.p.bits = 15;
     curType.p.pk = kindPtr;
-    curEnum = malloc(offsetof(identrec, szIdent));
+    curEnum = malloc(offsetof(identrec, szBase));
     { register identrec *ir = curEnum;
         ir->pck.next  =  typelist;
         ir->id  =  curIdent;
@@ -5393,7 +5428,7 @@ pair *curSlot;
     wholeWord  =  true;
     if (isPacked) {
         fieldWidth  =  typeBits(curField->typ);
-        curField->width  =  fieldWidth;
+        curField->fpk.p.width  =  fieldWidth;
         if (fieldWidth != 48) {
             wholeWord  =  false;
             placed  =  false;
@@ -5402,11 +5437,11 @@ pair *curSlot;
                 while ((pairIdx < cases.count) && (! placed)) {
                     curSlot  =  &cases.pairs[pairIdx];
                     if (curSlot->first >= fieldWidth) {
-                        curField->shift  =  48 - curSlot->first;
+                        curField->fpk.p.shift  =  48 - curSlot->first;
                         curField->pck.p.offset  =  curSlot->second;
                         if (! recIsLsb)
-                            curField->shift  =  48 - curField->width -
-                                                  curField->shift;
+                            curField->fpk.p.shift  =  48 - curField->fpk.p.width -
+                                                      curField->fpk.p.shift;
                         curSlot->first  =  curSlot->first - fieldWidth;
                         if (curSlot->first == 0) {
                             --cases.count;
@@ -5441,20 +5476,20 @@ pair *curSlot;
         }
     }
     if (wholeWord) {
-        curField->pckfield  =  false;
+        curField->fpk.p.pckfield  =  false;
         curField->pck.p.offset  =  cases.size;
         cases.size += typeSize(curField->typ);
     }
     if (PASINFOR.listMode == 3) {
         write(' ':16);
-        if (curField->pckfield)
+        if (curField->fpk.p.pckfield)
             write("PACKED");
         write(" FIELD ");
         printTextWord(curField->id);
         write(".OFFSET=", curField->pck.p.offset:5 oct, 'B');
-        if (curField->pckfield) {
-            write(".<<=SHIFT=", curField->shift:2,
-                  ". WIDTH=", curField->width:2, " BITS");
+        if (curField->fpk.p.pckfield) {
+            write(".<<=SHIFT=", curField->fpk.p.shift:2,
+                  ". WIDTH=", curField->fpk.p.width:2, " BITS");
         } else {
             write(".WORDS=", typeSize(curField->typ):0);
         }
@@ -5530,7 +5565,7 @@ pair *curSlot;
                         ir->pck.p.cl  =  FIELDID;
                         ir->list  =  NULL;
                         ir->uptype  =  curType;
-                        ir->pckfield  =  recIsPacked;
+                        ir->fpk.p.pckfield  =  recIsPacked;
                         ir->typ  =  curDeclarator.typ;
                     }
                     fieldHash[curDeclarator.bucket]  =  curEnum;
@@ -5819,11 +5854,11 @@ int l3int1z, frame, l3var3z;
         padToLeft();
         { register identrec *ir = procName;
             l3var3z  =  ((E48 >> 22) & ir->flags) >> 25; // 22 IN flags
-            l3arg1z  =  ir->pos;
+            l3arg1z  =  ir->r1.pos;
             frame  =  moduleOffset - 040000;
             if (l3arg1z != 0)
                 symTab[l3arg1z - 074000]  =  [24, 29] | frame & halfWord;
-            ir->pos  =  moduleOffset;
+            ir->r1.pos  =  moduleOffset;
         }
         l3arg1z  =  argCount(procName);
         if (l3var3z) {
@@ -6046,19 +6081,16 @@ void parseLval() {
 } /* parseLval */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-/* The arguments of a call, matched against the callee's formals.  A direct
-   call names its callee: subroutine is its record and the formals are the
-   identrec chain hanging off argList, terminated by the record itself.  A
-   call through a pointer (callee != NULL, a value of pointer-to-routine
-   type) has only the type to go by: the formals are the sigrec chain it
-   carries, and so is the whole calling convention. */
+/* The arguments of a call, matched against the callee's formals.  Both
+   shapes read the same sigrec chain: a direct call takes it from the
+   callee's record, a call through a pointer (callee != NULL, a value of
+   pointer-to-routine type) from the type, which carries the whole calling
+   convention. */
 void parseCallArgs(irptr subroutine, eptr callee) {
 int noArgs, tooMany;
 eptr curActual, callExpr, argList;
-irptr curFormal;
 sigptr curSig;
 tptr routTyp, formType;
-    curFormal  =  NULL;
     curSig  =  NULL;
     if (callee == NULL) {
         { register identrec *ir = subroutine;
@@ -6088,10 +6120,10 @@ tptr routTyp, formType;
     if (SY == LPAREN) {
         if (noArgs) {
             if (callee == NULL)
-                curFormal  =  subroutine->argList;
+                curSig  =  subroutine->r1.sig;
             else
                 curSig  =  routTyp.rep->rparams;
-            if ((curFormal == NULL) && (curSig == NULL)) {
+            if (curSig == NULL) {
                 inSymbol();
                 if (SY != RPAREN) {
                     error(errTooManyArguments);
@@ -6105,14 +6137,9 @@ tptr routTyp, formType;
         }
         do {
             if (noArgs) {
-                if (callee == NULL) {
-                    tooMany  =  subroutine == curFormal;
-                    formType  =  curFormal->typ;
-                } else {
-                    tooMany  =  curSig == NULL;
-                    if (! tooMany)
-                        formType  =  curSig->ptyp;
-                }
+                tooMany  =  curSig == NULL;
+                if (! tooMany)
+                    formType  =  curSig->ptyp;
                 if (tooMany) {
                     error(errTooManyArguments);
                     badExpr();
@@ -6138,15 +6165,10 @@ tptr routTyp, formType;
             }
             argList->expr1  =  curActual;
             argList  =  curActual;
-            if (noArgs) {
-                if (callee == NULL)
-                    curFormal  =  curFormal->list;
-                else
-                    curSig  =  curSig->next;
-            }
+            if (noArgs)
+                curSig  =  curSig->next;
         } while (SY == COMMA);
-        if ((SY != RPAREN) || noArgs &&
-           (callee == NULL ? curFormal != subroutine : curSig != NULL))
+        if ((SY != RPAREN) || noArgs && curSig != NULL)
             error(errNoCommaOrParenOrTooFewArgs);
         else
             inSymbol();
@@ -7104,7 +7126,10 @@ word minValue, maxValue;
 void ifWhileStatement() {
     disableNorm();
     parentExpression();
-    if ((curExpr->typ != boolType) && (curExpr->typ != intType))
+    /* Anything a branch can test: a scalar, a pointer, or a packed field of
+       either, which is a type of its own and so not intType.  bldCondOp
+       admits the same set for the ternary. */
+    if (curExpr->typ.p.pk > kindPtr)
         error(errBooleanNeeded);
     else {
         jumpTarget  =  0;
@@ -7604,7 +7629,10 @@ void writeProc() {
         }
         disableNorm();
         parentExpression();
-        if ((curExpr->typ != boolType) && (curExpr->typ != intType)) {
+        /* The same set ifWhileStatement and bldCondOp take: NOTOP only flips
+           the polarity of the list BRANCH is about to read, so whatever one
+           can branch on the other can too. */
+        if (curExpr->typ.p.pk > kindPtr) {
             error(errBooleanNeeded);
         } else {
             jumpTarget  =  curOffset;
@@ -7673,6 +7701,7 @@ void parseConstDeclValue(tptr *typ, int *value) {
 void defineRoutine(int bodyBlock) {
 int l3var1z, l3var2z, l3int4z;
 irptr l3idr5z;
+sigptr curSig5z;
 int l3var7z;
 int hasMain;
     objBufIdx  =  1;
@@ -7724,22 +7753,22 @@ int hasMain;
     if (! bodyBlock && SY != BEGINSY && CH != '\0')
         requiredSymErr(BEGINSY);
     if ((E48 >> 23) & procName->flags) {
-        l3idr5z  =  procName->argList;
+        curSig5z  =  procName->r1.sig;
         l3int4z  =  8;
         if (procName->typ != voidType)
         l3int4z  =  9;
-        while (l3idr5z != procName) {
-            if (l3idr5z->pck.p.cl == VARID) {
-                l3var2z  =  typeSize(l3idr5z->typ);
+        while (curSig5z != NULL) {
+            if (curSig5z->s1.p.pclass == VARID) {
+                l3var2z  =  typeSize(curSig5z->ptyp);
                 if (l3var2z != 1) {
                     form3Insn(KVTM+I14 + l3int4z,
                               KVTM+I12 + l3var2z,
-                              KVTM+I11 + l3idr5z->value);
+                              KVTM+I11 + curSig5z->s1.p.poffset);
                     formAndAlign(getHelperProc(45)); /* "P/LNGPAR" */
                 }
             }
             ++l3int4z;
-            l3idr5z  =  l3idr5z->list;
+            curSig5z  =  curSig5z->next;
         }
     }
     l3var2z  =  lineNesting;
@@ -7790,7 +7819,7 @@ int hasMain;
         if (curProcNesting == 1) {
             parseDecls(2);
             form1Insn(KUJ + l3var1z);
-            curVal.i  =  procName->pos - 040000;
+            curVal.i  =  procName->r1.pos - 040000;
             symTab[2]  =  [24,29] | (curVal.i & halfWord);
             entryPtTable[entryPtCnt]  = t'PROGRAM ';
             entryPtTable[entryPtCnt+1]  =  [1];
@@ -7917,9 +7946,9 @@ void regSysProc(int l4arg1z) {
     { register identrec *ir = uProcPtr;
         ir->typ  =  voidType;
         ir->list  =  NULL;
-        ir->argList  =  NULL;
-        ir->preDefLink  =  NULL;
-        ir->pos  =  0;
+        ir->r1.sig  =  NULL;
+        ir->r2.preDefLink  =  NULL;
+        ir->r1.pos  =  0;
     }
     temptype.rep = NULL;
     sysProcNum  =  0;
@@ -7947,7 +7976,7 @@ void regSysProc(int l4arg1z) {
     symTabPos  =  074004;
     { register identrec *ir = programObj;
         ir->id  =  t'PASCOMPL';
-        ir->pos  =  0;
+        ir->r1.pos  =  0;
         symTab[0]  =  t'PASCOMPL';
     }
     entryPtTable[0]  =  symTab[0];
@@ -7955,7 +7984,7 @@ void regSysProc(int l4arg1z) {
     entryPtCnt  =  2;
     fputw((KVTM+I8+074001) << 24 | KUJ+074002, &_CHILD_);
     moduleOffset  =  040001;
-    programObj->argList  =  NULL;
+    programObj->r1.sig  =  NULL;
     programObj->flags  =  0U;
     objBufIdx  =  1;
     lookupMode  =  lookDef;
@@ -8002,19 +8031,26 @@ void regSysProc(int l4arg1z) {
 // the list.  Those records are reused, keeping their offsets, the routine's
 // multi-word flag and the saved level; the types are checked and the names
 // this definition gives are installed.
-void parseParameters(irptr matchTo) {
-irptr l3var1z, l3var2z;
+/* A parameter list is read once, into the routine's signature -- the record
+   that outlives the body.  The formals' own identrecs are not made here:
+   makeFormals does that after the caller has taken the scope mark, so the
+   rollback that ends the body takes them with it.  A declaration without a
+   body therefore builds no identrecs at all. */
+void parseParameters(sigptr matchTo) {
+sigptr newSig, lastSig;
 tptr paramType;
 int packedFlag;
 int extraWords, l3var5z, l3var6z;
-int noComma;
+int noComma, matching, ii;
     extraWords  =  0;
+    formalCnt  =  0;
+    lastSig  =  NULL;
+    matching  =  matchTo != NULL;
     lookup2  =  lookDef;
     lookupMode  =  lookDef;
     inSymbol();
-    l3var2z  =  NULL;
     if (SY == RPAREN) {
-        if (matchTo != NULL && matchTo != curIdRec)
+        if (matching)
             error(errNoCommaOrParenOrTooFewArgs);
         inSymbol();
         lookup2  =  lookUse;
@@ -8030,53 +8066,50 @@ int noComma;
         nameOptional  =  true;
         parseOneDeclarator(&curDeclarator, paramType, packedFlag, isForwardRef);
         nameOptional  =  false;
-        if (matchTo != NULL) {
-            if (matchTo == curIdRec)
+        if (matching) {
+            if (matchTo == NULL)
                 error(errTooManyArguments);
             else {
                 /* Exact identity: typeCheck's assignment compatibility
                    would let a 'char' definition complete an 'int'
                    declaration. */
-                if (matchTo->typ != curDeclarator.typ)
+                if (matchTo->ptyp != curDeclarator.typ)
                     error(40); /* errIncompatibleArgumentTypes */
-                /* A name given here reaches the symbol table.  Either
-                   side may leave the parameter unnamed. */
-                if (curDeclarator.name != 0) {
-                    if (curDeclarator.wasDefined)
-                        error(errIdentAlreadyDefined);
-                    matchTo->id  =  curDeclarator.name;
-                    addToHashTab(matchTo);
-                }
-                matchTo  =  matchTo->list;
+                matchTo  =  matchTo->next;
             }
         } else {
-        l3var1z = malloc(offsetof(identrec, szIdent));
-        { register identrec *ir = l3var1z;
-            ir->id  =  curDeclarator.name;
-            ir->pck.p.offset  =  curFrameRegTemplate;
-            ir->pck.p.cl  =  VARID;
-            ir->pck.p.next  =  NULL;
-            ir->typ  =  curDeclarator.typ;
-            ir->list  =  curIdRec;
-            ir->value  =  l2int18z;
+            newSig = malloc(sizeof(sigrec));
+            { register sigrec *sg = newSig;
+                sg->s1.p.pclass  =  VARID;
+                sg->s1.p.poffset  =  l2int18z;
+                sg->ptyp  =  curDeclarator.typ;
+                sg->next  =  NULL;
+            }
+            if (lastSig == NULL)
+                curIdRec->r1.sig  =  newSig;
+            else
+                lastSig->next  =  newSig;
+            lastSig  =  newSig;
+            ++l2int18z;
+            if (typeSize(curDeclarator.typ) != 1)
+                extraWords  =  extraWords + typeSize(curDeclarator.typ);
         }
-        /* An unnamed parameter takes its argument slot like any other.  It
-           never enters the symbol table, so the body has no way to name
-           it. */
-        if (curDeclarator.name != 0) {
-            if (curDeclarator.wasDefined)
-                error(errIdentAlreadyDefined);
-            l3var1z->pck.p.next  =  symHash[curDeclarator.bucket];
-            symHash[curDeclarator.bucket]  =  l3var1z;
-        }
-        ++l2int18z;
-        if (l3var2z == NULL)
-            curIdRec->argList  =  l3var1z;
-        else
-            l3var2z->list  =  l3var1z;
-        l3var2z  =  l3var1z;
-        if (typeSize(curDeclarator.typ) != 1)
-            extraWords  =  extraWords + typeSize(curDeclarator.typ);
+        /* The name is remembered, not registered: with no identrec yet there
+           is nothing to hash, so a repeated formal is caught against the
+           names already collected rather than by lookDef. */
+        if (formalCnt == MAXFORMALS)
+            error(errTooManyArguments);
+        else {
+            if (curDeclarator.name != 0) {
+                if (curDeclarator.wasDefined)
+                    error(errIdentAlreadyDefined);
+                for (ii = 0; ii < formalCnt; ++ii)
+                    if (formalNames[ii] == curDeclarator.name)
+                        error(errIdentAlreadyDefined);
+            }
+            formalNames[formalCnt]  =  curDeclarator.name;
+            formalBkts[formalCnt]  =  curDeclarator.bucket;
+            ++formalCnt;
         }
         noComma  =  (SY != COMMA);
         if (! noComma) {
@@ -8084,31 +8117,121 @@ int noComma;
             inSymbol();
         }
     } while (! noComma);
-    if (matchTo != NULL) {
-        /* The declaration already ran the fix-up below and stashed the
-           resulting offset counter in level, so nothing here may move it. */
-        if (matchTo != curIdRec)
+    if (matching) {
+        /* The declaration settled the frame layout and recorded it in the
+           signature, so nothing here may move it. */
+        if (matchTo != NULL)
             error(errNoCommaOrParenOrTooFewArgs);
     } else if (extraWords != 0) {
         curIdRec->flags  =  curIdRec->flags | [23];
         l3var6z  =  l2int18z;
         l2int18z += extraWords;
-        l3var2z  =  curIdRec->argList;
-        while (l3var2z != curIdRec) {
-            if (l3var2z->pck.p.cl == VARID) {
-                l3var5z  =  typeSize(l3var2z->typ);
+        newSig  =  curIdRec->r1.sig;
+        while (newSig != NULL) {
+            if (newSig->s1.p.pclass == VARID) {
+                l3var5z  =  typeSize(newSig->ptyp);
                 if (l3var5z != 1) {
-                    l3var2z->value  =  l3var6z;
+                    newSig->s1.p.poffset  =  l3var6z;
                     l3var6z += l3var5z;
                 }
             }
-            l3var2z  =  l3var2z->list;
+            newSig  =  newSig->next;
         }
     }
     checkSymAndRead (RPAREN);
     lookup2  =  lookUse;
     lookupMode  =  lookUse;
 } /* parseParameters */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Lifting MAXFORMALS.  The bound exists only because a formal's name has to
+// survive from parseParameters, which reads it, to makeFormals, which runs
+// after the scope mark -- and nothing allocated in between can be anything
+// but permanent.  Carrying the name in the signature removes the need for a
+// scratch array at all.  In full:
+//
+//   typedef struct {
+//       sigpck s1;
+//       tptr ptyp;
+//       int  pname;              // <-- added, sigrec goes 3 words to 4
+//       sigptr next;
+//   } sigrec;
+//
+// In parseParameters, store the name where the offset already goes, and
+// check for a repeated formal against the chain instead of the array:
+//
+//       sg->s1.p.poffset  =  l2int18z;
+//       sg->pname  =  curDeclarator.name;
+//   ...
+//       if (curDeclarator.name != 0) {
+//           if (curDeclarator.wasDefined)
+//               error(errIdentAlreadyDefined);
+//           for (dup = curIdRec->r1.sig; dup != NULL; dup = dup->next)
+//               if ((dup != newSig) && (dup->pname == curDeclarator.name))
+//                   error(errIdentAlreadyDefined);
+//       }
+//
+// and the formalNames/formalBkts/formalCnt bookkeeping goes away with the
+// MAXFORMALS test that guards it.  makeFormals then walks the signature
+// alone -- no index, no count -- and lets addToHashTab work the bucket out:
+//
+//   void makeFormals() {
+//   irptr np;
+//   sigptr curSig;
+//       curSig  =  curIdRec->r1.sig;
+//       while (curSig != NULL) {
+//           np = malloc(offsetof(identrec, szIdent));
+//           { register identrec *ir = np;
+//               ir->id  =  curSig->pname;
+//               ir->pck.p.offset  =  curFrameRegTemplate;
+//               ir->pck.p.cl  =  curSig->s1.p.pclass;
+//               ir->pck.p.next  =  NULL;
+//               ir->typ  =  curSig->ptyp;
+//               ir->list  =  NULL;
+//               ir->value  =  curSig->s1.p.poffset;
+//           }
+//           if (np->id != 0)
+//               addToHashTab(np);
+//           curSig  =  curSig->next;
+//       }
+//   } /* makeFormals */
+//
+// base.cc mirrors it, with pname a plain int64_t beside ptyp.  Cost: one
+// word per formal that never goes away, against a bound nothing has hit.
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* The formals themselves, made once the caller has taken the scope mark so
+   that myrollup reclaims them with the body.  Names come from the list just
+   read, everything else from the signature, which is the record of record. */
+void makeFormals() {
+irptr np;
+sigptr curSig;
+int ii;
+    curSig  =  curIdRec->r1.sig;
+    ii  =  0;
+    while ((ii < formalCnt) && (curSig != NULL)) {
+        np = malloc(offsetof(identrec, szIdent));
+        { register identrec *ir = np;
+            ir->id  =  formalNames[ii];
+            ir->pck.p.offset  =  curFrameRegTemplate;
+            ir->pck.p.cl  =  curSig->s1.p.pclass;
+            ir->pck.p.next  =  NULL;
+            ir->typ  =  curSig->ptyp;
+            /* Nothing chains the formals: the signature is the list. */
+            ir->list  =  NULL;
+            ir->value  =  curSig->s1.p.poffset;
+        }
+        /* An unnamed parameter takes its argument slot like any other.  It
+           never enters the symbol table, so the body has no way to name
+           it. */
+        if (formalNames[ii] != 0) {
+            np->pck.p.next  =  symHash[formalBkts[ii]];
+            symHash[formalBkts[ii]]  =  np;
+        }
+        curSig  =  curSig->next;
+        ++ii;
+    }
+} /* makeFormals */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void exitScope(int a) {
@@ -8230,7 +8353,7 @@ void exitScope(int a) {
                     }
                     typelist = hash(typelist, curIdRec);
                 } else {
-                    curIdRec = malloc(offsetof(identrec, szIdent));
+                    curIdRec = malloc(offsetof(identrec, szBase));
                     { register identrec *ir = curIdRec;
                         ir->id  =  curDeclarator.name;
                         ir->pck.p.offset  =  curFrameRegTemplate;
@@ -8331,7 +8454,7 @@ void exitScope(int a) {
             (curDeclarator.foundRec->id == curDeclarator.name) &&
             (curDeclarator.foundRec->pck.p.cl == ROUTINEID) &&
             (curDeclarator.foundRec->list == NULL) &&
-            (curDeclarator.foundRec->preDefLink != NULL) &&
+            (curDeclarator.foundRec->r2.preDefLink != NULL) &&
             /* The whole header is restated, so the return type must agree.
                A disagreement falls through to the "previous declaration was
                not a forward declaration" arm below. */
@@ -8451,10 +8574,10 @@ void exitScope(int a) {
                     ir->pck.p.cl  =  ROUTINEID;
                     ir->list  =  NULL;
                     ir->value  =  0;
-                    ir->argList  =  NULL;
-                    ir->preDefLink  =  NULL;
+                    ir->r1.sig  =  NULL;
+                    ir->r2.preDefLink  =  NULL;
                     ir->flags  =  declEntry ? [0:15,22] : [0:15];
-                    ir->pos  =  0;
+                    ir->r1.pos  =  0;
                     curFrameRegTemplate += frameRegTemplate;
                     l2int18z  =  l2bool8z ? 8 : 9;
                 }
@@ -8473,42 +8596,41 @@ void exitScope(int a) {
                 }
             } else {
                 { register identrec *ir = hashTravPtr;
-                    l2int18z  =  ir->level;
+                    l2int18z  =  ir->r2.level;
                     curFrameRegTemplate += indexreg[1];
                     ++curProcNesting;
                     if (preDefHead == hashTravPtr) {
-                        preDefHead  =  ir->preDefLink;
+                        preDefHead  =  ir->r2.preDefLink;
                     } else {
                         curIdRec  =  preDefHead;
                         while (hashTravPtr != curIdRec) {
                             workidr  =  curIdRec;
-                            curIdRec  =  curIdRec->preDefLink;
+                            curIdRec  =  curIdRec->r2.preDefLink;
                         }
-                        workidr->preDefLink  =  hashTravPtr->preDefLink;
+                        workidr->r2.preDefLink  =  hashTravPtr->r2.preDefLink;
                     }
                 }
-                hashTravPtr->preDefLink  =  NULL;
+                hashTravPtr->r2.preDefLink  =  NULL;
                 curIdRec  =  hashTravPtr;
                 /* The definition restates the parameter list; it is matched
-                   against the declaration's, whose records are reused.
-                   parseParameters puts the names in the symbol table. */
-                workidr  =  curIdRec->argList;
-                if (workidr == NULL)
-                    workidr  =  curIdRec;
+                   against the signature the declaration left behind, which
+                   also settled the frame layout. */
                 hadParens  =  (SY == LPAREN);
                 if (hadParens)
-                    parseParameters(workidr);
-                scopeBound = (irptr)setup();
+                    parseParameters(curIdRec->r1.sig);
             }
             if (SY == BEGINSY) {
                 if (! hadParens)
                     error(42); /* errNoParamList */
                 scopeBound = (irptr)setup();
+                makeFormals();
                 inSymbol();
                 programme(&l2int18z, curIdRec, true);
-                myrollup((int)scopeBound);
+                /* The formals are above the mark now, so the hash buckets
+                   have to be walked before the rollback releases them. */
                 exitScope(0);
                 exitScope(1);
+                myrollup((int)scopeBound);
                 goto 23301;
             }
             if ((SY == EXTERNSY) ||
@@ -8532,18 +8654,16 @@ void exitScope(int a) {
                 { register identrec *ir = curIdRec;
                     if (isPredefined)
                         error(83); /* errRepeatedPredefinition */
-                    ir->level  =  l2int18z;
-                    ir->preDefLink  =  preDefHead;
+                    ir->r2.level  =  l2int18z;
+                    ir->r2.preDefLink  =  preDefHead;
                     preDefHead  =  curIdRec;
                 }
             }
-23301:      workidr  =  curIdRec->argList;
-            if (workidr != NULL) {
-                while (workidr != curIdRec) {
-                    scopeBound = hash(NULL, workidr);
-                    workidr  =  workidr->list;
-                }
-            }
+            /* Nothing to unhash: a formal is entered in the symbol table
+               only by makeFormals, above the scope mark, and exitScope has
+               already dropped it.  A declaration without a body never made
+               one at all. */
+23301:      ;
             curFrameRegTemplate -= indexreg[1];
             --curProcNesting;
         }
@@ -8591,7 +8711,7 @@ void exitScope(int a) {
         error(85); /* errNotFullyDefinedVoids */
         while (preDefHead != uProcPtr) {
             printTextWord(preDefHead->id);
-            preDefHead  =  preDefHead->preDefLink;
+            preDefHead  =  preDefHead->r2.preDefLink;
         }
         writeLN;
     }
