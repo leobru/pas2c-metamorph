@@ -248,7 +248,7 @@ static_assert(IMULOP == MUL + 1 and IDIVOP == RDIVOP + 1 and
 
 enum OpGen {
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
-    SETREG9,  STOREAT9,  DOIT,  SETREG12,  DFLTWDTH,
+    DOIT,  SETREG12,  DFLTWDTH,
     FRACWIDTH, SETREG11, PUSHSET11,
     BRANCH
 };
@@ -3236,7 +3236,7 @@ struct formOperator {
     formOperator(OpGen l3arg1z);
     ~formOperator() { super.pop_back(); }
 
-    int64_t l3int1z, l3int2z, l3int3z;
+    int64_t l3int2z, l3int3z;
     int64_t nextInsn;
     ExprPtr helpExpr;
     OpFlg flags;
@@ -5303,7 +5303,6 @@ formOperator::formOperator(OpGen op)
 //  if (op == DOIT)                             /* see dropPostFixup */
 //      curExpr = dropPostFixup(curExpr);
     if (op != FORMOP &&
-        op != STOREAT9 &&
         op != DFLTWDTH)
         (void) genFullExpr(curExpr);
     switch (op) {
@@ -5381,22 +5380,10 @@ formOperator::formOperator(OpGen op)
         (void) formOperator(LOAD);
         curInsnTemplate = InsnTemp[XTA];
     } break;
-    case SETREG9: {
+    case SETREG12: {
+        /* A bit slice has no address of its own to put in a register. */
         if (insnList->st != stWORD)
             error(errVarTooComplex);
-        setAddrTo(9);
-        genOneOp();
-    } break;
-    case STOREAT9: {
-        l3int1z = curVal.ii;
-        (void) genFullExpr(curExpr);
-        prepLoad();
-        if (has(insnList->regsused, 9))
-            error(errVarTooComplex);
-        genOneOp();
-        form1Insn(KATX+I9 + l3int1z);
-    } break;
-    case SETREG12: {
         (void) setAddrTo(12);
         genOneOp();
     } break;
@@ -7914,16 +7901,17 @@ std::vector<InitSeg> initSegs;
 
 // Start a new destination segment: 'var' bare (offset 0), or -- when
 // 'designator' -- 'var[index]...' (SY is at '['; parsePostfix builds the GETELT
-// chain and leaves SY at '=').  formOperator(SETREG9) yields the base-register
-// template with no module/FCST side effect (it builds only into the object
-// buffer, guarded by objBufIdx==1).
+// chain and leaves SY at '=').  formOperator(SETREG12) forms the destination's
+// address as a single instruction with no module/FCST side effect: putLeft
+// parks it in leftInsn instead of the object buffer, and only its address field
+// is kept, so which register it would have loaded does not matter here.
 void beginInitSeg(IdentRecPtr var, bool designator) {
     curExpr = mkExpr(GETVAR, var->typ, (ExprPtr)var, NULL);
     if (designator)
         parsePostfix();
     putLeft = true;
     objBufIdx = 1;
-    (void) formOperator(SETREG9);
+    (void) formOperator(SETREG12);
     if (objBufIdx != 1)
         error(errVarTooComplex);
     initSegs.push_back(InitSeg{ leftInsn & 0777700000000L, {} });
