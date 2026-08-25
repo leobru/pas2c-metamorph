@@ -1,0 +1,65 @@
+/*=k9,l0*/
+//
+// A branch needs omega to mean "is the accumulator zero".  BRANCH inserts an
+// AEX to set it unless the condition's operator is in GETELT..ALNUM, the ops
+// that leave the accumulator filled by a load -- so RMWASSIGN, which stores
+// after arithmetic, must not be in that range.  A, C, E, F and J reach it;
+// the rest are here so a fix cannot quietly break the shapes that were right,
+// several of them only by luck: B counts up from a negative, where the sign
+// test agrees with the zero test, and G and H sit outside the range already.
+//
+typedef void *anyptr;
+const NULL = (anyptr)0;
+typedef __packed __lsb struct { int:1 f; int:6 n; } bits;
+typedef struct { rec *nxt; int v; } rec;
+bits b;
+rec r1, r2, r3;
+rec * p;
+int i, k, n;
+void main() {
+    // pre-decrement as a condition: 3 -> 2,1,0, so 2 passes, i ends 0
+    i = 3; n = 0;
+    while (--i) { n = n + i; }
+    writeln(" A WHPRE   ", n:0, ' ', i:0);
+    // pre-increment: -3 -> -2,-1,0, so 2 passes
+    i = 0 - 3; n = 0;
+    while (++i) { n = n + i; }
+    writeln(" B WHPRE+  ", n:0, ' ', i:0);
+    // if on a pre-decrement, landing nonzero
+    i = 3;
+    if (--i) writeln(" C IFPRE   YES"); else writeln(" C IFPRE   NO");
+    // if on a pre-decrement, landing zero
+    i = 1;
+    if (--i) writeln(" D IFPRE0  YES"); else writeln(" D IFPRE0  NO");
+    // do-while on a pre-decrement
+    i = 3; n = 0;
+    do { n = n + 1; } while (--i);
+    writeln(" E DOPRE   ", n:0);
+    // op-assign as a condition: 6,4,2,0 -> 3 passes
+    i = 8; n = 0;
+    while (i -= 2) { n = n + 1; }
+    writeln(" F WHOPAS  ", n:0);
+    // post-decrement: outside the range, wraps in INTPLUS -- 3,2,1 -> 3 passes
+    i = 3; n = 0;
+    while (i--) { n = n + 1; }
+    writeln(" G WHPOST  ", n:0, ' ', i:0);
+    // plain assignment as a condition: ASSIGNOP sits below GETELT
+    k = 2; n = 0;
+    while (i = k) { n = n + 1; k = k - 1; }
+    writeln(" H WHASGN  ", n:0);
+    // pre-decrement of a packed field: 3 -> 2,1,0
+    b.n = 3; n = 0;
+    while (--b.n) { n = n + 1; }
+    writeln(" I WHBITS  ", n:0);
+    // pre-decrement of a pointer-valued walk is not a thing; use ++ on an int
+    // held in a struct field instead
+    r1.v = 3; n = 0;
+    while (--r1.v) { n = n + 1; }
+    writeln(" J WHFIELD ", n:0);
+    // A do-while wraps its condition in NOTOP with a Boolean type, which hid
+    // the operator underneath from the same test: k goes 3,2,1 and the
+    // condition k-1 goes 2,1,0, so three passes.
+    k = 4; n = 0;
+    do { n = n + 1; k = k - 1; } while (k - 1);
+    writeln(" K DOARITH ", n:0);
+}

@@ -1,0 +1,40 @@
+/*=k9,l0*/
+//
+// main has three auxiliary index registers available for nontrivial register
+// pointer initializers.  Every declaration must still capture its initializer
+// value when more pointers are live than fit in those registers.
+//
+typedef struct { int value; } rec;
+
+rec items[6];
+int i0, i1, i2, i3, i4, i5;
+int n, a, b, c;
+
+void main() {
+    i0 = 0; i1 = 1; i2 = 2; i3 = 3; i4 = 4; i5 = 5;
+    { register rec *p0 = &items[i0];
+      register rec *p1 = &items[i1];
+      register rec *p2 = &items[i2];
+      register rec *p3 = &items[i3];
+      register rec *p4 = &items[i4];
+      register rec *p5 = &items[i5];
+      p0->value = 100;
+      p1->value = 101;
+      p2->value = 102;
+      p3->value = 103;
+      p4->value = 104;
+      p5->value = 105;
+      // Read back through the same pointers: a base living in the shared
+      // fallback register has to come back from its frame slot for a load
+      // just as it does for a store.
+      n = p0->value + p1->value + p2->value
+        + p3->value + p4->value + p5->value;
+      // Interleaved, to show the reload happens at every use and not once.
+      a = p3->value; b = p4->value; c = p3->value;
+    }
+    writeln(" SUM=", n:0);
+    writeln(" MIX=", a:0, ' ', b:0, ' ', c:0);
+    writeln(" VALUES=", items[0].value:0, ' ', items[1].value:0,
+            ' ', items[2].value:0, ' ', items[3].value:0,
+            ' ', items[4].value:0, ' ', items[5].value:0);
+}

@@ -220,7 +220,11 @@ enum Insn {
    -- NEOP..INOP run contiguously in that order: genComparison indexes them as
       curOP-NEOP, and takes the odd ones for the negated sense;
    -- SHLEFT is 0, and SHLEFT..SETOR, GETELT..ALNUM and TOREAL..BITNEGOP are
-      each contiguous, being written as ranges;
+      each contiguous, being written as ranges.  GETELT..ALNUM is the set whose
+      value reaches the accumulator through a *load*, so omega already means
+      "is it zero" and formOperator(BRANCH) needs no AEX to set it.  RMWASSIGN
+      is deliberately below GETELT and not in it: it stores after arithmetic,
+      leaving the additive omega, which is a sign test;
    -- GETELT sits above every binary operator and DEREF above every lvalue one,
       which formOperator tests with '<'. */
 enum Operator {
@@ -230,8 +234,8 @@ enum Operator {
     PLUSOP,     INTPLUS,    MINUSOP,    INTMINUS,   ANDOP,
     OROP,       NEOP,       EQOP,       LTOP,       GEOP,
     GTOP,       LEOP,       INOP,       CONDOP,     ALTERN,
-    INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
-    RMWASSIGN,  GETENUM,    GETFIELD,   DEREF,
+    INCROP,     DECROP,     ASSIGNOP,   RMWASSIGN,
+    GETELT,     GETVAR,     GETENUM,    GETFIELD,   DEREF,
     STKLVAL,    INDCALL,    PROCADDR,   ALNUM,
     TOREAL,     TOINT,      NOTOP,      INEGOP,     RNEGOP,
     BITNEGOP,   STANDPROC,  ADDROF,     NOOP
@@ -1075,7 +1079,7 @@ std::string Expr::p()
         "SHLEFT","SHRIGHT","SETAND","SETXOR","SETOR","MUL","IMULOP","RDIVOP",
         "IDIVOP","IMODOP","PLUSOP","INTPLUS","MINUSOP","INTMINUS","ANDOP",
         "OROP","NEOP","EQOP","LTOP","GEOP","GTOP","LEOP","INOP","CONDOP",
-        "ALTERN","INCROP","DECROP","ASSIGNOP","GETELT","GETVAR","RMWASSIGN",
+        "ALTERN","INCROP","DECROP","ASSIGNOP","RMWASSIGN","GETELT","GETVAR",
         "GETENUM","GETFIELD","DEREF","STKLVAL","INDCALL","PROCADDR","ALNUM",
         "TOREAL","TOINT","NOTOP","INEGOP","RNEGOP","BITNEGOP","STANDPROC",
         "ADDROF","NOOP"
@@ -3235,6 +3239,7 @@ struct formOperator {
     int64_t l3int1z, l3int2z, l3int3z;
     int64_t nextInsn;
     ExprPtr helpExpr;
+    ExprPtr bareCond;
     OpFlg flags;
     bool direction;
     bool noTarget;
@@ -3947,10 +3952,11 @@ void negateCond()
    one of these twice instead of materializing its address on the stack.
    The element case does not look at the base for the same reason the field
    case does not add code: reaching it only adjusts the displacement.
-   A pinned base (NOOP) is the cheapest of all -- genFullExpr answers it
-   with a bare descriptor and no instructions -- but only on that path: the
-   arm that finds the register no longer live rebuilds the address from
-   expr2, which does cost instructions and the accumulator. */
+   A pinned base (NOOP) is the cheapest of all -- genFullExpr answers it with
+   a bare descriptor, and at most a WTC/VTM reload for a base sharing the
+   fallback register, neither of which touches the accumulator -- but only on
+   that path: the arm that finds the register no longer live rebuilds the
+   address from expr2, which does cost instructions and the accumulator. */
 bool isCheapLval(ExprPtr e)
 {
     int64_t idxOffset;
@@ -5192,8 +5198,8 @@ L10122:
         } else { /* 10621 */
             if (curOP == NOOP) {
                 curVal.ii = exprToGen->vt.typ.p.pad;
-                /* A spilled base is reloaded into its register after every
-                   call that clobbers it, so it needs no liveness test. */
+                /* A spilled base has a frame slot to come back from, so it
+                   needs no liveness test. */
                 if (exprToGen->vt.typ.p.psize != 0
                     or has(liveRegs, curVal.ii)) {
                     insnList = new InsnList;
@@ -5206,6 +5212,19 @@ L10122:
                     insnList->payload.ii = indexreg[curVal.ii];
                     insnList->disp = 0;
                     insnList->st = stWORD;
+                    /* Registers 2..6 hold one pinned base each -- SETREG takes
+                       the register out of freeRegs -- so M[pad] still holds
+                       this one and the descriptor above is the whole story.
+                       Above 6 there is only the shared fallback, which every
+                       base that ran out of registers is given: the frame slot
+                       is what holds this one, and it has to come back before
+                       each use, not just after a call.  WTC then VTM leave the
+                       accumulator alone. */
+                    if (6 < curVal.ii) {
+                        addInsnAndOffset(curFrameRegTemplate + KWTC,
+                                         exprToGen->vt.typ.p.psize - 1);
+                        addToInsnList(KVTM + indexreg[curVal.ii]);
+                    }
                 } else {
                     exprToGen->vt.typ.p.pad = 14;
                     exprToGen = exprToGen->expr2;
@@ -5389,9 +5408,19 @@ formOperator::formOperator(OpGen op)
                 }
             }
         } else {
-            if (curExpr->vt.typ != BooleanType and
+            // GETELT..ALNUM is the set whose value reaches the accumulator
+            // through a load, so omega already means "is it zero"; anything
+            // else needs an AEX to set it, since the omega standing after
+            // arithmetic is a sign test.  Look through NOTOP first: a
+            // do-while wraps its condition in one to branch back on true, and
+            // NOTOP only flips the polarity bit -- what the accumulator holds
+            // is decided by what is under it.
+            bareCond = curExpr;
+            while (bareCond->op == NOTOP)
+                bareCond = bareCond->expr1;
+            if (bareCond->vt.typ != BooleanType and
                 not has((BitRange(SHLEFT, SETOR) |
-                     BitRange(GETELT, ALNUM)), curExpr->op))
+                     BitRange(GETELT, ALNUM)), bareCond->op))
                 addToInsnList(KAEX);
             direction = has(insnList->regsused, 16);
             if ((insnList->ilm == ilCOND) and
