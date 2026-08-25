@@ -1152,7 +1152,7 @@ void defExtern()
         line = lineCnt;
     }
     curExternFile = externFileList;
-    while (curExternFile != NULL) {
+    while (curExternFile) {
         if (curExternFile->id == curIdent) {
             curExternFile = NULL;
             error(errIdentAlreadyDefined);
@@ -1165,7 +1165,7 @@ void defExtern()
     curExternFile->next = externFileList;
     curExternFile->line = line;
     curExternFile->offset = aligned.ii;
-    if (line != 0) {
+    if (line) {
         if (curIdent == litOutput)
             fileForOutput = curExternFile;
         else
@@ -1476,7 +1476,7 @@ void myrollup(void * p)
 /* Forget interned types allocated above the mark being rolled up: every arena
    rollback comes through here, and a statement's own rollback reclaims the
    types its string constants built. */
-    while (internHead != NULL and ord(internHead) >= ord(p))
+    while (internHead and ord(internHead) >= ord(p))
         internHead = internHead->inext;
     rollup(p);
 } /* myrollup */
@@ -1520,7 +1520,7 @@ ExprPtr mkRef(ExprPtr lval, TPtr typ)
 
 ExprPtr cpDsLval(ExprPtr e)
 {
-    if (e != NULL and e->op == DEREF and
+    if (e and e->op == DEREF and
         isCharPtr(e->expr1->vt.typ))
         return flatMemAt(e->expr1);
     else
@@ -1664,7 +1664,7 @@ void form1Insn(int64_t arg)
                 return;
             }
         }
-    } else if (not noElide && prevOpcode > 1 && Insn.ii % 4096 != 0 &&
+    } else if (not noElide && prevOpcode > 1 && Insn.ii % 4096 &&
                (Insn.ii ^ prevInsn.ii) == Bits(32)) /* maybe ATX/XTA */ {
 // Load after store; if the load reg/off is the same as the store,
 // and the store was not a stack push, there is no need to so the read.
@@ -1948,7 +1948,7 @@ std::string bset(int64_t t)
     int64_t start = minel(t);
     int64_t prev = start;
     t = t & ~ Bits(start);
-    while (t != Bits()) {
+    while (t) {
         int64_t m = minel(t);
         if (m != prev + 1) {
             if (ostr.str().size() != 1) ostr << ',';
@@ -1979,7 +1979,7 @@ TPtr mkIntScl(int64_t bitWid)
         return IntegerType;
     }
     icand = internHead;
-    while (icand != NULL) {
+    while (icand) {
         res = icand->ityp;
         if (res.p.pk == kindScalar and res.p.bits == (uint64_t)bitWid)
             return res;
@@ -2020,7 +2020,7 @@ void fixup(int64_t mode, int64_t arg)
         curVal.ii = moduleOffset;
 L1:     addr = curVal.ii & 077777;
         leftHalf = (curVal.ii & halfWord) << 24;
-        while (arg != 0) {
+        while (arg) {
             if (4096 < arg)  {
                 isLeft = true;
                 arg = arg - 4096;
@@ -2109,18 +2109,18 @@ void endOfLine()
     startPos, lastErr;
 
     listMode = PASINFOR.listMode;
-    if ((listMode != 0) or (errsInLine != 0)) {
+    if ((listMode) or (errsInLine)) {
         printf(" %05lo%5ld%3ld%c", (lineStartOffset + PASINFOR.startOffset),
                lineCnt, lineNesting, commentModeCH);
         startPos = 12;
         do
             linePos = linePos-1;
-        while ((lineBufBase[linePos]  == ' ') and (linePos != 0));
+        while ((lineBufBase[linePos]  == ' ') and (linePos));
         for (err = 1; err <= linePos; ++err) {
             kputc(lineBufBase[err]);
         };
         putchar('\n');
-        if (errsInLine != 0)  {
+        if (errsInLine)  {
             printf("%*s %*c0", int(startPos), "^^^^^", int(errMapBase[0]), ' ');
             lastErr = errsInLine - 1;
             for (err = 1; err <= lastErr; ++err) {
@@ -2427,7 +2427,7 @@ L1473:
                 bucket = curToken.ii % 65535 % 128;
                 curIdent = curToken.ii;
                 keyWordHashPtr = KeyWordHashTabBase[bucket];
-                while (keyWordHashPtr != NULL) {
+                while (keyWordHashPtr) {
                     if (keyWordHashPtr->w.ii == curToken.ii) {
                         SY = keyWordHashPtr->sym;
                         if (SY == TYPESY)
@@ -2443,7 +2443,7 @@ L1473:
                 switch (lookupMode) {
                 case 0: {
                     hashTravPtr = symHash[bucket];
-                    while (hashTravPtr != NULL) {
+                    while (hashTravPtr) {
                         if (hashTravPtr->pck.offset == curFrameRegTemplate)
                         {
                             if (hashTravPtr->id != curIdent)
@@ -2458,7 +2458,7 @@ L1473:
                 } break;
                 case 1: {
 L2:                 hashTravPtr = symHash[bucket];
-                    while (hashTravPtr != NULL) {
+                    while (hashTravPtr) {
                         if (hashTravPtr->id != curIdent)
                             hashTravPtr = hashTravPtr->next();
                         else {
@@ -2474,7 +2474,7 @@ L2:                 hashTravPtr = symHash[bucket];
                     goto L2;
                 case 3:
                     hashTravPtr = fieldHash[bucket];
-                    while (hashTravPtr != NULL) {
+                    while (hashTravPtr) {
                         if ((hashTravPtr->id == curIdent) and
                             (typ121z == hashTravPtr->uptype()))
                             goto exitLexer;
@@ -2599,7 +2599,7 @@ L2:                 hashTravPtr = symHash[bucket];
                     else
                         expMagnitude = expMagnitude + expLiteral;
                 }; /* 2122 */
-                if (expMagnitude != 0) {
+                if (expMagnitude) {
                     expValue = 1.0;
                     expSign = expMagnitude < 0;
                     expMagnitude = std::abs(expMagnitude);
@@ -2612,9 +2612,9 @@ L2:                 hashTravPtr = symHash[bucket];
                         if (expMagnitude & 1)
                             expValue = expValue * expMultiple;
                         expMagnitude = expMagnitude / 2;
-                        if (expMagnitude != 0)
+                        if (expMagnitude)
                             expMultiple = expMultiple*expMultiple;
-                    } while (expMagnitude != 0);
+                    } while (expMagnitude);
                     if (expSign)
                         curToken.r = curToken.r / expValue;
                     else
@@ -2835,7 +2835,7 @@ loop:               {
 
 void skipToEnd()
 {
-    while (CH != 0)
+    while (CH)
         inSymbol();
     throw 9999;
 }
@@ -3081,7 +3081,7 @@ void hash(IdentRecPtr & l3arg1z, IdentRecPtr l3arg2z)
         l3var3z = l3arg1z;
         while (l3var3z != l3arg2z) {
             l3var4z = l3var3z;
-            if (l3var3z != NULL) {
+            if (l3var3z) {
                 l3var3z = l3var3z->next();
             } else {
                 return;
@@ -3098,9 +3098,9 @@ void hash(IdentRecPtr & l3arg1z, IdentRecPtr l3arg2z)
 // the saved Declarator::name explicitly instead.
 bool knownInType(IdentRecPtr & rec, int64_t name = curIdent)
 {
-    if (programme::super.back()->typelist != NULL) {
+    if (programme::super.back()->typelist) {
         rec = programme::super.back()->typelist;
-        while (rec != NULL) {
+        while (rec) {
             if (rec->id == name) {
                 return true;
             }
@@ -3138,7 +3138,7 @@ bool sameRoutineType(TPtr type1, TPtr type2)
     }
     p1 = type1.rep()->rparams;
     p2 = type2.rep()->rparams;
-    while (p1 != NULL and p2 != NULL) {
+    while (p1 and p2) {
         if (p1->s1.pclass != p2->s1.pclass)
             return false;
         if ((p1->ptyp != p2->ptyp) and
@@ -3200,7 +3200,7 @@ int64_t argCount(IdentRecPtr l3arg1z)
     SigPtr l3var2z;
     l3var2z = l3arg1z->sig();
     l3var1z = 0;
-    while (l3var2z != NULL) {
+    while (l3var2z) {
         l3var1z = l3var1z + 1;
         l3var2z = l3var2z->next;
     }
@@ -3239,7 +3239,6 @@ struct formOperator {
     int64_t l3int1z, l3int2z, l3int3z;
     int64_t nextInsn;
     ExprPtr helpExpr;
-    ExprPtr bareCond;
     OpFlg flags;
     bool direction;
     bool noTarget;
@@ -3282,7 +3281,7 @@ struct genOneOp {
     bool F3413() {
         bool ret;
         l4inl7z = l4inl6z;
-        while (l4inl7z != NULL) {
+        while (l4inl7z) {
             if (l4inl7z->mode == curInsn.ii) {
                 ret = true;
                 while (l4inl7z->code == macro) {
@@ -3321,7 +3320,7 @@ struct genOneOp {
             return;
         l4inl6z = NULL;
 
-        while (l4oi212z != NULL) {
+        while (l4oi212z) {
             tempInsn.ii = l4oi212z->code;
             l4var4z = tempInsn.ii -  macro;
             curInsn.ii = l4oi212z->offset;
@@ -3393,7 +3392,7 @@ L3556:
                 } break;
                 case 5:
                     /*blk*/ {
-                    if (l4oi212z != NULL) {
+                    if (l4oi212z) {
                         tempInsn.ii = l4oi212z->code;
                         if ((tempInsn.ii & (BitRange(21,23)|BitRange(28,35))) == Bits(32)) {
                             l4oi212z->code =
@@ -3545,7 +3544,7 @@ L3556:
                     form1Insn(InsnTemp[UTC]);
                 }
                 form1Insn(InsnTemp[UTC] + getValueOrAllocSymtab(tempInsn.ii));
-                if (curInsn.ii != 0) {
+                if (curInsn.ii) {
                     if (not F3413())
                         error(211);
                     fixup(0, l4inl7z->code);
@@ -3571,7 +3570,7 @@ L3556:
         } /* loop */
 
         insnList = NULL;
-        while (l4inl6z != NULL) {
+        while (l4inl6z) {
             if (l4inl6z->offset == 0) {
                 jumpTarget = l4inl6z->code;
                 return;
@@ -3640,7 +3639,7 @@ void genSliceExtract()
 //          addToInsnList(ASN64-48 + sh);
 //          addToInsnList(KYTA);
 //      } else {
-            if (sh != 0)
+            if (sh)
                 addToInsnList(ASN64 + sh);
 //      }
         if (ends != 48) {
@@ -3696,7 +3695,7 @@ void prepLoad()
             } else if (l4st6z == stSLICE) {
                 if ((l4int3z != l4int2z) or
                     (helper != 15) or
-                    (l4int2z != 0))
+                    (l4int2z))
                     addInsnAndOffset(l4int2z + InsnTemp[XTA],
                                      l4int3z);
                 genSliceExtract();
@@ -3772,7 +3771,7 @@ L4654:
                 l4var1z.ii = macro * l4var5z + l4var6z;
                 l4var6z = allocSymtab(l4var1z.ii & 0777777777777L);
                 addToInsnList(regField + opCode + l4var6z);
-            } else if (l4var4z != 0) {
+            } else if (l4var4z) {
                 addInsnAndOffset(l4var4z + InsnTemp[UTC], l4var6z);
                 addToInsnList(regField + opCode);
             } else {
@@ -3782,14 +3781,14 @@ L4654:
             getOffset();
             l4var4z = insnList->disp;
             l4var5z = insnList->tail->code - InsnTemp[UTC];
-            if (l4var4z != 0) {
+            if (l4var4z) {
                 l4var1z.ii = macro * l4var5z + l4var4z;
                 l4var5z = allocSymtab(l4var1z.ii & 0777777777777L);
             }
             insnList->tail->code = regField + l4var5z + opCode;
         } else if (l4int2z == 16) {
             getOffset();
-            if (l4var4z != 0)
+            if (l4var4z)
                 addToInsnList(l4var4z + InsnTemp[UTC]);
             addInsnAndOffset(regField + opCode, l4var6z);
         } else if (l4int2z == 15) {
@@ -3843,7 +3842,7 @@ void prepStore()
             l4int2z = insnList->shift;
             l4int3z = l4int2z + insnList->width;
             if (l4bool5z)  {
-                if (l4int2z != 0)
+                if (l4int2z)
                     prependToInsnList(ASN64 - l4int2z);
             } else {
                 if (l4int3z != 48)
@@ -3857,7 +3856,7 @@ void prepStore()
         } else {
             if (not l4bool5z) {
                 l4int2z = (insnList->width - l4int1z);
-                if (l4int2z != 0)
+                if (l4int2z)
                     prependToInsnList(ASN64 - l4int2z);
                 prependToInsnList(InsnTemp[YTA]);
                 prependToInsnList(ASN64 - l4int1z);
@@ -3970,6 +3969,33 @@ bool isCheapLval(ExprPtr e)
     default:       return false;
     }
 } /* isCheapLval */
+
+/* True when the value about to be branched on reached the accumulator through
+   a load, so omega already means "is it zero".  Anything else leaves whatever
+   omega the arithmetic set, which is a sign test, and needs an AEX to fix it.
+   NOTOP only flips the polarity bit -- a do-while wraps its condition in one
+   -- so look under it. */
+bool omegaIsZeroTest(ExprPtr e)
+{
+    while (e->op == NOTOP)
+        e = e->expr1;
+    return e->vt.typ == BooleanType or
+           has((BitRange(SHLEFT, SETOR) | BitRange(GETELT, ALNUM)), e->op);
+}
+
+/* Load one && / || operand and leave omega meaning "is it zero", for the
+   conditional jump genBoolAnd is about to emit on it.  Same two obligations
+   formOperator(BRANCH) has: a load must survive the peephole, and a value
+   that did not come from one needs the AEX. */
+void prepBoolArg(ExprPtr e)
+{
+    bool wasLval = insnList->ilm == ilLVAL;
+    prepLoad();
+    if (wasLval)
+        insnList->tail->mode = insnList->tail->mode | mdNoElide;
+    else if (not omegaIsZeroTest(e))
+        addToInsnList(KAEX);
+} /* prepBoolArg */
 
 struct genFullExpr {
     static std::vector<genFullExpr*> super;
@@ -4093,7 +4119,7 @@ L33:        prepLoad();
                 l5var3z = insnList->payload.ii;
             } else {
                 l5var3z = 0;
-                prepLoad();
+                prepBoolArg(exprToGen->expr1);
             }
             if (otherIns->ilm == ilCOND) {
                 l5var4z = otherIns->payload.ii;
@@ -4106,7 +4132,7 @@ L33:        prepLoad();
                     addInsnAndOffset(l5var6z, l5var5z);
                     l5ins8z = insnList;
                     insnList = otherIns;
-                    prepLoad();
+                    prepBoolArg(exprToGen->expr2);
                     addInsnAndOffset(l5var7z, l5var5z);
                 } else {
                     if (l5var2z) {
@@ -4129,12 +4155,12 @@ L33:        prepLoad();
                                          010000 * l5var5z + l5var3z);
                         l5ins8z = insnList;
                         insnList = otherIns;
-                        prepLoad();
+                        prepBoolArg(exprToGen->expr2);
                         addInsnAndOffset(l5var7z, l5var5z);
                     } else {
                         l5ins8z = insnList;
                         insnList = otherIns;
-                        prepLoad();
+                        prepBoolArg(exprToGen->expr2);
                         addInsnAndOffset(l5var7z, l5var3z);
                         l5var5z = l5var3z;
                     }
@@ -4209,7 +4235,7 @@ L33:        prepLoad();
         forValue = false;
         curExpr = exprToGen->expr1;
         (void) genFullExpr(curExpr);
-        if (insnList->ilm == ilCOND and insnList->payload.ii != 0) {
+        if (insnList->ilm == ilCOND and insnList->payload.ii) {
             if (has(insnList->regsused, 16))
                 elseLab = insnList->payload.ii;
             else
@@ -4470,7 +4496,7 @@ void genGetElt()
            } else { /* 6306 */
                 if (insnCopy.st == stWORD) {
                     prepLoad();
-                    if (l5var7z != 0) {
+                    if (l5var7z) {
                         curVal.ii = (0 - l5var7z) & INT41_MASK;
                         addToInsnList(KADD+I8 + getFCSToffset());
                         insnList->tail->mode = 1;
@@ -4526,7 +4552,7 @@ struct genEntry {
 int64_t allocGlobalObject(IdentRecPtr l6arg1z)
 {
     if (l6arg1z->r1.pos == 0) {
-        if ((l6arg1z->flags() & Bits(20, 21)) != Bits()) {
+        if ((l6arg1z->flags() & Bits(20, 21))) {
             curVal.ii = leftAlign(l6arg1z->id);
             l6arg1z->r1.pos = allocExtSymbol(extSymMask);
         } else {
@@ -4591,7 +4617,7 @@ genEntry::genEntry()
         }
     }
 // (loop)
-    while (l5exp1z != NULL) { /* 6574 */
+    while (l5exp1z) { /* 6574 */
         l5exp2z = l5exp1z->expr2;
         l5exp1z = l5exp1z->expr1;
         l5inl20z = insnList;
@@ -4614,7 +4640,7 @@ genEntry::genEntry()
         if (not firstArg)
             prependToInsnList(macro + mcPUSH);
         firstArg = false;
-        if (l5inl20z->tail != NULL) {
+        if (l5inl20z->tail) {
             l5inl20z->tail->next = insnList->head;
             insnList->head = l5inl20z->head;
         }
@@ -4633,13 +4659,13 @@ genEntry::genEntry()
         // computed to reach it.
         l5inl20z = insnList;
         (void) genFullExpr(calleeExp);
-        if (insnList->head != NULL or insnList->ilm != ilLVAL
+        if (insnList->head or insnList->ilm != ilLVAL
             or insnList->st != stWORD or insnList->addrmd == 15)
             error(errVarTooComplex);
         curInsnTemplate = InsnTemp[WTC];
         prepLoad();
         curInsnTemplate = InsnTemp[XTA];
-        if (l5inl20z->tail != NULL) {
+        if (l5inl20z->tail) {
             l5inl20z->tail->next = insnList->head;
             insnList->head = l5inl20z->head;
         }
@@ -4664,10 +4690,10 @@ genEntry::genEntry()
        slot into C, VTM then lands it in the register; neither touches the
        accumulator, which may hold a function result. */
     l5exp2z = pinList;
-    while (l5exp2z != NULL) {
-        if (l5exp2z->vt.typ.p.psize != 0
+    while (l5exp2z) {
+        if (l5exp2z->vt.typ.p.psize
             and (6 < l5exp2z->vt.typ.p.pad)
-            and (Bits(l5exp2z->vt.typ.p.pad) & calleeFl) != Bits()) {
+            and (Bits(l5exp2z->vt.typ.p.pad) & calleeFl)) {
             addInsnAndOffset(curFrameRegTemplate + KWTC,
                              l5exp2z->vt.typ.p.psize - 1);
             addToInsnList(KVTM + indexreg[l5exp2z->vt.typ.p.pad]);
@@ -4730,7 +4756,7 @@ void genCopy()
             rhsIns->head = lhsIns->head;
         else
             rhsIns->tail->next = lhsIns->head;
-        if (lhsIns->tail != NULL)
+        if (lhsIns->tail)
             rhsIns->tail = lhsIns->tail;
         rhsIns->regsused = rhsIns->regsused | lhsIns->regsused | Bits(0);
         rhsIns->ilm = ilRVAL;
@@ -5200,7 +5226,7 @@ L10122:
                 curVal.ii = exprToGen->vt.typ.p.pad;
                 /* A spilled base has a frame slot to come back from, so it
                    needs no liveness test. */
-                if (exprToGen->vt.typ.p.psize != 0
+                if (exprToGen->vt.typ.p.psize
                     or has(liveRegs, curVal.ii)) {
                     insnList = new InsnList;
                     insnList->typ = exprToGen->expr2->vt.typ;
@@ -5255,11 +5281,11 @@ void formFileInit()
     };
 
     form2Insn(KITS+13, KATX+SP);
-    if (inputFile != NULL) {
+    if (inputFile) {
         fcloseFile(inputFile);
         form1Insn(KXTA+SP);  // remove FCLOSE's stacked FCB argument
     }
-    if (outputFile != NULL)
+    if (outputFile)
         fcloseFile(outputFile);
     form1Insn(getHelperProc(42)/*"P/IT"*/ + (KUJ-KVJM-I13));
     padToLeft();
@@ -5310,7 +5336,7 @@ formOperator::formOperator(OpGen op)
                 l3int2z = 14;
             } else {
                 l3var10z.ii = auxRegs & freeRegs;
-                if (l3var10z.ii != Bits()) {
+                if (l3var10z.ii) {
                     l3int2z = minel(l3var10z.ii);
                 } else {
                     l3int2z = 14;
@@ -5415,16 +5441,11 @@ formOperator::formOperator(OpGen op)
             // do-while wraps its condition in one to branch back on true, and
             // NOTOP only flips the polarity bit -- what the accumulator holds
             // is decided by what is under it.
-            bareCond = curExpr;
-            while (bareCond->op == NOTOP)
-                bareCond = bareCond->expr1;
-            if (bareCond->vt.typ != BooleanType and
-                not has((BitRange(SHLEFT, SETOR) |
-                     BitRange(GETELT, ALNUM)), bareCond->op))
+            if (not omegaIsZeroTest(curExpr))
                 addToInsnList(KAEX);
             direction = has(insnList->regsused, 16);
             if ((insnList->ilm == ilCOND) and
-                (insnList->payload.ii != 0)) {
+                (insnList->payload.ii)) {
                 genOneOp();
                 if (direction) {
                     if (noTarget)
@@ -5494,9 +5515,9 @@ void markTypeSym()
         // curVal.ii := curIdent.ii * hashMask.ii; mapAI(curVal.a, bucket);
         bucket = curIdent % 65535 % 128;
         hashTravPtr = symHash[bucket];
-        while (hashTravPtr != NULL and hashTravPtr->id != curIdent)
+        while (hashTravPtr and hashTravPtr->id != curIdent)
             hashTravPtr = hashTravPtr->next();
-        if (hashTravPtr != NULL and hashTravPtr->pck.cl == TYPEID) {
+        if (hashTravPtr and hashTravPtr->pck.cl == TYPEID) {
             SY = TYPESY;
             symType = hashTravPtr->typ;
         }
@@ -5522,7 +5543,7 @@ TPtr makeArrayType(int64_t asize, TPtr elem, bool makePacked)
     if (24 < l3int22z)
         makePacked = false;
     InternRec * icand = internHead;
-    while (icand != NULL) {
+    while (icand) {
         arrayType = icand->ityp;
         if (arrayType.p.pk == kindArray and
             arrayType.rep()->base == elem and
@@ -5884,7 +5905,7 @@ void parseGroupedDecls(int64_t skipTarget,
     bool more;
     do {
         Declarator d = parseOneDeclarator(baseTy, packedFlag, forwardRef);
-        if (d.name != 0)
+        if (d.name)
             reg(d);
         more = (SY == COMMA);
         if (more)
@@ -6051,7 +6072,7 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion
                     // lookField never sets isDefined (see Declarator);
                     // foundRec != NULL is the correct "already a field of this
                     // record" signal here.
-                    if (d.foundRec != NULL)
+                    if (d.foundRec)
                         error(errIdentAlreadyDefined);
                     curEnum = besm6_alloc_record<IdentRec>(
                         offsetof(IdentRec, szField));
@@ -6086,7 +6107,7 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion
         else
             rectype.p.bits = 48;
         prevField = rectype.rep()->fields;
-        while (prevField != NULL) {
+        while (prevField) {
             prevField->uptype() = rectype;
             prevField = prevField->list();
         }
@@ -6134,7 +6155,7 @@ L12247:
                 Word &ceVal = programme::super.back()->ceVal;
                 inSymbol();
                 constExpr();
-                if (ceTyp != NULL and ceTyp.p.pk == kindScalar)
+                if (ceTyp.rep() and ceTyp.p.pk == kindScalar)
                     nextEnum = ceVal.ii;
                 else
                     error(62); /* errIntNeeded */
@@ -6187,7 +6208,7 @@ L12247:
                              : (48 - minel((span - 1) & ((1L << 48) - 1)));
             curType.p.pk = kindScalar;
             curEnum = curType.rep()->enums;
-            while (curEnum != NULL) {
+            while (curEnum) {
                 curEnum->typ = curType;
                 curEnum = curEnum->list();
             }
@@ -6306,7 +6327,7 @@ L12366:             error(errNotAType);
         curType = makeArrayType(ranges[curDim].asize, curType,
                                 isPacked and (curDim == 0));
     }
-    if (rangeCnt != 0)
+    if (rangeCnt)
         isPacked = false;
 /* L13020: */
     if (errors)
@@ -6320,7 +6341,7 @@ void dumpEnumNames(TPtr l3arg1z)
     if (l3arg1z.rep()->start == 0) {
         l3arg1z.rep()->start = FcstCnt;
         l3var1z = l3arg1z.rep()->enums;
-        while (l3var1z != NULL) {
+        while (l3var1z) {
             curVal.ii = l3var1z->id;
             l3var1z = l3var1z->list();
             toFCST();
@@ -6384,7 +6405,7 @@ void parseDecls(int64_t l3arg1z)
         l3var3z = has(procName->flags(), 22);
         l3arg1z = procName->r1.pos;
         frame.ii = moduleOffset - 040000;
-        if (l3arg1z != 0)
+        if (l3arg1z)
             symTab[l3arg1z - 074000] = 041000000 + (frame.ii & halfWord);
         procName->r1.pos = moduleOffset;
         l3arg1z = argCount(procName);
@@ -6411,7 +6432,7 @@ void parseDecls(int64_t l3arg1z)
         l3int1z = getHelperProc(curProcNesting) - (-04000000);
         if (l3arg1z == 1) {
             form1Insn((KATX+SP) + frame.ii);
-        } else if (l3arg1z != 0) {
+        } else if (l3arg1z) {
             form2Insn(KATX+SP, (KUTM+SP) + frame.ii);
         }
         formAndAlign(l3int1z);
@@ -6421,15 +6442,15 @@ void parseDecls(int64_t l3arg1z)
         if (l3var3z)
             form1Insn(KVTM+I8+074001);
         if (curProcNesting == 1) {
-            if (inputFile != NULL)
+            if (inputFile)
                 fopenFile(inputFile, fileForInput);
-            if (outputFile != NULL)
+            if (outputFile)
                 fopenFile(outputFile, fileForOutput);
             curVal.ii = fileExit;
             fixup(2, 49);
         }
         if (curProcNesting == 1) {
-            if (heapCallsCnt != 0 and
+            if (heapCallsCnt and
                 heapSize == 0)
                 error(65 /*errCannotHaveK0AndNew*/);
             l3var3z = (heapSize == 0) or
@@ -6600,7 +6621,7 @@ L55:        lookupMode = lookField;
         if (isCharPtr(l4typ3z))
             curExpr = flatMemAt(mkExpr(INTPLUS, charPtrType,
                                        l4exp1z, curExpr));
-        else if (l4step6z != 0) {
+        else if (l4step6z) {
             /* p[i] is *(p + i), an lvalue like any other DEREF. */
             curExpr = mkExpr(DEREF, ptrBase(l4typ3z),
                              mkExpr(INTPLUS, l4typ3z, l4exp1z,
@@ -6766,7 +6787,7 @@ void parseCallArgs(IdentRecPtr subroutine, ExprPtr callee)
             if (noArgs)
                 curSig = curSig->next;
         } while (SY == COMMA);
-        if ((SY != RPAREN) or (noArgs and curSig != NULL))
+        if ((SY != RPAREN) or (noArgs and curSig))
             error(errNoCommaOrParenOrTooFewArgs);
         else
             inSymbol();
@@ -6822,7 +6843,7 @@ void bldArithOp(Operator oper, ExprPtr leftExpr, [[maybe_unused]] bool match)
        a sum of two pointers -- falls into the rejection that follows. */
     lstep = eltStep(arg1Type);
     rstep = eltStep(arg2Type);
-    if (lstep != 0 and rstep != 0) {
+    if (lstep and rstep) {
         if (oper == MINUSOP and typeCheck(arg1Type, arg2Type)) {
             curExpr = mkExpr(INTMINUS, IntegerType, leftExpr, curExpr);
             if (lstep != 1)
@@ -6830,7 +6851,7 @@ void bldArithOp(Operator oper, ExprPtr leftExpr, [[maybe_unused]] bool match)
                                      mkIntLit(lstep));
             return;
         }
-    } else if (lstep != 0) {
+    } else if (lstep) {
         if ((oper == PLUSOP or oper == MINUSOP) and
             typeCheck(IntegerType, arg2Type)) {
             /* Only PLUSOP and MINUSOP reach here, so the step is plain. */
@@ -6838,7 +6859,7 @@ void bldArithOp(Operator oper, ExprPtr leftExpr, [[maybe_unused]] bool match)
                              leftExpr, scaleIdx(curExpr, lstep));
             return;
         }
-    } else if (rstep != 0 and oper == PLUSOP and
+    } else if (rstep and oper == PLUSOP and
                typeCheck(IntegerType, arg1Type)) {
         curExpr = mkExpr(INTPLUS, arg2Type,
                          scaleIdx(leftExpr, rstep), curExpr);
@@ -6896,10 +6917,17 @@ void bldRelOp(Operator oper, ExprPtr ex2)
         curExpr = mkExpr(oper, BooleanType, ex2, curExpr);
 } /* bldRelOp */
 
-void bldLogOp(Operator oper, ExprPtr leftExpr, bool match)
+void bldLogOp(Operator oper, ExprPtr leftExpr, [[maybe_unused]] bool match)
 {
-    if ((not match) or
-        ((arg1Type != BooleanType) and (arg1Type != IntegerType)))
+    // Each operand is a condition in its own right -- genBoolAnd branches on
+    // each and short-circuits between them -- so each has only to be
+    // branchable, by the same kind test ifWhileStatement and bldCondOp use.
+    // They need not be compatible with one another, which is why match, the
+    // typeCheck of one against the other, is not consulted: it would keep a
+    // packed field, whose int:N is a type of its own, out of an && with an
+    // int, which is exactly the mismatch the kind test exists to end.
+    if ((arg1Type.p.pk > (uint64_t)kindPtr) or
+        (arg2Type.p.pk > (uint64_t)kindPtr))
         error(errNeedOtherTypesOfOperands);
     else
         curExpr = mkExprFold(oper, BooleanType, leftExpr, curExpr);
@@ -7284,7 +7312,7 @@ void parseUnaryExpression()
                 curExpr->vt.typ = charPtrType;
             } else if (curExpr->op == GETELT and
                        isCharArray(curExpr->expr1->vt.typ) and
-                       curExpr->expr1->vt.typ.p.pad != 0) {
+                       curExpr->expr1->vt.typ.p.pad) {
                 /* A packed char array holds six 8-bit bytes to a word, so an
                    element's byte index is the array's word address times six
                    plus the zero-based index. */
@@ -7481,7 +7509,7 @@ void brContTarget()
     StrLabel * &strLabList = programme::super.back()->strLabList;
 
     /* assigning target for break/continue if used */
-    if (strLabList->target != 0)
+    if (strLabList->target)
         fixup(0, strLabList->target);
     strLabList = strLabList->next; /* removing break/continue */
 } /* brContTarget */
@@ -7520,12 +7548,12 @@ void forStatement()
     setBrCont();
     Statement();
     brContTarget(); /* removing continue */
-    if (loopExpr != NULL) {
+    if (loopExpr) {
         curExpr = loopExpr;
         (void) formOperator(DOIT);
     }
     formJump(toLoop);
-    if (leave != 0) {
+    if (leave) {
         padToLeft();
         fixup(0, leave);
     }
@@ -7612,7 +7640,7 @@ void structBranch()
     StrLabel * &strLabList = programme::super.back()->strLabList;
 
     curLab = strLabList;
-    while (curLab != NULL) {
+    while (curLab) {
         if (curLab->ident.ii == curIdent) {
             formJump(curLab->target);
             return;
@@ -7684,7 +7712,7 @@ void caseStatement()
                 takeConstFromExpr();
                 itemvalue = curVal;
                 itemtype = curExpr->vt.typ;
-                if (itemtype.rep() != NULL) {
+                if (itemtype.rep()) {
                     if (firstType.rep() == NULL) {
                         firstType = itemtype;
                     } else {
@@ -7695,7 +7723,7 @@ void caseStatement()
                     clause->value = itemvalue;
                     clause->offset = moduleOffset;
                     curClause = allClauses;
-                    while (curClause != NULL) {
+                    while (curClause) {
                         if (itemvalue == curClause->value) {
                             error(73); /* errCaseLabelsIdentical */
                             break;
@@ -7737,12 +7765,12 @@ void caseStatement()
     formJump(endOfStmt);
     padToLeft();
     isIntCase = typeCheck(exprtype, IntegerType);
-    if (allClauses != NULL) {
+    if (allClauses) {
         expected = allClauses->value;
         minValue = expected;
         curClause = allClauses;
         nClauses = 0;
-        while (curClause != NULL) {
+        while (curClause) {
             if (expected != curClause->value or
                 exprtype.p.pk != kindScalar)
                 goto L16140;        /* a gap in the labels: compare them */
@@ -7783,7 +7811,7 @@ void caseStatement()
             decoder = (int64_t)UJ;
         } else
             decoder = (int64_t)UZA;
-        while (allClauses != NULL) {
+        while (allClauses) {
             form1Insn(InsnTemp[decoder] + allClauses->offset);
             allClauses = allClauses->next;
             decoder = (int64_t)UZA + (int64_t)UJ - decoder;
@@ -7803,7 +7831,7 @@ L16140:
            holds the subject XOR-ed with the label reached so far, AEX being
            its own inverse. */
         minValue.ii = (minValue.ii - minValue.ii); /* WTF? */
-        while (allClauses != NULL) {
+        while (allClauses) {
             if (itemsEnded) {
                 curVal.ii = (minValue.ii - allClauses->value.ii);
                 /* KVZM reads the index register, so a step of zero -- a
@@ -7811,7 +7839,7 @@ L16140:
                    The accumulator chain below keeps its KAEX even then: it
                    is what leaves omega logical, which an arithmetic subject
                    expression may not have done. */
-                if (curVal.ii != 0)
+                if (curVal.ii)
                     form1Insn(getValueOrAllocSymtab(curVal.ii) +
                               (KUTM+I14));
                 form1Insn(KVZM+I14 + allClauses->offset);
@@ -8000,7 +8028,7 @@ void flushInitializers() {
             int64_t count = items[i].count;
             bool hasNext = i + 1 < items.size();
             if (count != 1) {
-                if (length != 0)
+                if (length)
                     putDataRec(1);
                 length = 1;
                 putDataRec(count);
@@ -8150,7 +8178,7 @@ struct standProc {
             dumpEnumNames(l4typ3z);
             defWidth = 8;
         } else if (curVarKind == kindScalar
-                   and l4typ3z.rep()->enums != NULL) {
+                   and l4typ3z.rep()->enums) {
             // Explicit-value enum (start == -1): name printing suppressed,
             // so print the value as a decimal integer, exactly like int.
             helperNo = 20;               /* C/WI */
@@ -8352,7 +8380,7 @@ Statement::Statement()
                 lineNesting = lineNesting + 1;
 /*(ident)*/
             if (SY == IDENT) {
-                if (hashTravPtr != NULL) {
+                if (hashTravPtr) {
                     l3var6z = (IdClass)hashTravPtr->pck.cl;
                     if (l3var6z == ROUTINEID) {
                         l3idr12z = hashTravPtr;
@@ -8409,7 +8437,7 @@ Statement::Statement()
                 inSymbol();
                 blockRegs = blockRegs | registerDecls(blockDecls);
               L_skip:
-                while (SY != ENDSY and CH != 0)
+                while (SY != ENDSY and CH)
                     Statement();
                 if (SY != ENDSY) {
                     stmtName = " BEGIN";
@@ -8424,8 +8452,8 @@ Statement::Statement()
                 }
                 inSymbol();
               L_exit_begin:
-                if (blockDecls != NULL) {
-                    while (blockDecls != NULL) {
+                if (blockDecls) {
+                    while (blockDecls) {
                         nextDecl = blockDecls->list();
                         unlinked = NULL;
                         hash(unlinked, blockDecls);
@@ -8573,7 +8601,7 @@ void parseArrSz(int64_t & asize)
     lookupMode = lookUse;
     inSymbol();
     constExpr();
-    if (ceTyp != NULL and ceTyp.p.pk == kindScalar and SY == RBRACK) {
+    if (ceTyp.rep() and ceTyp.p.pk == kindScalar and SY == RBRACK) {
         asize = ceVal.ii;
         ok = true;
     }
@@ -8638,7 +8666,7 @@ void defineRoutine(bool bodyBlock = false)
         // entry points its E+ routines declare.
         bucket = litMain % 65535 % 128;
         l3idr5z = symHash[bucket];
-        while (l3idr5z != NULL and l3idr5z->id != litMain)
+        while (l3idr5z and l3idr5z->id != litMain)
             l3idr5z = l3idr5z->next();
         hasMain = l3idr5z != NULL and l3idr5z->pck.cl == ROUTINEID
                   and l3idr5z->pck.offset != 0;
@@ -8670,14 +8698,14 @@ void defineRoutine(bool bodyBlock = false)
     if (curProcNesting != 1)
         parseDecls(2);
     sizeCount = localSize;
-    if (not bodyBlock and SY != BEGINSY and CH != 0)
+    if (not bodyBlock and SY != BEGINSY and CH)
         requiredSymErr(BEGINSY);
     if (has(procName->flags(), 23)) {
         curSig5z = procName->sig();
         l3int4z = 8;
         if (procName->typ != voidType)
             l3int4z = 9;
-        while (curSig5z != NULL) {
+        while (curSig5z) {
             if (curSig5z->s1.pclass == VARID) {
                 l3var2z.ii = typeSize(curSig5z->ptyp);
                 if (l3var2z.ii != 1) {
@@ -8693,7 +8721,7 @@ void defineRoutine(bool bodyBlock = false)
     } /* 21105 */
     l3var2z.ii = lineNesting;
     if (bodyBlock) {
-        while (SY != ENDSY and CH != 0)
+        while (SY != ENDSY and CH)
             Statement();
         if (SY != ENDSY)
             requiredSymErr(ENDSY);
@@ -8703,7 +8731,7 @@ void defineRoutine(bool bodyBlock = false)
         // The level 1 block is not written, it is generated, and MAIN was
         // looked up above.  Anything left over here -- an explicit block above
         // all -- is a bad symbol where a declaration was expected.
-        if (CH != 0 or SY != NOSY) {
+        if (CH or SY != NOSY) {
             error(errBadSymbol);
             skipToEnd();
         }
@@ -8713,7 +8741,7 @@ void defineRoutine(bool bodyBlock = false)
             curExpr = mkExpr(ALNUM, l3idr5z->typ, NULL, (ExprPtr) l3idr5z);
             (void) formOperator(DOIT);
         }
-    } else if (CH != 0) {
+    } else if (CH) {
         do {
             Statement();
             done = has(blockBegSys, SY) or (SY == TYPESY) or (CH == 0);
@@ -8946,7 +8974,7 @@ initScalars::initScalars() :
     l3var6z = 40;
     do {
         programme(l3var6z, programObj, false);
-    } while (CH != 0);
+    } while (CH);
     // Emit the data-init region from the declaration-site initializers
     // buffered during parsing.
     flushInitializers();
@@ -9053,7 +9081,7 @@ void parseParameters(SigPtr matchTo)
         if (formalCnt == MAXFORMALS)
             error(errTooManyArguments);
         else {
-            if (d.name != 0) {
+            if (d.name) {
                 if (d.wasDefined)
                     error(errIdentAlreadyDefined);
                 for (int64_t ii = 0; ii < formalCnt; ++ii)
@@ -9074,9 +9102,9 @@ void parseParameters(SigPtr matchTo)
     if (matching) {
         // The declaration settled the frame layout and recorded it in the
         // signature, so nothing here may move it.
-        if (matchTo != NULL)
+        if (matchTo)
             error(errNoCommaOrParenOrTooFewArgs);
-    } else if (extraWords != 0) {
+    } else if (extraWords) {
         curIdRec->flags() = (curIdRec->flags() | Bits(23));
         int64_t base = l2int18z;
         l2int18z = l2int18z + extraWords;
@@ -9173,7 +9201,7 @@ void makeFormals()
         // never enters the symbol table, so the body has no way to name it.
         // besm6_alloc_record zero-fills and nidx == 0 reads back as NULL, so
         // the link stays unset.
-        if (np->id != 0) {
+        if (np->id) {
             np->pck.nidx = ord(symHash[formalNames[ii].bucket]);
             symHash[formalNames[ii].bucket] = np;
         }
@@ -9188,7 +9216,7 @@ void exitScope(IdentRecPtr arg[128])
 
     for (int ii = 0; ii <= 127; ++ii) {
         workidr = arg[ii];
-        while (workidr != NULL and
+        while (workidr and
               workidr >= scopeBound)
             workidr = workidr->next();
         arg[ii] = workidr;
@@ -9386,17 +9414,17 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         // list.  The id check proves foundRec is this name's record: a
         // lookup that found nothing can leave a neighbour there, and a
         // plain 'TYPE name;' would then reach here.
-        if (d.ptrOnly and SY == LPAREN and d.foundRec != NULL and
+        if (d.ptrOnly and SY == LPAREN and d.foundRec and
             d.foundRec->id == d.name and
             d.foundRec->pck.cl == ROUTINEID and
             d.foundRec->list() == NULL and
-            d.foundRec->preDefLink() != NULL and
+            d.foundRec->preDefLink() and
             // The whole header is restated, so the return type must agree.
             // A disagreement falls through to the "previous declaration was
             // not a forward declaration" arm below.
             (d.foundRec->typ == typedRetType)) {
             isPredefined = true;
-        } else if (d.ptrOnly and SY == LPAREN and d.foundRec != NULL and
+        } else if (d.ptrOnly and SY == LPAREN and d.foundRec and
                    d.foundRec->id == d.name and
                    // A routine record.  A name may shadow an enum constant
                    // or a variable of an outer scope, and identifiers
@@ -9447,7 +9475,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 if (curProcNesting == 1) {
                     curExternFile = externFileList;
                     toAlloc = (jj & halfWord) | 047000000;
-                    while (l2bool8z and curExternFile != NULL) {
+                    while (l2bool8z and curExternFile) {
                         if (curExternFile->id == d.name) {
                             l2bool8z = false;
                             if (curExternFile->line == 0) {
@@ -9609,7 +9637,7 @@ L23301:
             not has(declStartSys | Bits(ENDSY), SY))
             errAndSkip(84 /* errErrorInDeclarations */,
                        skipToSet | bodyStatSys | blockBegSys | Bits(ENDSY));
-    } else if (CH != 0 and not has(blockBegSys, SY) and
+    } else if (CH and not has(blockBegSys, SY) and
                not has(declStartSys, SY))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
     } while (not ((bodyBlock_ and (has(bodyStatSys, SY) or
@@ -9626,7 +9654,7 @@ L23301:
     // "too many errors" abort path (skipToEnd()) mid-file.
     if (curProcNesting == 1) {
         curExternFile = externFileList;
-        while (curExternFile != NULL) {
+        while (curExternFile) {
             if (curExternFile->line == 0) {
                 error(80); /* errUndefinedExternFile */
                 printTextWord(curExternFile->id);
@@ -9814,7 +9842,7 @@ void finalize()
         CHILD.push_back(symTab[cnt]);
     for (cnt = 0; cnt < longSymCnt; ++cnt)
         CHILD.push_back(longSyms[cnt]);
-    if (PASINFOR.listMode != 0) {
+    if (PASINFOR.listMode) {
         printf("%6ld LINES STRUCTURE ", lineCnt - 1);
         for (idx=1; idx <=10; ++idx)
             printf("%ld ", sizes[idx]);
@@ -9982,7 +10010,7 @@ void initOptions(int argc, char **argv)
         usage();
 
     // Open input file on stdin.
-    if (strcmp(argv[0], "-") != 0) {
+    if (strcmp(argv[0], "-")) {
         if (freopen(argv[0], "r", stdin) == NULL) {
             fprintf(stderr, "%s: Cannot open input file\n", progname);
             perror(argv[0]);
@@ -10116,7 +10144,7 @@ int main(int argc, char **argv)
     // L0 by default: no listing, only errors
     PASINFOR.listMode = 0;
     initOptions(argc, argv);
-    if (PASINFOR.listMode != 0)
+    if (PASINFOR.listMode)
         printf("%s\n", boilerplate);
     printf(" INITHEAP = %05lo\n", avail);
     curInsnTemplate = 0;

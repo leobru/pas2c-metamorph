@@ -1,0 +1,48 @@
+/*=k9,l0*/
+//
+// && and || short-circuit by branching on each operand in turn, so each
+// operand is a condition in its own right: it needs only to be branchable
+// (the kind test), not to be type-compatible with the other one, and each
+// carries the same two omega obligations a branch does -- its load must
+// survive the peephole, and a value that did not come from a load needs the
+// AEX.  A and B are the omega cases; D, E and F were rejected outright before
+// the kind test, F because a packed int:N never equalled intType.
+//
+typedef void *anyptr;
+const NULL = (anyptr)0;
+typedef __packed __lsb struct { int:1 f; int:6 n; } bits;
+typedef struct { rec *nxt; int v; } rec;
+bits b;
+rec r1, r2;
+rec *p, *q;
+int i, m, n, r;
+void main() {
+    // RMWASSIGN operand: the value is in the accumulator, omega is additive
+    i = 3; m = 1;
+    if (--i && m) r = 1; else r = 0;
+    writeln(" A RMWAND  ", r:0, ' ', i:0);
+    // the operand's load repeats the store just before it
+    m = 1; n = 3; n = n - 1;
+    if (n && m) r = 1; else r = 0;
+    writeln(" B ELIDAND ", r:0);
+    n = 2; m = 1;
+    if (n && m) r = 1; else r = 0;
+    writeln(" C PLAIN   ", r:0);
+    // two pointers
+    r1.nxt = &r2; p = &r1; q = r1.nxt;
+    if (p && q) r = 1; else r = 0;
+    writeln(" D PTRAND  ", r:0);
+    p = NULL; q = &r2;
+    if (p || q) r = 1; else r = 0;
+    writeln(" E PTROR   ", r:0);
+    // a packed field against an int -- the pair typeCheck would have refused
+    b.f = 1; b.n = 0; m = 1;
+    if (b.f && m) r = 1; else r = 0;
+    writeln(" F BITAND  ", r:0);
+    if (b.n && m) r = 1; else r = 0;
+    writeln(" G BITZERO ", r:0);
+    // short-circuit still short-circuits: n must stay 5
+    n = 5; p = NULL;
+    if (p && (n = 9)) r = 1; else r = 0;
+    writeln(" H SHORT   ", r:0, ' ', n:0);
+}

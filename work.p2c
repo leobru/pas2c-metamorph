@@ -2139,7 +2139,7 @@ int top;
     /* Forget interned types allocated above the mark being rolled up: every
        arena rollback comes through here, and a statement's own rollback
        reclaims the types its string constants built. */
-    while (internHead != NULL && (int)internHead >= addr)
+    while (internHead && (int)internHead >= addr)
         internHead  =  internHead->inext;
     top = setup();
     if (top > maxHeap) {
@@ -2170,7 +2170,7 @@ sigptr p1, p2;
     }
     p1  =  type1.rep->rparams;
     p2  =  type2.rep->rparams;
-    while (p1 != NULL && p2 != NULL) {
+    while (p1 && p2) {
         if (p1->s1.p.pclass != p2->s1.p.pclass)
             return false;
         if (p1->ptyp != p2->ptyp &&
@@ -2470,9 +2470,9 @@ void markTypeSym() {
         curVal.i  =  curIdent & hashMask;
         bucket = mapAI(curVal.i);
         hashTravPtr  =  symHash[bucket];
-        while ((hashTravPtr != NULL) && (hashTravPtr->id != curIdent))
+        while (hashTravPtr && hashTravPtr->id != curIdent)
             hashTravPtr  =  hashTravPtr->pck.p.next;
-        if ((hashTravPtr != NULL) && (hashTravPtr->pck.p.cl == TYPEID)) {
+        if (hashTravPtr && hashTravPtr->pck.p.cl == TYPEID) {
             SY  =  TYPESY;
             symType  =  hashTravPtr->typ;
         }
@@ -2608,7 +2608,7 @@ int lstep, rstep;
        a sum of two pointers -- falls into the rejection that follows. */
     lstep  =  eltStep(arg1Type);
     rstep  =  eltStep(arg2Type);
-    if (lstep != 0 && rstep != 0) {
+    if (lstep && rstep) {
         if (oper == MINUSOP && typeCheck(arg1Type, arg2Type)) {
             curExpr = mkExpr(INTMINUS, intType, leftExpr, curExpr);
             if (lstep != 1)
@@ -2623,7 +2623,7 @@ int lstep, rstep;
                              leftExpr, scaleIdx(curExpr, lstep));
             return;
         }
-    } else if (rstep != 0 && oper == PLUSOP &&
+    } else if (rstep && oper == PLUSOP &&
                typeCheck(intType, arg1Type)) {
         curExpr = mkExpr(INTPLUS, arg2Type,
                          scaleIdx(leftExpr, rstep), curExpr);
@@ -2684,7 +2684,14 @@ operator resOp;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void bldLogOp(operator oper, eptr leftExpr, int match) {
-    if (!match || ((arg1Type != boolType) && (arg1Type != intType))) {
+/* Each operand is a condition in its own right -- genBoolAnd branches on each
+   and short-circuits between them -- so each has only to be branchable, by the
+   same kind test ifWhileStatement and bldCondOp use.  They need not be
+   compatible with one another, which is why match, the typeCheck of one
+   against the other, is not consulted: it would keep a packed field, whose
+   int:N is a type of its own, out of an && with an int, which is exactly the
+   mismatch the kind test exists to end. */
+    if (arg1Type.p.pk > kindPtr || arg2Type.p.pk > kindPtr) {
         error(errNeedOtherTypesOfOperands);
         curExpr = uVarPtr;
     } else {
@@ -3169,7 +3176,7 @@ int isSimple;
             } else if (l4st6z == stSLICE) {
                 if (l4int3z != l4int2z ||
                    helper != 15 ||
-                   l4int2z != 0)
+                   l4int2z)
                     addInsnAndOffset(l4int2z + KXTA,
                                      l4int3z);
                 genSliceExtract();
@@ -3213,6 +3220,34 @@ void push() {
     prepLoad();
     addToInsnList(macro + mcPUSH);
 } /* push */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+int omegaIsZeroTest(eptr e) {
+/* True when the value about to be branched on reached the accumulator through
+   a load, so omega already means "is it zero".  Anything else leaves whatever
+   omega the arithmetic set, which is a sign test, and needs an AEX to fix it.
+   NOTOP only flips the polarity bit -- a do-while wraps its condition in one
+   -- so look under it. */
+    while (e->op == NOTOP)
+        e  =  e->expr1;
+    return (e->typ == boolType) ||
+           (e->op IN [SHLEFT..SETOR,GETELT..ALNUM]);
+} /* omegaIsZeroTest */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void prepBoolArg(eptr e) {
+/* Load one && / || operand and leave omega meaning "is it zero", for the
+   conditional jump genBoolAnd is about to emit on it.  Same two obligations
+   formOperator(BRANCH) has: a load must survive the peephole, and a value
+   that did not come from one needs the AEX. */
+int wasLval;
+    wasLval  =  insnList->ilm == ilLVAL;
+    prepLoad();
+    if (wasLval)
+        insnList->tail->mode |= mdNoElide;
+    else if (! omegaIsZeroTest(e))
+        addToInsnList(KAEX);
+} /* prepBoolArg */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void setAddrTo(int reg) { /* setAddrTo */
@@ -3642,7 +3677,6 @@ void formOperator(opgen l3arg1z) { /* formOperator */
 int l3int1z, l3int2z, l3int3z;
 int nextInsn;
 eptr helpExpr;
-eptr bareCond;
 int direction;
 int noTarget;
 int l3var10z, l3var11z;
@@ -3763,7 +3797,7 @@ int l5var9z;
             l5var3z  =  insnList->payload;
         } else {
             l5var3z  =  0;
-            prepLoad();
+            prepBoolArg(exprToGen->expr1);
         }
         if (otherIns->ilm == ilCOND) {
             l5var4z  =  otherIns->payload;
@@ -3776,7 +3810,7 @@ int l5var9z;
                 addInsnAndOffset(l5var6z, l5var5z);
                 l5ins8z  =  insnList;
                 insnList  =  otherIns;
-                prepLoad();
+                prepBoolArg(exprToGen->expr2);
                 addInsnAndOffset(l5var7z, l5var5z);
             } else {
                 if (l5var2z) {
@@ -3799,12 +3833,12 @@ int l5var9z;
                                      (l5var5z << 12) + l5var3z);
                     l5ins8z  =  insnList;
                     insnList  =  otherIns;
-                    prepLoad();
+                    prepBoolArg(exprToGen->expr2);
                     addInsnAndOffset(l5var7z, l5var5z);
                 } else {
                     l5ins8z  =  insnList;
                     insnList  =  otherIns;
-                    prepLoad();
+                    prepBoolArg(exprToGen->expr2);
                     addInsnAndOffset(l5var7z, l5var3z);
                     l5var5z  =  l5var3z;
                 }
@@ -4136,8 +4170,8 @@ idclass paramClass;
            computed to reach it. */
         l5inl20z  =  insnList;
         genFullExpr(calleeExp);
-        if ((insnList->head != NULL) || (insnList->ilm != ilLVAL) ||
-            (insnList->st != stWORD) || (insnList->addrmd == 15))
+        if (insnList->head || insnList->ilm != ilLVAL ||
+            insnList->st != stWORD || insnList->addrmd == 15)
             error(errVarTooComplex);
         curInsnTemplate  =  KWTC;
         prepLoad();
@@ -4167,9 +4201,9 @@ idclass paramClass;
        accumulator, which may hold a function result. */
     l5exp2z  =  pinList;
     while (l5exp2z) {
-        if ((l5exp2z->typ.p.psize != 0) &&
-            (6 < l5exp2z->typ.p.pad) &&
-            ((E48 >> l5exp2z->typ.p.pad) & calleeFl) != 0U) {
+        if (l5exp2z->typ.p.psize &&
+            6 < l5exp2z->typ.p.pad &&
+            E48 >> l5exp2z->typ.p.pad & calleeFl) {
             addInsnAndOffset(curFrameRegTemplate + KWTC, l5exp2z->typ.p.psize - 1);
             addToInsnList(KVTM + indexreg[l5exp2z->typ.p.pad]);
         }
@@ -4401,7 +4435,7 @@ insnltyp *condChain, *thenChain;
     forValue = false;
     curExpr = exprToGen->expr1;
     genFullExpr(curExpr);
-    if (insnList->ilm == ilCOND && insnList->payload != 0) {
+    if (insnList->ilm == ilCOND && insnList->payload) {
         /* Compound boolean (a && b, a || b, ...): the chain already has an
            embedded forward jump to label `payload`. */
         if (16 in insnList->regsused)
@@ -4884,7 +4918,7 @@ operator innerOp;
         curVal.i  =  exprToGen->typ.p.pad;
         /* A spilled base has a frame slot to come back from, so it needs no
            liveness test. */
-        if ((exprToGen->typ.p.psize != 0) || (curVal.i IN liveRegs)) {
+        if (exprToGen->typ.p.psize || curVal.i IN liveRegs) {
             insnList = malloc(sizeof(insnltyp));
             { register insnltyp *il = insnList;
                 il->typ  =  exprToGen->expr2->typ;
@@ -5060,16 +5094,11 @@ operator innerOp;
                    NOTOP first: a do-while wraps its condition in one to branch
                    back on true, and NOTOP only flips the polarity bit -- what
                    the accumulator holds is decided by what is under it. */
-                bareCond  =  curExpr;
-                while (bareCond->op == NOTOP)
-                    bareCond  =  bareCond->expr1;
-                if ((bareCond->typ != boolType) && (!(bareCond->op IN
-                    [SHLEFT..SETOR,GETELT..ALNUM]))) {
+                if (! omegaIsZeroTest(curExpr))
                     addToInsnList(KAEX);
-                };
                 direction  =  (16 in insnList->regsused);
                 if (insnList->ilm == ilCOND &&
-                    insnList->payload != 0) {
+                    insnList->payload) {
                     genOneOp();
                     if (direction) {
                         if (noTarget)
@@ -5150,7 +5179,7 @@ int savedLookup, ok;
     inSymbol();
     ok  =  false;
     constExpr();
-    if (ceTyp.rep != NULL && ceTyp.p.pk == kindScalar && SY == RBRACK) {
+    if (ceTyp.rep && ceTyp.p.pk == kindScalar && SY == RBRACK) {
         *asize = ceVal;
         ok  =  true;
     }
@@ -5716,7 +5745,7 @@ pair *curSlot;
             if (charClass == ASSIGNOP) {
                 inSymbol();
                 constExpr();
-                if (ceTyp.rep != NULL && ceTyp.p.pk == kindScalar)
+                if (ceTyp.rep && ceTyp.p.pk == kindScalar)
                     nextEnum  =  ceVal;
                 else
                     error(62); /* errIntNeeded */
@@ -5961,7 +5990,7 @@ int l3int1z, frame, l3var3z;
             fixup(2, 49);
         }
         if (curProcNesting == 1) {
-            if (heapCallsCnt != 0 && heapSize == 0)
+            if (heapCallsCnt && heapSize == 0)
                 error(65 /*errCannotHaveK0AndNew*/);
             l3var3z  =  (heapSize == 0) ||
                 (heapCallsCnt == 0) && (heapSize == 100);
@@ -6228,7 +6257,7 @@ tptr routTyp, formType;
             if (noArgs)
                 curSig  =  curSig->next;
         } while (SY == COMMA);
-        if ((SY != RPAREN) || noArgs && curSig != NULL)
+        if (SY != RPAREN || noArgs && curSig)
             error(errNoCommaOrParenOrTooFewArgs);
         else
             inSymbol();
@@ -6570,9 +6599,9 @@ eptr leftExpr;
                 (curExpr->expr1->id1 == flatMemVar)) {
                 curExpr = curExpr->expr2;
                 curExpr->typ = charPtrType;
-            } else if ((curExpr->op == GETELT) &&
+            } else if (curExpr->op == GETELT &&
                        isCharArray(curExpr->expr1->typ) &&
-                       (curExpr->expr1->typ.p.pad != 0)) {
+                       curExpr->expr1->typ.p.pad) {
                 /* A packed char array holds six 8-bit bytes to a word, so an
                    element's byte index is the array's word address times six
                    plus the zero-based index. */
@@ -6689,7 +6718,7 @@ int match;
                 curExpr->expr2 = NULL;
                 arg2Type = curExpr->typ;
             }
-            if (leftExpr != NULL && leftExpr->op == DEREF &&
+            if (leftExpr && leftExpr->op == DEREF &&
                 isCharPtr(leftExpr->expr1->typ))
                 leftExpr = flatMemAt(leftExpr->expr1);
             if (! typeCheck(arg1Type, arg2Type)) {
@@ -7379,7 +7408,7 @@ void checkElement() {
     // An explicit-value enum (start == -1, but still carries enumerators):
     // name printing is suppressed, so print the value as a decimal integer,
     // exactly like int.
-    if (curVarKind == kindScalar && l4typ3z.rep->enums != NULL) {
+    if (curVarKind == kindScalar && l4typ3z.rep->enums) {
         helperNo  =  20;               /* C/WI */
         defWidth  =  10;
         return;
@@ -7777,7 +7806,7 @@ int hasMain;
         curVal.i  =  litMain & hashMask;
         bucket = mapAI(curVal.i);
         l3idr5z  =  symHash[bucket];
-        while ((l3idr5z != NULL) && (l3idr5z->id != litMain))
+        while (l3idr5z && l3idr5z->id != litMain)
             l3idr5z  =  l3idr5z->pck.p.next;
         hasMain  =  (l3idr5z != NULL) && (l3idr5z->pck.p.cl == ROUTINEID) &&
                     (l3idr5z->pck.p.offset != 0);
@@ -8269,7 +8298,7 @@ sigptr curSig;
 int ii;
     curSig  =  curIdRec->r1.sig;
     ii  =  0;
-    while ((ii < formalCnt) && (curSig != NULL)) {
+    while (ii < formalCnt && curSig) {
         np = malloc(offsetof(identrec, szIdent));
         { register identrec *ir = np;
             ir->id  =  formalNames[ii];
@@ -8297,7 +8326,7 @@ int ii;
 void exitScope(int a) {
     for (ii = 0; ii < 128; ++ii) {
         workidr  = a ? symHash[ii] : fieldHash[ii];
-        while (workidr != NULL && workidr >= scopeBound)
+        while (workidr && workidr >= scopeBound)
             workidr  =  workidr->pck.p.next;
         if (a)
             symHash[ii]  =  workidr;
@@ -8449,7 +8478,7 @@ void exitScope(int a) {
     // must not fire between every consecutive typedef statement -- only
     // when the declaration stream actually moves on to variable or
     // routine declarations.
-    if ((SY != TYPEDEFSY) && (typelist != NULL)) {
+    if (SY != TYPEDEFSY && typelist) {
         while (typelist) {
             l2var12z  =  typelist->id;
             curIdRec  =  typelist;
@@ -8509,25 +8538,25 @@ void exitScope(int a) {
            list.  The id check proves foundRec is this name's record: a
            lookup that found nothing can leave a neighbour there, and a
            plain 'TYPE name;' would then reach here. */
-        if (curDeclarator.ptrOnly && (SY == LPAREN) &&
-            (curDeclarator.foundRec != NULL) &&
-            (curDeclarator.foundRec->id == curDeclarator.name) &&
-            (curDeclarator.foundRec->pck.p.cl == ROUTINEID) &&
-            (curDeclarator.foundRec->list == NULL) &&
-            (curDeclarator.foundRec->r2.preDefLink != NULL) &&
+        if (curDeclarator.ptrOnly && SY == LPAREN &&
+            curDeclarator.foundRec &&
+            curDeclarator.foundRec->id == curDeclarator.name &&
+            curDeclarator.foundRec->pck.p.cl == ROUTINEID &&
+            curDeclarator.foundRec->list == NULL &&
+            curDeclarator.foundRec->r2.preDefLink &&
             /* The whole header is restated, so the return type must agree.
                A disagreement falls through to the "previous declaration was
                not a forward declaration" arm below. */
-            (curDeclarator.foundRec->typ == typedRetType)) {
+            curDeclarator.foundRec->typ == typedRetType) {
             isPredefined  =  true;
-        } else if (curDeclarator.ptrOnly && (SY == LPAREN) &&
-                   (curDeclarator.foundRec != NULL) &&
-                   (curDeclarator.foundRec->id == curDeclarator.name) &&
+        } else if (curDeclarator.ptrOnly && SY == LPAREN &&
+                   curDeclarator.foundRec &&
+                   curDeclarator.foundRec->id == curDeclarator.name &&
                    /* A routine record.  A name may shadow an enum constant
                       or a variable of an outer scope, and identifiers
                       collide at 8 characters (standProc the routine and the
                       STANDPROC operator). */
-                   (curDeclarator.foundRec->pck.p.cl == ROUTINEID)) {
+                   curDeclarator.foundRec->pck.p.cl == ROUTINEID) {
             error(errIdentAlreadyDefined);
             printErrMsg(82); /* errPrevDeclWasNotForward */
         }
@@ -8575,7 +8604,7 @@ void exitScope(int a) {
                     l2var12z  =  curDeclarator.name;
                     curVal.i  =  jj;
                     toAlloc  =  curVal.i & halfWord | [24,27,28,29];
-                    while (l2bool8z && (curExternFile != NULL)) {
+                    while (l2bool8z && curExternFile) {
                         if (curExternFile->id == l2var12z) {
                             l2bool8z  =  false;
                             if (curExternFile->line == 0) {
