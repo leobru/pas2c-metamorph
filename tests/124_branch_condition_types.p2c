@@ -1,0 +1,41 @@
+/*=k9,l0*/
+//
+// What a branch may test: anything whose kind is at most kindPtr -- a scalar,
+// a pointer, or a packed field of either.  A packed field is a type of its
+// own, not intType, which is what made a stricter rule reject `if (b.flag)`
+// while the ternary next to it accepted the same expression.
+//
+typedef void *anyptr;
+const NULL = (anyptr)0;
+typedef __packed __lsb struct { int:1 flag; int:6 n; } bits;
+typedef struct { rec *nxt; int v; } rec;
+bits b;
+rec r, r2;
+rec * p;
+char c;
+int i, t, n;
+void main() {
+    b.flag = 1; b.n = 5; r.v = 9; c = 'A'; i = 0; p = &r;
+    if (b.flag) writeln(" BITFIELD YES"); else writeln(" BITFIELD NO");
+    if (p) writeln(" POINTER YES"); else writeln(" POINTER NO");
+    if (c) writeln(" CHAR YES"); else writeln(" CHAR NO");
+    p = NULL;
+    if (p) writeln(" NULLPTR YES"); else writeln(" NULLPTR NO");
+    // The ternary takes the same set, and always did.
+    t = b.flag ? 11 : 22;
+    writeln(" TERNARY=", t:0);
+    // while, too: ifWhileStatement handles both.
+    while (b.n) { i = i + b.n; b.n = b.n - 1; }
+    writeln(" LOOP=", i:0);
+    // do...while takes the same set: its NOTOP wrapper only flips the
+    // polarity of the list BRANCH reads.
+    r.nxt = NULL; r2.v = 4; r2.nxt = NULL; r.v = 1; r.nxt = &r2;
+    p = &r; n = 0;
+    do { n = n + p->v; p = p->nxt; } while (p);
+    writeln(" DOPTR=", n:0);
+    b.n = 3; i = 0;
+    do { i = i + b.n; b.n = b.n - 1; } while (b.n);
+    writeln(" DOBITS=", i:0);
+    b.flag = 0;
+    if (b.flag) writeln(" CLEARED YES"); else writeln(" CLEARED NO");
+}

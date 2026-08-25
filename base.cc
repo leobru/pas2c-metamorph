@@ -79,6 +79,17 @@ const int64_t
     precEq = 7,      precRel = 8,    precShift = 9,
     precAdd = 10,    precMul = 11;
 
+// A branch reads the omega left by the last instruction that set it, so the
+// load feeding one must survive form1Insn's load-after-store elision.  The
+// mode bit rides on the OneInsn, and genOneOp turns it into insnNoElide on
+// the buffered word, which is where it has to live: the buffer is reordered
+// before it is flushed, so a remembered index would not keep.  insnNoElide is
+// bit 27 -- above every macro encoding (the largest is 3*macro + 4096) and
+// clear of the masks the flush loop applies.
+const int64_t
+    mdNoElide = 8,
+    insnNoElide = 01000000000;   /* bit 27, i.e. 8 * macro */
+
 const int64_t
     macro = 0100000000,
     mcJUMP = 2,
@@ -1628,6 +1639,9 @@ void form1Insn(int64_t arg)
 {
     Word Insn, opcode;
     int64_t pos;
+    bool noElide;
+    noElide = (arg & insnNoElide) != 0;
+    arg = arg & ~insnNoElide;
     Insn.ii = arg;
     opcode.ii = Insn.ii & ~077777;
     if (opcode.ii == InsnTemp[UJ]) {
@@ -1646,10 +1660,15 @@ void form1Insn(int64_t arg)
                 return;
             }
         }
-    } else if (prevOpcode != -1 && Insn.ii % 4096 != 0 &&
+    } else if (not noElide && prevOpcode > 1 && Insn.ii % 4096 != 0 &&
                (Insn.ii ^ prevInsn.ii) == Bits(32)) /* maybe ATX/XTA */ {
 // Load after store; if the load reg/off is the same as the store,
 // and the store was not a stack push, there is no need to so the read.
+// Not when the load is marked: it is feeding a branch, and dropping it would
+// leave the branch reading whatever omega the body computed with -- after an
+// additive op that is a sign test, not "is it zero".
+// prevOpcode > 1, not != -1: at 1 the last thing emitted was a call, and
+// prevInsn still holds what preceded it, so it says nothing about memory now.
         if ((prevInsn.ii != 074000000) /* not 15,ATX, */ &&
             (prevInsn.ii & (Bits(28)|BitRange(30,35))) == Bits() /* but still ATX */) 
             return; /* skip the XTA */
@@ -3285,6 +3304,8 @@ struct genOneOp {
     }; /* addJumpInsn */
 
     genOneOp() {
+        bool noElide = false;
+        int64_t bufMark = 0;
         if (insnList == NULL)
             return;
         usedRegs = usedRegs | insnList->regsused;
@@ -3299,7 +3320,11 @@ struct genOneOp {
             tempInsn.ii = l4oi212z->code;
             l4var4z = tempInsn.ii -  macro;
             curInsn.ii = l4oi212z->offset;
-            switch (l4oi212z->mode) {
+            // Read before the node is stepped past, applied after its
+            // instruction is buffered.
+            noElide = (l4oi212z->mode & mdNoElide) != 0;
+            bufMark = insnBufIdx;
+            switch (l4oi212z->mode & 7) {
             case 0: break;
             case 1: if (arithMode != 1) {
                     addInsnToBuf(KNTR+7);
@@ -3429,6 +3454,8 @@ L3556:
                         }
                 }
             }
+            if (noElide and (insnBufIdx != bufMark))
+                insnBuf[insnBufIdx-1].ii = insnBuf[insnBufIdx-1].ii | insnNoElide;
         }; /* 4037 */
         insnBufIdx = insnBufIdx-1;
 
@@ -3457,6 +3484,8 @@ L3556:
         for (l4var4z = 1; l4var4z <= insnBufIdx; ++l4var4z)
             /*iter*/  {
             curInsn = insnBuf[l4var4z];
+            noElide = (curInsn.ii & insnNoElide) != 0;
+            curInsn.ii = curInsn.ii & ~insnNoElide;
             tempInsn.ii = curInsn.ii & (Bits(0, 1, 3) | BitRange(23,32));
             if (tempInsn.ii == KATX+SP) {
                 l4var2z = l4var4z + 1;
@@ -3482,7 +3511,7 @@ L3556:
             if (curInsn.ii == InsnTemp[UTC])
                 continue; // exit iter
             if (curInsn.ii < macro) {
-                form1Insn(curInsn.ii);
+                form1Insn(noElide ? curInsn.ii | insnNoElide : curInsn.ii);
                 tempInsn.ii = curInsn.ii & BitRange(28,32);
                 if ((tempInsn.ii == 03100000) or /* VJM */
                     (tempInsn.ii == 00500000))    /* ELFUN */
@@ -5387,6 +5416,13 @@ formOperator::formOperator(OpGen op)
                     forValue = false;
                     prepLoad();
                     forValue = true;
+                    // This load is what sets the omega the jump below reads,
+                    // so the peephole must not drop it as a repeat of the
+                    // store before it.  The tail is the right instruction in
+                    // either mode: the load itself for a whole word, and
+                    // genSliceExtract's closing AAX for a slice, which is
+                    // logical and sets omega correctly anyway.
+                    insnList->tail->mode = insnList->tail->mode | mdNoElide;
                 }
                 genOneOp();
                 if (direction)
