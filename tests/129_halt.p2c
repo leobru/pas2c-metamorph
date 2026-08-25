@@ -1,0 +1,9 @@
+/*=k9,l0*/
+// HALT is an ordinary zero-argument libc routine.
+void halt() assembler;
+
+void main() {
+    writeln("before halt");
+    halt();
+    writeln("after halt");
+}

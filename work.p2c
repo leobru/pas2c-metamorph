@@ -688,12 +688,10 @@ int opPrec[ALTERN+1] = {
 /* Backing storage is zero-based; symTabPos and all references stored in the
    compiler's records remain BESM symbol-table addresses starting at 074000. */
 int symTab[01501];
-// A name's index in this table is its procNo, which free and halt derive their
-// helper numbers from (getHelperProc(18 + procNo)).
-int systemProcNames[5] = {
-/*0*/   t'    FREE',
-        t'    HALT',
-        t'    BESM',
+// Keep the historical procNo values 2..4 for these procedures.  FREE and HALT
+// are ordinary ASSEMBLER routines supplied by libc.
+int systemProcNames[3] = {
+/*2*/   t'    BESM',
         t'   WRITE',
         t' WRITELN' };
 int resWordName[19] = {
@@ -7519,45 +7517,9 @@ void writeProc() {
     l4bool10z  =  (SY == LPAREN);
     oldOffset  =  moduleOffset;
     if (! l4bool10z &&
-       (procNo IN [0,2,3]))
+       (procNo IN [2,3]))
         error(45); /* errNoOpenParenForStandProc */
-    if (procNo == 0) {
-        expression();
-        if (! (curExpr->op IN lvalOpSet))
-            error(27); /* errExpressionWhereVariableExpected */
-        arg1Type  =  curExpr->typ;
-        curVarKind  =  arg1Type.p.pk;
-    }
-    if (procNo IN [0,1])
-        jumpTarget  =  getHelperProc(18 + procNo); /* P/DS, P/HT */
     switch (procNo) {
-    case 0: /* free */
-        if (curVarKind != kindPtr)
-            error(13); /* errVarIsNotPointer */
-        ++heapCallsCnt;
-        workExpr  =  curExpr;
-        formOperator(SETREG9);
-        l2typ13z  =  ptrBase(arg1Type);
-        ii  =  typeSize(l2typ13z);
-        if (SY == COLON) {
-            expression();
-            if (! typeCheck(intType, curExpr->typ))
-                error(14); /* errExprIsNotInt */
-            if (curExpr->op == GETENUM) {
-                ii = curExpr->num1;
-                goto 44;
-            } else {
-                formOperator(LOAD);
-                form1Insn(KATI+14);
-            }
-        } else {
-44:         form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
-        }
-        formAndAlign(jumpTarget);
-        break;
-    case 1: /* halt */
-        formAndAlign(jumpTarget);
-        return;
     case 3: /* write */
         writeProc();
         break;
@@ -7575,7 +7537,7 @@ void writeProc() {
         formAndAlign(curVal.i);
         break;
     }
-    if (procNo in [0,3,4])
+    if (procNo in [3,4])
         arithMode  =  1;
     checkSymAndRead(RPAREN);
 } /* standProc */
@@ -8040,8 +8002,8 @@ void regSysProc(int l4arg1z) {
         ir->r1.pos  =  0;
     }
     temptype.rep = NULL;
-    sysProcNum  =  0;
-    for (l3var5z = 0; l3var5z <= 4; ++l3var5z) {
+    sysProcNum  =  2;
+    for (l3var5z = 0; l3var5z <= 2; ++l3var5z) {
         regSysProc(systemProcNames[l3var5z]);
     }
     sysProcNum  =  0;
@@ -8650,9 +8612,6 @@ void exitScope(int a) {
             isDefined  =  curDeclarator.wasDefined;
             hashTravPtr  =  curDeclarator.foundRec;
             if (! isPredefined) {
-                if (curFrameRegTemplate == 7) {
-                    error(81); /* errProcNestingTooDeep */
-                }
                 curIdRec = malloc(offsetof(identrec, szRoutine));
                 { register identrec *ir = curIdRec;
                     ir->id  =  curIdent;
@@ -8671,7 +8630,10 @@ void exitScope(int a) {
                     l2int18z  =  l2bool8z ? 8 : 9;
                 }
                 ++curProcNesting;
-                if (6 < curProcNesting)
+                /* The display takes one index register per level, and
+                   freeRegs is [curProcNesting+1:6]: level 6 would leave the
+                   expression evaluator none. */
+                if (5 < curProcNesting)
                     error(81); /* errProcNestingTooDeep */
                 hadParens  =  (SY == LPAREN);
                 if (hadParens)

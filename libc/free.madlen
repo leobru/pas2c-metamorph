@@ -1,0 +1,18 @@
+ FREE:,NAME,
+C===========================================================
+C free(p, size) - return SIZE words at P to the heap allocator.
+C
+C Calling convention for a two-argument ASSEMBLER routine:
+C   ACC        = size
+C   [SP-1]     = p
+C   M13        = return link
+C
+C P/DS expects M9 to address a cell containing p and M14 to hold size.
+C STI moves size to M14 and pops p, leaving SP at the cell that still contains
+C p.  Point M9 there; P/DS reads mem[M9] before its first push reuses the cell.
+C===========================================================
+ P/DS:          ,SUBP,
+                ,STI ,14     . M14 := size; pop p, leaving SP at its cell
+            15  ,MTJ ,9      . M9 := &p
+                ,UJ  ,P/DS   . tail call; P/DS returns through caller's M13
+                ,END ,

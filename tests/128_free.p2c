@@ -1,0 +1,21 @@
+/*=k9,l0*/
+// FREE is an ordinary libc routine: free(pointer, size).
+void free(void *, int) assembler;
+
+void *p;
+void *q;
+void *r;
+void *again;
+
+void main() {
+    p = malloc(2);
+    q = malloc(3);
+    r = malloc(1);
+
+    free(q, 3);
+    free(p, 2);
+    free(r, 1);
+    again = malloc(6);
+
+    writeln("free reuse ", again == p:0);
+}

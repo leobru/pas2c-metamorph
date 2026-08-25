@@ -1,0 +1,13 @@
+ HALT:,NAME,
+C===========================================================
+C halt() - terminate the program through the Pascal runtime.
+C
+C Calling convention for a zero-argument ASSEMBLER routine:
+C   M13 = return link
+C
+C P/HT does not return normally.  Tail-call it so it receives the caller's
+C link and the current activation chain unchanged.
+C===========================================================
+ P/HT:          ,SUBP,
+                ,UJ  ,P/HT
+                ,END ,

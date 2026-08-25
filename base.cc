@@ -1048,7 +1048,7 @@ extern int64_t helperNames[58]; // array [1..57] of int64_t;
 // Zero-based backing storage; symTabPos and stored references remain BESM
 // symbol-table addresses starting at 074000.
 int64_t symTab[SYMTAB_LIMIT - 074000 + 1];
-extern int64_t systemProcNames[5];
+extern int64_t systemProcNames[3];
 extern int64_t resWordNameBase[19];
 int64_t longSymCnt;
 int64_t longSymTabBase[90];
@@ -8280,55 +8280,15 @@ struct standProc {
 
     standProc() { /* standProc */
         IdentRecPtr &l3idr12z = Statement::super.back()->l3idr12z;
-        TPtr &l2typ13z = programme::super.back()->l2typ13z;
-        int64_t &ii = programme::super.back()->ii;
 
         curVal.ii = l3idr12z->low();
         procNo = curVal.ii;
         l4bool10z = (SY == LPAREN);
         oldOffset = moduleOffset;
         if (not l4bool10z and
-            has(Bits(0,2,3), procNo))
+            has(Bits(2,3), procNo))
             error(45); /* errNoOpenParenForStandProc */
-        if (procNo == 0) {
-            expression();
-            if (not has(lvalOpSet, curExpr->op)) {
-                error(27); /* errExpressionWhereVariableExpected */
-            }
-            arg1Type = curExpr->vt.typ;
-            curVarKind = (Kind)(arg1Type.p.pk);
-        }
-        if (has(Bits(0,1), procNo))
-            jumpTarget = getHelperProc(18 + procNo); /* P/DS, P/HT */
         switch (procNo) {
-        case 0: { /* free */
-            if (curVarKind != kindPtr)
-                error(13); /* errVarIsNotPointer */
-            heapCallsCnt = heapCallsCnt + 1;
-            workExpr = curExpr;
-            (void) formOperator(SETREG9);
-            l2typ13z = ptrBase(arg1Type);
-            ii = typeSize(l2typ13z);
-            if (SY == COLON) {
-                expression();
-                if (not typeCheck(IntegerType, curExpr->vt.typ))
-                error(14); /* errExprIsNotInteger */
-                if (curExpr->op == GETENUM) {
-                    ii = curExpr->lit.ii;
-                    goto L5_44;
-                } else {
-                    (void) formOperator(LOAD);
-                    form1Insn(KATI+14);
-                }
-            } else {
-L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
-            }
-            formAndAlign(jumpTarget);
-        } break;
-        case 1: { /* halt */
-            formAndAlign(jumpTarget);
-            return;
-        } break;
         case 3: { /* write */
             writeProc();
         } break;
@@ -8346,7 +8306,7 @@ L5_44:          form1Insn(KVTM+I14+getValueOrAllocSymtab(ii));
             formAndAlign(curVal.ii);
         } break;
         }
-        if (has(Bits(0,3,4), procNo))
+        if (has(Bits(3,4), procNo))
             arithMode = 1;
         checkSymAndRead(RPAREN);
     }
@@ -8907,8 +8867,8 @@ initScalars::initScalars() :
     uProcPtr->r1.pos = 0;
 
     temptype.setRep(NULL);
-    sysProcNum = 0;
-    for (l3var5z = 0; l3var5z <= 4; ++l3var5z) {
+    sysProcNum = 2;
+    for (l3var5z = 0; l3var5z <= 2; ++l3var5z) {
         regSysProc(systemProcNames[l3var5z]);
     }
     sysProcNum = 0;
@@ -9518,9 +9478,6 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             isDefined = d.wasDefined;
             hashTravPtr = d.foundRec;
             if (not isPredefined) {
-                if (curFrameRegTemplate == 7) {
-                    error(81); /* errProcNestingTooDeep */
-                }
                 curIdRec = besm6_alloc_record<IdentRec>(
                     offsetof(IdentRec, szRoutine));
                 curIdRec->id = curIdent;
@@ -9544,7 +9501,10 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 else
                     l2int18z = 9;
                 curProcNesting = curProcNesting + 1;
-                if (6 < curProcNesting)
+                /* The display takes one index register per level, and
+                   freeRegs is [curProcNesting+1:6]: level 6 would leave the
+                   expression evaluator none. */
+                if (5 < curProcNesting)
                     error(81); /* errProcNestingTooDeep */
                 hadParens = (SY == LPAREN);
                 if (hadParens)
@@ -10264,12 +10224,9 @@ int64_t helperNames[58] = { 0L,
         04317635054000000L      /*"C/SHL   "*/,
         04317635062000000L      /*"C/SHR   "*/};
 
-// A name's index in this table is its procNo, which free and halt derive their
-// helper numbers from (getHelperProc(18 + procNo)).  This is the P2C set
-// (BESM/FREE/HALT...).
-int64_t systemProcNames[5] = {
-/*0*/   044516360576345L        /*"    FREE"*/,
-        050415464L              /*"    HALT"*/,
-        042456355L              /*"    BESM"*/,
+// Keep the historical procNo values 2..4 for these procedures.  FREE and HALT
+// are ordinary ASSEMBLER routines supplied by libc.
+int64_t systemProcNames[3] = {
+/*2*/   042456355L              /*"    BESM"*/,
         06762516445L            /*"   WRITE"*/,
         067625164455456L        /*" WRITELN"*/};
