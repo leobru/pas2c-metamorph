@@ -3,12 +3,11 @@
 // A string constant and a declared packed char array are the same
 // zero-based type.
 typedef __packed char alfa[6];
-alfa a;
+alfa a = "ABCDEF";
 char s[6];
 int i;
 
 void main() {
-    a = "ABCDEF";
     s[0] = 'A';
     s[5] = 'F';
 

@@ -7,13 +7,13 @@
 //
 // 'uword' names the void pointer, so a cast to it orders two words by their
 // bits, which is what a sorted table of arbitrary words needs.  A one-word
-// packed char array orders the same way with no cast.
+// packed char array orders the same way once cast.
 //
 typedef void *uword;
 typedef __packed char alfa[6];
 //
 int w[4];
-alfa a, b;
+alfa a = "AAAAAA", b = "ZZZZZZ";
 int i, j;
 //
 void main() {
@@ -35,10 +35,10 @@ void main() {
     i  =  -1;
     j  =  1;
     writeln(" SIGN  ", (i < j):2, ((uword)i < (uword)j):2);
-    // A packed char array orders by the same rule without a cast.
-    a  =  "AAAAAA";
-    b  =  "ZZZZZZ";
-    writeln(" ALFA  ", (a < b):2, (b < a):2, (a <= b):2, (a == b):2);
+    // A packed char array is an address in a value context, so ordering
+    // its contents takes the same cast a word does.
+    writeln(" ALFA  ", ((uword)a < (uword)b):2, ((uword)b < (uword)a):2,
+            ((uword)a <= (uword)b):2, ((uword)a == (uword)b):2);
     // Equality reads the same whatever the spelling.
     i  =  'AAAAAA';
     writeln(" EQ    ", (i == w[2]):2, ((uword)i == (uword)w[2]):2,

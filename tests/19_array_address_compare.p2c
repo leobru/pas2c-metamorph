@@ -1,0 +1,18 @@
+/*=k9,l0*/
+//
+// Two arrays compare as the addresses they decay to, as in C, not by their
+// contents: distinct objects are never equal however alike they read, and a
+// pointer into an array compares equal to the array itself.  Comparing the
+// contents of a one-word array is a cast away, which is what `uword` names.
+//
+typedef void *uword;
+__packed char s1[6] = "HELLO ";
+__packed char s2[6] = "HELLO ";
+char *cp;
+//
+void main() {
+    writeln(" SAME   ", (s1 == s1):2, (s1 != s2):2, (s1 == s2):2);
+    cp  =  s1;
+    writeln(" PTR    ", (cp == s1):2, (cp == s2):2);
+    writeln(" CONTENT", ((uword)s1 == (uword)s2):2);
+}

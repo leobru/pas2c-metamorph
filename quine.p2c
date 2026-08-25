@@ -1,20 +1,20 @@
-TYPEDEF __PACKED CHAR LINE[60]; LINE L[10];
-INT I,J,K; CHAR Q,C;
-VOID PUTLINE(INT N)<: J=59;
+TYPEDEF __PACKED CHAR LINE[72]; LINE L[10]=<:
+"TYPEDEF __PACKED CHAR LINE[72]; LINE L[10]=<:                           ",
+":>; INT I,J,K; CHAR Q,C;                                                ",
+"VOID PUTLINE(INT N)<: J=71;                                             ",
+"WHILE(L[N][J]==' ')--J;                                                 ",
+"FOR(K=0;K<=J;++K)<: C=L[N][K];                                          ",
+"IF(C=='Z')IF(N!=5||K!=7)C=Q; WRITE(C); :> WRITELN; :>                   ",
+"VOID MAIN()<:                                                           ",
+"Q='Z'; PUTLINE(0);                                                      ",
+"FOR(I=0;I<10;++I)<: WRITE(Q,L[I],Q); IF(I<9)WRITE(','); WRITELN; :>     ",
+"FOR(I=1;I<10;++I)PUTLINE(I); :>                                         "
+:>; INT I,J,K; CHAR Q,C;
+VOID PUTLINE(INT N)<: J=71;
 WHILE(L[N][J]==' ')--J;
 FOR(K=0;K<=J;++K)<: C=L[N][K];
 IF(C=='Z')IF(N!=5||K!=7)C=Q; WRITE(C); :> WRITELN; :>
 VOID MAIN()<:
-L[0]="TYPEDEF __PACKED CHAR LINE[60]; LINE L[10];                 ";
-L[1]="INT I,J,K; CHAR Q,C;                                        ";
-L[2]="VOID PUTLINE(INT N)<: J=59;                                 ";
-L[3]="WHILE(L[N][J]==' ')--J;                                     ";
-L[4]="FOR(K=0;K<=J;++K)<: C=L[N][K];                              ";
-L[5]="IF(C=='Z')IF(N!=5||K!=7)C=Q; WRITE(C); :> WRITELN; :>       ";
-L[6]="VOID MAIN()<:                                               ";
-L[7]="Q='Z'; FOR(I=0;I<7;++I)PUTLINE(I);                          ";
-L[8]="FOR(I=0;I<10;++I)WRITELN(ZL[Z,I:0,Z]=Z,Q,L[I],Q,Z;Z);       ";
-L[9]="FOR(I=7;I<10;++I)PUTLINE(I); :>                             ";
-Q='"'; FOR(I=0;I<7;++I)PUTLINE(I);
-FOR(I=0;I<10;++I)WRITELN("L[",I:0,"]=",Q,L[I],Q,";");
-FOR(I=7;I<10;++I)PUTLINE(I); :>
+Q='"'; PUTLINE(0);
+FOR(I=0;I<10;++I)<: WRITE(Q,L[I],Q); IF(I<9)WRITE(','); WRITELN; :>
+FOR(I=1;I<10;++I)PUTLINE(I); :>

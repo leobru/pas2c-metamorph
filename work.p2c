@@ -502,7 +502,12 @@ int strLen;
 int heapCallsCnt;
 int heapSize;
 int arithMode;
-alfa stmtName;
+/* The construct an error is reported against, as the one word its six
+   characters occupy: an array is not assignable, so it is held as a word
+   and cast back to alfa to print.  Every one of them is exactly six
+   characters, since a single-quoted literal is right-aligned in its word
+   and a shorter one would not sit where alfa reads it. */
+int stmtName;
 kword *keywordHashPtr;
 kind curVarKind;
 pextf curExternFile;
@@ -736,7 +741,9 @@ typedef struct {
    /*18*/ int flags;
 } pasinfotyp;
 extern pasinfotyp pasinfor;
-extern alfa paseofcd;
+/* One word of six characters, in storage the runtime owns, so it cannot be
+   pointed elsewhere: the constant goes in as the word it is. */
+extern int paseofcd;
 //
 // %%%%%%%%%%%% Libc functions %%%%%%%%%%%
 //
@@ -800,7 +807,7 @@ char c;
             if (errno == 17)
                 write(errLine:0);
             else
-                write(stmtName);
+                write((alfa)stmtName);
     }
     if (errno != 86)
         writeln;
@@ -2367,6 +2374,26 @@ tptr t;
 } /* getPtrType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* An array used as a value is the address of its first element, as in C.
+   Anything else comes back as it stands, so a call site may apply this
+   unconditionally.  The shapes are the ones the '&' arm builds for '&a[0]':
+   a char array yields a byte index into flat memory, six bytes to a word,
+   the unpacked case pointing at the rightmost byte of the element's own
+   word.  An array that is not an lvalue -- the result of a cast -- has no
+   address to take and is left for the caller's type check to refuse. */
+eptr decayArray(eptr e) {
+eptr addr;
+    if (e->typ.p.pk != kindArray || ! (e->op IN lvalOpSet))
+        return e;
+    if (! isCharArray(e->typ))
+        return mkRef(e, getPtrType(e->typ.rep->base));
+    addr  =  mkExpr(IMULOP, charPtrType, mkRef(e, intType), mkIntLit(6));
+    if (e->typ.p.pad)
+        return addr;
+    return mkExpr(INTPLUS, charPtrType, addr, mkIntLit(5));
+} /* decayArray */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 eptr bldIncDec(eptr lval, int isInc, int isPost) {
 eptr one, rmw;
 operator op;
@@ -2588,6 +2615,14 @@ kind k1, k2;
 operator resOp;
 tptr resTyp;
 int lstep, rstep;
+    /* An array in an arithmetic context is the address of its first element,
+       as in C, whatever stands on the other side.  A decayed char array is a
+       char pointer, so it takes the byte-unit branch just below, and
+       decayArray leaves anything that is not an array as it is. */
+    leftExpr = decayArray(leftExpr);
+    arg1Type = leftExpr->typ;
+    curExpr = decayArray(curExpr);
+    arg2Type = curExpr->typ;
     k1 = arg1Type.p.pk;
     k2 = arg2Type.p.pk;
     /* A char pointer is a byte index into flat memory: the byte is already
@@ -2653,6 +2688,13 @@ int lstep, rstep;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void bldRelOp(operator oper, eptr ex2) {
 operator resOp;
+    /* A compared array is its first element's address, as in C, whatever
+       stands on the other side: two arrays compare those addresses, not
+       their contents.  decayArray leaves anything else as it is. */
+    ex2 = decayArray(ex2);
+    arg1Type = ex2->typ;
+    curExpr = decayArray(curExpr);
+    arg2Type = curExpr->typ;
     if (typeCheck(arg1Type, arg2Type)) {
         /* A multi-word value compares only for equality; ordering it would
            need the P/EQ family to report which way.  The ordering operators
@@ -3513,7 +3555,9 @@ int allocDataRef(int l6arg1z) {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Declaration-site initializers (C-style).  Each global '= initializer' is
 // buffered into the INITBUF scratch file as a stream of 3-word entries --
-// (0, base, 0) opens a target segment, (1, value, count) is an item -- and
+// (0, base, 0) opens a target segment, (1, value, count) is an item, and
+// (2, offset, words) is a run of words already sitting in the constant pool
+// (a string wider than a word) -- and
 // materialized once, at program end, by flushInitializers as the contiguous
 // trailing data region of FCST (which must follow the whole constant pool:
 // finalize describes it only by length+count).
@@ -3586,6 +3630,13 @@ int rec;
             dataLoc  =  FcstCnt;
             length  =  0;
             dataSegLen  =  0;
+        } else if (ck == 2) {
+            /* A run already in the pool: name where it sits and how long it
+               is.  Any pending single values were flushed by the entry
+               before this one, whose hasNext saw a kind other than 1. */
+            length  =  cb;
+            dataLoc  =  ca;
+            putDataRec(1);
         } else {
             savedVal.i  =  ca;
             rep  =  cb;
@@ -3631,6 +3682,9 @@ tptr l2typ13z, l2typ14z, typedRetType, ceTyp;
 int ceVal;
 int initRegs, flushRegs;
 irptr initVar;
+// Words placed by the initializer statement() has just been run for, which
+// is what sizes an array whose declarator left its extent out.
+int initWords;
 int labFence;
 strLabel *strLabList;
 //
@@ -5142,6 +5196,12 @@ typedef struct {
             int asize;
 } rangeRec;
 typedef rangeRec rangeList[20];
+// Set by a parameter list around its declarator, and there alone, where
+// 'int q[]' is legal because the extent is discarded when the parameter
+// becomes a pointer.  nameOptional, set at the same two places, will not do:
+// readTypeName sets that as well, and a type name with no extent --
+// 'sizeof(int[])' -- is as wrong here as it is in C.
+int noExtentOk;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // An array size is a const-expression.  parseArrSz evaluates it with
@@ -5158,20 +5218,24 @@ void constExpr();
 // which is what lets a size inside a record body reach them at all.  lookup2
 // must move with lookupMode, since every inSymbol() resets lookupMode from it.
 void parseArrSz(int *asize) {
-int savedLookup, ok;
+int savedLookup;
     savedLookup  =  lookup2;
     lookup2  =  lookUse;
     lookupMode  =  lookUse;
     inSymbol();
-    ok  =  false;
-    constExpr();
-    if (ceTyp.rep && ceTyp.p.pk == kindScalar && SY == RBRACK) {
-        *asize = ceVal;
-        ok  =  true;
-    }
-    if (! ok) {
-        error(64); /* errIncorrectRangeDefinition */
-        *asize = 1;
+    if (noExtentOk && SY == RBRACK) {
+        /* 'int q[]': zero marks the missing extent.  A parameter discards
+           the array type for a pointer, and a variable takes its size from
+           the initializer that has to follow. */
+        *asize = 0;
+    } else {
+        constExpr();
+        if (ceTyp.rep && ceTyp.p.pk == kindScalar && SY == RBRACK) {
+            *asize = ceVal;
+        } else {
+            error(64); /* errIncorrectRangeDefinition */
+            *asize = 1;
+        }
     }
     lookup2  =  savedLookup;
     lookupMode  =  savedLookup;
@@ -5409,8 +5473,12 @@ int packedFlag, noComma;
             paramType = parseTypeRef(skipToSet | [IDENT,RPAREN,COMMA]);
             packedFlag  =  isPacked;
             nameOptional  =  true;
+            noExtentOk  =  true;
             parseDclAt(&sigDecl, paramType, packedFlag, isForwardRef, declOpCount);
             nameOptional  =  false;
+            noExtentOk  =  false;
+            if (sigDecl.typ.p.pk == kindArray)
+                sigDecl.typ  =  getPtrType(sigDecl.typ.rep->base);
             cur = malloc(sizeof(sigrec));
             { register sigrec *sg = cur;
                 sg->s1.p.pclass  =  VARID;
@@ -6082,7 +6150,7 @@ int l4step6z;
                 goto 55;
             }
         }
-        stmtName  =  "  ->  ";
+        stmtName  =  '  ->  ';
         error(errWrongVarTypeBefore);
         l4exp1z = malloc(sizeof(expr));
         l4exp1z->expr1  =  curExpr;
@@ -6103,12 +6171,12 @@ int l4step6z;
             }
             inSymbol();
         } else {
-            stmtName  =  "  .   ";
+            stmtName  =  '  .   ';
             error(errWrongVarTypeBefore);
             return;
         }
     } else if (SY == LBRACK) {
-        stmtName  =  "  [   ";
+        stmtName  =  '  [   ';
         l4exp1z  =  curExpr;
         expression();
         l4typ3z  =  l4exp1z->typ;
@@ -6223,6 +6291,9 @@ tptr routTyp, formType;
             }
             expression();
             if (noArgs) {
+                /* A pointer formal takes an array actual by decay, as in C. */
+                if (formType.p.pk == kindPtr)
+                    curExpr = decayArray(curExpr);
                 arg1Type  =  curExpr->typ;
                 if (arg1Type != voidType) {
                     /* Every formal is taken by value, so an actual converts
@@ -6299,7 +6370,7 @@ int hasFields;
                operator set it last. */
             hasFields  =  l5var2z.p.pk == kindStruct;
             if (! hasFields) {
-                stmtName  =  "OFFSET";
+                stmtName  =  'OFFSET';
                 error(errWrongVarTypeBefore);
             }
             if (SY != COMMA)
@@ -6561,6 +6632,12 @@ eptr leftExpr;
             }
             break;
         case MUL:
+            /* An array is its first element's address here too, so '*a' is
+               'a[0]', as in C. */
+            if (arg1Type.p.pk == kindArray) {
+                curExpr = decayArray(curExpr);
+                arg1Type = curExpr->typ;
+            }
             if (isCharPtr(arg1Type))
                 curExpr = flatMemAt(curExpr);
             else if (arg1Type.p.pk == kindPtr) {
@@ -6571,7 +6648,7 @@ eptr leftExpr;
                     curExpr = mkExpr(DEREF, ptrBase(arg1Type),
                                      curExpr, NULL);
             } else {
-                stmtName = "unary*";
+                stmtName = 'unary*';
                 error(errWrongVarTypeBefore);
             }
             break;
@@ -6672,7 +6749,10 @@ int match;
                the don't-care slot.  Codegen for RMWASSIGN walks lhs once,
                materialising its address into a spill slot when needed,
                then synthesises the equivalent ASSIGNOP for emission. */
-            if (! (leftExpr->op IN lvalOpSet))
+            /* An array is never an lvalue: its name in a value context is
+               an address, so there is nothing to assign to. */
+            if (! (leftExpr->op IN lvalOpSet) ||
+                leftExpr->typ.p.pk == kindArray)
                 error(27); /* errExpressionWhereVariableExpected */
             parsePrc(precAssign);
             arg1Type = leftExpr->typ;
@@ -6707,6 +6787,15 @@ int match;
             if (leftExpr && leftExpr->op == DEREF &&
                 isCharPtr(leftExpr->expr1->typ))
                 leftExpr = flatMemAt(leftExpr->expr1);
+            /* An array assigned to a pointer decays, as in C.  An array is
+               not assignable at all, again as in C: it is not a modifiable
+               lvalue, and its name in a value context is an address. */
+            if (arg1Type.p.pk == kindPtr) {
+                curExpr = decayArray(curExpr);
+                arg2Type = curExpr->typ;
+            }
+            if (arg1Type.p.pk == kindArray)
+                arg2Type  =  arg1Type;   /* refused above; one report, not two */
             if (! typeCheck(arg1Type, arg2Type)) {
                 if (castArith(arg1Type, &curExpr)) {
                     /* int <-> real, converted as C does */
@@ -7098,7 +7187,7 @@ word minValue, maxValue;
     } while (! itemsEnded);
     if (SY != ENDSY) {
         requiredSymErr(ENDSY);
-        stmtName  =  "SWITCH";
+        stmtName  =  'SWITCH';
         reportStmtType();
     } else
         inSymbol();
@@ -7240,15 +7329,28 @@ void beginInitSeg(irptr var, int designator) {
 // single scalar (',' separates declarators, not items).
 void parseInitializer(irptr var) {
 eptr boundary;
+tptr dest;
 int braced, count, v;
+    /* Where the words will land.  A designator only walks 'var' along its
+       own element type, so unwrapping the array levels answers for both the
+       bare and the designated segment. */
+    dest  =  var->typ;
+    while (dest.p.pk == kindArray)
+        dest  =  dest.rep->base;
     inSymbol();                       /* consume '=' */
     braced  =  SY == BEGINSY;
     if (braced)
         inSymbol();                   /* consume '{' */
     boundary  =  (eptr)setup();
+    initWords  =  0;
     beginInitSeg(var, false);
     while (true) {
         if (braced && (SY == LBRACK)) {
+            /* A designator moves the destination, so the items no longer
+               count off the array from its start and there is nothing to
+               take a missing size from. */
+            if (var->typ.p.pk == kindArray && var->typ.rep->asize == 0)
+                error(64); /* errIncorrectRangeDefinition */
             myrollup((int)boundary);
             boundary  =  (eptr)setup();
             readNext  =  true;        /* parsePostfix's expression() eats '[' */
@@ -7257,20 +7359,42 @@ int braced, count, v;
         }
         readNext  =  false;           /* SY already at the value's first token */
         expression();
-        takeConstFromExpr();
-        v  =  curVal.i;
-        count  =  1;
-        if (SY == COLON) {
-            inSymbol();
-            if (SY != INTCONST) {
-                error(62);            /* errIntNeeded */
-                count  =  0;
-            } else {
-                count  =  curToken.i;
+        /* Nothing relocatable can be an initializer, a module carrying
+           absolute words only, so a pointer cannot be initialized at all:
+           an address is what the loader puts in place.  takeConstFromExpr
+           refuses every address expression -- '&x', an array's name, a
+           routine's -- by seeing no constant; a string is a constant, so
+           the destination is what has to be tested here.  Nor does a
+           statement give a pointer a string: only a char array takes one,
+           as its contents. */
+        if (isCharArray(curExpr->typ) && dest.p.pk == kindPtr)
+            error(errNoConstant);
+        if ((curExpr->op == GETENUM) && isCharArray(curExpr->typ) &&
+            (typeSize(curExpr->typ) != 1)) {
+            /* A string wider than a word is in the constant pool already,
+               and its own type says how many words that is, whatever a
+               character costs in it: the run goes in as it stands rather
+               than as a value.  takeConstFromExpr would refuse it (error 7),
+               a constant of another type being wanted. */
+            count  =  typeSize(curExpr->typ);
+            putInitEntry(2, curExpr->num1, count);
+        } else {
+            takeConstFromExpr();
+            v  =  curVal.i;
+            count  =  1;
+            if (SY == COLON) {
                 inSymbol();
+                if (SY != INTCONST) {
+                    error(62);            /* errIntNeeded */
+                    count  =  0;
+                } else {
+                    count  =  curToken.i;
+                    inSymbol();
+                }
             }
+            putInitEntry(1, v, count);
         }
-        putInitEntry(1, v, count);
+        initWords += count;
         if (braced && (SY == COMMA)) {
             inSymbol();
         } else {
@@ -7292,6 +7416,8 @@ void returnOp() {
             retSeen  =  true;
             readNext = false;
             expression();
+            if (procName->typ.p.pk == kindPtr)
+                curExpr = decayArray(curExpr);
             if (typeCheck(procName->typ, curExpr->typ)) {
                 /* OK */
             } else if (castArith(procName->typ, &curExpr)) {
@@ -7664,7 +7790,7 @@ void writeProc() {
         brContTarget();
         if (SY != WHILESY) {
             requiredSymErr(WHILESY);
-            stmtName  =  "  DO  ";
+            stmtName  =  '  DO  ';
             reportStmtType();
             goto 8888;
         }
@@ -8105,8 +8231,17 @@ int noComma, matching, ii;
            struct spelled out in the parameter's own type-spec still holds
            its fields to the usual "every declarator is named" rule. */
         nameOptional  =  true;
+        noExtentOk  =  true;
         parseOneDeclarator(&curDeclarator, paramType, packedFlag, isForwardRef);
         nameOptional  =  false;
+        noExtentOk  =  false;
+        /* An array parameter is a pointer to its element, as in C.  The
+           actual is the array's address either way, so the call site does
+           not move; what goes is the copy into the callee's frame, which
+           P/LNGPAR makes for every formal wider than a word.  A struct
+           parameter keeps its copy: C passes structs by value. */
+        if (curDeclarator.typ.p.pk == kindArray)
+            curDeclarator.typ  =  getPtrType(curDeclarator.typ.rep->base);
         if (matching) {
             if (matchTo == NULL)
                 error(errTooManyArguments);
@@ -8474,7 +8609,9 @@ void exitScope(int a) {
             }
         }
         l2typ13z = parseTypeRef(skipToSet | [IDENT, LPAREN, COMMA, SEMICOLON]);
+        noExtentOk  =  true;
         parseOneDeclarator(&curDeclarator, l2typ13z, isPacked, isForwardRef);
+        noExtentOk  =  false;
         if (curDeclarator.name == 0) {
             markTypeSym();
         } else {
@@ -8550,6 +8687,13 @@ void exitScope(int a) {
                 }
                 symHash[curDeclarator.bucket]  =  curIdRec;
                 jj  =  typeSize(curDeclarator.typ);
+                /* 'int a[] = { ... }' is sized by its initializer, which has
+                   not been read yet, so it allocates nothing here and comes
+                   back for its storage below.  Without an initializer there
+                   is nothing to take a size from. */
+                if (curDeclarator.typ.p.pk == kindArray &&
+                    curDeclarator.typ.rep->asize == 0 && SY != BECOMES)
+                    error(64); /* errIncorrectRangeDefinition */
                 l2bool8z  =  true;
                 if (curProcNesting == 1) {
                     curExternFile  =  externFileList;
@@ -8587,11 +8731,28 @@ void exitScope(int a) {
                     initVar  =  curIdRec;
                     freeRegs  =  initRegs;
                     statement();
+                    if (curDeclarator.typ.p.pk == kindArray &&
+                        curDeclarator.typ.rep->asize == 0) {
+                        /* The initializer places whole words, so a packed
+                           array holds perword elements in each of them and
+                           an unpacked one an element every typeSize words. */
+                        if (curDeclarator.typ.p.pad)
+                            jj  =  initWords * curDeclarator.typ.rep->perword;
+                        else
+                            jj  =  initWords /
+                                   typeSize(curDeclarator.typ.rep->base);
+                        curIdRec->typ  =  makeArrayType(jj,
+                                              curDeclarator.typ.rep->base,
+                                              curDeclarator.typ.p.pad != 0);
+                        localSize += typeSize(curIdRec->typ);
+                    }
                 }
                 moreDecls  =  (SY == COMMA);
                 if (moreDecls) {
                     inSymbol();
+                    noExtentOk  =  true;
                     parseOneDeclarator(&curDeclarator, l2typ13z, isPacked, isForwardRef);
+                    noExtentOk  =  false;
                 }
             }
             checkSymAndRead(SEMICOLON);
@@ -8847,17 +9008,16 @@ void regKeywords() { /* regKeywords */
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void finalize() {
 int idx, cnt;
-int sizes[10];
-    sizes[0]  =  1;
-    sizes[1]  =  symTabPos - 074000 - 1;
-    sizes[4]  =  longSymCnt;
-    sizes[5]  =  moduleOffset - 040000;
-    sizes[7]  =  FcstCnt;
-    sizes[2]  =
-    sizes[3]  =
-    sizes[6]  =  0;
-    sizes[8]  =  lookup2;
-    sizes[9]  =  lookupMode;
+    pasinfor.sizes[0]  =  1;
+    pasinfor.sizes[1]  =  symTabPos - 074000 - 1;
+    pasinfor.sizes[4]  =  longSymCnt;
+    pasinfor.sizes[5]  =  moduleOffset - 040000;
+    pasinfor.sizes[7]  =  FcstCnt;
+    pasinfor.sizes[2]  =
+    pasinfor.sizes[3]  =
+    pasinfor.sizes[6]  =  0;
+    pasinfor.sizes[8]  =  lookup2;
+    pasinfor.sizes[9]  =  lookupMode;
     curVal.i  =  moduleOffset - 040000;
     symTab[1]  =  [24,29] | curVal.i;
     frewind(&FCST);
@@ -8880,12 +9040,15 @@ int sizes[10];
         writeln("     MODULE HEADER:   HDR REL    0    0 LSYM NCODE   0 CONST DATA SETS");
         write((lineCnt - 1):6, " LINES STRUCTURE ");
         for (idx = 0; idx <= 9; ++idx)
-            write(sizes[idx]:idx?4:0, ' ');
+            write(pasinfor.sizes[idx]:idx?4:0, ' ');
         writeln;
     }
     entryPtTable[entryPtCnt]  =  0U;
-    *pasinfor.entryptr  =  entryPtTable;
-    pasinfor.sizes  =  sizes;
+    /* The table goes in the block the runtime owns and reads it from, so
+       the pointer cannot simply be pointed here; the terminator entryPtCnt
+       names is the last word that matters. */
+    for (idx = 0; idx <= entryPtCnt; ++idx)
+        (*pasinfor.entryptr)[idx]  =  entryPtTable[idx];
 } /* finalize */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -8916,7 +9079,7 @@ void initOptions() {
     longSymCnt  =  0;
     *pasinfor.errors  =  true;
     symTabCnt  =  0;
-    paseofcd  =  "*copy:";
+    paseofcd  =  '*copy:';
 } /* initOptions */
 //
 void main() {

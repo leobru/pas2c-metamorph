@@ -1,0 +1,37 @@
+/*=k9,l0*/
+//
+// A global array declarator may leave its extent out and take its size from
+// the initializer that follows: the items place whole words, so an unpacked
+// array gets one element every typeSize words and a packed one gets perword
+// of them in each.  The extent may only be left out where an initializer
+// supplies it -- not on a typedef, not in a type name, and not where a
+// '[index]=' designator moves the destination and stops the items counting
+// off the array from its start.
+//
+int a[] = { 10, 20, 30 };
+int b[] = { 7:5 };
+__packed int:8 p[] = { 0, 0 };
+int c[4];
+int i, s;
+//
+void main() {
+    writeln(" SIZE  ", sizeof(a):3, sizeof(b):3, sizeof(p):3, sizeof(c):3);
+    s  =  0;
+    for (i = 0; i <= 2; i = i + 1)
+        s  =  s + a[i];
+    writeln(" SUMA  ", s:4);
+    s  =  0;
+    for (i = 0; i <= 4; i = i + 1)
+        s  =  s + b[i];
+    writeln(" SUMB  ", s:4);
+    // Six 8-bit elements to a word, so two words hold twelve.
+    s  =  0;
+    for (i = 0; i <= 11; i = i + 1) {
+        p[i]  =  i;
+        s  =  s + p[i];
+    }
+    writeln(" SUMP  ", s:4);
+    // The array that follows is untouched by any of it.
+    c[3]  =  5;
+    writeln(" GUARD ", c[3]:3, a[2]:4, b[4]:3);
+}

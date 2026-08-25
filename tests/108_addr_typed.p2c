@@ -23,7 +23,7 @@ w3 *ptab[4];
 w3 **pp;
 int *p, *q;
 typedef __packed char alfa[6];
-alfa al;
+alfa al = "ABCDEF";
 __packed char s[12];
 __packed char t[6];
 char un[6];
@@ -62,7 +62,6 @@ void main() {
     pa  =  &arr;
     writeln(" ARRPTR", (*pa)[2]:4, sizeof(*pa):3, sizeof(pa):3);
     // An element of a packed char array, read and stored through.
-    al  =  "ABCDEF";
     cp  =  &al[2];
     writeln(" ALFA  ", *cp, cp[1], *(cp - 2));
     *cp  =  'Z';

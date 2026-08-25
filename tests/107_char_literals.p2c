@@ -14,7 +14,7 @@
 // plus its second, and shifting it right by eight leaves the first.
 //
 typedef __packed char alfa[6];
-alfa a;
+alfa a = "ALFA!!";
 int i, k;
 char c;
 //
@@ -30,7 +30,6 @@ void main() {
     write("ABCDEFG");
     writeln;
     // Six characters in double quotes fill a one-word packed char array.
-    a  =  "ALFA!!";
     write(" ALFA   ");
     write(a);
     writeln;

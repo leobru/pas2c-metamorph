@@ -1,0 +1,10 @@
+ ASSIGN   0  30
+ ARITH   20  20  2
+ CMP    1 1 1
+ DEREF    0
+ ARG      0
+ RET      0
+ ROW     7  8  8  9
+ PCK   AC
+ UNPK  PQ
+ SIZE   10  1  6

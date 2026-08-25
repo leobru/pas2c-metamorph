@@ -1,0 +1,44 @@
+/*=k9,l0*/
+//
+// An array is initialized, not assigned.  A string constant wider than a
+// word is in the constant pool already, so it goes into the initializer as
+// the run of words it is -- on its own, as one item of a brace list, and
+// among ordinary scalar globals, whose own storage it must not disturb.
+//
+// How long that run is comes from the constant's own type, not from a count
+// of characters: the pool gives a string whose length is an exact multiple
+// of the characters in a word a trailing word of spaces, which the type does
+// not count and the run must not copy.  A 't' prefix picks TEXT coding for
+// the characters, and the type follows that too.
+//
+typedef __packed char line[18];
+typedef __packed char dozen[12];
+//
+int before = 5;
+line one = "HELLO WORLD, HERE!";
+line many[2] = { "ABCDEFGHIJKLMNOPQR", "STUVWXYZ0123456789" };
+int between = 7;
+line mixed[2] = { "SHORT ONE HERE  OK", "AND THE SECOND ONE" };
+int after = 9;
+// Twelve characters are exactly two words, the case the pool pads.
+dozen exact = "ABCDEFGHIJKL";
+int guard = 11;
+dozen astext = t"ABCDEFGHIJKL";
+int last = 13;
+int i;
+//
+void main() {
+    writeln(" SIZE  ", sizeof(one):3, sizeof(many):3, sizeof(exact):3);
+    writeln(" ONE   ", one);
+    writeln(" MANY0 ", many[0]);
+    writeln(" MANY1 ", many[1]);
+    writeln(" MIXED ", mixed[1]);
+    writeln(" EXACT ", exact);
+    // The scalars around them keep their own values: no run overran.
+    writeln(" SCALAR", before:3, between:3, after:3, guard:3, last:3);
+    // A run is indexable like any other packed char array.
+    write(" INDEX ");
+    for (i = 0; i <= 7; i = i + 1)
+        write(many[1][i]);
+    writeln;
+}

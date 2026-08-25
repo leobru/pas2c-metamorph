@@ -1,12 +1,11 @@
 /*=l0*/
 typedef __packed char pair[2];
 
-pair s;
+pair s = t"AB";
 int t;
 
 void main() {
     t = 7;
-    s = t"AB";
     writeln(" ID     ", t:0);
     writeln(" CHAR   ", (int)t'A':0, ' ', (int)T'B':0,
             ' ', (int)t'\n':0);

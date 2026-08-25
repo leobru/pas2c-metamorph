@@ -7,6 +7,6 @@
  TRUNC     6  -6   6
  PREC     12  13
  PRECF   3.50E+00 3.00E+00
- MULTI    10  20  30  40
- TYPEDEF  50  20  30  40
+ MULTI     4   4
+ TYPEDEF  10  20  30  40
  UNARY     3   -65   7
