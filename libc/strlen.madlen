@@ -1,0 +1,54 @@
+ STRLEN:,NAME,
+C===========================================================
+C strlen(p) - return the number of bytes before the first NUL.
+C
+C Calling convention for a one-argument ASSEMBLER routine:
+C   ACC = p, a byte index into flat memory
+C   M13 = return link
+C
+C Flat memory contains six bytes per word, most significant byte first.
+C M14 holds the current word address.
+C M10 supplies the initial variable shift.
+C M12 bases the constant table.  Two stack words hold p, the first-word
+C prefix mask/current word.
+C===========================================================
+              ,NTR,3            . suppress normalization and rounding
+            12,BASE,HIGH
+            15,UTM,2            . allocate all local words
+            15,ATX,-2           . save p
+              ,A*X,INV6
+              ,ATI,14           . M14 := word address
+              ,A*X,SIX
+              ,YTA,64           . ACC := 6 * word address
+            15,X-A,-2           . ACC := p - 6 * word address
+              ,ASN,64-3         . ACC := 8 * byte offset
+              ,ATI,10
+              ,XTA,HIGH
+            10,ASN,64           . high bits at p and following bytes
+              ,AEX,HIGH         . high bits before p
+            14,AOX,             . mark bytes before p as nonzero
+ CHECK:     15,ATX,-1           . save x
+              ,AAX,HIGH         . x & HIGH
+              ,AEX,HIGH         . high bit set where x has no high bit
+            15,XTS,-2           . push mask, restore x
+              ,AOX,HIGH         . set each byte's high bit
+             1,AEX,20           . high bits cleared, rest complemented
+              ,ARX,ONES         . add one independently to every lane
+            15,AAX,             . ACC = complete zero-byte candidates
+              ,U1A,FOUND
+            14,XTA,1
+            14,VLM,CHECK
+ FOUND:       ,ANX,             . 1,9,...,41 for byte offsets 0,...,5
+              ,ASN,64+3
+              ,ITS,14
+              ,A*X,SIX
+              ,YTA,64           . ACC := 6 * word address
+            15,ARX,             . ACC := absolute byte index of NUL
+            15,A-X,-2           . subtract p
+            15,UTM,-2           . release all local words
+            13,UJ,
+ HIGH:        ,LOG,4010 0200 4010 0200
+ ONES:        ,LOG,0020 0401 0020 0401
+ INV6:        ,LOG,4002 5252 5252 5253
+ SIX:         ,LOG,4000 0000 0000 0006
+              ,END,

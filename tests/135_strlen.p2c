@@ -1,0 +1,34 @@
+/*=k9,l0*/
+int strlen(char *) assembler;
+
+__packed char bytes[30];
+int ok;
+int start;
+int nul;
+int i;
+
+void fill() {
+    for (i = 0; i < 30; i = i + 1) {
+        if (i % 3 == 0)
+            bytes[i] = (char)0200;
+        else if (i % 3 == 1)
+            bytes[i] = (char)0201;
+        else
+            bytes[i] = (char)0377;
+    }
+}
+
+void main() {
+    ok = 1;
+    for (start = 0; start < 6; start = start + 1) {
+        for (nul = start; nul < 30; nul = nul + 1) {
+            fill();
+            for (i = 0; i < start; i = i + 1)
+                bytes[i] = 0;
+            bytes[nul] = 0;
+            if (strlen(bytes + start) != nul - start)
+                ok = 0;
+        }
+    }
+    writeln("strlen ", ok:0);
+}
