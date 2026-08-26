@@ -915,6 +915,7 @@ int64_t curInsnTemplate,
         eofOverreads,
         bucket,
         strLen,
+        strWords,
         heapCallsCnt,
         heapSize,
         arithMode;
@@ -927,6 +928,15 @@ ExtFileRec * curExternFile;
 char commentModeCH;
 unsigned char CH, prevCH;
 Word prevInsn;
+
+// A double-quoted string is packed into strBuf rather than laid straight into
+// the constant pool: which pool the words belong in is the consumer's to
+// decide.  parseLiteral puts them in FCST, an expression needing an address to
+// load from; parseInitializer puts them into the initializer stream instead,
+// where they cost no pool word and coalesce with the items around them.  The
+// longest a string can reach is the 125 characters doCharConst stores, which
+// is 21 words.
+int64_t strBuf[21];
 
 int64_t lineNesting,
         FcstTotal,
@@ -1798,6 +1808,17 @@ void toFCST()
     curVal.ii &= 0xFFFFFFFFFFFFL; // 48-bit word; see allocSymtab
     FCST.push_back(curVal.ii);
     FcstCnt = FcstCnt + 1;
+}
+
+// Lay the buffered string into the constant pool; answer where it starts.
+int64_t strToFCST()
+{
+    int64_t start = FcstCnt;
+    for (int64_t i = 0; i < strWords; ++i) {
+        curVal.ii = strBuf[i];
+        toFCST();
+    }
+    return start;
 }
 
 bool fcstLess(const Word &left, const Word &right)
@@ -2741,31 +2762,28 @@ exitLoop:
                 {
                     /* Double quotes give a packed character array of the
                        length written, left-aligned and padded with spaces: six
-                       characters to the word, and beyond that a word at a time
-                       into the constant pool. */
+                       characters to the word.  The words go to strBuf and no
+                       further -- where they end up is for the consumer to say.
+                       As many of them as the type has, so a length that is an
+                       exact multiple of six takes no word of padding along. */
                     curVal.ii = 0x202020202020L; // curVal.a = '      '
                     SY = STRINGSY;
                     unpck(curVal.ii, &localBuf[tokenIdx]);
-                    curToken.ii = pck(&localBuf[6]);
+                    strWords = (strLen + 5) / 6;
+                    for (tokenLen = 0; tokenLen < strWords; ++tokenLen)
+                        strBuf[tokenLen] = pck(&localBuf[6 + 6*tokenLen]);
+                    /* A one-word string's token is its value, as an
+                       integer's is. */
+                    curToken.ii = strBuf[0];
                     curVal = curToken;
-                    if (6 >= strLen)
-                        goto exitLexer;
                     /* Single quotes give one word, so they hold what a word
                        holds: six ISO characters, or eight in TEXT.  A longer
-                       string is written in double quotes. */
+                       string is written in double quotes -- and only a longer
+                       one gets this far, one that fits having been taken by
+                       the branch above. */
                     if (litQuote == '\'')
                         error(errNumberTooLarge);
-                    curToken.ii = FcstCnt;
-                    tokenLen = 6;
-loop:               {
-                        toFCST();
-                        tokenLen = tokenLen + 6;
-                        if (tokenIdx < tokenLen) // strict <
-                            goto exitLexer;      // exact multiples of 6 get
-                                                 // a trailing 6-space word
-                        curVal.ii = pck(&localBuf[tokenLen]);
-                        goto loop;
-                    }
+                    goto exitLexer;
                 };
                 } break; /* CHARCONST */
             default: break;
@@ -3051,8 +3069,13 @@ L99:        litType.setRep(NULL);
             litType = CharType;
             break;
         case STRINGSY:
-            /* A string constant is a packed char array of its own length. */
+            /* A string constant is a packed char array of its own length.
+               One word is the value itself; more than one goes to the pool
+               now, an expression needing an address to load from, and that
+               address is the value. */
             litType = makeArrayType(strLen, CharType, true);
+            if (strWords != 1)
+                litValue.ii = strToFCST();
             break;
         default: break;
         } /* case */
@@ -7959,8 +7982,7 @@ struct DATAREC {
 
 int64_t allocDataRef(int64_t arg) {
     if (arg >= 2048) {
-        curVal.ii = arg;
-        return allocSymtab((curVal.ii | 040000000) & halfWord);
+        return allocSymtab((arg | 040000000) & halfWord);
     } else {
         return arg;
     }
@@ -7969,7 +7991,7 @@ int64_t allocDataRef(int64_t arg) {
 /* An ordinary item carries a value and a repeat count.  A string wider than
    a word is in the constant pool already, six characters to the word: words
    names how long it is and value where it sits. */
-struct InitItem { int64_t value, count, words = 0; };
+struct InitItem { int64_t value, count; };
 struct InitSeg  { int64_t base; std::vector<InitItem> items; };
 std::vector<InitSeg> initSegs;
 
@@ -8026,7 +8048,6 @@ void parseInitializer(IdentRecPtr var) {
         }
         readNext = false;             /* SY already at the value's first token */
         int64_t count = 1;
-        expression();
         /* Nothing relocatable can be an initializer, a module carrying
            absolute words only, so a pointer cannot be initialized at all:
            an address is what the loader puts in place.  takeConstFromExpr
@@ -8035,18 +8056,21 @@ void parseInitializer(IdentRecPtr var) {
            the destination is what has to be tested here.  Nor does a
            statement give a pointer a string: only a char array takes one,
            as its contents. */
-        if (isCharArray(curExpr->vt.typ) and dest.p.pk == kindPtr)
+        if (SY == STRINGSY and dest.p.pk == kindPtr)
             error(errNoConstant);
-        if (curExpr->op == GETENUM and isCharArray(curExpr->vt.typ) and
-            typeSize(curExpr->vt.typ) != 1) {
-            /* A string wider than a word is in the constant pool already,
-               and its own type says how many words that is, whatever a
-               character costs in it.  takeConstFromExpr would refuse it
-               (error 7), a constant of another type being wanted. */
-            count = typeSize(curExpr->vt.typ);
-            initSegs.back().items.push_back(
-                InitItem{ curExpr->lit.ii, 1, count });
+        if (SY == STRINGSY and strWords != 1) {
+            /* A string wider than a word is buffered, not in the pool, so
+               its words go into the stream as ordinary items: they land in
+               the data region beside the items around them and coalesce
+               into one record rather than forcing one of their own.  A
+               one-word string goes the other way, being a value like any
+               other -- and the only width for which a ':count' fill means
+               anything. */
+            for (count = 0; count < strWords; ++count)
+                initSegs.back().items.push_back(InitItem{ strBuf[count], 1 });
+            inSymbol();
         } else {
+            expression();
             takeConstFromExpr();
             int64_t v = curVal.ii;
             if (SY == COLON) {
@@ -8122,16 +8146,7 @@ void flushInitializers() {
         for (size_t i = 0; i < items.size(); ++i) {
             savedVal.ii = items[i].value;
             int64_t count = items[i].count;
-            if (items[i].words) {
-                /* A run already in the pool: name where it sits and how long
-                   it is.  Any pending single values were flushed by the item
-                   before this one, whose hasNext saw a run coming. */
-                length = items[i].words;
-                dataLoc = items[i].value;
-                putDataRec(1);
-                continue;
-            }
-            bool hasNext = i + 1 < items.size() and not items[i+1].words;
+            bool hasNext = i + 1 < items.size();
             if (count != 1) {
                 if (length)
                     putDataRec(1);

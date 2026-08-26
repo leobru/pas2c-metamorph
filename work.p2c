@@ -499,6 +499,15 @@ int lineCnt;
 int eofOverreads;
 int bucket;
 int strLen;
+// A double-quoted string is packed into strBuf rather than laid straight into
+// the constant pool: which pool the words belong in is the consumer's to
+// decide.  parseLiteral puts them in FCST, an expression needing an address to
+// load from; parseInitializer puts them into the initializer stream instead,
+// where they cost no pool word and coalesce with the items around them.  The
+// longest a string can reach is the 125 characters doCharConst stores, which
+// is 21 words.
+int strBuf[21];
+int strWords;
 int heapCallsCnt;
 int heapSize;
 int arithMode;
@@ -839,6 +848,18 @@ void toFCST() {
     fputw(curVal.i, &FCST);
     ++FcstCnt;
 } /* toFCST */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+// Lay the buffered string into the constant pool; answer where it starts.
+int strToFCST() {
+int i, start;
+    start  =  FcstCnt;
+    for (i = 0; i < strWords; ++i) {
+        curVal.i  =  strBuf[i];
+        toFCST();
+    }
+    return start;
+} /* strToFCST */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int addCurValToFCST() {
@@ -1730,30 +1751,26 @@ void lexer() {
             return;
         }
         /* Double quotes give a packed character array of the length written,
-           left-aligned and padded with spaces: six characters to the word,
-           and beyond that a word at a time into the constant pool. */
+           left-aligned and padded with spaces: six characters to the word.
+           The words go to strBuf and no further -- where they end up is for
+           the consumer to say.  As many of them as the type has, so a length
+           that is an exact multiple of six takes no word of padding along. */
         curVal.i  =  '      ';
         SY  =  STRINGSY;
         unpck(curVal.i, &localBuf[tokenIdx]);
-        curToken.i = pck(&localBuf[6]);
+        strWords  =  (strLen + 5) / 6;
+        for (tokenLen = 0; tokenLen < strWords; ++tokenLen)
+            strBuf[tokenLen]  =  pck(&localBuf[6 + 6*tokenLen]);
+        /* A one-word string's token is its value, as an integer's is. */
+        curToken.i  =  strBuf[0];
         curVal  =  curToken;
-        if (strLen <= 6)
-            return;
         /* Single quotes give one word, so they hold what a word holds: six
            ISO characters, or eight in TEXT.  A longer string is written in
-           double quotes. */
+           double quotes -- and only a longer one gets this far, one that
+           fits having been taken by the branch above. */
         if (litQuote == '\'')
             error(errNumberTooLarge);
-        curToken.i  =  FcstCnt;
-        tokenLen  =  6;
-        while (1) {
-            toFCST();
-            tokenLen += 6;
-            if (tokenIdx < tokenLen)
-                return;
-            curVal.i = pck(&localBuf[tokenLen]);
-        }
-        break;
+        return;
     } /* CHARCONST */
     default:
         prevCH = CH;
@@ -1962,8 +1979,13 @@ tptr ret;
             ret  =  charType;
             break;
         case STRINGSY:
-            /* A string constant is a packed char array of its own length. */
+            /* A string constant is a packed char array of its own length.
+               One word is the value itself; more than one goes to the pool
+               now, an expression needing an address to load from, and that
+               address is the value. */
             ret = makeArrayType(strLen, charType, true);
+            if (strWords != 1)
+                *litValue  =  strToFCST();
         }; /* switch */
     return ret;
 } /* parseLiteral */
@@ -3545,8 +3567,7 @@ int allocGlobalObject(irptr arg) {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int allocDataRef(int l6arg1z) {
     if (l6arg1z >= 2048) {
-        curVal.i  =  l6arg1z;
-        return allocSymtab((curVal.i | 040000000U) & halfWord);
+        return allocSymtab((l6arg1z | 040000000U) & halfWord);
     } else {
         return l6arg1z;
     }
@@ -3555,9 +3576,8 @@ int allocDataRef(int l6arg1z) {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Declaration-site initializers (C-style).  Each global '= initializer' is
 // buffered into the INITBUF scratch file as a stream of 3-word entries --
-// (0, base, 0) opens a target segment, (1, value, count) is an item, and
-// (2, offset, words) is a run of words already sitting in the constant pool
-// (a string wider than a word) -- and
+// (0, base, 0) opens a target segment and (1, value, count) is an item, a
+// string wider than a word being as many items as it has words -- and
 // materialized once, at program end, by flushInitializers as the contiguous
 // trailing data region of FCST (which must follow the whole constant pool:
 // finalize describes it only by length+count).
@@ -3630,13 +3650,6 @@ int rec;
             dataLoc  =  FcstCnt;
             length  =  0;
             dataSegLen  =  0;
-        } else if (ck == 2) {
-            /* A run already in the pool: name where it sits and how long it
-               is.  Any pending single values were flushed by the entry
-               before this one, whose hasNext saw a kind other than 1. */
-            length  =  cb;
-            dataLoc  =  ca;
-            putDataRec(1);
         } else {
             savedVal.i  =  ca;
             rep  =  cb;
@@ -7358,7 +7371,6 @@ int braced, count, v;
             checkSymAndRead(BECOMES);
         }
         readNext  =  false;           /* SY already at the value's first token */
-        expression();
         /* Nothing relocatable can be an initializer, a module carrying
            absolute words only, so a pointer cannot be initialized at all:
            an address is what the loader puts in place.  takeConstFromExpr
@@ -7367,18 +7379,24 @@ int braced, count, v;
            the destination is what has to be tested here.  Nor does a
            statement give a pointer a string: only a char array takes one,
            as its contents. */
-        if (isCharArray(curExpr->typ) && dest.p.pk == kindPtr)
+        if (SY == STRINGSY && dest.p.pk == kindPtr)
             error(errNoConstant);
-        if ((curExpr->op == GETENUM) && isCharArray(curExpr->typ) &&
-            (typeSize(curExpr->typ) != 1)) {
-            /* A string wider than a word is in the constant pool already,
-               and its own type says how many words that is, whatever a
-               character costs in it: the run goes in as it stands rather
-               than as a value.  takeConstFromExpr would refuse it (error 7),
-               a constant of another type being wanted. */
-            count  =  typeSize(curExpr->typ);
-            putInitEntry(2, curExpr->num1, count);
+        if (SY == STRINGSY && strWords != 1) {
+            /* A string wider than a word is buffered, not in the pool, so
+               its words go into the stream as ordinary items: they land in
+               the data region beside the items around them and coalesce
+               into one record rather than forcing one of their own.  A
+               one-word string goes the other way, being a value like any
+               other -- and the only width for which a ':count' fill means
+               anything. */
+            count  =  0;
+            while (count != strWords) {
+                putInitEntry(1, strBuf[count], 1);
+                ++count;
+            }
+            inSymbol();
         } else {
+            expression();
             takeConstFromExpr();
             v  =  curVal.i;
             count  =  1;

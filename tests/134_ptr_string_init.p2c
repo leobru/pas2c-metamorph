@@ -1,0 +1,35 @@
+/*=k9,l0*/
+//
+// Nothing relocatable can be an initializer: a DUBNA object module carries
+// absolute words only, and an address is what the loader puts in place.  So a
+// pointer cannot be initialized at its declaration at all -- not from '&x',
+// not from an array's or a routine's name, and not from a string, whose
+// address is what 'cp = "ABC"' is asking for.  Only an absolute value goes
+// in, as 'char *cp = NULL' does.
+//
+// Every line below is error 6.  The address expressions are refused for not
+// being constants at all; a string is one, so what refuses it is the
+// destination being a pointer.  Only the first address line is reported: the
+// constant check stands down once 'errors' is set, so the rest of that family
+// go quiet, while the destination check does not consult it.
+//
+typedef __packed char six[6];
+int x;
+int arr[3];
+six s;
+void f();
+//
+int *ip = &x;
+int *elt = &arr[1];
+int *past = &x + 1;
+char *sp = &s[0];
+int *decayed = arr;
+void (*fp)() = f;
+char *cp = "ABC";
+char *wide = "ABCDEFG";
+char *tab[2] = { "AB", "CD" };
+//
+void f() { }
+void main() {
+    writeln(" UNREACHED ", *cp);
+}
