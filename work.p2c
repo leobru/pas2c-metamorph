@@ -819,7 +819,7 @@ char c;
                 write((alfa)stmtName);
     }
     if (errno != 86)
-        writeln;
+        writeln();
 } /* PrintErrMsg */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -914,7 +914,7 @@ int err, errPos, prevPos, listMode,
         for (err = 0; err <= linePos; ++err) {
             write(linebuf[err]);
         }
-        writeln;
+        writeln();
         if (errsInLine) {
             write("*****":startPos, ' ':errMap[0]+1, '0');
             lastErr  =  errsInLine - 1;
@@ -927,7 +927,7 @@ int err, errPos, prevPos, listMode,
                     write((char)(err + '0'));
                 }
             }
-            writeln;
+            writeln();
             errsInLine  =  0;
             prevErrPos  =  0;
         }
@@ -1851,7 +1851,7 @@ void error(int errno) {
         write("******", errno:0);
         printErrMsg(errno);
         if (60 < totalErrors) {
-            writeln;
+            writeln();
             endOfLine();
             printErrMsg(53);
             skipToEnd();
@@ -5649,7 +5649,7 @@ pair *curSlot;
         } else {
             write(".WORDS=", typeSize(curField->typ):0);
         }
-        writeLN;
+        writeLN();
     }
 } /* packOneField */
 //
@@ -7454,8 +7454,7 @@ void standProc() { /* standProc */
 tptr l4typ2z, l4typ3z;
 eptr firstWidth, secondWidth;
 eptr l4exp7z, workExpr;
-int l4bool10z,
-    noWidth, needR12, oldOffset;
+int noWidth, needR12, oldOffset;
 int defWidth;
 int procNo;
 int helperNo;
@@ -7648,23 +7647,24 @@ void writeProc() {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     curVal.i  =  l3idr12z->low;
     procNo  =  curVal.i;
-    l4bool10z  =  (SY == LPAREN);
     oldOffset  =  moduleOffset;
-    if (! l4bool10z &&
-       (procNo IN [2,3]))
+    if (SY != LPAREN) {
         error(45); /* errNoOpenParenForStandProc */
+        return;
+    }
     switch (procNo) {
     case 3: /* write */
         writeProc();
         break;
     case 4: /* writeln */
-        if (SY == LPAREN) {
-            writeProc();
-            break;
-        } else {
+        inSymbol();
+        if (SY == RPAREN)
             formAndAlign(getHelperProc(31)); /*"P/WOLN"*/
-            return;
+        else {
+            readNext = false;
+            writeProc();
         }
+        break;
     case 2: /* besm */
         expression();
         takeConstFromExpr();
@@ -8922,7 +8922,7 @@ void exitScope(int a) {
             if (curExternFile->line == 0) {
                 error(80); /* errUndefinedExternFile */
                 printTextWord(curExternFile->id);
-                writeLN;
+                writeLN();
             }
             curExternFile  =  curExternFile->next;
         }
@@ -8933,7 +8933,7 @@ void exitScope(int a) {
             printTextWord(preDefHead->id);
             preDefHead  =  preDefHead->r2.preDefLink;
         }
-        writeLN;
+        writeLN();
     }
     lookup2  =  lookUse;
     lookupMode  =  lookUse;
@@ -9059,7 +9059,7 @@ int idx, cnt;
         write((lineCnt - 1):6, " LINES STRUCTURE ");
         for (idx = 0; idx <= 9; ++idx)
             write(pasinfor.sizes[idx]:idx?4:0, ' ');
-        writeln;
+        writeln();
     }
     entryPtTable[entryPtCnt]  =  0U;
     /* The table goes in the block the runtime owns and reads it from, so

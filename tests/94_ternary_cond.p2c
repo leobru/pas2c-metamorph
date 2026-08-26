@@ -44,6 +44,6 @@ void main() {
         callee  =  (k & 1) ? (recp)NULL : &r2;
         probe();
     }
-    writeln;
+    writeln();
     writeln(" DONE");
 }

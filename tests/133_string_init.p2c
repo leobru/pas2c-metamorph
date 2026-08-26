@@ -44,6 +44,6 @@ void main() {
     write(" INDEX ");
     for (i = 0; i <= 7; i = i + 1)
         write(many[1][i]);
-    writeln;
+    writeln();
     writeln(" CONST ", BANNER, sizeof(BANNER):3);
 }

@@ -67,7 +67,7 @@ void main() {
     *cp  =  'Z';
     write(" STORE ");
     write(al);
-    writeln;
+    writeln();
     // A packed array wider than a word: index 7 lies in the second word.
     for (i = 0; i <= 11; i = i + 1)
         s[i]  =  (char)(65 + i);

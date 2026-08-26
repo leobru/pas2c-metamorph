@@ -178,7 +178,7 @@ void printPseudo() {
         if (optCh == 'S' && optVal == 3)
             lineCnt = 1;
     }
-    writeln;
+    writeln();
 }
 //
 void printToken() {
@@ -220,7 +220,7 @@ void printToken() {
         else
             prStrOct();
     }
-    writeln;
+    writeln();
 }
 //
 void main() {

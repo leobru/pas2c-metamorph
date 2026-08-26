@@ -28,11 +28,11 @@ void main() {
     write(" TEXT   ");
     write("AB");
     write("ABCDEFG");
-    writeln;
+    writeln();
     // Six characters in double quotes fill a one-word packed char array.
     write(" ALFA   ");
     write(a);
-    writeln;
+    writeln();
     // One character is still a char, and an escape is one character.
     c  =  'A';
     writeln(" CHAR  ", (int)c:4, (int)'A':4, (int)'\052':4, (int)'\'':4);

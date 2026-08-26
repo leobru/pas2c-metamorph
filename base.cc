@@ -8228,7 +8228,7 @@ struct standProc {
     TPtr l4typ2z, l4typ3z;
     ExprPtr firstWidth, secondWidth;
     ExprPtr l4exp7z, workExpr;
-    bool l4bool10z, noWidth, needR12;
+    bool noWidth, needR12;
     int64_t oldOffset;
     int64_t defWidth;
     int64_t procNo;
@@ -8405,21 +8405,22 @@ struct standProc {
 
         curVal.ii = l3idr12z->low();
         procNo = curVal.ii;
-        l4bool10z = (SY == LPAREN);
         oldOffset = moduleOffset;
-        if (not l4bool10z and
-            has(Bits(2,3), procNo))
+        if (SY != LPAREN) {
             error(45); /* errNoOpenParenForStandProc */
+            return;
+        }
         switch (procNo) {
         case 3: { /* write */
             writeProc();
         } break;
         case 4: { /* writeln */
-            if (SY == LPAREN) {
-                writeProc();
-            } else {
+            inSymbol();
+            if (SY == RPAREN)
                 formAndAlign(getHelperProc(31)); /*"P/WOLN"*/
-                return;
+            else {
+                readNext = false;
+                writeProc();
             }
         } break;
         case 2: { /* besm */

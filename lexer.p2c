@@ -220,7 +220,7 @@ void error(errno: int) {
     else if (errno == 59) write("IN LINE EOLN TRUE");
     else if (errno == 60) write("1ST DIGIT IN BYTE ABOVE 3");
     else if (errno == 61) write("EMPTY LINE");
-    writeln;
+    writeln();
     markBad();
     reportBadScan();
     halt;
@@ -319,7 +319,7 @@ void scanComment() {
                     write(' ', optVal:0);
                     emitByte(optVal);
                 }
-                writeln;
+                writeln();
             }
         } while (CH == ',');
     }
@@ -734,7 +734,7 @@ void printToken() {
         writeBuf(strBuf, strLen, '"');
     }
     emitPending();
-    writeln;
+    writeln();
 }
 //
 void initTables() {
@@ -774,7 +774,7 @@ void main() {
     PASISOCD();
     flushFPend();
     write(" WASTED BYTES ", wasteByts:0);
-    writeln;
+    writeln();
     emitWord(~0U);
     fclose(&TOKENS);
 }

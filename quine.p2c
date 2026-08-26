@@ -4,17 +4,17 @@ TYPEDEF __PACKED CHAR LINE[72]; LINE L[10]=<:
 "VOID PUTLINE(INT N)<: J=71;                                             ",
 "WHILE(L[N][J]==' ')--J;                                                 ",
 "FOR(K=0;K<=J;++K)<: C=L[N][K];                                          ",
-"IF(C=='Z')IF(N!=5||K!=7)C=Q; WRITE(C); :> WRITELN; :>                   ",
+"IF(C=='Z')IF(N!=5||K!=7)C=Q; WRITE(C); :> WRITELN(); :>                 ",
 "VOID MAIN()<:                                                           ",
 "Q='Z'; PUTLINE(0);                                                      ",
-"FOR(I=0;I<10;++I)<: WRITE(Q,L[I],Q); IF(I<9)WRITE(','); WRITELN; :>     ",
+"FOR(I=0;I<10;++I)<: WRITE(Q,L[I],Q); IF(I<9)WRITE(','); WRITELN(); :>   ",
 "FOR(I=1;I<10;++I)PUTLINE(I); :>                                         "
 :>; INT I,J,K; CHAR Q,C;
 VOID PUTLINE(INT N)<: J=71;
 WHILE(L[N][J]==' ')--J;
 FOR(K=0;K<=J;++K)<: C=L[N][K];
-IF(C=='Z')IF(N!=5||K!=7)C=Q; WRITE(C); :> WRITELN; :>
+IF(C=='Z')IF(N!=5||K!=7)C=Q; WRITE(C); :> WRITELN(); :>
 VOID MAIN()<:
 Q='"'; PUTLINE(0);
-FOR(I=0;I<10;++I)<: WRITE(Q,L[I],Q); IF(I<9)WRITE(','); WRITELN; :>
+FOR(I=0;I<10;++I)<: WRITE(Q,L[I],Q); IF(I<9)WRITE(','); WRITELN(); :>
 FOR(I=1;I<10;++I)PUTLINE(I); :>
