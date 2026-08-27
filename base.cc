@@ -1352,12 +1352,9 @@ void printErrMsg(int64_t errNo)
             printErrMsg(86);
         else if (errNo == 20)
             errNo = (SY == IDENT)*2 + 1;
-        else if (16 <= errNo && errNo <= 17) {
-            if (errNo == 17) {
-                printTextWord(curToken.ii);
-                putchar(' ');
-            } else
-                printf("%ld ", int64_t(curToken.ii));
+        else if (errNo == 17) {
+            printTextWord(curToken.ii);
+            putchar(' ');
         }
         printf("%s ", pasmitxt(errNo));
         if (errNo == 17)
@@ -2768,14 +2765,19 @@ exitLoop:
                 }
                 {
                     /* Double quotes give a packed character array of the
-                       length written, left-aligned and padded with spaces: six
+                       length written, left-aligned and padded with NULs: six
                        characters to the word.  The words go to strBuf and no
                        further -- where they end up is for the consumer to say.
                        As many of them as the type has, so a length that is an
-                       exact multiple of six takes no word of padding along. */
-                    curVal.ii = 0x202020202020L; // curVal.a = '      '
+                       exact multiple of six takes no word of padding along.
+                       NUL is what the padding has to be: write emits the
+                       characters the type counts and never reaches the
+                       padding, but an array declared longer than the string
+                       keeps some of it, and there the C routines read it -- a
+                       NUL terminates the string for strlen and puts, where a
+                       space would run them off the end. */
                     SY = STRINGSY;
-                    unpck(curVal.ii, &localBuf[tokenIdx]);
+                    unpck(0, &localBuf[tokenIdx]);
                     strWords = (strLen + 5) / 6;
                     for (tokenLen = 0; tokenLen < strWords; ++tokenLen)
                         strBuf[tokenLen] = pck(&localBuf[6 + 6*tokenLen]);
@@ -8053,7 +8055,6 @@ void parseInitializer(IdentRecPtr var) {
             beginInitSeg(var, true);
             checkSymAndRead(BECOMES);
         }
-        readNext = false;             /* SY already at the value's first token */
         int64_t count = 1;
         /* Nothing relocatable can be an initializer, a module carrying
            absolute words only, so a pointer cannot be initialized at all:
@@ -8077,6 +8078,7 @@ void parseInitializer(IdentRecPtr var) {
                 initSegs.back().items.push_back(InitItem{ strBuf[count], 1 });
             inSymbol();
         } else {
+            readNext = false;         /* SY already at the value's first token */
             expression();
             takeConstFromExpr();
             int64_t v = curVal.ii;

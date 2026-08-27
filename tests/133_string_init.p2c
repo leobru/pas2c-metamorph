@@ -1,15 +1,16 @@
 /*=k9,l0*/
 //
 // An array is initialized, not assigned.  A string constant wider than a
-// word is in the constant pool already, so it goes into the initializer as
-// the run of words it is -- on its own, as one item of a brace list, and
-// among ordinary scalar globals, whose own storage it must not disturb.
+// word is buffered, not in the constant pool, so it goes into the initializer
+// stream as the run of words it is -- on its own, as one item of a brace
+// list, and among ordinary scalar globals, whose own storage it must not
+// disturb.
 //
-// How long that run is comes from the constant's own type, not from a count
-// of characters: the pool gives a string whose length is an exact multiple
-// of the characters in a word a trailing word of spaces, which the type does
-// not count and the run must not copy.  A 't' prefix picks TEXT coding for
-// the characters, and the type follows that too.
+// How long that run is comes from the length written, (strLen + 5) / 6, which
+// is exactly typeSize of the type the constant carries: a length that is an
+// exact multiple of the characters in a word takes no word of padding along,
+// and a shorter last word is padded with NUL.  A 't' prefix picks TEXT coding
+// for the characters, and the type follows that too.
 //
 typedef __packed char line[18];
 typedef __packed char dozen[12];

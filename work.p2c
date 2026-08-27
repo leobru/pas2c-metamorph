@@ -798,16 +798,11 @@ char c;
     else {
         if (errno > 88)
             printErrMsg(86);
-        else if (errno in [16..17, 20]) {
-            if (errno == 20)
-                errno  =  (sy == ident)*2 + 1;
-            else if (errno == 17)
-            {
-                printTextWord(curToken.i);
-                write(' ');
-            }
-            else
-                write(curToken.i:0,' ');
+        else if (errno == 20)
+            errno  =  (sy == ident)*2 + 1;
+        else if (errno == 17) {
+            printTextWord(curToken.i);
+            write(' ');
         }
         errptr  =  pasmitxt(errno);
         unpackt(errptr, &errtext, 101);
@@ -1757,13 +1752,17 @@ L2290:
             return;
         }
         /* Double quotes give a packed character array of the length written,
-           left-aligned and padded with spaces: six characters to the word.
+           left-aligned and padded with NULs: six characters to the word.
            The words go to strBuf and no further -- where they end up is for
            the consumer to say.  As many of them as the type has, so a length
-           that is an exact multiple of six takes no word of padding along. */
-        curVal.i  =  '      ';
+           that is an exact multiple of six takes no word of padding along.
+           NUL is what the padding has to be: write emits the characters the
+           type counts and never reaches the padding, but an array declared
+           longer than the string keeps some of it, and there the C routines
+           read it -- a NUL terminates the string for strlen and puts, where
+           a space would run them off the end. */
         SY  =  STRINGSY;
-        unpck(curVal.i, &localBuf[tokenIdx]);
+        unpck(0, &localBuf[tokenIdx]);
         strWords  =  (strLen + 5) / 6;
         for (tokenLen = 0; tokenLen < strWords; ++tokenLen)
             strBuf[tokenLen]  =  pck(&localBuf[6 + 6*tokenLen]);
@@ -7376,7 +7375,6 @@ int braced, count, v;
             beginInitSeg(var, true);
             checkSymAndRead(BECOMES);
         }
-        readNext  =  false;           /* SY already at the value's first token */
         /* Nothing relocatable can be an initializer, a module carrying
            absolute words only, so a pointer cannot be initialized at all:
            an address is what the loader puts in place.  takeConstFromExpr
@@ -7402,6 +7400,7 @@ int braced, count, v;
             }
             inSymbol();
         } else {
+            readNext  =  false;       /* SY already at the value's first token */
             expression();
             takeConstFromExpr();
             v  =  curVal.i;
