@@ -1,0 +1,56 @@
+/*=k9,l0*/
+//
+// This machine has one integer, so every C spelling of one names it.
+// 'short', 'long' and 'unsigned' are reserved words carrying int, and a run
+// of type specifiers collapses to one type: 'unsigned int', 'long long' and
+// 'unsigned long long int' are all the same int, and assignment between them
+// needs no conversion because there is nothing to convert.
+//
+// A later specifier that is not int wins, which is what makes 'unsigned char'
+// a char.  The declarator after the run is untouched, so a pointer, an array
+// and a bit-field all read as they always did.
+//
+short              a;
+long               b;
+unsigned           c;
+unsigned int       d;
+short int          e;
+long int           f;
+long long          g;
+unsigned long long h;
+unsigned long long int i;
+//
+unsigned char      ch;
+__packed unsigned char pk[6] = "ABCDEF";
+unsigned          *p;
+long               tbl[3];
+//
+typedef __packed struct { unsigned:6 lo; unsigned:18 mid; int:24 hi; } bits;
+bits w;
+//
+int n;
+//
+// A run works in a parameter list and as a result type.
+short twice(unsigned long v) { return v + v; }
+//
+void main() {
+    // One type: every spelling takes a value from every other.
+    a = 1;  b = a + 1;  c = b + 1;  d = c + 1;  e = d + 1;
+    f = e + 1;  g = f + 1;  h = g + 1;  i = h + 1;
+    writeln(" CHAIN", a:3, b:3, c:3, d:3, e:3, f:3, g:3, h:3, i:3);
+    writeln(" SIZEOF", sizeof(a):3, sizeof(g):3, sizeof(i):3, sizeof(tbl):3);
+    // The declarator after the run is the ordinary one.
+    n = 40;  p = &n;  *p = *p + 2;
+    tbl[0] = 7;  tbl[1] = 8;  tbl[2] = 9;
+    writeln(" DECL  ", n:3, (*p):3, tbl[0]:3, tbl[2]:3);
+    // 'unsigned char' is a char: the last specifier wins.
+    ch = 'Z';
+    write(" CHAR   ", ch, ' ');
+    write(pk);
+    writeln("  SIZEOF", sizeof(ch):3, sizeof(pk):3);
+    // 'unsigned:6' is the bit-field 'int:6' is (which writes in octal unless
+    // asked for an int, so these are cast).
+    w.lo = 63;  w.mid = 7;  w.hi = 5;
+    writeln(" BITS  ", (int)w.lo:3, (int)w.mid:3, (int)w.hi:3, sizeof(w):3);
+    writeln(" CALL  ", twice(21):3);
+}

@@ -1,0 +1,10 @@
+/*=k9,l0*/
+// error(20) with an identifier token is reported as error 3.
+typedef struct {
+    int present;
+} record;
+record value;
+
+void main() {
+    value.absent = 1;
+}

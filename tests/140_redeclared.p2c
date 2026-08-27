@@ -1,0 +1,26 @@
+/*=k9,l0*/
+//
+// A name may be declared once in a scope.  Until this was checked the second
+// declaration silently won: its record went in front of the first in the hash
+// chain, so the older variable kept storage of its own and became unreachable
+// -- 'int dup; float dup;' compiled, and the int was simply lost.
+//
+// Shadowing an outer scope is not redeclaration and stays legal: the chain
+// runs innermost first, so the walk ends at the first record belonging to an
+// outer scope.  'dup' is a global here and a local of main below.
+//
+int dup;
+int dup;
+//
+// A typedef holds the name too, which is what made 'typedef int foo; int foo;'
+// compile: the typedef path checked and the variable path did not.
+typedef int alias;
+int alias;
+//
+void main() {
+    int ok;
+    int dup;            // legal: shadows the global
+    int ok;
+    ok = 1;
+    dup = 2;
+}

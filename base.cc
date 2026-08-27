@@ -2472,7 +2472,7 @@ L1473:
                 isDefined = false;
                 SY = IDENT;
                 switch (lookupMode) {
-                case 0: {
+                case lookDef: {
                     hashTravPtr = symHash[bucket];
                     while (hashTravPtr) {
                         if (hashTravPtr->pck.offset == curFrameRegTemplate)
@@ -2487,7 +2487,7 @@ L1473:
                             goto exitLexer;
                     }
                 } break;
-                case 1: {
+                case lookUse: {
 L2:                 hashTravPtr = symHash[bucket];
                     while (hashTravPtr) {
                         if (hashTravPtr->id != curIdent)
@@ -2501,9 +2501,9 @@ L2:                 hashTravPtr = symHash[bucket];
                         }
                     }
                 } break;
-                case 2:
+                case 2:          // unassigned; work.p2c has no arm for it
                     goto L2;
-                case 3:
+                case lookField:
                     hashTravPtr = fieldHash[bucket];
                     while (hashTravPtr) {
                         if ((hashTravPtr->id == curIdent) and
@@ -6095,8 +6095,7 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion
     // lookup2 holds, not this line's lookupMode. Restored to the caller's
     // value below (this ctor recurses into itself for anonymous nested
     // members, and runs while an outer context's own lookup2 is still live).
-    lookup2 = lookField;
-    lookupMode = lookField;
+    lookup2 = lookupMode = lookField;
     inSymbol();
 
     // A record body is a member list terminated by ENDSY. In a struct the
@@ -6318,6 +6317,15 @@ L12366:             error(errNotAType);
         } else
             goto L12366;
         inSymbol();
+        // A run of type specifiers is one type: this machine has one integer,
+        // so 'unsigned', 'long long', 'short int' and the rest all name it.
+        // A later specifier that is not int wins, making 'unsigned char' a
+        // char.  Only a built-in type keyword is taken -- a typedef name is
+        // raised to TYPESY by markTypeSym, which does not run here.
+        while (curType == IntegerType and SY == TYPESY) {
+            curType = symType;
+            inSymbol();
+        }
         if (curType == IntegerType and SY == COLON) {
             inSymbol();
             if (SY != INTCONST)
@@ -8158,8 +8166,10 @@ void parseInitializer(IdentRecPtr var) {
 // constant pool has been laid down.
 void flushInitializers() {
     if (initSegs.empty()) {
+        // Not modes: the two lookup globals carry the results back, so this
+        // is a data region of no words and no sets.
         lookup2 = 0;
-        lookupMode = lookDef;
+        lookupMode = 0;
         return;
     }
     int64_t dsize = FcstCnt;
@@ -8222,6 +8232,8 @@ void flushInitializers() {
     }
     for (size_t s = 0; s < F.size(); ++s)
         FCST.push_back(F[s].b);
+    /* The two lookup globals carry the results back: they are dead between
+       declarations, and this runs at program end.  Neither is a mode here. */
     lookup2 = FcstCnt - dsize;
     FcstCnt = dsize;
     lookupMode = setcount;
@@ -8739,8 +8751,7 @@ void parseArrSz(int64_t & asize)
     Word &ceVal = programme::super.back()->ceVal;
 
     int64_t savedLookup = lookup2;
-    lookup2 = lookUse;
-    lookupMode = lookUse;
+    lookup2 = lookupMode = lookUse;
     inSymbol();
     if (noExtentOk and SY == RBRACK) {
         /* 'int q[]': zero marks the missing extent.  A parameter discards
@@ -8756,8 +8767,7 @@ void parseArrSz(int64_t & asize)
             asize = 1;
         }
     }
-    lookup2 = savedLookup;
-    lookupMode = savedLookup;
+    lookup2 = lookupMode = savedLookup;
 } /* parseArrSz */
 
 void parseConstDeclValue(TPtr &typ, Word &value)
@@ -9025,7 +9035,11 @@ initScalars::initScalars() :
     // not identifiers: they cannot be shadowed, and they are recognized
     // in every lookup mode.  '_' shares the code of '*', cf. "**PACKED".
     SY = TYPESY;
+    // This machine has one integer, so every C spelling of one names it.
     symType = IntegerType;  regResWord(0515664L      /*"     INT"*/);
+                            regResWord(toText("SHORT"));
+                            regResWord(toText("LONG"));
+                            regResWord(toText("UNSIGNED"));
     symType = CharType;     regResWord(043504162L    /*"    CHAR"*/);
     symType = RealType;     regResWord(04654574164L  /*"   FLOAT"*/);
     symType = voidType;     regResWord(066575144L    /*"    VOID"*/);
@@ -9169,15 +9183,13 @@ void parseParameters(SigPtr matchTo)
     // lookup2 (not just lookupMode) must carry lookDef through
     // parseTypeRef's own internal inSymbol() calls -- see the identical
     // note on TYPEDEFSY/parseRecordDecl.
-    lookup2 = lookDef;
-    lookupMode = lookDef;
+    lookup2 = lookupMode = lookDef;
     inSymbol();
     if (SY == RPAREN) {
         if (matching)
             error(errNoCommaOrParenOrTooFewArgs);
         inSymbol();
-        lookup2 = lookUse;
-        lookupMode = lookUse;
+        lookup2 = lookupMode = lookUse;
         return;
     }
     do {
@@ -9277,8 +9289,7 @@ void parseParameters(SigPtr matchTo)
     }
     /* 22322 */
     checkSymAndRead (RPAREN);
-    lookup2 = lookUse;
-    lookupMode = lookUse;
+    lookup2 = lookupMode = lookUse;
 } /* parseParameters */
 
 // Lifting MAXFORMALS.  The bound exists only because a formal's name has to
@@ -9481,8 +9492,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             // inSymbol() resets lookupMode := lookup2 on exit, so the
             // declarator name a few tokens after 'typedef' is classified
             // under whatever lookup2 holds, not this line's lookupMode.
-            lookup2 = lookDef;
-            lookupMode = lookDef;
+            lookup2 = lookupMode = lookDef;
             inSymbol();
             parseGroupedDecls(skipToSet | Bits(IDENT, SEMICOLON),
                 [&](Declarator & d) {
@@ -9548,6 +9558,12 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 continue;
             }
         }
+        // The declarator's name is being defined, so it is read in the mode
+        // that looks only in this scope -- the one that sets isDefined, and
+        // d.wasDefined with it.  It has to be in force before parseTypeRef,
+        // whose own trailing inSymbol reads that name.  The typedef path does
+        // the same for the same reason.
+        lookup2 = lookupMode = lookDef;
         {
             parseTypeRef typeParser(baseTy, skipToSet | Bits(IDENT, MUL, LPAREN, COMMA) | Bits(SEMICOLON));
             packedFlag = typeParser.isPacked;
@@ -9555,6 +9571,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         }
         noExtentOk = true;
         Declarator d = parseOneDeclarator(baseTy, packedFlag, forwardRef);
+        lookup2 = lookUse;
         noExtentOk = false;
         if (d.name == 0) {
             markTypeSym();
@@ -9619,6 +9636,13 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     else
                         defExtern();
                 }
+                /* Declaring a name this scope already has is an error, not a
+                   silent shadow: the record below would go in front of the
+                   older one, which keeps storage of its own and becomes
+                   unreachable.  Shadowing an outer scope stays legal --
+                   lookDef stops its walk at the first record from one. */
+                if (d.wasDefined)
+                    error(errIdentAlreadyDefined);
                 curIdRec = besm6_alloc_record<IdentRec>(
                     offsetof(IdentRec, szIdent));
                 curIdRec->id = d.name;
@@ -9684,9 +9708,11 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 }
                 moreDecls = (SY == COMMA);
                 if (moreDecls) {
+                    lookup2 = lookupMode = lookDef;   // the next name is a definition too
                     inSymbol();
                     noExtentOk = true;
                     d = parseOneDeclarator(baseTy, packedFlag, forwardRef);
+                    lookup2 = lookupMode = lookUse;
                     noExtentOk = false;
                 }
             }
@@ -9851,8 +9877,7 @@ L23301:
         }
         putchar('\n');
     }
-    lookup2 = lookUse;
-    lookupMode = lookUse;
+    lookup2 = lookupMode = lookUse;
     defineRoutine(bodyBlock_);
     if (curProcNesting > 1 and
         not retSeen and (procName->typ != voidType)) {
@@ -10080,8 +10105,7 @@ void initOptions(int argc, char **argv)
     eofOverreads = 0;
     checkFortran = false;
     bool110z = false;
-    lookupMode = 1;
-    lookup2 = 1;
+    lookup2 = lookupMode = lookUse;
     moduleOffset = 16384;
     lineStartOffset = 16384;
     condLabCnt = 1;

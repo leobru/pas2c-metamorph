@@ -1,0 +1,7 @@
+/*=k9,l0*/
+// error(20) with a non-identifier token is reported as error 1.
+int value;
+
+void main() {
+    value = 08;
+}
