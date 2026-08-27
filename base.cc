@@ -195,12 +195,12 @@ enum Symbol {
 /*30B*/ IFSY,       SWITCHSY,   WHILESY,    FORSY,
         GOTOSY,     ELSESY,     DOSY,       EXTERNSY,
 /*40B*/ BREAKSY,    CONTSY,     CASESY,     DEFAULTSY,
-        UNIONSY,    RETURNSY,   NOSY
+        UNIONSY,    RETURNSY,   STATICSY,   NOSY
 };
 
 enum IdClass {
         TYPEID,     ENUMID,     ROUTINEID,  VARID,
-        FORMALID,   FIELDID,    REGID
+        FORMALID,   FIELDID,    REGID,       STATICID
 };
 
 enum Insn {
@@ -891,7 +891,7 @@ bool   bool48z, forValue;
 int64_t jumpType, jumpTarget;
 
 Operator charClass;
-Symbol   SY, prevSY;
+Symbol   SY;
 
 int64_t savedObjIdx,
         FcstCnt,
@@ -912,6 +912,9 @@ int64_t curInsnTemplate,
         lineStartOffset,
         curFrameRegTemplate,
         curProcNesting,
+        // Module-lifetime globals and routine statics share this high-water
+        // mark; routine locals continue to use programme::localSize.
+        moduleDataSize,
         totalErrors,
         lineCnt,
         eofOverreads,
@@ -923,13 +926,11 @@ int64_t curInsnTemplate,
         arithMode;
 
 std::string stmtName;
-KeyWord * keyWordHashPtr;
 TPtr symType;                   // the type denoted by the current TYPESY
 Kind curVarKind;
 ExtFileRec * curExternFile;
 char commentModeCH;
-unsigned char CH, prevCH;
-Word prevInsn;
+unsigned char CH;
 
 // A double-quoted string is packed into strBuf rather than laid straight into
 // the constant pool: which pool the words belong in is the consumer's to
@@ -963,7 +964,6 @@ int verbose;
 
 IdentRecPtr outputFile,
     inputFile,
-    programObj,
     hashTravPtr,
     uProcPtr;
 
@@ -994,7 +994,7 @@ const int64_t litInput = 012515660656412L;    /* " *INPUT*" */
 
 int64_t leftInsn;
 int64_t curIdent;
-int64_t toAlloc, usedRegs, liveRegs, freeRegs, auxRegs;
+int64_t usedRegs, liveRegs, freeRegs, auxRegs;
 
 /* M2-M6.  Every C/n entry helper saves all five in the callee's own frame and
    C/E puts them back, so a call hands them over exactly as it found them.  A
@@ -1009,37 +1009,9 @@ InsnList *  insnList;
 InternRec * internHead;
 ExtFileRec * fileForOutput, * fileForInput;
 int64_t symTabCnt;
-
-int64_t symTabArray[SYMTAB_MAX+1]; // array [1..80] of Word;
-int64_t symTabIndex[SYMTAB_MAX+1];
 Entries entryPtTable;
 int64_t indexreg[16];
-/* Positional, since g++ takes no designated array initialisers: the entries
-   run in Operator order from SHLEFT, and everything past ASSIGNOP is the
-   quiet default. */
-int64_t opToInsn[48] = {
-    /*SHLEFT*/ 56,   /*SHRIGHT*/  57,
-    /*SETAND*/ KAAX, /*SETXOR*/   KAEX, /*SETOR*/ KAOX,
-    /*MUL*/    KMUL, /*IMULOP*/   KMUL,
-    /*RDIVOP*/ KDIV, /*IDIVOP*/   11,          /* P/DI */
-    /*IMODOP*/ 7,                              /* P/MD */
-    /*PLUSOP*/ KADD, /*INTPLUS*/  KADD,
-    /*MINUSOP*/ KSUB, /*INTMINUS*/ KSUB };
 int64_t opToMode[48];
-OpFlg opFlags[48] = {
-    /*SHLEFT*/  opfSHIFT, /*SHRIGHT*/  opfSHIFT,
-    /*SETAND*/  opfCOMM,  /*SETXOR*/   opfCOMM, /*SETOR*/ opfCOMM,
-    /*MUL*/     opfCOMM,  /*IMULOP*/   opfMULMSK,
-    /*RDIVOP*/  opfCOMM,  /*IDIVOP*/   opfDIV,
-    /*IMODOP*/  opfMOD,
-    /*PLUSOP*/  opfCOMM,  /*INTPLUS*/  opfCOMM,
-    /*MINUSOP*/ opfCOMM,  /*INTMINUS*/ opfCOMM,
-    /*ANDOP*/   opfAND,   /*OROP*/     opfOR,
-    /*NEOP*/    opfCOMM,  /*EQOP*/     opfCOMM,
-    /*LTOP*/    opfCOMM,  /*GEOP*/     opfCOMM, /*GTOP*/ opfCOMM,
-    /*LEOP*/    opfCOMM,  /*INOP*/     opfCOMM,
-    /*CONDOP*/  opfCOMM,  /*ALTERN*/   opfCOMM,
-    /*INCROP*/  opfCOMM,  /*DECROP*/   opfCOMM, /*ASSIGNOP*/ opfASSN };
 int64_t funcInsn[7];
 int64_t InsnTemp[48];
 
@@ -1060,13 +1032,9 @@ extern int64_t helperNames[58]; // array [1..57] of int64_t;
 // Zero-based backing storage; symTabPos and stored references remain BESM
 // symbol-table addresses starting at 074000.
 int64_t symTab[SYMTAB_LIMIT - 074000 + 1];
-extern int64_t systemProcNames[3];
-extern int64_t resWordNameBase[19];
 int64_t longSymCnt;
 int64_t longSymTabBase[90];
 int64_t longSyms[90];
-Word constVals[MAXLIT];
-int64_t constNums[MAXLIT];
 int64_t objBuffer[OBJBUF_SIZE+1]; // array [1..1024] of int64_t;
 char koi2text[256];
 std::vector<int64_t> FCST; // file of int64_t; /* last */
@@ -1202,6 +1170,7 @@ struct programme {
     StrLabel * strLabList;
 
     int64_t l2int18z, ii, localSize, sizeCount, jj;
+    int64_t toAlloc;
     int64_t labFence;
     static std::vector<programme *> super;
     programme();
@@ -1297,7 +1266,7 @@ const char * pasmitxt(int64_t errNo)
        reports error(sym + 88), so these labels are spelled `SYM + 88` and track
        the Symbol enum by construction -- they were once hard-coded to the
        pre-compaction values and had silently drifted onto their neighbours.
-       The list runs IDENT..RETURNSY, i.e. the whole enum bar NOSY, because
+       The list runs IDENT..STATICSY, i.e. the whole enum bar NOSY, because
        checkSymAndRead takes any symbol.  Keep the names identical to the
        runtime's, so the two compilers report a missing token the same way. */
     case IDENT + 88:     return "IDENTIFIER";
@@ -1338,6 +1307,7 @@ const char * pasmitxt(int64_t errNo)
     case DEFAULTSY + 88: return "DEFAULT";
     case UNIONSY + 88:   return "UNION";
     case RETURNSY + 88:  return "RETURN";
+    case STATICSY + 88:  return "STATIC";
     }
     return "Dunno";
 }
@@ -1658,6 +1628,7 @@ void storeObjWord(int64_t insn)
 void form1Insn(int64_t arg)
 {
     Word Insn, opcode;
+    static Word prevInsn;
     int64_t pos;
     bool noElide;
     noElide = (arg & insnNoElide) != 0;
@@ -1836,6 +1807,8 @@ bool fcstLess(const Word &left, const Word &right)
 
 int64_t addCurValToFCST()
 {
+    static Word constVals[MAXLIT];
+    static int64_t constNums[MAXLIT];
     int64_t ret;
     int64_t low, high, mid;
     low = 0;
@@ -1884,6 +1857,8 @@ int64_t addCurValToFCST()
 
 int64_t allocSymtab(int64_t newSym)
 {
+    static int64_t symTabArray[SYMTAB_MAX+1];
+    static int64_t symTabIndex[SYMTAB_MAX+1];
     int64_t ret = symTabPos;
 
     // BESM-6 words are 48 bits; bits 48-63 of a Word can hold stack garbage
@@ -2428,6 +2403,8 @@ bool skipSp()
 
 inSymbol::inSymbol()
 {
+    KeyWord * keyWordHashPtr;
+    unsigned char prevCH;
     unsigned char litQuote = 0;
     int literalEncoding = charEncoding;
 {
@@ -2863,7 +2840,6 @@ exitLoop:
             break;
         }
       exitLexer:
-        prevSY = SY;
         commentModeCH = ' ';
         lookupMode = lookup2;
     }
@@ -4947,6 +4923,32 @@ struct Level {
 genFullExpr::genFullExpr(ExprPtr exprToGen_)
     : exprToGen(exprToGen_)
 {
+    /* Positional, since g++ takes no designated array initialisers: the
+       entries run in Operator order from SHLEFT, and everything past
+       ASSIGNOP is the quiet default. */
+    static int64_t opToInsn[48] = {
+        /*SHLEFT*/ 56,   /*SHRIGHT*/  57,
+        /*SETAND*/ KAAX, /*SETXOR*/   KAEX, /*SETOR*/ KAOX,
+        /*MUL*/    KMUL, /*IMULOP*/   KMUL,
+        /*RDIVOP*/ KDIV, /*IDIVOP*/   11,          /* P/DI */
+        /*IMODOP*/ 7,                              /* P/MD */
+        /*PLUSOP*/ KADD, /*INTPLUS*/  KADD,
+        /*MINUSOP*/ KSUB, /*INTMINUS*/ KSUB };
+    static OpFlg opFlags[48] = {
+        /*SHLEFT*/  opfSHIFT, /*SHRIGHT*/  opfSHIFT,
+        /*SETAND*/  opfCOMM,  /*SETXOR*/   opfCOMM, /*SETOR*/ opfCOMM,
+        /*MUL*/     opfCOMM,  /*IMULOP*/   opfMULMSK,
+        /*RDIVOP*/  opfCOMM,  /*IDIVOP*/   opfDIV,
+        /*IMODOP*/  opfMOD,
+        /*PLUSOP*/  opfCOMM,  /*INTPLUS*/  opfCOMM,
+        /*MINUSOP*/ opfCOMM,  /*INTMINUS*/ opfCOMM,
+        /*ANDOP*/   opfAND,   /*OROP*/     opfOR,
+        /*NEOP*/    opfCOMM,  /*EQOP*/     opfCOMM,
+        /*LTOP*/    opfCOMM,  /*GEOP*/     opfCOMM, /*GTOP*/ opfCOMM,
+        /*LEOP*/    opfCOMM,  /*INOP*/     opfCOMM,
+        /*CONDOP*/  opfCOMM,  /*ALTERN*/   opfCOMM,
+        /*INCROP*/  opfCOMM,  /*DECROP*/   opfCOMM,
+        /*ASSIGNOP*/ opfASSN };
     int64_t &l3int3z = formOperator::super.back()->l3int3z;
     bool &rhsMode = formOperator::super.back()->rhsMode;
     int64_t &nextInsn = formOperator::super.back()->nextInsn;
@@ -5105,7 +5107,10 @@ L10122:
                 insnList->head = NULL;
                 insnList->regsused = Bits();
                 insnList->ilm = ilLVAL;
-                insnList->payload.ii = curIdRec->pck.offset;
+                /* A static keeps the routine template in pck.offset for
+                   lexical lookup; its generated address alone uses M1. */
+                insnList->payload.ii = curIdRec->pck.cl == STATICID ?
+                                       frameRegTemplate : curIdRec->pck.offset;
                 insnList->disp = curIdRec->value();
                 insnList->st = stWORD;
                 insnList->addrmd = 18;
@@ -7234,7 +7239,7 @@ Factor::Factor()
                         }
                     }
                 } break;
-                case VARID: case FORMALID: case REGID:
+                case VARID: case FORMALID: case REGID: case STATICID:
                     parseLval();
                     break;
                 default:
@@ -8705,7 +8710,8 @@ Statement::Statement()
                 caseStatement();
                 brContTarget(); /* removing break */
             } else if (has(Bits(TYPEDEFSY, TYPESY, CONSTSY) |
-                           Bits(ENUMSY, STRUCTSY, UNIONSY) | Bits(PACKEDSY), SY)) {
+                           Bits(ENUMSY, STRUCTSY, UNIONSY) |
+                           Bits(PACKEDSY, STATICSY), SY)) {
                 /* A declaration keyword reached statement context -- it leaked
                    here from a malformed routine header (see bad.p2c).  Report
                    and consume it so the enclosing 'while (SY != ENDSY)
@@ -8965,6 +8971,13 @@ struct initScalars {
 initScalars::initScalars() :
     curIdRec(programme::super.back()->curIdRec)
 {
+    // Keep the historical procNo values 2..4 for these procedures. FREE and
+    // HALT are ordinary ASSEMBLER routines supplied by libc.
+    static int64_t systemProcNames[3] = {
+    /*2*/   042456355L              /*"    BESM"*/,
+            06762516445L            /*"   WRITE"*/,
+            067625164455456L        /*" WRITELN"*/};
+    IdentRecPtr programObj;
     BooleanType.setRep(
         besm6_alloc_record<Types>(offsetof(Types, szScalar)));
     BooleanType.rep()->numen = 2;
@@ -9133,6 +9146,7 @@ initScalars::initScalars() :
     curIdent = savedIdent.ii;
     lookupMode = lookUse;
     l3var6z = 40;
+    moduleDataSize = l3var6z;
     do {
         programme(l3var6z, programObj, false);
     } while (CH);
@@ -9415,8 +9429,8 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
     // be seen as one. Declared here (above the do-while, not inside it)
     // so it's visible both in the loop body and in the do-while's own
     // trailing condition below, whose scope excludes the body's locals.
-    int64_t declStartSys = Bits(TYPESY, PACKEDSY, STRUCTSY) | Bits(ENUMSY) |
-                           Bits(EXTERNSY);
+    int64_t declStartSys = Bits(TYPESY, PACKEDSY, STRUCTSY) |
+                           Bits(ENUMSY, EXTERNSY, STATICSY);
     do {
         if (SY == CONSTSY) {
             parseDecls(0);
@@ -9545,6 +9559,19 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
     while (has(declStartSys, SY)) {
         TPtr baseTy{};
         bool packedFlag, forwardRef;
+        bool staticDecl = SY == STATICSY;
+        if (staticDecl) {
+            inSymbol();
+            markTypeSym();
+            if (not has(Bits(TYPESY, PACKEDSY, STRUCTSY) | Bits(ENUMSY), SY)) {
+                error(errBadSymbol);
+                skip(skipToSet | Bits(SEMICOLON));
+                if (SY == SEMICOLON)
+                    inSymbol();
+                markTypeSym();
+                continue;
+            }
+        }
         externDecl = (SY == EXTERNSY);
         if (externDecl) {
             inSymbol();
@@ -9616,6 +9643,8 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         // parens, a definition completing an earlier declaration included, so
         // no lookahead past ';' is needed.
         bool isRoutine = d.ptrOnly and SY == LPAREN;
+        if (staticDecl and isRoutine)
+            error(errBadSymbol);
         if (externDecl and isRoutine) {
             error(errBadSymbol);
             skip(skipToSet | Bits(SEMICOLON));
@@ -9648,7 +9677,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 curIdRec->id = d.name;
                 curIdRec->pck.offset = curFrameRegTemplate;
                 curIdRec->pck.nidx = ord(symHash[d.bucket]);
-                curIdRec->pck.cl = VARID;
+                curIdRec->pck.cl = staticDecl ? STATICID : VARID;
                 curIdRec->list() = NULL;
                 curIdRec->typ = d.type;
                 symHash[d.bucket] = curIdRec;
@@ -9678,18 +9707,26 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     }
                 }
                 if (l2bool8z) {
-                    curIdRec->value() = localSize;
+                    if (curProcNesting == 1 or staticDecl)
+                        curIdRec->value() = moduleDataSize;
+                    else
+                        curIdRec->value() = localSize;
                     if (PASINFOR.listMode == 3) {
                         printf("%26s", "VARIABLE ");
                         printTextWord(d.name);
                         printf(" OFFSET (%ld) %05loB. WORDS=%05loB\n",
-                               curProcNesting, localSize, jj);
+                               curProcNesting, curIdRec->value(), jj);
                     }
-                    localSize = localSize + jj;
+                    if (curProcNesting == 1 or staticDecl) {
+                        moduleDataSize = moduleDataSize + jj;
+                        if (curProcNesting == 1)
+                            localSize = moduleDataSize;
+                    } else
+                        localSize = localSize + jj;
                     curExternFile = NULL;
                 }
                 if (SY == BECOMES) {
-                    if (curProcNesting != 1)
+                    if (curProcNesting != 1 and not staticDecl)
                         error(errVarTooComplex); /* load-time init: globals only */
                     parseInitializer(curIdRec);
                     if (d.type.p.pk == kindArray and
@@ -9703,7 +9740,13 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                             jj = initWords / typeSize(d.type.rep()->base);
                         curIdRec->typ = makeArrayType(jj, d.type.rep()->base,
                                                       d.type.p.pad != 0);
-                        localSize = localSize + typeSize(curIdRec->typ);
+                        if (curProcNesting == 1 or staticDecl) {
+                            moduleDataSize = moduleDataSize +
+                                             typeSize(curIdRec->typ);
+                            if (curProcNesting == 1)
+                                localSize = moduleDataSize;
+                        } else
+                            localSize = localSize + typeSize(curIdRec->typ);
                     }
                 }
                 moreDecls = (SY == COMMA);
@@ -9878,6 +9921,8 @@ L23301:
         putchar('\n');
     }
     lookup2 = lookupMode = lookUse;
+    if (curProcNesting == 1)
+        localSize = moduleDataSize;
     defineRoutine(bodyBlock_);
     if (curProcNesting > 1 and
         not retSeen and (procName->typ != voidType)) {
@@ -9936,16 +9981,36 @@ struct initTables {
     } /* initInsnTemplates */
 
     void regKeyWords() {
+        static int64_t resWordNameBase[20] = {
+                04357566364L             /*"   CONST"*/,
+                064716045444546L         /*" TYPEDEF"*/,
+                045566555L               /*"    ENUM"*/,
+                01212604143534544L       /*"**PACKED"*/,
+                0636462654364L           /*"  STRUCT"*/,
+                05146L                   /*"      IF"*/,
+                0636751644350L           /*"  SWITCH"*/,
+                06750515445L             /*"   WHILE"*/,
+                0465762L                 /*"     FOR"*/,
+                047576457L               /*"    GOTO"*/,
+                045546345L               /*"    ELSE"*/,
+                04457L                   /*"      DO"*/,
+                0457064456256L           /*"  EXTERN"*/,
+                04262454153L             /*"   BREAK"*/,
+                04357566451566545L       /*"CONTINUE"*/,
+                043416345L               /*"    CASE"*/,
+                044454641655464L         /*" DEFAULT"*/,
+                06556515756L             /*"   UNION"*/,
+                0624564656256L           /*"  RETURN"*/,
+                0636441645143L           /*"  STATIC"*/};
         SY = EXPROP;
         charClass = INOP;
         regResWord(toText("IN"));
         SY = CONSTSY;
         charClass = NOOP;
-        // CONSTSY..RETURNSY are 19 consecutive reserved words. TYPESY sits just
-        // before CONSTSY, outside this range -- no skip needed; the predefined
-        // type names are registered as TYPESY keywords later, by initScalars,
-        // and markTypeSym still raises user typedef names to TYPESY.
-        for (idx = 0; idx <= 18; ++idx) {
+        // CONSTSY..STATICSY are the consecutive reserved-word table. TYPESY
+        // sits before CONSTSY, outside this range; predefined type names are
+        // registered as TYPESY keywords later, by initScalars.
+        for (idx = 0; idx <= 19; ++idx) {
             regResWord(resWordNameBase[idx]);
             succ(SY);
         }
@@ -10238,7 +10303,8 @@ int main(int argc, char **argv)
     // Variable declarations are dispatched via TYPESY (a leading bound
     // type name), same as routines -- see the unified TYPESY loop in
     // programme's constructor.
-    blockBegSys = Bits(CONSTSY, TYPEDEFSY, TYPESY) | Bits(BEGINSY);
+    blockBegSys = Bits(CONSTSY, TYPEDEFSY, TYPESY) |
+                  Bits(STATICSY, BEGINSY);
     statBegSys = Bits(IDENT, EXPROP, LPAREN, INTCONST)
         | Bits(REALCONST, CHARCONST, STRINGSY, LBRACK)
         | Bits(BEGINSY, IFSY, SWITCHSY, DOSY)
@@ -10392,27 +10458,6 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
     }
 }
 
-int64_t resWordNameBase[19] = {
-        04357566364L             /*"   CONST"*/,
-        064716045444546L         /*" TYPEDEF"*/,
-        045566555L               /*"    ENUM"*/,
-        01212604143534544L       /*"**PACKED"*/,
-        0636462654364L           /*"  STRUCT"*/,
-        05146L                   /*"      IF"*/,
-        0636751644350L           /*"  SWITCH"*/,
-        06750515445L             /*"   WHILE"*/,
-        0465762L                 /*"     FOR"*/,
-        047576457L               /*"    GOTO"*/,
-        045546345L               /*"    ELSE"*/,
-        04457L                   /*"      DO"*/,
-        0457064456256L           /*"  EXTERN"*/,
-        04262454153L             /*"   BREAK"*/,
-        04357566451566545L       /*"CONTINUE"*/,
-        043416345L               /*"    CASE"*/,
-        044454641655464L         /*" DEFAULT"*/,
-        06556515756L             /*"   UNION"*/,
-        0624564656256L           /*"  RETURN"*/};
-
 int64_t helperNames[58] = { 0L,
         06017210000000000L      /*"P/1     "*/,
         04317220000000000L      /*"C/2     "*/,
@@ -10471,10 +10516,3 @@ int64_t helperNames[58] = { 0L,
         06017565600000000L      /*"P/NN    "*/,
         04317635054000000L      /*"C/SHL   "*/,
         04317635062000000L      /*"C/SHR   "*/};
-
-// Keep the historical procNo values 2..4 for these procedures.  FREE and HALT
-// are ordinary ASSEMBLER routines supplied by libc.
-int64_t systemProcNames[3] = {
-/*2*/   042456355L              /*"    BESM"*/,
-        06762516445L            /*"   WRITE"*/,
-        067625164455456L        /*" WRITELN"*/};

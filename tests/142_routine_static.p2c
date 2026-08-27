@@ -1,0 +1,82 @@
+/*=k9,l0*/
+//
+// A routine static has the routine's lexical scope but module-lifetime
+// storage.  The module data below is deliberately interleaved with routines
+// and their statics: every value has to survive without sharing a slot.
+//
+typedef struct { int x; int y; } pair;
+
+int before = 100;
+
+int counter() {
+    static int n = 10;
+    n = n + 1;
+    return n;
+}
+
+int recursive(int depth) {
+    static int seen;
+    seen = seen + 1;
+    if (depth)
+        recursive(depth - 1);
+    return seen;
+}
+
+int left() {
+    static int slot = 20;
+    slot = slot + 1;
+    return slot;
+}
+
+int middle = 200;
+
+int right() {
+    static int slot = 30;
+    slot = slot + 1;
+    return slot;
+}
+
+int aggregate(int add) {
+    static int a[3] = { 1, 2, 3 };
+    static int inferred[] = { 8, 9 };
+    static pair p = { 4, 5 };
+    static int x = 6, y = 7;
+    a[0] = a[0] + add;
+    a[2] = a[2] + 1;
+    inferred[1] = inferred[1] + add;
+    p.x = p.x + add;
+    x = x + 1;
+    y = y + 2;
+    return a[0] + a[1] + a[2] + inferred[0] + inferred[1] +
+           p.x + p.y + x + y;
+}
+
+int outer(int add) {
+    static int x = 300;
+    int inner(int n) {
+        static int y = 400;
+        y = y + n;
+        return y;
+    }
+    x = x + add;
+    return x + inner(add);
+}
+
+int zeroed() {
+    static int z;
+    z = z + 5;
+    return z;
+}
+
+int after = 300;
+
+void main() {
+    writeln(" GLOBAL ", before:0, ' ', middle:0, ' ', after:0);
+    writeln(" COUNT  ", counter():0, ' ', counter():0);
+    writeln(" RECUR  ", recursive(3):0, ' ', recursive(1):0);
+    writeln(" NAMES  ", left():0, ' ', right():0, ' ', left():0, ' ', right():0);
+    writeln(" AGGR   ", aggregate(1):0, ' ', aggregate(2):0);
+    writeln(" NEST   ", outer(1):0, ' ', outer(2):0);
+    writeln(" ZERO   ", zeroed():0, ' ', zeroed():0);
+    writeln(" GLOBAL ", before:0, ' ', middle:0, ' ', after:0);
+}

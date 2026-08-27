@@ -181,12 +181,12 @@ typedef enum {
 /*30B*/ IFSY,       SWITCHSY,   WHILESY,    FORSY,
         GOTOSY,     ELSESY,     DOSY,       EXTERNSY,
 /*40B*/ BREAKSY,    CONTSY,     CASESY,     DEFAULTSY,
-        UNIONSY,    RETURNSY,   NOSY
+        UNIONSY,    RETURNSY,   STATICSY,   NOSY
 } symbol;
 //
 typedef enum {
         TYPEID,     ENUMID,     ROUTINEID,  VARID,
-        FORMALID,   FIELDID,    REGID
+        FORMALID,   FIELDID,    REGID,       STATICID
 } idclass;
 //
 /* The order carries meaning, in four places:
@@ -468,7 +468,7 @@ typedef __packed char alfa[6];
 //
 NumberFormat numFormat;
 int statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
-    blockBegSys = [CONSTSY, TYPEDEFSY, TYPESY, BEGINSY],
+    blockBegSys = [CONSTSY, TYPEDEFSY, TYPESY, STATICSY, BEGINSY],
     statBegSys = [IDENT, EXPROP, LPAREN, INTCONST, REALCONST,
                   CHARCONST, STRINGSY, LBRACK, BEGINSY, IFSY,
                   SWITCHSY, DOSY, WHILESY, FORSY, GOTOSY,
@@ -479,7 +479,7 @@ int bool48z, forValue;
 int jumpType;
 int jumpTarget;
 operator charClass;
-symbol SY, prevSY;
+symbol SY;
 int savedObjIdx;
 int FcstCnt;
 int symTabPos;
@@ -497,6 +497,9 @@ int moduleOffset;
 int lineStartOffset;
 int curFrameRegTemplate;
 int curProcNesting;
+// Module-lifetime globals and routine statics share this high-water mark;
+// routine locals continue to use programme's localSize frame counter.
+int moduleDataSize;
 int totalErrors;
 int lineCnt;
 int eofOverreads;
@@ -520,13 +523,11 @@ int arithMode;
    characters, since a single-quoted literal is right-aligned in its word
    and a shorter one would not sit where alfa reads it. */
 int stmtName;
-kword *keywordHashPtr;
 kind curVarKind;
 pextf curExternFile;
 char commentModeCH;
-char CH, prevCH;
-int prevInsn,
-    lineNesting,
+char CH;
+int lineNesting,
     FcstCountTo500,
     objBufIdx,
     lookup2,
@@ -545,7 +546,6 @@ int prevInsn,
     checkFortran;
 irptr outputFile,
     inputFile,
-    programObj,
     hashTravPtr,
     uProcPtr;
 extfilerec *externFileList;
@@ -567,7 +567,6 @@ word curVal;
 int leftInsn;
 int hashMask = 0203407U;
 int curIdent;
-int toAlloc;
 int usedRegs;
 int liveRegs;
 int freeRegs;
@@ -578,28 +577,9 @@ insnltyp *insnList;
 inptr internHead;
 extfilerec *fileForOutput, *fileForInput;
 int symTabCnt;
-word symtabarray[80];
-int symtbidx[80];
 entries entryPtTable;
 int indexreg[16]; // indexreg[0] unused
-/* SHLEFT is 0, so the operators SHLEFT..STKLVAL are simply the first 35: the
-   fill gives every one of them the quiet default, and the designators name
-   the ones that differ. */
-int opToInsn[STKLVAL+1] = {
-    0:35,
-    [SHLEFT]=56, [SHRIGHT]=57,
-    [SETAND]=KAAX, [SETXOR]=KAEX, [SETOR]=KAOX,
-    [MUL]=KMUL, [RDIVOP]=KDIV,
-    [IDIVOP]=11, /* C/DI */
-    [IMODOP]=7,  /* C/MD */
-    [PLUSOP]=KADD, [MINUSOP]=KSUB,
-    [IMULOP]=KMUL, [INTPLUS]=KADD, [INTMINUS]=KSUB };
 int opToMode[STKLVAL+1];
-opflg opFlags[STKLVAL+1] = {
-    opfCOMM:35,
-    [SHLEFT]=opfSHIFT, [SHRIGHT]=opfSHIFT,
-    [ANDOP]=opfAND, [IDIVOP]=opfDIV, [IMODOP]=opfMOD,
-    [OROP]=opfOR, [IMULOP]=opfMULMSK, [ASSIGNOP]=opfASSN };
 int funcInsn[7] = {
     [fnABS]    = KAMX,
     [fnCARD]   = KACX,
@@ -705,37 +685,9 @@ int opPrec[ALTERN+1] = {
 /* Backing storage is zero-based; symTabPos and all references stored in the
    compiler's records remain BESM symbol-table addresses starting at 074000. */
 int symTab[01501];
-// Keep the historical procNo values 2..4 for these procedures.  FREE and HALT
-// are ordinary ASSEMBLER routines supplied by libc.
-int systemProcNames[3] = {
-/*2*/   t'    BESM',
-        t'   WRITE',
-        t' WRITELN' };
-int resWordName[19] = {
-        t'   CONST',
-        t' TYPEDEF',
-        t'    ENUM',
-        t'**PACKED',
-        t'  STRUCT',
-        t'      IF',
-        t'  SWITCH',
-        t'   WHILE',
-        t'     FOR',
-        t'    GOTO',
-        t'    ELSE',
-        t'      DO',
-        t'  EXTERN',
-        t'   BREAK',
-        t'CONTINUE',
-        t'    CASE',
-        t' DEFAULT',
-        t'   UNION',
-        t'  RETURN' };
 int longSymCnt;
 int longSym[90];
 int longSyms[90];
-int constVals[500];
-int constNums[500];
 int objBuffer[1025];
 char iso2text[128-'*'];
 int maxHeap;
@@ -868,6 +820,7 @@ int i, start;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int addCurValToFCST() {
 int low, high, mid;
+static int constVals[500], constNums[500];
     low  =  0;
     if (FcstCountTo500 == 0) {
         FcstCountTo500  =  1;
@@ -962,6 +915,7 @@ int insn, opcode;
 int half1, half2;
 int pos;
 int noElide;
+static int prevInsn;
     noElide  =  arg & insnNoElide;
     insn  =  arg & ~insnNoElide;
     opcode = insn & 077700000;
@@ -1167,6 +1121,8 @@ int getHelperProc(int l3arg1z) {
 int allocSymtab(int arg) {
 int low, high, mid, ret;
 word value;
+static word symTabArray[80];
+static int symtbidx[80];
     low  =  0;
     value.i  =  arg;
     if (symTabCnt == 0) {
@@ -1447,6 +1403,8 @@ irptr chain;
 float expMultiple, expValue;
 char curChar;
 char litQuote;
+kword *keywordHashPtr;
+char prevCH;
 word numstr[17];
 int expLiteral, expMagnitude;
 int charBits, charMask;
@@ -1836,7 +1794,6 @@ L1473:  while(skipsp());
         SY  =  charSym[CH];
         charClass  =  chrClass[CH];
         lexer();
-        prevSY  =  SY;
         commentModeCH  =  ' ';
         lookupMode  =  lookup2;
 } /* inSymbol */
@@ -3709,7 +3666,8 @@ int rec;
 
 void programme(int *retSizePtr, irptr procName, int bodyBlock) { /* programme */
 irptr preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr;
-int isPredefined, l2bool8z, retSeen, inTypeDef, hadParens, externDecl;
+int isPredefined, l2bool8z, retSeen, inTypeDef, hadParens, externDecl,
+    staticDecl;
 int fileExit;
 int bodyStatSys;
 int l2var12z;
@@ -3724,6 +3682,7 @@ int labFence;
 strLabel *strLabList;
 //
 int l2int18z, ii, localSize, sizeCount, jj;
+int toAlloc;
 //
 // File scope, so the shared declarator parser below -- a sibling of
 // parseTypeRef, not nested inside it -- can read them right after each
@@ -3777,6 +3736,23 @@ insnltyp *otherIns;
 word arg1Val, arg2Val;
 operator curOP;
 int work;
+/* SHLEFT is 0, so the operators SHLEFT..STKLVAL are simply the first 35: the
+   fill gives every one of them the quiet default, and the designators name
+   the ones that differ. */
+static int opToInsn[STKLVAL+1] = {
+    0:35,
+    [SHLEFT]=56, [SHRIGHT]=57,
+    [SETAND]=KAAX, [SETXOR]=KAEX, [SETOR]=KAOX,
+    [MUL]=KMUL, [RDIVOP]=KDIV,
+    [IDIVOP]=11, /* C/DI */
+    [IMODOP]=7,  /* C/MD */
+    [PLUSOP]=KADD, [MINUSOP]=KSUB,
+    [IMULOP]=KMUL, [INTPLUS]=KADD, [INTMINUS]=KSUB };
+static opflg opFlags[STKLVAL+1] = {
+    opfCOMM:35,
+    [SHLEFT]=opfSHIFT, [SHRIGHT]=opfSHIFT,
+    [ANDOP]=opfAND, [IDIVOP]=opfDIV, [IMODOP]=opfMOD,
+    [OROP]=opfOR, [IMULOP]=opfMULMSK, [ASSIGNOP]=opfASSN };
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genHelper() {
@@ -4830,7 +4806,10 @@ L10122:         insnList->tail->mode  =  l3int3z;
                 il->head  =  NULL;
                 il->regsused  =  0U;
                 il->ilm  =  ilLVAL;
-                il->payload  =  curIdRec->pck.p.offset;
+                /* A static's offset field still names its lexical scope for
+                   lookDef/exitScope; only its addressing base is global. */
+                il->payload  =  curIdRec->pck.p.cl == STATICID ?
+                               frameRegTemplate : curIdRec->pck.p.offset;
                 il->disp  =  curIdRec->high;
                 il->st  =  stWORD;
                 il->addrmd  =  18;
@@ -6531,7 +6510,7 @@ int hasFields;
                     }
                 }
                 break;
-            case VARID: case FORMALID: case REGID:
+            case VARID: case FORMALID: case REGID: case STATICID:
                 parseLval();
             } /* switch */
         break;
@@ -7912,7 +7891,8 @@ L8888:      skip(skipToSet | statEndSys);
            instead of spinning.  Only these keywords are caught; other stray
            tokens (the SEMICOLON of a labelled empty statement, CASESY/DEFAULTSY
            between switch arms) keep the original silent behaviour. */
-        if (SY IN [TYPEDEFSY, TYPESY, CONSTSY, ENUMSY, STRUCTSY, UNIONSY, PACKEDSY]) {
+        if (SY IN [TYPEDEFSY, TYPESY, CONSTSY, ENUMSY, STRUCTSY,
+                   UNIONSY, PACKEDSY, STATICSY]) {
             error(errBadSymbol);
             inSymbol();
         }
@@ -8079,10 +8059,16 @@ int hasMain;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void mainProgram() { /* mainProgram */
 int l3var1z, l3var5z, l3var6z, savedIdent;
-irptr l3var7z;
+irptr l3var7z, programObj;
 int l3var8z, sysProcNum;
 tptr temptype;
 int l3var11z;
+// Keep the historical procNo values 2..4 for these procedures.  FREE and HALT
+// are ordinary ASSEMBLER routines supplied by libc.
+static int systemProcNames[3] = {
+/*2*/   t'    BESM',
+        t'   WRITE',
+        t' WRITELN' };
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysProc(int l4arg1z) {
@@ -8251,6 +8237,7 @@ void regSysProc(int l4arg1z) {
     curIdent  =  savedIdent;
     lookupMode  =  lookUse;
     l3var6z  =  40;
+    moduleDataSize  =  l3var6z;
     do {
         programme(&l3var6z, programObj, false);
     } while (CH != '\0');
@@ -8561,7 +8548,9 @@ void exitScope(int a) {
                 // token (the next variable or routine declaration) or
                 // TYPEDEFSY legitimately ends the const group
                 // -- not an error.
-                if (! (SY IN (skipToSet | [IDENT, TYPEDEFSY, TYPESY, PACKEDSY, STRUCTSY, ENUMSY]))) {
+                if (! (SY IN (skipToSet | [IDENT, TYPEDEFSY, TYPESY,
+                                           PACKEDSY, STRUCTSY, ENUMSY,
+                                           STATICSY]))) {
                     errAndSkip(errBadSymbol, skipToSet | [IDENT]);
                 }
             } else {
@@ -8668,7 +8657,21 @@ void exitScope(int a) {
     // field-group loop condition), so those must be recognized as a
     // declaration start too, or a leading '__packed int x;' would never
     // be seen as one.
-    while (SY IN [TYPESY, PACKEDSY, STRUCTSY, ENUMSY, EXTERNSY]) {
+    while (SY IN [TYPESY, PACKEDSY, STRUCTSY, ENUMSY, EXTERNSY,
+                  STATICSY]) {
+        staticDecl  =  SY == STATICSY;
+        if (staticDecl) {
+            inSymbol();
+            markTypeSym();
+            if (! (SY IN [TYPESY, PACKEDSY, STRUCTSY, ENUMSY])) {
+                error(errBadSymbol);
+                skip(skipToSet | [SEMICOLON]);
+                if (SY == SEMICOLON)
+                    inSymbol();
+                markTypeSym();
+                continue;
+            }
+        }
         externDecl  =  SY == EXTERNSY;
         if (externDecl) {
             inSymbol();
@@ -8737,6 +8740,8 @@ void exitScope(int a) {
         // parens, a definition completing an earlier declaration included, so
         // no lookahead past ';' is needed.
         declIsRoutine  =  curDeclarator.ptrOnly && (SY == LPAREN);
+        if (staticDecl && declIsRoutine)
+            error(errBadSymbol);
         if (externDecl && declIsRoutine) {
             error(errBadSymbol);
             skip(skipToSet | [SEMICOLON]);
@@ -8769,7 +8774,7 @@ void exitScope(int a) {
                     ir->id  =  curDeclarator.name;
                     ir->pck.p.offset  =  curFrameRegTemplate;
                     ir->pck.p.next  =  symHash[curDeclarator.bucket];
-                    ir->pck.p.cl  =  VARID;
+                    ir->pck.p.cl  =  staticDecl ? STATICID : VARID;
                     ir->list  =  NULL;
                     ir->typ  =  curDeclarator.typ;
                 }
@@ -8802,19 +8807,27 @@ void exitScope(int a) {
                     }
                 }
                 if (l2bool8z) {
-                    curIdRec->value  =  localSize;
+                    if ((curProcNesting == 1) || staticDecl)
+                        curIdRec->value  =  moduleDataSize;
+                    else
+                        curIdRec->value  =  localSize;
                     if (PASINFOR.listMode == 3) {
                         write("VARIABLE ":26);
                         printTextWord(curDeclarator.name);
                         writeln(" OFFSET (", curProcNesting:0, ") ",
-                                localSize:5 oct, "B. WORDS=",
+                                curIdRec->value:5 oct, "B. WORDS=",
                                 jj:5 oct, 'B');
                     }
-                    localSize += jj;
+                    if ((curProcNesting == 1) || staticDecl) {
+                        moduleDataSize += jj;
+                        if (curProcNesting == 1)
+                            localSize  =  moduleDataSize;
+                    } else
+                        localSize += jj;
                     curExternFile  =  NULL;
                 }
                 if (SY == BECOMES) {
-                    if (curProcNesting != 1)
+                    if ((curProcNesting != 1) && ! staticDecl)
                         error(errVarTooComplex); /* load-time init: globals only */
                     initVar  =  curIdRec;
                     freeRegs  =  initRegs;
@@ -8832,7 +8845,12 @@ void exitScope(int a) {
                         curIdRec->typ  =  makeArrayType(jj,
                                               curDeclarator.typ.rep->base,
                                               curDeclarator.typ.p.pad != 0);
-                        localSize += typeSize(curIdRec->typ);
+                        if ((curProcNesting == 1) || staticDecl) {
+                            moduleDataSize += typeSize(curIdRec->typ);
+                            if (curProcNesting == 1)
+                                localSize  =  moduleDataSize;
+                        } else
+                            localSize += typeSize(curIdRec->typ);
                     }
                 }
                 moreDecls  =  (SY == COMMA);
@@ -8969,17 +8987,19 @@ L23301:     ;
     }
     if (bodyBlock) {
         if (! (SY IN (bodyStatSys | blockBegSys)) &&
-            ! (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,ENDSY]))
+            ! (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,STATICSY,ENDSY]))
             errAndSkip(84 /* errErrorInDeclarations */,
                        skipToSet | bodyStatSys | blockBegSys | [ENDSY]);
     } else if (CH != '\0' && (SY != BEGINSY) &&
-       ! (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY]) &&
+       ! (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,STATICSY]) &&
        ! (SY IN blockBegSys))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
     } while (! ((bodyBlock && ((SY IN bodyStatSys) ||
-                               (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,ENDSY]))) ||
+                               (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,
+                                       STATICSY,ENDSY]))) ||
                 (! bodyBlock && ((CH == '\0') || (SY in statBegSys) ||
-                                 (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY])))));
+                                 (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,
+                                         STATICSY])))));
     // Checked once per programme() call (guarded by curProcNesting==1, so
     // effectively once for the whole compile), not once per do-while
     // iteration: each variable or typedef declaration stands on its own,
@@ -9008,6 +9028,8 @@ L23301:     ;
         writeLN();
     }
     lookup2  =  lookupMode  =  lookUse;
+    if (curProcNesting == 1)
+        localSize  =  moduleDataSize;
     defineRoutine(bodyBlock);
     if ((curProcNesting > 1) && ! retSeen &&
             (procName->typ != voidType)) {
@@ -9056,6 +9078,27 @@ operator op;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regKeywords() { /* regKeywords */
+static int resWordName[20] = {
+        t'   CONST',
+        t' TYPEDEF',
+        t'    ENUM',
+        t'**PACKED',
+        t'  STRUCT',
+        t'      IF',
+        t'  SWITCH',
+        t'   WHILE',
+        t'     FOR',
+        t'    GOTO',
+        t'    ELSE',
+        t'      DO',
+        t'  EXTERN',
+        t'   BREAK',
+        t'CONTINUE',
+        t'    CASE',
+        t' DEFAULT',
+        t'   UNION',
+        t'  RETURN',
+        t'  STATIC' };
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     SY  =  EXPROP;
@@ -9063,12 +9106,10 @@ void regKeywords() { /* regKeywords */
     regResWord(t'      IN');
     SY  =  CONSTSY;
     charClass  =  NOOP;
-    /* CONSTSY..RETURNSY are 19 consecutive reserved words. TYPESY sits just
-       before CONSTSY so it is outside this range -- no skip needed; the
-       predefined type names are registered as TYPESY keywords later, by
-       mainProgram, and markTypeSym still raises user typedef names to
-       TYPESY. */
-    for (idx = 0; idx <= 18; ++idx) {
+    /* CONSTSY..STATICSY are the consecutive reserved-word table.  TYPESY
+       sits before CONSTSY, outside this range; predefined type names are
+       registered as TYPESY keywords later, by mainProgram. */
+    for (idx = 0; idx <= 19; ++idx) {
         regResWord(resWordName[idx]);
         ++SY;
     }

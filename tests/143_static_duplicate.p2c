@@ -1,0 +1,7 @@
+/*=k9,l0*/
+int f() {
+    static int same;
+    static int same;
+    return 0;
+}
+void main() { f(); }

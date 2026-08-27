@@ -1,0 +1,7 @@
+/*=k9,l0*/
+int owner() {
+    static int hidden;
+    return hidden;
+}
+int stranger() { return hidden; }
+void main() { owner(); }

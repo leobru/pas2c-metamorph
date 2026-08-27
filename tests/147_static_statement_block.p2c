@@ -1,0 +1,7 @@
+/*=k9,l0*/
+void main() {
+    int ordinary;
+    ordinary = 1;
+    static int too_late;
+    too_late = ordinary;
+}

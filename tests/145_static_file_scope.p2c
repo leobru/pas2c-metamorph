@@ -1,0 +1,13 @@
+/*=k9,l0*/
+static int explicit = 5;
+int implicit = 7;
+
+int helper() {
+    return explicit + implicit;
+}
+
+void main() {
+    explicit += 1;
+    implicit += 2;
+    writeln(" STATIC ", explicit:0, ' ', implicit:0, ' ', helper():0);
+}
