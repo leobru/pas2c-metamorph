@@ -1,7 +1,9 @@
 /*=k9,l0*/
 //
-// A string constant and a declared packed char array are the same
-// zero-based type.
+// A string constant and a declared packed char array index the same way,
+// from zero -- but they are not the same type.  A literal carries a NUL
+// terminator that its type counts, so "ABCDEF" is seven characters and needs
+// two words where the declared alfa holds its six in one.
 typedef __packed char alfa[6];
 alfa a = "ABCDEF";
 char s[6];

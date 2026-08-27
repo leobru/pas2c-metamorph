@@ -1,0 +1,32 @@
+/*=k9,l0*/
+//
+// 'readNext' belongs to the expression() that consumes it -- expression()
+// reads a token first unless the flag says the token is already in hand, and
+// clears it on the way through.  A string wider than a word goes into the
+// initializer stream without calling expression() at all, so it must not set
+// the flag: nothing would take it back, and the next expression() anywhere in
+// the program would start a token behind.
+//
+// A following initializer hides that, setting the flag afresh for its own
+// value, so the wide string has to be the last one for the leak to reach the
+// body.  Here the next expression() after it is write's first argument.
+//
+// An explicit NUL is an ordinary character of the array, counted by the type
+// and stored like any other; it ends nothing.  It reaches the output as no
+// column at all, so the visible text is the rest of the array.
+//
+__packed char tail[7] = "ABCDEFG";
+int i;
+//
+void main() {
+    write("OK");
+    writeln("|");
+    writeln(tail);
+    write("[");  write("ABC\0");        writeln("]");
+    write("[");  write("ABC\0DEF");     writeln("]");
+    write("[");  write("ABC\0":6);      writeln("]");
+    write(" BYTES");
+    for (i = 0; i < 7; i = i + 1)
+        write((int)tail[i]:4);
+    writeln("  SIZEOF", sizeof(tail):3);
+}

@@ -1,0 +1,44 @@
+/*=k9,l0*/
+//
+// puts walks a byte string to its NUL.  Every byte goes to *OUTPUT*, except
+// a '\n', which ends the line instead of being put.  Nothing is appended, so
+// a string that does not end in a newline leaves the line open for whatever
+// writes next -- which here is the program's own write, into the same file.
+//
+void puts(char *) assembler;
+//
+typedef __packed char twelve[12];
+twelve src = "ABCDEFGHIJKL";
+__packed char buf[42];
+int i;
+int start;
+//
+void main() {
+    // A plain run at every byte offset in a word: the byte the routine picks
+    // out has to be the right one in all six lanes.
+    for (start = 0; start < 6; start = start + 1) {
+        for (i = 0; i < 7; i = i + 1)
+            buf[start + i] = src[i];
+        buf[start + 7] = 0;
+        write(" RUN", start:2, " ");
+        puts(buf + start);
+        writeln("|");
+    }
+    // A newline in the middle ends the line where it stands, and the rest of
+    // the string opens the next one.
+    buf[0] = 'A';  buf[1] = 'B';  buf[2] = '\n';
+    buf[3] = 'C';  buf[4] = 'D';  buf[5] = 0;
+    write(" MID ");
+    puts(buf);
+    writeln("|");
+    // A newline as the last byte ends the line and adds nothing to the next.
+    buf[0] = 'E';  buf[1] = 'F';  buf[2] = '\n';  buf[3] = 0;
+    write(" END ");
+    puts(buf);
+    writeln("|");
+    // A string that is only a NUL writes nothing at all.
+    buf[0] = 0;
+    write(" NIL ");
+    puts(buf);
+    writeln("|");
+}

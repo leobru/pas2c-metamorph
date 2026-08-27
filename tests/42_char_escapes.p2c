@@ -11,5 +11,7 @@ void main() {
             ' ', '\r':3 oct,
             ' ', '\t':3 oct,
             ' ', '\v':3 oct,
-            ' ', "\0\0\76\0\0\5":10 oct);
+            // Six characters are a word only in single quotes now: double
+            // quotes carry a terminator, and 'oct' wants one word.
+            ' ', '\0\0\76\0\0\5':10 oct);
 }

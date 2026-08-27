@@ -1,0 +1,61 @@
+/*=k9,l0*/
+//
+// A string initializer fills the words its length needs and pads the last of
+// them with NUL.  An array declared longer than its string therefore reads as
+// a C string: the padding is the terminator, so strlen and puts stop on it
+// instead of running off the end into whatever follows.
+//
+// write emits every character the type counts, the padding among them, but a
+// NUL takes no column: an array longer than its string prints as the string,
+// where space padding would have printed the slack as blanks.
+//
+// The terminator is part of a literal's length, so a string constant is one
+// character longer than it is written.  That costs a word only where the
+// characters fill the last word exactly and the terminator has nowhere else
+// to go; anywhere else it lands in padding that was there already.
+//
+// A declared array is not a literal and carries no terminator of its own, so
+// one exactly the size of its string has no room for one and the initializer
+// drops it, as C does.  Such an array is exactly its characters, and nothing
+// terminates it.
+//
+int strlen(char *) assembler;
+void puts(char *) assembler;
+//
+__packed char part[6]  = "ABC";
+__packed char hole[14] = "ABCDEF\0HIJKLM";
+__packed char full[12] = "ABCDEFGHIJKL";
+// Exactly its string: the terminator does not fit and is dropped, and the
+// scalar behind it must not be touched by the word that would have held one.
+__packed char snug[6]  = "ABCDEF";
+int guard = 4242;
+int i;
+//
+void main() {
+    // The padding is NUL, and it is inside the array.
+    write(" PART ");
+    for (i = 0; i < 6; i = i + 1)  write((int)part[i]:4);
+    writeln("  SIZEOF", sizeof(part):3);
+    write(" HOLE ");
+    for (i = 0; i < 14; i = i + 1) write((int)hole[i]:4);
+    writeln();
+    write(" FULL ");
+    for (i = 0; i < 12; i = i + 1) write((int)full[i]:4);
+    writeln("  SIZEOF", sizeof(full):3);
+    // The padding goes out with the rest and takes no column.
+    write(" W ");
+    write("[");  write(part);  write("]");
+    write("[");  write(hole);  write("]");
+    write("[");  write(full);  writeln("]");
+    // strlen and puts stop at the first NUL, wherever it came from.
+    writeln(" STRLEN", strlen(part):3, strlen(hole):3, strlen(hole + 7):3);
+    writeln(" SNUG [", snug, "]  GUARD", guard:6);
+    // A literal's own length counts the terminator; only a string that fills
+    // its last word exactly pays a word for it.
+    writeln(" SZ", sizeof("ABC"):3, sizeof("ABCDE"):3, sizeof("ABCDEF"):3,
+                   sizeof("ABCDEFG"):3, sizeof("ABCDEFGHIJKL"):3);
+    write(" P ");
+    write("[");  puts(part);      write("]");
+    write("[");  puts(hole);      write("]");
+    write("[");  puts(hole + 7);  writeln("]");
+}

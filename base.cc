@@ -2243,7 +2243,11 @@ void readToPos80()
 }
 
 struct inSymbol {
-    unsigned char localBuf[131];
+    /* Six characters more than doCharConst's 125 and its six-word lead-in:
+       the padding word is unpacked past the last character, and a string
+       filling its last word exactly is packed one word beyond that for the
+       terminator. */
+    unsigned char localBuf[137];
     int64_t tokenLen, tokenIdx;
     bool expSign;
     IdentRecPtr l3var135z;
@@ -2770,15 +2774,18 @@ exitLoop:
                        further -- where they end up is for the consumer to say.
                        As many of them as the type has, so a length that is an
                        exact multiple of six takes no word of padding along.
-                       NUL is what the padding has to be: write emits the
-                       characters the type counts and never reaches the
-                       padding, but an array declared longer than the string
-                       keeps some of it, and there the C routines read it -- a
-                       NUL terminates the string for strlen and puts, where a
-                       space would run them off the end. */
+                       NUL is what the padding has to be, and one of them
+                       belongs to the string: the type counts strLen + 1
+                       characters, so every literal carries a terminator and
+                       strlen and puts stop on it.  The word count follows
+                       that length, which is why a string filling its last
+                       word exactly takes another one -- there is nowhere else
+                       for the terminator to go.  It costs nothing anywhere
+                       else: the terminator lands in padding that was there
+                       already. */
                     SY = STRINGSY;
                     unpck(0, &localBuf[tokenIdx]);
-                    strWords = (strLen + 5) / 6;
+                    strWords = (strLen + 6) / 6;
                     for (tokenLen = 0; tokenLen < strWords; ++tokenLen)
                         strBuf[tokenLen] = pck(&localBuf[6 + 6*tokenLen]);
                     /* A one-word string's token is its value, as an
@@ -3078,11 +3085,13 @@ L99:        litType.setRep(NULL);
             litType = CharType;
             break;
         case STRINGSY:
-            /* A string constant is a packed char array of its own length.
-               One word is the value itself; more than one goes to the pool
-               now, an expression needing an address to load from, and that
-               address is the value. */
-            litType = makeArrayType(strLen, CharType, true);
+            /* A string constant is a packed char array of its own length
+               and a NUL: the terminator is part of the type, so sizeof
+               counts it and write emits it, taking no column.  One word is
+               the value itself; more than one goes to the pool now, an
+               expression needing an address to load from, and that address
+               is the value. */
+            litType = makeArrayType(strLen + 1, CharType, true);
             if (strWords != 1)
                 litValue.ii = strToFCST();
             break;
@@ -8027,12 +8036,7 @@ void beginInitSeg(IdentRecPtr var, bool designator) {
 // 'value:count' fills accumulate into the current segment.
 void parseInitializer(IdentRecPtr var) {
     ExprPtr boundary;
-    /* Where the words will land.  A designator only walks 'var' along its
-       own element type, so unwrapping the array levels answers for both the
-       bare and the designated segment. */
-    TPtr dest = var->typ;
-    while (dest.p.pk == kindArray)
-        dest = dest.rep()->base;
+    TPtr dest;
     inSymbol();                       /* consume '=' -> SY at first init token */
     bool braced = SY == BEGINSY;
     if (braced)
@@ -8064,8 +8068,23 @@ void parseInitializer(IdentRecPtr var) {
            the destination is what has to be tested here.  Nor does a
            statement give a pointer a string: only a char array takes one,
            as its contents. */
-        if (SY == STRINGSY and dest.p.pk == kindPtr)
-            error(errNoConstant);
+        if (SY == STRINGSY) {
+            /* Where the words would land.  A designator only walks 'var'
+               along its own element type, so unwrapping the array levels
+               answers for both the bare and the designated segment.  The
+               innermost array is what a string goes into, whatever is
+               wrapped around it, so its size on the way down is the room --
+               zero where the extent was left out and the initializer is
+               what says how long the array is. */
+            count = 0;
+            dest = var->typ;
+            while (dest.p.pk == kindArray) {
+                count = dest.rep()->asize ? typeSize(dest) : 0;
+                dest = dest.rep()->base;
+            }
+            if (dest.p.pk == kindPtr)
+                error(errNoConstant);
+        }
         if (SY == STRINGSY and strWords != 1) {
             /* A string wider than a word is buffered, not in the pool, so
                its words go into the stream as ordinary items: they land in
@@ -8073,9 +8092,15 @@ void parseInitializer(IdentRecPtr var) {
                into one record rather than forcing one of their own.  A
                one-word string goes the other way, being a value like any
                other -- and the only width for which a ':count' fill means
-               anything. */
-            for (count = 0; count < strWords; ++count)
+               anything.  The clamp waits until the width above has been
+               read, since it may change it: count still holds the room. */
+            if (count != 0 and count < strWords)
+                strWords = count;     /* no room for the terminator: drop it */
+            count = 0;
+            while (count != strWords) {
                 initSegs.back().items.push_back(InitItem{ strBuf[count], 1 });
+                ++count;
+            }
             inSymbol();
         } else {
             readNext = false;         /* SY already at the value's first token */
@@ -9612,7 +9637,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 if (l2bool8z) {
                     curIdRec->value() = localSize;
                     if (PASINFOR.listMode == 3) {
-                        printf("%25s", "VARIABLE ");
+                        printf("%26s", "VARIABLE ");
                         printTextWord(d.name);
                         printf(" OFFSET (%ld) %05loB. WORDS=%05loB\n",
                                curProcNesting, localSize, jj);
