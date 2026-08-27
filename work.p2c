@@ -1858,7 +1858,7 @@ void error(int errno) {
         errMap[errsInLine]  =  linePos;
         ++errsInLine;
         prevErrPos  =  linePos;
-        write("******", errno:0);
+        write((alfa)'******', errno:0);
         printErrMsg(errno);
         if (60 < totalErrors) {
             writeln();
@@ -5651,7 +5651,7 @@ pair *curSlot;
     if (PASINFOR.listMode == 3) {
         write(' ':16);
         if (curField->fpk.p.pckfield)
-            write("PACKED");
+            write((alfa)'PACKED');
         write(" FIELD ");
         printTextWord(curField->id);
         write(".OFFSET=", curField->pck.p.offset:5 oct, 'B');
@@ -6014,7 +6014,7 @@ int l3int1z, frame, l3var3z;
         break;
     case 1:
         prevErrPos  =  0;
-        write("IDENT ");
+        write((alfa)'IDENT ');
         printTextWord(l2var12z);
         write(" IN LINE ", curIdRec->pck.p.offset:0);
         break;

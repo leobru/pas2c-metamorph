@@ -1,0 +1,83 @@
+ PUTS:,NAME,
+C===========================================================
+C puts(p) - write the bytes before the first NUL to *OUTPUT*.
+C
+C Calling convention for a one-argument ASSEMBLER routine:
+C   ACC = p, a byte index into flat memory
+C   M13 = return link
+C
+C   void puts(char *) assembler;
+C
+C Flat memory contains six bytes per word, most significant byte
+C first, so the word holding byte p is p/6 and the byte sits
+C 40 - 8 * (p - 6 * (p/6)) bits above the bottom of it.
+C
+C Every byte is put through P/PF, which writes whatever OUTPUT^
+C holds and advances the file, exactly as fputw does.  A newline
+C is not a byte to put: LF goes out as P/WOLN, which ends the
+C line.  Nothing is appended, so a string that does not end in a
+C newline leaves the line open for the next writer.
+C
+C *OUTPUT* is a common block rather than an entry, so the FILE
+C record is declared here and addressed through M12, the way
+C p_ea.asm addresses it.  P/WOLN wires M12 to it on its own.
+C
+C P/PF keeps nothing: M9, M10, M11, M13, M14 and M2 all come back
+C changed.  So p and the caller's link live in stack words, and
+C the byte address is worked out afresh each time round rather
+C than carried in a register.  For the same reason the constants
+C are reached with UTC instead of a base register: none would
+C survive the call.
+C===========================================================
+ P/PF:          ,SUBP,        . put OUTPUT^ and advance
+ P/WOLN:        ,SUBP,        . end the current *OUTPUT* line
+ *OUTPUT*:      ,LC,30        . 30-word FILE record of OUTPUT
+            15,UTM,2          . two local words
+            15,ATX,-2         . save p
+              ,ITA,13
+            15,ATX,-1         . save the caller's link
+ NEXTBYT:      ,NTR,3         . suppress normalization and rounding
+            15,XTA,-2         . ACC := p
+              ,UTC,INV6
+              ,A*X,
+              ,ATI,14         . M14 := word address
+              ,UTC,SIX
+              ,A*X,
+              ,YTA,64         . ACC := 6 * word address
+            15,X-A,-2         . ACC := byte offset within the word
+              ,ASN,64-3       . ACC := 8 * byte offset
+              ,UTC,FORTY
+              ,X-A,           . ACC := shift bringing the byte down
+              ,ATI,10
+            14,XTA,           . ACC := the word holding the byte
+            10,ASN,64         . the byte to the bottom
+              ,UTC,LOWBYT
+              ,AAX,           . ACC := the byte
+              ,UZA,ENDSTR     . NUL ends the string
+              ,UTC,NEWLINE
+              ,AEX,           . zero exactly when the byte is LF
+              ,UZA,ENDLINE
+              ,UTC,NEWLINE
+              ,AEX,           . restore the character
+            12,VTM,*OUTPUT*
+            12,WTC,           . address OUTPUT^ through FILE[0]
+              ,ATX,           . OUTPUT^ := the character
+            13,VJM,P/PF       . put(OUTPUT)
+              ,UJ,STEP
+ ENDLINE:   13,VJM,P/WOLN     . a newline ends the line instead
+ STEP:      15,XTA,-2
+              ,UTC,ONE
+              ,ARX,
+            15,ATX,-2         . p := p + 1
+              ,UJ,NEXTBYT
+ ENDSTR:    15,XTA,-1         . the caller's link
+              ,ATI,13
+            15,UTM,-2         . release the local words
+            13,UJ,
+ FORTY:       ,LOG,0000 0000 0000 0050
+ LOWBYT:      ,LOG,0000 0000 0000 0377
+ NEWLINE:     ,LOG,0000 0000 0000 0012
+ ONE:         ,LOG,0000 0000 0000 0001
+ INV6:        ,LOG,4002 5252 5252 5253
+ SIX:         ,LOG,4000 0000 0000 0006
+              ,END,
