@@ -1,0 +1,56 @@
+/*=k9,l0*/
+// Identifier labels have a routine-local namespace separate from ordinary
+// variables and routines.  Definitions exercise a bare colon, horizontal
+// whitespace and a line break before the colon.
+int value;
+int shared;
+
+void target() {
+    value += 10;
+}
+
+void main() {
+    value = 0;
+    goto forward;
+    value = 1000;
+
+forward:
+    value += 1;
+back :
+    value += 1;
+    if (value < 3)
+        goto back;
+
+    goto commented;
+    value = 1000;
+commented       :
+    value += 4;
+
+    goto linebreak;
+    value = 1000;
+linebreak
+:
+    value += 8;
+
+    goto shared;
+    value = 1000;
+shared:
+    value += 16;
+
+    goto target;
+    value = 1000;
+target:
+    target();
+
+    goto A;
+    value = 1000;
+A:
+    value += 1;
+
+    // Identifier identity remains case-insensitive and eight characters.
+    goto ABCDEFGHtwo;
+    value = 1000;
+abcdefghOne:
+    value += 1;
+    writeln(" LABELS ", value:0);
+}

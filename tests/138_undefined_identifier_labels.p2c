@@ -1,0 +1,15 @@
+/*=k9,l0*/
+// A definition in another routine does not satisfy a named goto: labels are
+// routine-local, and the undefined-label diagnostic must print CROSSLAB.
+void first() {
+    goto crosslab;
+}
+
+void second() {
+crosslab:
+    ;
+}
+
+void main() {
+    first();
+}

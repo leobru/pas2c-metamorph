@@ -1340,6 +1340,8 @@ const char * pasmitxt(int64_t errNo)
     return "Dunno";
 }
 
+void printTextWord(int64_t val);
+
 void printErrMsg(int64_t errNo)
 {
     putchar(' ');
@@ -1350,8 +1352,13 @@ void printErrMsg(int64_t errNo)
             printErrMsg(86);
         else if (errNo == 20)
             errNo = (SY == IDENT)*2 + 1;
-        else if (16 <= errNo && errNo <= 18)
-            printf("%ld ", int64_t(curToken.ii));
+        else if (16 <= errNo && errNo <= 17) {
+            if (errNo == 17) {
+                printTextWord(curToken.ii);
+                putchar(' ');
+            } else
+                printf("%ld ", int64_t(curToken.ii));
+        }
         printf("%s ", pasmitxt(errNo));
         if (errNo == 17)
             printf("%ld", errLine);
@@ -8449,14 +8456,21 @@ Statement::Statement()
     startLine = lineCnt;
     {
         try {
-            if (SY == INTCONST) {
-                liveRegs = Bits();
-                disableNorm();
-                flag = true;
-                padToLeft();
-                labCheckAndDefine(true);
-                inSymbol();
-                checkSymAndRead(COLON);
+            if (SY == IDENT) {
+                /* CH is already the first character after the identifier.
+                   Advance over blanks directly, leaving the identifier token
+                   and its symbol lookup untouched unless the next character
+                   is a label colon. */
+                while (skipSp()) ;
+                if (CH == ':') {
+                    liveRegs = Bits();
+                    disableNorm();
+                    flag = true;
+                    padToLeft();
+                    labCheckAndDefine(true);
+                    nextCH();
+                    inSymbol();
+                }
             }
             nest = has(Bits(BEGINSY,SWITCHSY), SY);
             if (nest)
@@ -8552,8 +8566,8 @@ Statement::Statement()
                 }
             } else if (SY == GOTOSY) {
                 inSymbol();
-                if (SY != INTCONST) {
-                    error(62); /* errIntegerNeeded */
+                if (SY != IDENT) {
+                    requiredSymErr(IDENT);
                     throw 8888;
                 }
                 disableNorm();
@@ -9803,12 +9817,16 @@ L23301:
     while (numLabTop > labFence) {
         numLabTop = numLabTop - 1;
         if (not numLabs[numLabTop].defined) {
-            printf(" %ld:", int64_t(numLabs[numLabTop].id.ii));
+            putchar(' ');
+            printTextWord(numLabs[numLabTop].id.ii);
+            putchar(':');
             done = false;
         }
     }
     if (not done) {
+        putchar(' ');
         printTextWord(procName->id);
+        putchar(' ');
         error(18); /* errLabelNotDefined */
     }
     l2arg1z = sizeCount;

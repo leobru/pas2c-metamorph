@@ -1,0 +1,25 @@
+/*=k9,l0*/
+// The historical routine-local label table still has exactly twenty slots.
+void main() {
+label01: ;
+label02: ;
+label03: ;
+label04: ;
+label05: ;
+label06: ;
+label07: ;
+label08: ;
+label09: ;
+label10: ;
+label11: ;
+label12: ;
+label13: ;
+label14: ;
+label15: ;
+label16: ;
+label17: ;
+label18: ;
+label19: ;
+label20: ;
+label21: ;
+}

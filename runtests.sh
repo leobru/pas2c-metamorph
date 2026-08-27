@@ -68,6 +68,30 @@ run_test() {
         return
     fi
 
+    # The work-compiler job may continue to *EXECUTE after reporting source
+    # errors.  A .diagnostics sidecar makes a negative test strict: each line
+    # is a required fragment in an actual compiler error.
+    local diagnostic_file="${test_file%.p2c}.diagnostics"
+    if [ -f "$diagnostic_file" ]; then
+        if ! grep -Eiq 'Error [0-9]+:|\*\*\*\*\*[0-9]+' "$result_file"; then
+            echo -e "${RED}FAIL${NC} (expected compiler error)"
+            FAILED=$((FAILED + 1))
+            return
+        fi
+        local expected_diag
+        while IFS= read -r expected_diag || [ -n "$expected_diag" ]; do
+            [ -z "$expected_diag" ] && continue
+            if ! grep -Fqi -- "$expected_diag" "$result_file"; then
+                echo -e "${RED}FAIL${NC} (missing diagnostic: $expected_diag)"
+                FAILED=$((FAILED + 1))
+                return
+            fi
+        done < "$diagnostic_file"
+        echo -e "${GREEN}PASS${NC} (expected failure)"
+        PASSED=$((PASSED + 1))
+        return
+    fi
+
     if [ $rc -eq 0 ]; then
         # Extract output after *EXECUTE line
         if grep -q '\*EXECUTE' "$result_file"; then
@@ -104,7 +128,7 @@ run_test() {
             fi
         fi
     else
-        # Runner exited nonzero for some reason other than the timeout
+        # Runner exited nonzero for some reason other than the timeout.
         if [ -f "${test_file%.p2c}.should_fail" ]; then
             echo -e "${GREEN}PASS${NC} (expected failure)"
             PASSED=$((PASSED + 1))

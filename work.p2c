@@ -779,6 +779,7 @@ void unpackt(void *, void *, int) assembler;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void printTextWord(int val);
 void printErrMsg(int errno) { /* PrintErrMsg */
 typedef __packed textchar errtxt[101];
 typedef errtxt *perrtxt;
@@ -800,6 +801,11 @@ char c;
         else if (errno in [16..17, 20]) {
             if (errno == 20)
                 errno  =  (sy == ident)*2 + 1;
+            else if (errno == 17)
+            {
+                printTextWord(curToken.i);
+                write(' ');
+            }
             else
                 write(curToken.i:0,' ');
         }
@@ -1260,7 +1266,7 @@ int work, offset;
     if (mode == 0) {
         padToLeft();
         curVal.i  =  moduleOffset;
-1:      addr  =  curval.i & 077777U;
+L1:     addr  =  curval.i & 077777U;
         leftHalf = curVal.i << 24;
         while (arg) {
             if (4096 < arg) {
@@ -1301,7 +1307,7 @@ int work, offset;
         return;
     }
     curVal.i  =  mode;
-    goto 1;
+    goto L1;
 } /* fixup */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1467,7 +1473,7 @@ int advanced;
            return;
        }
        if (atEOL) {
-2175:      error(59); /* errEOLNInStringLiteral */
+L2175:     error(59); /* errEOLNInStringLiteral */
             return;
         } else if (CH == BACKSLASH) {
             nextCH();
@@ -1493,10 +1499,10 @@ int advanced;
                     localBuf[tokenIdx]  =  (escMap >> (6*val)) & 077;
                 }
             } else {
-                goto 2233;
+                goto L2233;
             }
         } else
-2233:       {
+L2233:      {
                 if (literalEncoding == 3) {
                     if (ch < '*' || '\176' < CH)
                         curChar  =  '\0';
@@ -1509,7 +1515,7 @@ int advanced;
                 localBuf[tokenIdx]  =  curChar;
             }
     }
-    goto 2175
+    goto L2175
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1529,7 +1535,7 @@ void lexer() {
         if (tokenLen == 2 && curToken.i == t'T' &&
             (CH == '\'' || CH == '"')) {
             literalEncoding = 3;
-            goto 2290;
+            goto L2290;
         }
         curVal.i  =  curToken.i & hashMask;
         bucket = mapAI(curVal.i);
@@ -1722,7 +1728,7 @@ void lexer() {
     } /* INTCONST */ /*=m+*/
     case CHARCONST: {
         literalEncoding = 2;
-2290:
+L2290:
         /* The delimiter tells a character constant from a string: single
            quotes give the packed word as an integer wherever it fits one,
            double quotes give a packed character array of the length written.
@@ -1818,7 +1824,7 @@ void lexer() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         if(setjmp(&jb1473));
-1473:   while(skipsp());
+L1473:  while(skipsp());
         hashTravPtr  =  NULL;
         SY  =  charSym[CH];
         charClass  =  chrClass[CH];
@@ -1957,7 +1963,7 @@ tptr ret;
                     *litValue  =  -(*litValue);
             }
         } else
-99:     {
+L99:    {
             ret.rep = NULL;
             error(errNoConstant);
         }
@@ -1965,7 +1971,7 @@ tptr ret;
         switch (SY) {
         case IDENT:
             if (hashTravPtr == NULL || hashTravPtr->pck.p.cl != ENUMID)
-                goto 99;
+                goto L99;
             ret  =  hashTravPtr->typ;
             *litValue  =  hashTravPtr->value;
             break;
@@ -2219,7 +2225,7 @@ irptr enums1, enums2;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if (!checkTypes || type1 == type2)
-1:      return true;
+L1:     return true;
         { register types *ty = (type1.rep);
             kind1  =  type1.p.pk;
             kind2  =  type2.p.pk;
@@ -2232,23 +2238,23 @@ irptr enums1, enums2;
                  * all other combinations are okay.
                  */
                     if (type1.rep->enums == NULL || type2.rep->enums == NULL) {
-                        goto 1;
+                        goto L1;
                     }
                     break;
                 case kindPtr:
                     if (type1 == voidPtr || type2 == voidPtr ||
                         typeCheck(ptrBase(type1), ptrBase(type2)))
-                        goto 1;
+                        goto L1;
                     break;
                 case kindArray:
                     if (typeCheck(type1.rep->base, type2.rep->base) &&
                        (type1.rep->asize == type2.rep->asize) &&
                        (type1.p.pad == type2.p.pad))
-                        goto 1;
+                        goto L1;
                     break;
                 case kindRoutine:
                     if (sameRoutineType(type1, type2))
-                        goto 1;
+                        goto L1;
                     break;
                 } /* switch */
             }
@@ -2686,13 +2692,13 @@ int lstep, rstep;
     }
     if (k1 > kindScalar || k2 > kindScalar) {
         error(errNeedOtherTypesOfOperands);
-1:      curExpr = uVarPtr;
+L1:     curExpr = uVarPtr;
         return;
     }
     if (k1 == kindReal || k2 == kindReal) {
         if (oper == IMODOP) {
             error(62); // errIntNeeded
-            goto 1;
+            goto L1;
         }
         if (k1 != kindReal)
             castToReal(&leftExpr);
@@ -2724,7 +2730,7 @@ operator resOp;
         if ((typeSize(arg1Type) != 1) &&
             (oper >= LTOP) &&
             !isCharArray(arg1Type)) {
-1:          error(errNeedOtherTypesOfOperands);
+L1:         error(errNeedOtherTypesOfOperands);
             curExpr = uVarPtr;
             return;
         }
@@ -2733,7 +2739,7 @@ operator resOp;
             ((arg2Type != intType) ||
              (arg1Type.p.pk != kindScalar) ||
             (oper != INOP))) {
-            goto 1;
+            goto L1;
         }
     }
     if (oper IN [GTOP, LEOP]) {
@@ -3227,7 +3233,7 @@ int isSimple;
                 if ((l4int2z == 0) && (il->st == stWORD)) {
                     addInsnAndOffset(helper + curInsnTemplate,
                                      l4int3z);
-                    break; // goto 4602;
+                    break; // goto L4602;
                 } else {
                     addToInsnList(helper + KUTC);
                 }
@@ -3334,12 +3340,12 @@ void getOffset() {
                 curVal.i  =  addCurValToFCST();
             l4var6z  =  curVal.i;
             l4var5z  =  074001;
-            goto 4654;
+            goto L4654;
         } else if (l4int2z == 18) {
-4650:       getOffset();
+L4650:      getOffset();
             if (l4var4z == indexreg[1]) {
                 l4var5z  =  074003;
-4654:           l4var1z  =  macro * l4var5z + l4var6z;
+L4654:          l4var1z  =  macro * l4var5z + l4var6z;
                 l4var6z  =  allocSymtab(l4var1z & 0777777777777U);
                 addToInsnList(regField + opCode + l4var6z);
             } else if (l4var4z) {
@@ -3365,10 +3371,10 @@ void getOffset() {
         } else if (l4int2z == 15) {
             addToInsnList(KATI + reg);
             opCode  =  KUTM;
-            goto 4650;
+            goto L4650;
         } else {
             addToInsnList(indexreg[l4int2z] + KUTC);
-            goto 4650;
+            goto L4650;
         }
     } /* register block */
     { register insnltyp *il = insnList;
@@ -3482,17 +3488,17 @@ int l5var1z, l5var2z;
         l5var1z  =  insnList->addrmd;
         l5var2z  =  insnList->disp;
         if ((l5var1z == 18) || (l5var1z == 16)) {
-5220:       addInsnAndOffset((insnList->payload + KWTC), l5var2z);
+L5220:      addInsnAndOffset((insnList->payload + KWTC), l5var2z);
         } else {
             if (l5var1z == 17) {
                 if (l5var2z == 0) {
                     insnList->tail->code  =  insnList->tail->code +
                                                 KXTA;
                 } else
-                    goto 5220;
+                    goto L5220;
             } else if (l5var1z == 15) {
                 addToInsnList(macro + mcACC2ADDR);
-                goto 5220;
+                goto L5220;
             } else {
                 addInsnAndOffset((indexreg[l5var1z] + KWTC),
                                  l5var2z);
@@ -3804,7 +3810,7 @@ insnltyp *l5var2z;
     }
     switch (l5var1z) {
     case 2:
-22:
+L22:
         saved  =  insnList;
         insnList  =  otherIns;
         otherIns  =  saved;
@@ -3820,7 +3826,7 @@ insnltyp *l5var2z;
     case 1:
         if (nextInsn == KSUB) {
             nextInsn  =  KRSUB;
-            goto 22;
+            goto L22;
         }
         // FALLTHRU
     case 3:
@@ -4202,13 +4208,13 @@ idclass paramClass;
         /* Every formal is taken by value; one that does not fit a word is
            passed by address instead, which the callee knows to expect. */
         paramClass  =  VARID;
-1:      if (paramClass == FORMALID || allByRef) {
+L1:     if (paramClass == FORMALID || allByRef) {
             setAddrTo(14);
             addToInsnList(KITA+14);
         } else {
             if (typeSize(insnList->typ) != 1) {
                 paramClass  =  FORMALID;
-                goto 1
+                goto L1
             } else {
                 prepLoad();
             }
@@ -4406,29 +4412,29 @@ int mode, size;
         } else if (l3int3z == 0) {
             nextInsn  =  KAEX;
             tryFlip(true);
-7504:       insnList->ilm  =  ilCOND;
+L7504:      insnList->ilm  =  ilCOND;
             insnList->payload  =  0;
         } else {
             switch (work) {
             case 1:
                 mode  =  3;
-7514:           nextInsn  =  KSUB;
+L7514:          nextInsn  =  KSUB;
                 tryFlip(false);
                 insnList->tail->mode  =  mode;
                 if (mode == 3) {
                     addToInsnList(KNTR+023);
                     insnList->tail->mode  =  2;
                 }
-                goto 7504;
+                goto L7504;
             case 3:
                 mode  =  1;
-                goto 7514;
+                goto L7514;
             case 4:
                 nextInsn  =  KARX;
                 prepLoad();
                 addToInsnList(KAEX+ALLONES);
                 tryFlip(true);
-                goto 7504;
+                goto L7504;
             } /* switch */
         }
         insnList->regsused  =  insnList->regsused & (~[16]);
@@ -4664,7 +4670,7 @@ operator innerOp;
         return;
     if (exprToGen->op == DEREF && isCharPtr(exprToGen->expr1->typ))
         exprToGen = flatMemAt(exprToGen->expr1);
-7567:
+L7567:
     curOP  =  exprToGen->op;
     if (curOP == CONDOP) {
         genCondOp();
@@ -4785,7 +4791,7 @@ operator innerOp;
                     }
                     break;
                 } /* switch 10122 */
-10122:          insnList->tail->mode  =  l3int3z;
+L10122:         insnList->tail->mode  =  l3int3z;
         }
     } else if (DEREF >= curOP) {
         if (curOP == GETVAR) {
@@ -4922,21 +4928,21 @@ operator innerOp;
                 addToInsnList(KAOX+ZERO);
                 addToInsnList(KAVX);
                 l3int3z  =  3;
-                goto 10122;
+                goto L10122;
             } else if (curOP == TOINT) {
                 /* Real to integer truncates toward zero, in C/TR (libc);
                    the helper returns with the machine in integer mode. */
                 l3int3z  =  2;
                 addToInsnList(getHelperProc(33));
-                goto 10122;
+                goto L10122;
             } else if (curOP == BITNEGOP) {
                 addToInsnList(KAEX+ALLONES);
                 l3int3z = 1;
-                goto 10122;
+                goto L10122;
              } else {
                 addToInsnList(KAVX+ALLONES);
                 l3int3z  =  (curOP == RNEGOP) ? 3 : 1;
-                goto 10122;
+                goto L10122;
             }
         }
     } else if (curOP == STANDPROC) {
@@ -4977,7 +4983,7 @@ operator innerOp;
                 l3int3z  =  1;
             }
             addToInsnList(funcInsn[work]);
-            goto 10122;
+            goto L10122;
         }
     } else if (curOP == NOOP) {
         curVal.i  =  exprToGen->typ.p.pad;
@@ -5010,7 +5016,7 @@ operator innerOp;
         } else {
             exprToGen->typ.p.pad  =  14;
             exprToGen  =  exprToGen->expr2;
-            goto 7567;
+            goto L7567;
         }
         return;
     } else {
@@ -5788,7 +5794,7 @@ pair *curSlot;
     isPacked  =  false;
     lsbOrder  =  false;
     isForwardRef  =  false;
-12247:
+L12247:
     if (SY == IDENT)
         markTypeSym();
     if (SY == ENUMSY) {
@@ -5884,11 +5890,11 @@ pair *curSlot;
                         definePtrType(intType);
                     }
                 } else {
-12366:              error(errNotAType);
+L12366:             error(errNotAType);
                     curType  =  voidPtr;
                 }
             } else {
-                goto 12366;
+                goto L12366;
             }
             inSymbol();
         }
@@ -5909,7 +5915,7 @@ pair *curSlot;
             }
             isForwardRef  =  true;
         } else
-            goto 12366;
+            goto L12366;
         inSymbol();
         if ((curType == intType) && (SY == COLON)) {
             inSymbol();
@@ -5934,7 +5940,7 @@ pair *curSlot;
                 lsbOrder  =  true;
                 inSymbol();
             }
-            goto 12247;
+            goto L12247;
         }
         if (SY IN [STRUCTSY, UNIONSY]) {
             // A union is a kindStruct whose members overlap (same base offset,
@@ -5984,7 +5990,7 @@ pair *curSlot;
     }
     if (rangeCnt)
         isPacked  =  false;
-13020:
+L13020:
     if (errors)
         skip(skipToSet | [RPAREN, RBRACK, SEMICOLON]);
     return curType;
@@ -6140,7 +6146,7 @@ eptr l4exp1z, l4exp2z;
 tptr l4typ3z, l4typ5z;
 kind l4var4z;
 int l4step6z;
-13462:
+L13462:
     l4typ3z  =  curExpr->typ;
     l4var4z  =  l4typ3z.p.pk;
     if (SY == ARROW) {
@@ -6160,7 +6166,7 @@ int l4step6z;
                 else
                     curExpr  =  mkExpr(DEREF, l4typ5z, curExpr, NULL);
                 l4typ3z  =  l4typ5z;
-                goto 55;
+                goto L55;
             }
         }
         stmtName  =  '  ->  ';
@@ -6172,7 +6178,7 @@ int l4step6z;
         inSymbol();
     } else if (SY == PERIOD) {
         if (l4var4z == kindStruct) {
-55:
+L55:
             lookupMode  =  3;
             typ121z  =  l4typ3z;
             inSymbol();
@@ -6217,7 +6223,7 @@ int l4step6z;
            pointer alone, so 'f(x)' and '(*f)(x)' arrive here alike. */
         parseCallArgs(NULL, curExpr);
     } else return;
-    goto 13462;
+    goto L13462;
 } /* parsePostfix */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -6556,18 +6562,18 @@ int hasFields;
                     // [l4var4z..l4var3z];
                     ((all1 >> l4var4z) ^ (all1 >> 1 >> l4var3z));
                     curExpr  =  newExpr;
-                    goto 14567;
+                    goto L14567;
                 } else {
                     if (l4exp5z->op == GETENUM) {
                         l4var4z  =  l4exp5z->num1;
                         l4var1z |= E48 >> l4var4z;
                         curExpr  =  newExpr;
-                        goto 14567;
+                        goto L14567;
                     }
                     error(errNoConstant);
                 }
                 curExpr  =  mkExpr(SETOR, intType, newExpr, l4exp5z);
-14567:          ;
+L14567:         ;
             } while (SY == COMMA);
         }
         checkSymAndRead(RBRACK);
@@ -7217,7 +7223,7 @@ word minValue, maxValue;
         nClauses  =  0;
         while (curClause) {
             if (expected != curClause->value)
-                goto 16140;         /* a gap in the labels: compare them */
+                goto L16140;        /* a gap in the labels: compare them */
             maxValue  =  expected;
             ++expected.i;
             ++nClauses;
@@ -7228,7 +7234,7 @@ word minValue, maxValue;
            Below it, comparing the labels one by one is shorter and needs no
            range check. */
         if (nClauses < caseTabMin)
-            goto 16140;
+            goto L16140;
         if (! otherSeen) {
             otherOffset  =  moduleOffset;
             formJump(&endOfStmt);
@@ -7255,8 +7261,8 @@ word minValue, maxValue;
             allClauses  =  allClauses->next;
             decoder = KUZA ^ KUJ ^ decoder;
         }
-        goto 16211;
-        16140:
+        goto L16211;
+L16140:
         itemSpan  =  34000;
         fixup(0, decoder);
         if (firstType.p.pk == kindScalar)
@@ -7292,7 +7298,7 @@ word minValue, maxValue;
         }
         if (otherSeen)
             form1Insn(KUJ + otherOffset);
-        16211:
+L16211:
         fixup(0, endOfStmt);
         if (! goodMode)
            disableNorm();
@@ -7692,25 +7698,31 @@ void writeProc() {
         flushInitializers();
         return;
     }
-    if (SY == INTCONST) {
-        liveRegs  =  0U;
-        disableNorm();
-        padToLeft();
-        labCheckAndDefine(true);
-        inSymbol();
-        checkSymAndRead(COLON);
+    if (SY == IDENT) {
+        /* CH is already the first character after the identifier.  Advance
+           over blanks directly, leaving the identifier token and its symbol
+           lookup untouched unless the next character is a label colon. */
+        while (skipSp());
+        if (CH == ':') {
+            liveRegs  =  0U;
+            disableNorm();
+            padToLeft();
+            labCheckAndDefine(true);
+            nextCH();
+            inSymbol();
+        }
     }
     nest  =  SY IN [BEGINSY,SWITCHSY];
     if (nest)
         ++lineNesting;
     if (setjmp(&jb8888))
-        goto 8888;
+        goto L8888;
     switch (SY) {
     case IDENT:
         if (hashTravPtr == NULL) {
             error(errNotDefined);
             inSymbol();
-8888:       skip(skipToSet | statEndSys);
+L8888:      skip(skipToSet | statEndSys);
             break;
         }
         l3var6z  =  hashTravPtr->pck.p.cl;
@@ -7748,9 +7760,9 @@ void writeProc() {
         break;
     case GOTOSY:
         inSymbol();
-        if (SY != INTCONST) {
-            error(62); /* errIntegerNeeded */
-            goto 8888;
+        if (SY != IDENT) {
+            requiredSymErr(IDENT);
+            goto L8888;
         }
         disableNorm();
         labCheckAndDefine(false);
@@ -7810,7 +7822,7 @@ void writeProc() {
             requiredSymErr(WHILESY);
             stmtName  =  '  DO  ';
             reportStmtType();
-            goto 8888;
+            goto L8888;
         }
         disableNorm();
         parentExpression();
@@ -7866,7 +7878,7 @@ void writeProc() {
     myrollup((int)boundary);
     if (abort) {
         abort  =  false;
-        goto 8888;
+        goto L8888;
     }
 } /* statement */
 //
@@ -8851,7 +8863,7 @@ void exitScope(int a) {
                 exitScope(0);
                 exitScope(1);
                 myrollup((int)scopeBound);
-                goto 23301;
+                goto L23301;
             }
             if ((SY == EXTERNSY) ||
                 ((SY == IDENT) &&
@@ -8883,7 +8895,7 @@ void exitScope(int a) {
                only by makeFormals, above the scope mark, and exitScope has
                already dropped it.  A declaration without a body never made
                one at all. */
-23301:      ;
+L23301:     ;
             curFrameRegTemplate -= indexreg[1];
             --curProcNesting;
         }
@@ -8947,7 +8959,8 @@ void exitScope(int a) {
     while (numLabTop > labFence) {
         --numLabTop;
         if (! numLabs[numLabTop].defined) {
-            write(' ', numLabs[numLabTop].id:0, ':');
+            printTextWord(numLabs[numLabTop].id);
+            write(':');
             l2bool8z  =  false;
         }
     }
@@ -9106,7 +9119,7 @@ void main() {
     if (PASINFOR.listMode)
         writeln(boilerplate);
     writeln(" INITHEAP = ", setup():5 oct);
-    if (setjmp(&jb9999)) goto 9999;
+    if (setjmp(&jb9999)) goto L9999;
     initOptions();
     curInsnTemplate  =  0;
     initTables();
@@ -9114,7 +9127,7 @@ void main() {
     fopen(&INITBUF, 010000100000, 0);
     programme(&curInsnTemplate, hashTravPtr, false);
     if (errors) {
-9999:   writeln(" IN ", (lineCnt-1):0, " LINES ",
+L9999:  writeln(" IN ", (lineCnt-1):0, " LINES ",
             totalErrors:0, " ERRORS");
     } else {
         finalize();

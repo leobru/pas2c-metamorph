@@ -52,6 +52,31 @@ run_test() {
         return
     fi
 
+    # The per-test runner deliberately returns success after a compiler
+    # diagnostic so it can print the listing, and its compatibility trailer
+    # contains an *EXECUTE line.  A .diagnostics sidecar makes a negative test
+    # strict: each line is a required fragment in an actual compiler error.
+    local diagnostic_file="${test_file%.p2c}.diagnostics"
+    if [ -f "$diagnostic_file" ]; then
+        if ! grep -Eiq 'Error [0-9]+:|\*\*\*\*\*[0-9]+' "$result_file"; then
+            echo -e "${RED}FAIL${NC} (expected compiler error)"
+            FAILED=$((FAILED + 1))
+            return
+        fi
+        local expected_diag
+        while IFS= read -r expected_diag || [ -n "$expected_diag" ]; do
+            [ -z "$expected_diag" ] && continue
+            if ! grep -Fqi -- "$expected_diag" "$result_file"; then
+                echo -e "${RED}FAIL${NC} (missing diagnostic: $expected_diag)"
+                FAILED=$((FAILED + 1))
+                return
+            fi
+        done < "$diagnostic_file"
+        echo -e "${GREEN}PASS${NC} (expected failure)"
+        PASSED=$((PASSED + 1))
+        return
+    fi
+
     if [ $rc -eq 0 ]; then
         if grep -q '\*EXECUTE' "$result_file"; then
             sed -n '/\*EXECUTE/,/^----/ p' "$result_file" | tail -n +2 | head -n -1 > "${result_file}.output"
