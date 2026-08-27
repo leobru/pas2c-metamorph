@@ -19,6 +19,9 @@ void bump() { counter = counter + 10; }
 binop gfn;
 void (*gproc)();
 int (*tbl[2])(int, int);
+void (*ptbl[2])();
+binop *pp;
+int i;
 //
 // A function pointer is an ordinary parameter and an ordinary result.
 int apply(binop f, int a, int b) {
@@ -72,4 +75,20 @@ void main() {
         writeln(" NULL2=YES");
     else
         writeln(" NULL2=NO");
+    // A callee that is not directly addressable is marshalled like one more
+    // argument: the push takes argument 1 out of the accumulator, STI takes
+    // the entry address and pops the argument back.  A variable index, a
+    // call's result, a conditional and a dereference all reach it.
+    i = 0;  writeln(" VARIDX=", tbl[i](2, 3):0);
+    i = 1;  writeln(" VARIDX=", tbl[i](2, 3):0);
+    writeln(" CALLRES=", pick(1)(7, 8):0);
+    i = 0;  writeln(" TERN=", (i == 0 ? add2 : mul2)(3, 4):0);
+    i = 1;  writeln(" TERN=", (i == 0 ? add2 : mul2)(3, 4):0);
+    pp = &gfn;
+    writeln(" DEREF=", (*pp)(6, 7):0);
+    // With no argument there is nothing to pop, and ATI serves instead.
+    counter = 0;
+    ptbl[0] = bump;  ptbl[1] = bump;
+    i = 1;  ptbl[i]();  ptbl[i]();
+    writeln(" NOARG=", counter:0);
 }

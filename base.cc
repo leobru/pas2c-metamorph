@@ -93,13 +93,15 @@ const int64_t
 const int64_t
     macro = 0100000000,
     mcJUMP = 2,
-    mcACC2ADDR = 6,
     mcPOP = 4,
     mcPUSH = 5,
     mcMULTI = 7,
     mcADDSTK2REG = 8,
     mcADDACC2REG = 9,
-    mcDUMMY = 10,
+    /* Adjacent, and in this order: genEntry picks between them with
+       'firstArg + mcSTK2ADDR', argument 1 being on the stack or not. */
+    mcSTK2ADDR = 10,
+    mcACC2ADDR = 11,
     mcMALLOC = 12,
     mcMINEL = 15,
     mcPOP2ADDR = 19,
@@ -148,7 +150,7 @@ const int64_t
 //  KASN =      0360000,
     KNTR =      0370000,
     KATI =      0400000,
-//  KSTI =      0410000,
+    KSTI =      0410000,
     KITA =      0420000,
     KITS =      0430000,
     KMTJ =      0440000,
@@ -3446,6 +3448,11 @@ L3556:
                 case mcACC2ADDR:
                     add2InsnsToBuf(KATI+14, KUTC+I14);
                     break;
+                case mcSTK2ADDR:
+                    /* The same, for a call whose argument 1 is on the stack:
+                       STI takes the address and pops the argument back. */
+                    add2InsnsToBuf(KSTI+14, KUTC+I14);
+                    break;
                 case mcMULTI: {
                     addInsnToBuf(getHelperProc(8));        /* P/MI */
                 } break;
@@ -4583,7 +4590,7 @@ struct genEntry {
     ExprPtr l5exp1z, l5exp2z, calleeExp;
     IdentRecPtr l5idr5z;
     bool isProc, firstArg, isIndir, isFortrn, isAssembler, allByRef;
-    int64_t calleeFl, frameSiz;
+    int64_t calleeFl, frameSiz, tailMacro;
     bool manyArgs;
     InsnListPtr l5inl20z;
     TPtr routTyp, resTyp;
@@ -4692,25 +4699,37 @@ genEntry::genEntry()
         insnList->tail->mode = 4;
     }
     if (isIndir) {
-        // WTC takes the entry address out of the pointer and into C, which
-        // the VJM then jumps to; it touches neither the accumulator, where
-        // the last argument is sitting, nor the mode register.  That is only
-        // possible while the pointer is directly addressable, i.e. while its
-        // whole insnList is a deferred address and nothing has to be
-        // computed to reach it.
+        // A directly addressable pointer -- one whose whole insnList is a
+        // deferred address -- is reached by WTC, which puts the entry address
+        // in C for the VJM and touches neither the accumulator, where
+        // argument 1 is sitting, nor the mode register.
+        // Any other pointer has to be loaded, and the load wants the
+        // accumulator, so it is marshalled like one more argument: the push
+        // takes argument 1 out of the accumulator and fuses with the load
+        // that follows into a single XTS.  STI then does both halves of the
+        // call at once, taking the address into M14 and popping argument 1
+        // back.  With no arguments there is nothing to pop and ATI serves.
         l5inl20z = insnList;
         (void) genFullExpr(calleeExp);
         if (insnList->head or insnList->ilm != ilLVAL
-            or insnList->st != stWORD or insnList->addrmd == 15)
-            error(errVarTooComplex);
-        curInsnTemplate = InsnTemp[WTC];
-        prepLoad();
-        curInsnTemplate = InsnTemp[XTA];
+            or insnList->st != stWORD or insnList->addrmd == 15) {
+            prepLoad();
+            if (not firstArg)
+                prependToInsnList(macro + mcPUSH);
+            tailMacro = firstArg + mcSTK2ADDR;
+        } else {
+            curInsnTemplate = InsnTemp[WTC];
+            prepLoad();
+            curInsnTemplate = InsnTemp[XTA];
+            tailMacro = 0;
+        }
         if (l5inl20z->tail) {
             l5inl20z->tail->next = insnList->head;
             insnList->head = l5inl20z->head;
         }
         insnList->regsused = insnList->regsused | l5inl20z->regsused;
+        if (tailMacro)
+            addToInsnList(macro + tailMacro);
         addToInsnList(KVJM+I13);
     } else {
         addToInsnList(allocGlobalObject(l5idr5z) + (KVJM+I13));
