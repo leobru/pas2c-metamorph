@@ -7506,17 +7506,6 @@ int besmOpcode;
 opgen opToForm;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void verifyType(tptr t) {
-    readNext = false;
-    expression();
-    if (!(curExpr->op IN lvalOpSet) ||
-        t != voidType && ! typeCheck(t, curExpr->typ)) {
-        error(errNeedOtherTypesOfOperands);
-        curExpr  =  uVarPtr;
-    }
-} /* verifyType */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void startWrite() {
     expression();
     l4typ3z  =  curExpr->typ;

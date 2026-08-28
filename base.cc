@@ -8328,16 +8328,6 @@ struct standProc {
     int64_t besmOpcode;
     OpGen opToForm;
 
-    void verifyType(TPtr t) {
-        readNext = false;
-        expression();
-        if (t != voidType and
-            not typeCheck(t, curExpr->vt.typ)) {
-            error(errNeedOtherTypesOfOperands);
-            curExpr = uVarPtr;
-        }
-    } /* verifyType */
-
     void startWrite() {
         expression();
         l4typ3z = curExpr->vt.typ;
