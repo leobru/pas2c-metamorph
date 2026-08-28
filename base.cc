@@ -31,7 +31,6 @@ const char *outFileName = "output.obj";
 
 const char * boilerplate = " PASCAL METAMORPH HELPER (2025) ";
 
-const int MAXLIT = 500;
 const int SYMTAB_LIMIT = 075500;
 // The most formals one routine may have.  Like cases.pairs and declOps this
 // is a fixed scratch bound, not a heap chain: the names are only needed
@@ -43,9 +42,7 @@ const int SYMTAB_LIMIT = 075500;
 // what making the formals transient bought in the first place.  The whole
 // change is written out above makeFormals.
 const int MAXFORMALS = 16;
-const int SYMTAB_MAX = 80;
 const int OBJBUF_SIZE = 8192;    // initially 1024
-const int caseTabMin = 9;        // clause count from which a switch indexes
 
 const int64_t
     fnABS = 0, fnSIZEOF = 1, fnOFFSETOF = 2, fnMALLOC = 3,
@@ -107,11 +104,6 @@ const int64_t
     mcPOP2ADDR = 19,
     mcCOND2INT = 20,
     mcPCKSTORE = 22;
-
-const int64_t
-    P_RR = 32,
-    C_TR = 33,
-    P_LDAR = 46;
 
 const int64_t
     ASN64 = 0360100,
@@ -274,7 +266,6 @@ enum Kind {
 // no direct C++ spelling); shl48() keeps shifts inside 48 bits.
 static const int64_t MASK48 = (1L<<48)-1;
 static const int64_t INT41_MASK = 0x1FFFFFFFFFFL;
-static const int64_t INT41_SIGN = 1L << 40;
 
 inline int64_t Bits() { return 0; }
 inline int64_t Bits(int64_t bit) { return (1L << (47-bit)) & MASK48; }
@@ -1019,9 +1010,7 @@ int64_t opToMode[48];
 int64_t funcInsn[7];
 int64_t InsnTemp[48];
 
-int64_t frameRegTemplate = 04000000,
-        constRegTemplate = I8,
-        disNormTemplate = KNTR+7;
+int64_t frameRegTemplate = 04000000;
 
 char lineBufBase[132]; // array [1..130] of char;
 int64_t errMapBase[10];
@@ -1693,6 +1682,7 @@ void form3Insn(int64_t i1, int64_t i2, int64_t i3)
 
 void disableNorm()
 {
+    const int64_t disNormTemplate = KNTR+7;
     if (arithMode != 1) {
         form1Insn(disNormTemplate);
         arithMode = 1;
@@ -1811,6 +1801,7 @@ bool fcstLess(const Word &left, const Word &right)
 
 int64_t addCurValToFCST()
 {
+    const int64_t MAXLIT = 500;
     static Word constVals[MAXLIT];
     static int64_t constNums[MAXLIT];
     int64_t ret;
@@ -1861,6 +1852,7 @@ int64_t addCurValToFCST()
 
 int64_t allocSymtab(int64_t newSym)
 {
+    const int64_t SYMTAB_MAX = 80;
     static int64_t symTabArray[SYMTAB_MAX+1];
     static int64_t symTabIndex[SYMTAB_MAX+1];
     int64_t ret = symTabPos;
@@ -2884,6 +2876,7 @@ bool rawIntOk(const Word &w)
 
 int64_t rawIntToI64(const Word &w)
 {
+    const int64_t INT41_SIGN = 1L << 40;
     if (not rawIntOk(w)) {
         error(200);
         return w.ii;
@@ -3698,6 +3691,7 @@ void genSliceExtract()
 
 void prepLoad()
 {
+    const int64_t constRegTemplate = I8;
     int64_t helper, l4int2z, l4int3z;
     TPtr valueType;
     Kind l4var5z;
@@ -3748,7 +3742,8 @@ void prepLoad()
                 } else {
                     isSimple = false;
                 }
-                addToInsnList(getHelperProc(isSimple ? P_LDAR : P_RR));
+                addToInsnList(getHelperProc(isSimple
+                    ? 46 /* "P/LDAR" */ : 32 /* "P/RR" */));
                 insnList->tail->mode = 1;
             }
         } // FALLTHRU
@@ -5245,7 +5240,7 @@ L10122:
                        (libc); the helper returns with the machine in
                        integer mode. */
                     l3int3z = 2;
-                    addToInsnList(getHelperProc(C_TR));
+                    addToInsnList(getHelperProc(33)); /* "C/TR" */
                     goto L10122;
                 } else if (curOP == BITNEGOP) {
                     addToInsnList(KAEX+ALLONES);
@@ -7809,6 +7804,7 @@ void structBranch()
 
 void caseStatement()
 {
+    const int64_t caseTabMin = 9; // clause count from which a switch indexes
     typedef struct CaseChain : public BESM6Obj {
         CaseChain * next;
         Word value;

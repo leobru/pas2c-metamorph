@@ -134,7 +134,6 @@ const
     all1 = ~0;
     extSymMask  =  043000000U;
     maxLineLen = 130;
-    caseTabMin = 9;             // clause count from which a switch indexes
     litFortran  =  t' FORTRAN';
     litAssembler = t'ASSEMBLE';
     litLsb  =  t'   **LSB';   // '__lsb': '_' shares the code of '*'
@@ -163,8 +162,6 @@ const
 // about the registers it touches.  An ASSEMBLER external has no entry helper
 // to do the saving and is held to the same rule by hand.
     calleeSaved = [2:6];
-    P_RR = 32;
-    P_LDAR = 46;
 //
     lookDef = 0;
     lookUse = 1;
@@ -591,8 +588,6 @@ int funcInsn[7] = {
     [fnMALLOC] = macro + mcMALLOC,
     [fnABSI]   = KAMX };
 int frameRegTemplate = 04000000;
-int constRegTemplate = I8;
-int disNormTemplate = KNTR+7;
 int jb9999;
 char lineBuf[130];
 int errMap[10];
@@ -823,8 +818,9 @@ int i, start;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int addCurValToFCST() {
+const MAXLIT = 500;
 int low, high, mid;
-static int constVals[500], constNums[500];
+static int constVals[MAXLIT], constNums[MAXLIT];
     low  =  0;
     if (FcstCountTo500 == 0) {
         FcstCountTo500  =  1;
@@ -842,7 +838,7 @@ static int constVals[500], constNums[500];
             else
                 low  =  mid + 1;
         } while (high >= low);
-        if (FcstCountTo500 != 500) {
+        if (FcstCountTo500 != MAXLIT) {
             high  =  (uword)curval.i < (uword)constVals[mid] ? mid : mid + 1;
             for (mid  =  FcstCountTo500 - 1; mid >= high; --mid) {
                 low  =  mid + 1;
@@ -972,6 +968,7 @@ void form3Insn(int i1, int i2, int i3) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void disableNorm() {
+const disNormTemplate = KNTR+7;
     if (arithMode != 1) {
         form1Insn(disNormTemplate);
         arithMode  =  1;
@@ -1123,10 +1120,11 @@ int getHelperProc(int l3arg1z) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int allocSymtab(int arg) {
+const SYMTAB_MAX = 80;
 int low, high, mid, ret;
 word value;
-static word symTabArray[80];
-static int symtbidx[80];
+static word symTabArray[SYMTAB_MAX];
+static int symtbidx[SYMTAB_MAX];
     low  =  0;
     value.i  =  arg;
     if (symTabCnt == 0) {
@@ -1147,7 +1145,7 @@ static int symtbidx[80];
                  low  =  mid + 1;
         } while (high > low);
         ret  =  symTabPos;
-        if (symTabCnt != 80) {
+        if (symTabCnt != SYMTAB_MAX) {
             high  =  (uword)value.i < (uword)symTabArray[mid].i ? mid : mid + 1;
             for (low  =  symTabCnt; low > high; --low) {
                 mid  =  low - 1;
@@ -3203,6 +3201,7 @@ int isSimple, sh, wd, ends;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void prepLoad() {
+const constRegTemplate = I8;
 int helper, l4int2z, l4int3z;
 tptr valueType;
 kind l4var5z;
@@ -3253,7 +3252,8 @@ int isSimple;
                 } else {
                     isSimple  =  false;
                 }
-                addToInsnList(getHelperProc(isSimple ? P_LDAR : P_RR));
+                addToInsnList(getHelperProc(isSimple
+                    ? 46 /* "P/LDAR" */ : 32 /* "P/RR" */));
                 il->tail->mode  =  1;
             }
             // FALLTHRU
@@ -4971,7 +4971,7 @@ L10122:         insnList->tail->mode  =  l3int3z;
                 /* Real to integer truncates toward zero, in C/TR (libc);
                    the helper returns with the machine in integer mode. */
                 l3int3z  =  2;
-                addToInsnList(getHelperProc(33));
+                addToInsnList(getHelperProc(33)); /* "C/TR" */
                 goto L10122;
             } else if (curOP == BITNEGOP) {
                 addToInsnList(KAEX+ALLONES);
@@ -7150,6 +7150,7 @@ strLabel *curLab;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void caseStatement() { /* caseStatement */
+const caseTabMin = 9;            // clause count from which a switch indexes
 typedef struct {
         casechain *next;
         word value;
