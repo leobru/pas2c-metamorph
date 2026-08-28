@@ -15,7 +15,7 @@ typedef void *anyptr;
 typedef void *uword;
 typedef struct { int a, b, c, d; } four;
 typedef int quad[4];
-const NULL = (anyptr)0;
+const anyptr NULL = (anyptr)0;
 //
 int i, j, k;
 char c;

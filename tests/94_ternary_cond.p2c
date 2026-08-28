@@ -8,7 +8,7 @@
 // leave opposite polarities behind, which is why only some spellings broke.
 //
 typedef void *anyptr;
-const NULL = (anyptr)0;
+const anyptr NULL = (anyptr)0;
 typedef struct { int v; } rec;
 typedef rec *recp;
 rec r1, r2;

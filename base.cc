@@ -84,11 +84,9 @@ const int64_t
 // bit 27 -- above every macro encoding (the largest is 3*macro + 4096) and
 // clear of the masks the flush loop applies.
 const int64_t
-    mdNoElide = 8,
-    insnNoElide = 01000000000;   /* bit 27, i.e. 8 * macro */
-
-const int64_t
     macro = 0100000000,
+    mdNoElide = 8,
+    insnNoElide = 8 * macro,      /* bit 27 */
     mcJUMP = 2,
     mcPOP = 4,
     mcPUSH = 5,
@@ -984,8 +982,6 @@ Word curToken, curVal;
 const int64_t extSymMask = 043000000L;
 const int64_t halfWord = 077777777L;
 const int64_t leftAddr = 077777L << 24;
-const int64_t litOutput = 01257656460656412L; /* "*OUTPUT*" */
-const int64_t litInput = 012515660656412L;    /* " *INPUT*" */
 
 int64_t leftInsn;
 int64_t curIdent;
@@ -998,7 +994,6 @@ int64_t usedRegs, liveRegs, freeRegs, auxRegs;
    about the registers it touches.  An ASSEMBLER external has no entry helper
    to do the saving and is held to the same rule by hand. */
 const int64_t calleeSaved = BitRange(2,6);
-int64_t litOct, litFortran, litAssembler, litLsb, litMain, litRegister;
 ExprPtr uVarPtr, curExpr;
 InsnList *  insnList;
 InternRec * internHead;
@@ -1088,6 +1083,7 @@ std::string Expr::p()
 // and programme.  The C++ mirror represents mainProgram as initScalars, so
 // provide the same shared path for prefix external variable declarations.
 int64_t leftAlign(int64_t val);
+int64_t toText(const char *str);
 void addToHashTab(IdentRecPtr arg);
 void error(int64_t errNo);
 int64_t allocExtSymbol(int64_t newSym);
@@ -1102,7 +1098,7 @@ void defExtern()
     IdentRecPtr idRec;
 
     aligned.ii = leftAlign(curIdent);
-    if (curIdent == litInput || curIdent == litOutput) {
+    if (curIdent == toText(" *INPUT*") || curIdent == toText("*OUTPUT*")) {
         idRec = besm6_alloc_record<IdentRec>(offsetof(IdentRec, szIdent));
         idRec->id = curIdent;
         idRec->pck.offset = 0;
@@ -1118,7 +1114,7 @@ void defExtern()
         curVal = aligned;
         idRec->value() = allocExtSymbol(047000000 | 30);
         addToHashTab(idRec);
-        if (curIdent == litInput)
+        if (curIdent == toText(" *INPUT*"))
             inputFile = idRec;
         else
             outputFile = idRec;
@@ -1139,7 +1135,7 @@ void defExtern()
     curExternFile->line = line;
     curExternFile->offset = aligned.ii;
     if (line) {
-        if (curIdent == litOutput)
+        if (curIdent == toText("*OUTPUT*"))
             fileForOutput = curExternFile;
         else
             fileForInput = curExternFile;
@@ -4273,10 +4269,16 @@ L33:        prepLoad();
         (void) genFullExpr(curExpr);
         if (insnList->ilm == ilCOND and insnList->payload.ii) {
             if (has(insnList->regsused, 16))
-                elseLab = insnList->payload.ii;
-            else
+                /* Set: an OR, which genBoolAnd built by De Morgan and
+                   negateCond flipped, so the embedded jumps fire on TRUE.
+                   Send the fall-through to elseLab and define payload here,
+                   where the then-branch starts. */
                 addInsnAndOffset(macro + 2,
                                  elseLab * 010000 + insnList->payload.ii);
+            else
+                /* Clear: an AND, whose short-circuit jumps already fire on
+                   FALSE, which is where elseLab wants them. */
+                elseLab = insnList->payload.ii;
         } else {
             prepLoad();
             if (has(insnList->regsused, 16))
@@ -5090,10 +5092,8 @@ L7567:
                     insnList->tail->mode = 1;
                     /* The unsigned product takes what the m- mode takes:
                        the low half of it, with no P/MI fixup. */
-                    if (exprToGen->vt.typ == UnsignedType)
-                        addToInsnList(KYTA+64);
-                    else
-                        addToInsnList(macro + mcMULTI);
+                    addToInsnList(exprToGen->vt.typ == UnsignedType
+                                  ? KYTA+64 : macro + mcMULTI);
                     break;
                 case opfSHIFT:
                     if (not arg2Const)
@@ -5728,7 +5728,7 @@ std::vector<parseTypeRef*> parseTypeRef::super;
 // parseGroupedDecls; parseArrSz's full definition comes later, hence
 // the forward declaration.
 void parseArrSz(int64_t & asize);
-void parseConstDeclValue(TPtr &typ, Word &value);
+void parseConstDeclValue(TPtr declared, TPtr &typ, Word &value);
 void constExpr();
 
 struct Declarator {
@@ -5818,7 +5818,7 @@ void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
         d.bucket = bucket;
         d.wasDefined = isDefined /* ||
             (lookupMode == lookDef &&
-             (curIdent == litInput || curIdent == litOutput)) */;
+             (curIdent == toText(" *INPUT*") || curIdent == toText("*OUTPUT*"))) */;
         d.foundRec = hashTravPtr;
         inSymbol();
     } else if (nameOptional and has(Bits(RPAREN, COMMA, LBRACK), SY)) {
@@ -6196,9 +6196,9 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion
     checkSymAndRead(ENDSY);
 } /* parseRecordDecl */
 
-// parseArrSz's definition lives past the Statement struct, next to
-// parseConstDeclValue, the other caller of constExpr.  Only the forward
-// declaration (above) is visible here.
+// parseArrSz's definition lives past the Statement struct, next to the
+// declaration-time constant-value parser.  Only the forward declaration
+// (above) is visible here.
 
 parseTypeRef::parseTypeRef(TPtr & newtype, int64_t skipTarget_)
     : skipTarget(skipTarget_)
@@ -6222,7 +6222,7 @@ L12247:
         curType.setRep(
             besm6_alloc_record<Types>(offsetof(Types, szScalar)));
         while (SY == IDENT) {
-            if (isDefined || curIdent == litInput || curIdent == litOutput)
+            if (isDefined || curIdent == toText(" *INPUT*") || curIdent == toText("*OUTPUT*"))
                 error(errIdentAlreadyDefined);
             enumName = curIdent;
             enumBucket = bucket;
@@ -6364,7 +6364,7 @@ L12366:             error(errNotAType);
             // from the high end.  Recognized by its spelling, like FORTRAN and
             // ASSEMBLER, so it stays an ordinary identifier elsewhere; the
             // test must precede the markTypeSym at L12247.
-            if (SY == IDENT and curIdent == litLsb) {
+            if (SY == IDENT and curIdent == toText("**LSB")) { // '__lsb': '_' shares the code of '*'
                 lsbOrder = true;
                 inSymbol();
             }
@@ -7727,7 +7727,7 @@ void forStatement()
 int64_t registerDecls(IdentRecPtr & decls)
 {
     int64_t claimed = Bits();
-    while (SY == IDENT and curIdent == litRegister) {
+    while (SY == IDENT and curIdent == toText("REGISTER")) { // pins a pointer in an index register
         inSymbol();
         TPtr regType{};
         bool packedFlag, forwardRef;
@@ -8427,7 +8427,7 @@ struct standProc {
                     secondWidth = parseWidthSpecifier();
                     if (helperNo != 21)    /* P/WR */
                         error(35); /* errSecondSpecifierForWriteOnlyForReal */
-                } else if (curToken.ii == litOct) {
+                } else if (curToken.ii == toText("OCT")) {
                     helperNo = 26; /* P/WO */
                     defWidth = 17;
                     if (typeSize(l4typ3z) != 1)
@@ -8799,7 +8799,7 @@ Statement::Statement()
 
 // An array size is a const-expression.  It is evaluated by constExpr,
 // which parses one expression, const-folds it and leaves the value in ceVal /
-// its type in ceTyp, exactly as parseConstDeclValue below drives it.
+// its type in ceTyp.
 // Forward-declared far above (near parseTypeRef).
 // SY is on the '[' that opens the size; parseArrSz reads past it itself.  A
 // size is a constant expression, so it names ordinary identifiers -- a const,
@@ -8832,19 +8832,48 @@ void parseArrSz(int64_t & asize)
     lookup2 = lookupMode = savedLookup;
 } /* parseArrSz */
 
-void parseConstDeclValue(TPtr &typ, Word &value)
+void parseConstDeclValue(TPtr declared, TPtr &typ, Word &value)
 {
-    TPtr &ceTyp = programme::super.back()->ceTyp;
-    Word &ceVal = programme::super.back()->ceVal;
-
     if (SY == STRINGSY) {
         parseLiteral(typ, value, true);
+        if (not isCharArray(declared)) {
+            error(33); /* errIllegalTypesForAssignment */
+        } else {
+            if (declared.rep()->asize == 0) {
+                int64_t extent;
+                if (declared.p.pad)
+                    extent = strWords * declared.rep()->perword;
+                else
+                    extent = strWords / typeSize(declared.rep()->base);
+                declared = makeArrayType(extent, declared.rep()->base,
+                                         declared.p.pad != 0);
+            }
+            int64_t capacity = typeSize(declared);
+            if (capacity > strWords)
+                error(33); /* no constant-pool padding */
+            else if (capacity == 1)
+                value.ii = strBuf[0];
+        }
+        typ = declared;
         inSymbol();
         return;
     }
-    constExpr();
-    typ = ceTyp;
-    value = ceVal;
+    if (declared.p.pk == kindArray and declared.rep()->asize == 0) {
+        error(64); /* errIncorrectRangeDefinition */
+        declared = makeArrayType(1, declared.rep()->base,
+                                 declared.p.pad != 0);
+    }
+    ExprPtr boundary;
+    setup(boundary);
+    readNext = false;
+    expression();
+    if (not typeCheck(declared, curExpr->vt.typ) and
+        not castArith(declared, curExpr))
+        error(33); /* errIllegalTypesForAssignment */
+    takeConstFromExpr();
+    typ = declared;
+    value = curVal;
+    myrollup(boundary);
 } /* parseConstDeclValue */
 
 void outputObjFile()
@@ -8883,9 +8912,9 @@ void defineRoutine(bool bodyBlock = false)
         // without one has nothing to run, so neither the block nor the file
         // open/close that frames it is emitted, and the module keeps only the
         // entry points its E+ routines declare.
-        bucket = litMain % 65535 % 128;
+        bucket = toText("MAIN") % 65535 % 128;
         l3idr5z = symHash[bucket];
-        while (l3idr5z and l3idr5z->id != litMain)
+        while (l3idr5z and l3idr5z->id != toText("MAIN"))
             l3idr5z = l3idr5z->next();
         hasMain = l3idr5z != NULL and l3idr5z->pck.cl == ROUTINEID
                   and l3idr5z->pck.offset != 0;
@@ -9201,9 +9230,9 @@ initScalars::initScalars() :
     lineStartOffset = moduleOffset;
     l3var5z = 1;
     savedIdent.ii = curIdent;
-    curIdent = litOutput;
+    curIdent = toText("*OUTPUT*");
     defExtern();
-    curIdent = litInput;
+    curIdent = toText(" *INPUT*");
     defExtern();
     if (!enableStdInput) {
         inputFile = NULL;
@@ -9499,56 +9528,78 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                            Bits(ENUMSY, EXTERNSY, STATICSY);
     do {
         if (SY == CONSTSY) {
-            parseDecls(0);
-            while  (SY == IDENT) {
-                if (isDefined)
-                    error(errIdentAlreadyDefined);
-                /* workidr@ := [curIdent, curFrameRegTemplate, symHash[bucket],
-                   , ENUMID, NIL]; */
-                workidr = besm6_alloc_record<IdentRec>(
-                    offsetof(IdentRec, szIdent));
-                workidr->id = curIdent;
-                workidr->pck.offset = curFrameRegTemplate;
-                workidr->pck.nidx = ord(symHash[bucket]);
-                workidr->pck.cl = ENUMID;
-                workidr->list() = NULL;
-                symHash[bucket] = workidr;
-                inSymbol();
-                if (charClass != ASSIGNOP)
-                    error(errBadSymbol);
-                else
+            /* C-style: one explicit type and a comma-separated declarator
+               list.  Read the type under lookUse so a typedef is raised to
+               TYPESY, then switch to lookDef before parseTypeRef reads the
+               first name. */
+            lookup2 = lookupMode = lookUse;
+            inSymbol();
+            markTypeSym();
+            if (not has(Bits(TYPESY, PACKEDSY, STRUCTSY, ENUMSY), SY)) {
+                error(errNotAType);
+                skip(skipToSet | Bits(SEMICOLON));
+                if (SY == SEMICOLON)
                     inSymbol();
-                parseConstDeclValue(workidr->typ, workidr->high());
-                if (workidr->typ == voidType) {
-                    error(errNoConstant);
-                    workidr->typ = IntegerType;
-                    workidr->value() = 1;
+            } else {
+                TPtr constBase;
+                bool packedFlag, forwardRef;
+                lookup2 = lookupMode = lookDef;
+                {
+                    parseTypeRef typeParser(constBase,
+                        skipToSet | Bits(IDENT, MUL, LPAREN, COMMA) |
+                        Bits(SEMICOLON));
+                    packedFlag = typeParser.isPacked;
+                    forwardRef = typeParser.isForwardRef;
                 }
-                if (SY == SEMICOLON) {
-                    lookupMode = lookDef;
-                    inSymbol();
-                    // markTypeSym: inSymbol() alone, under lookDef, only
-                    // checks the current scope for a match -- a bare type
-                    // name from an outer scope (e.g. 'int', predefined at
-                    // scope 0) reads back as plain IDENT, not TYPESY.
-                    // markTypeSym does its own scope-agnostic hash walk to
-                    // fix that up, same as after TYPEDEFSY/routines
-                    // below -- needed because a declaration can follow a
-                    // const group with nothing but its type-spec to
-                    // announce it.
-                    markTypeSym();
-                    // Besides another const name (IDENT, continuing this
-                    // group) or a recovery point, a bare declStartSys
-                    // token (the next variable or routine declaration) or
-                    // TYPEDEFSY (the next typedef) legitimately
-                    // ends the const group -- not an error.
-                    if (!has((skipToSet | Bits(IDENT, TYPEDEFSY)) | declStartSys, SY)) {
-                        errAndSkip(errBadSymbol, skipToSet | Bits(IDENT));
+                bool moreConsts = true;
+                while (moreConsts) {
+                    noExtentOk = true;
+                    Declarator d = parseOneDeclarator(constBase, packedFlag,
+                                                      forwardRef);
+                    noExtentOk = false;
+                    lookup2 = lookupMode = lookUse;
+                    if (d.ptrOnly and SY == LPAREN) {
+                        error(errBadSymbol);       /* no const routines */
+                        skip(skipToSet | Bits(SEMICOLON));
+                        moreConsts = false;
+                        continue;
                     }
-                } else {
-                    requiredSymErr(SEMICOLON);
+                    if (d.wasDefined)
+                        error(errIdentAlreadyDefined);
+                    workidr = besm6_alloc_record<IdentRec>(
+                        offsetof(IdentRec, szIdent));
+                    workidr->id = d.name;
+                    workidr->pck.offset = curFrameRegTemplate;
+                    workidr->pck.nidx = ord(symHash[d.bucket]);
+                    workidr->pck.cl = ENUMID;
+                    workidr->list() = NULL;
+                    workidr->typ = d.type;
+                    workidr->value() = 1;
+                    symHash[d.bucket] = workidr;
+                    if (SY != BECOMES or charClass != ASSIGNOP) {
+                        error(errBadSymbol);
+                        if (not has(Bits(COMMA, SEMICOLON), SY))
+                            skip(skipToSet | Bits(COMMA, SEMICOLON));
+                    } else {
+                        inSymbol();
+                        parseConstDeclValue(d.type, workidr->typ,
+                                            workidr->high());
+                    }
+                    if (workidr->typ == voidType) {
+                        error(errNoConstant);
+                        workidr->typ = IntegerType;
+                        workidr->value() = 1;
+                    }
+                    moreConsts = SY == COMMA;
+                    if (moreConsts) {
+                        lookup2 = lookupMode = lookDef;
+                        inSymbol();
+                    }
                 }
+                checkSymAndRead(SEMICOLON);
             }
+            lookup2 = lookupMode = lookUse;
+            markTypeSym();
         } /* 22511 */
         objBufIdx = 1;
         if (SY == TYPEDEFSY) {
@@ -9726,7 +9777,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             while (moreDecls) {
                 if (externDecl and curProcNesting == 1) {
                     curIdent = d.name;
-                    if (curIdent == litInput or curIdent == litOutput)
+                    if (curIdent == toText(" *INPUT*") or curIdent == toText("*OUTPUT*"))
                         error(errIdentAlreadyDefined);
                     else
                         defExtern();
@@ -9910,10 +9961,10 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             }
             if (SY == EXTERNSY or
                 (SY == IDENT and
-                 (curIdent == litFortran or curIdent == litAssembler))) {
+                 (curIdent == toText("FORTRAN") or curIdent == toText("ASSEMBLE")))) {
                 if (SY == EXTERNSY) {
                     curVal.ii = Bits(20);
-                } else if (curIdent == litAssembler) {
+                } else if (curIdent == toText("ASSEMBLE")) {
                     curVal.ii = Bits(20,26);
                 } else if (checkFortran) {
                     curVal.ii = Bits(21,24);
@@ -10485,12 +10536,6 @@ int main(int argc, char **argv)
     printf(" INITHEAP = %05lo\n", avail);
     curInsnTemplate = 0;
     initTables();
-    litAssembler = toText("ASSEMBLE");
-    litFortran = toText("FORTRAN");
-    litLsb = toText("**LSB");           // '__lsb': '_' shares the code of '*'
-    litRegister = toText("REGISTER");   // pins a pointer in an index register
-    litMain = toText("MAIN");           // the entry point, called by the level 1 block
-    litOct = toText("OCT");
     PASINPUT = ugetc(pasinput);
     try {
         programme(curInsnTemplate, hashTravPtr);

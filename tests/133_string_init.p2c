@@ -30,7 +30,7 @@ int i;
 // The other consumer of the same buffered words is an expression, where they
 // do go to the pool, an address being what a load needs: a const of string
 // type is the one route to that which is not a plain literal.
-const BANNER = "A WIDE CONST STRING";
+const __packed char BANNER[] = "A WIDE CONST STRING";
 //
 void main() {
     writeln(" SIZE  ", sizeof(one):3, sizeof(many):3, sizeof(exact):3);

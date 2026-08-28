@@ -1,0 +1,78 @@
+/*=k9,l0*/
+//
+// A ternary whose condition is && or ||.  genBoolAnd hands back an ilCOND
+// carrying the label of its short-circuit jumps, and bit 16 of regsused says
+// which way those jumps fire: clear for an AND, whose jumps fire on FALSE,
+// set for an OR, which is built by De Morgan and negated, so its jumps fire
+// on TRUE.  genCondOp read that bit backwards and picked the other arm --
+// every combination inverted, short-circuiting included.
+//
+// The invariant, not a table of constants: each ternary is compared against
+// the if/else spelling of the same condition, over all four truth values.
+// tests/94_ternary_cond covers the opposite nesting, a ternary inside an &&.
+//
+int a, b, i, r, q, n;
+//
+// Counts its calls, so a skipped operand can be seen to have been skipped.
+int side(int v) { n = n + 1;  return v; }
+//
+void main() {
+    write(" AND  ");
+    for (i = 0; i <= 3; i = i + 1) {
+        a = i / 2;  b = i % 2;
+        r = a && b ? 1 : 0;
+        if (a && b) q = 1; else q = 0;
+        write((r == q ? r : 9):2);
+    }
+    write("   OR  ");
+    for (i = 0; i <= 3; i = i + 1) {
+        a = i / 2;  b = i % 2;
+        r = a || b ? 1 : 0;
+        if (a || b) q = 1; else q = 0;
+        write((r == q ? r : 9):2);
+    }
+    writeln();
+    write(" NOT  ");
+    for (i = 0; i <= 3; i = i + 1) {
+        a = i / 2;  b = i % 2;
+        r = !(a && b) ? 1 : 0;
+        if (!(a && b)) q = 1; else q = 0;
+        write((r == q ? r : 9):2);
+    }
+    write("   CMP ");
+    // The right operand as a comparison, both polarities.
+    for (i = 0; i <= 3; i = i + 1) {
+        a = i / 2;  b = i % 2;
+        r = a && b == 1 ? 1 : 0;
+        if (a && b == 1) q = 1; else q = 0;
+        write((r == q ? r : 9):2);
+    }
+    writeln();
+    write(" CHAIN");
+    // Three operands, and a mixed chain.
+    for (i = 0; i <= 3; i = i + 1) {
+        a = i / 2;  b = i % 2;
+        r = a && b && i != 0 ? 1 : 0;
+        if (a && b && i != 0) q = 1; else q = 0;
+        write((r == q ? r : 9):2);
+    }
+    write("   MIX ");
+    for (i = 0; i <= 3; i = i + 1) {
+        a = i / 2;  b = i % 2;
+        r = a || b && i > 1 ? 1 : 0;
+        if (a || b && i > 1) q = 1; else q = 0;
+        write((r == q ? r : 9):2);
+    }
+    writeln();
+    // A ternary in an arm of a ternary, the condition compound throughout.
+    a = 1;  b = 1;
+    r = a && b ? (a || b ? 7 : 8) : 9;
+    writeln(" NEST ", r:3);
+    // Short-circuit: the right operand is not evaluated when the left decides.
+    n = 0;  a = 0;
+    r = a && side(1) ? 1 : 0;
+    writeln(" SHORT", r:3, n:3, "   want   0  0");
+    n = 0;  a = 1;
+    r = a || side(1) ? 1 : 0;
+    writeln(" SHORT", r:3, n:3, "   want   1  0");
+}

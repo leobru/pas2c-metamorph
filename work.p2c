@@ -1,37 +1,36 @@
 /*=l1,k8,l1*/
 //
-const
-    boilerplate = " PASCAL 2 C METAMORPHOSIS (2026)";
+const __packed char boilerplate[] = " PASCAL 2 C METAMORPHOSIS (2026)";
 //
-    fnABS = 0; fnSIZEOF = 1; fnOFFSETOF = 2; fnMALLOC = 3;
-    fnCARD = 4; fnMINEL = 5;
-    fnABSI = 6;
+const int fnABS = 0, fnSIZEOF = 1, fnOFFSETOF = 2, fnMALLOC = 3,
+          fnCARD = 4, fnMINEL = 5, fnABSI = 6;
 //
-    ASN64 = 0360100;
+const int ASN64 = 0360100;
 //
-    errBooleanNeeded = 0;
-    errIdentAlreadyDefined = 2;
-    errNoIdent = 3;
-    errNotAType = 4;
-    errNoConstant = 6;
-    errConstOfOtherTypeNeeded = 7;
-    errTypeMustNotBeFile = 9;
-    errNotDefined = 11;
-    errBadSymbol = 12;
-    errNeedOtherTypesOfOperands = 21;
-    errWrongVarTypeBefore = 22;
-    errUsingVarAfterIndexingPackedArray = 28;
-    errTooManyArguments = 38;
-    errNoCommaOrParenOrTooFewArgs = 41;
-    errNumberTooLarge = 43;
-    errVarTooComplex = 48;
-    errEOFEncountered = 52;
-    errFirstDigitInCharLiteralGreaterThan3 = 60;
+const int errBooleanNeeded = 0,
+          errIdentAlreadyDefined = 2,
+          errNoIdent = 3,
+          errNotAType = 4,
+          errNoConstant = 6,
+          errConstOfOtherTypeNeeded = 7,
+          errTypeMustNotBeFile = 9,
+          errNotDefined = 11,
+          errBadSymbol = 12,
+          errNeedOtherTypesOfOperands = 21,
+          errWrongVarTypeBefore = 22,
+          errUsingVarAfterIndexingPackedArray = 28,
+          errTooManyArguments = 38,
+          errNoCommaOrParenOrTooFewArgs = 41,
+          errNumberTooLarge = 43,
+          errVarTooComplex = 48,
+          errEOFEncountered = 52,
+          errFirstDigitInCharLiteralGreaterThan3 = 60;
 //
-    precNone = -1;  precAssign = 0;  precCond = 1;    precOr = 2;     precAnd = 3;
-    precBitOr = 4;  precBitXor = 5;  precBitAnd = 6;
-    precEq = 7;     precRel = 8;     precShift = 9;
-    precAdd = 10;   precMul = 11;
+const int precNone = -1,  precAssign = 0,  precCond = 1,
+          precOr = 2,     precAnd = 3,     precBitOr = 4,
+          precBitXor = 5, precBitAnd = 6,  precEq = 7,
+          precRel = 8,    precShift = 9,   precAdd = 10,
+          precMul = 11;
 //
 // A branch reads the omega left by the last instruction that set it, so the
 // load feeding one must survive form1Insn's load-after-store elision.  The
@@ -40,30 +39,29 @@ const
 // before it is flushed, so a remembered index would not keep.  insnNoElide is
 // bit 27 -- above every macro encoding (the largest is 3*macro + 4096) and
 // clear of the masks processInsn applies.
-    mdNoElide = 8;
-    insnNoElide = 01000000000;   // bit 27, i.e. 8 * macro
-//
-    macro = 0100000000;
-    mcJUMP = 2;
-    mcPOP = 4;
-    mcPUSH = 5;
-    mcMULTI = 7;
-    mcADDSTK2REG = 8;
-    mcADDACC2REG = 9;
+const int macro = 0100000000,
+          mdNoElide = 8,
+          insnNoElide = 8 * macro,      // bit 27
+          mcJUMP = 2,
+          mcPOP = 4,
+          mcPUSH = 5,
+          mcMULTI = 7,
+          mcADDSTK2REG = 8,
+          mcADDACC2REG = 9,
     /* Adjacent, and in this order: genEntry picks between them with
        'firstArg + mcSTK2ADDR', argument 1 being on the stack or not. */
-    mcSTK2ADDR = 10;
-    mcACC2ADDR = 11;
-    mcMALLOC = 12;
-    mcMINEL = 15;
-    mcPOP2ADDR = 19;
-    mcCOND2INT = 20;
-    mcPCKSTORE = 22;
+          mcSTK2ADDR = 10,
+          mcACC2ADDR = 11,
+          mcMALLOC = 12,
+          mcMINEL = 15,
+          mcPOP2ADDR = 19,
+          mcCOND2INT = 20,
+          mcPCKSTORE = 22;
 //
 // Some locations are only used by runtime, here for reference
 //  ASCII0 =    04000007;
-    E1 =        04000010;
-    ZERO =      04000011;
+const int E1 =        04000010,
+          ZERO =      04000011,
 //  MULTMASK =  04000012;
 //  MAXREAL =   04000013;
 //  MANTISSA =  04000014;
@@ -74,77 +72,69 @@ const
 //  PLUS1 =     04000021;
 //  BITS15 =    04000022;
 //  REAL05 =    04000023;
-    ALLONES =   04000024;
-    MSB =       04000025;
+          ALLONES =   04000024,
+          MSB =       04000025,
 //  E40TO7 =    04000026;       // mask for P/IN
 //  HEAPPTR =   04000027;
 //
-    KATX =      0000000;
+          KATX =      0000000,
 //   KSTX =      0010000;
-    KXTS =      0030000;
-    KADD =      0040000;
-    KSUB =      0050000;
-    KRSUB =     0060000;
-    KAMX =      0070000;
-    KXTA =      0100000;
-    KAAX =      0110000;
-    KAEX =      0120000;
-    KARX =      0130000;
-    KAVX =      0140000;
-    KAOX =      0150000;
-    KDIV =      0160000;
-    KMUL =      0170000;
+          KXTS =      0030000,
+          KADD =      0040000,
+          KSUB =      0050000,
+          KRSUB =     0060000,
+          KAMX =      0070000,
+          KXTA =      0100000,
+          KAAX =      0110000,
+          KAEX =      0120000,
+          KARX =      0130000,
+          KAVX =      0140000,
+          KAOX =      0150000,
+          KDIV =      0160000,
+          KMUL =      0170000,
 //  KAPX =      0200000;
 //  KAUX =      0210000;
-    KACX =      0220000;
-    KANX =      0230000;
-    KYTA =      0310000;
-    KASN =      0360000;
-    KNTR =      0370000;
-    KATI =      0400000;
-    KSTI =      0410000;
-    KITA =      0420000;
-    KITS =      0430000;
-    KMTJ =      0440000;
-    KMADDJ =    0450000;
+          KACX =      0220000,
+          KANX =      0230000,
+          KYTA =      0310000,
+          KASN =      0360000,
+          KNTR =      0370000,
+          KATI =      0400000,
+          KSTI =      0410000,
+          KITA =      0420000,
+          KITS =      0430000,
+          KMTJ =      0440000,
+          KMADDJ =    0450000,
 //    KE74 =      0740000;
-    KUTC =      02200000;
-    KWTC =      02300000;
-    KVTM =      02400000;
-    KUTM =      02500000;
-    KUZA =      02600000;
-    KU1A =      02700000;
-    KUJ =       03000000;
-    KVJM =      03100000;
-    KVZM =      03400000;
+          KUTC =      02200000,
+          KWTC =      02300000,
+          KVTM =      02400000,
+          KUTM =      02500000,
+          KUZA =      02600000,
+          KU1A =      02700000,
+          KUJ =       03000000,
+          KVJM =      03100000,
+          KVZM =      03400000,
 //   KV1M =      03500000;
-    KVLM =      03700000;
+          KVLM =      03700000,
 //
-    I7 =        034000000;      /* frame pointer */
-    I8 =        040000000;      /* const pointer */
-    I9 =        044000000;      /* temp register */
-    I10 =       050000000;      /* temp register */
-    I11 =       054000000;      /* temp register */
-    I12 =       060000000;      /* temp register */
-    I13 =       064000000;      /* link register */
-    I14 =       070000000;      /* temp register */
-    SP =        074000000;      /* stack pointer, reg 15 */
+          I7 =        034000000,      /* frame pointer */
+          I8 =        040000000,      /* const pointer */
+          I9 =        044000000,      /* temp register */
+          I10 =       050000000,      /* temp register */
+          I11 =       054000000,      /* temp register */
+          I12 =       060000000,      /* temp register */
+          I13 =       064000000,      /* link register */
+          I14 =       070000000,      /* temp register */
+          SP =        074000000,      /* stack pointer, reg 15 */
 //
-    halfWord  =  (1 << 24) - 1;
-    all1 = ~0;
-    extSymMask  =  043000000U;
-    maxLineLen = 130;
-    litFortran  =  t' FORTRAN';
-    litAssembler = t'ASSEMBLE';
-    litLsb  =  t'   **LSB';   // '__lsb': '_' shares the code of '*'
-    litRegister = t'REGISTER'; // pins a pointer in an index register
-    litMain  =  t'    MAIN';  // the entry point: the level 1 block calls it
-    litOct  =  t'     OCT';
-    litOutput  =  t'*OUTPUT*';
-    litInput  =  t' *INPUT*';
-    FALSE  =  0U;
-    TRUE  =  1U;
-    E48 = 1 << 47;
+          halfWord  =  (1 << 24) - 1,
+          all1 = ~0,
+          extSymMask  =  043000000U,
+          maxLineLen = 130,
+          FALSE  =  0U,
+          TRUE  =  1U,
+          E48 = 1 << 47,
 /* The most formals one routine may have.  Like caserec.pairs and declOps this
    is a fixed scratch bound, not a heap chain: the names are only needed
    between reading the list and making the formals just after the scope mark.
@@ -154,20 +144,20 @@ const
    per formal of permanent heap, about 106 on a self-compile, which is roughly
    half of what making the formals transient bought in the first place.  The
    whole change is written out above makeFormals. */
-    MAXFORMALS = 16;
+          MAXFORMALS = 16,
 // M2-M6.  Every C/n entry helper saves all five in the callee's own frame and
 // C/E puts them back, so a call hands them over exactly as it found them.  A
 // pinned base always lives in this range -- freeRegs is a subrange of it --
 // so no call may take one out of liveRegs, whatever the callee's flags say
 // about the registers it touches.  An ASSEMBLER external has no entry helper
 // to do the saving and is held to the same rule by hand.
-    calleeSaved = [2:6];
+          calleeSaved = [2:6],
 //
-    lookDef = 0;
-    lookUse = 1;
-    lookField = 3;
+          lookDef = 0,
+          lookUse = 1,
+          lookField = 3,
 //
-    BACKSLASH = '\35'; // deliberately not \\
+          BACKSLASH = '\35'; // deliberately not \\
 typedef enum {
 /*0B*/  IDENT,      INTCONST,   REALCONST,  CHARCONST,
         STRINGSY,   LPAREN,     LBRACK,     EXPROP,
@@ -454,7 +444,7 @@ typedef enum {DECIMAL, OCTAL, FULLWORD, HEX} NumberFormat;
 typedef irptr hashArray[128];
 typedef int:15 tok;
 typedef struct { int rest[30]; } ifcb;
-const NULL = (void*)0;
+const void *NULL = (void*)0;
 // A word ordered as a bit pattern: comparison of a one-word non-scalar is
 // unsigned, where a scalar's is arithmetic.  The FCST pool is sorted and
 // binary-searched, and holds arbitrary literals, so that is the order it
@@ -792,8 +782,7 @@ void printTextWord(int val) { /* printTextWord */
 //              addToHashTab              %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void addToHashTab(irptr arg) {
-    curVal.i  =  arg->id & hashMask;
-    curVal.i = mapai(curVal.i);
+    curVal.i = mapai(arg->id & hashMask);
     arg->pck.p.next  =  symHash[curval.i];
     symHash[curval.i]  =  arg;
 } /* addToHashTab */
@@ -818,7 +807,7 @@ int i, start;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int addCurValToFCST() {
-const MAXLIT = 500;
+const int MAXLIT = 500;
 int low, high, mid;
 static int constVals[MAXLIT], constNums[MAXLIT];
     low  =  0;
@@ -968,7 +957,7 @@ void form3Insn(int i1, int i2, int i3) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void disableNorm() {
-const disNormTemplate = KNTR+7;
+const int disNormTemplate = KNTR+7;
     if (arithMode != 1) {
         form1Insn(disNormTemplate);
         arithMode  =  1;
@@ -1120,7 +1109,7 @@ int getHelperProc(int l3arg1z) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int allocSymtab(int arg) {
-const SYMTAB_MAX = 80;
+const int SYMTAB_MAX = 80;
 int low, high, mid, ret;
 word value;
 static word symTabArray[SYMTAB_MAX];
@@ -1420,8 +1409,8 @@ void doCharConst(char lim) {
 // ++++ ++++            ++    +         +    +  + +
 //             11 1111 1111 2222 2222 2233 3333 3333 4444 4444
 //             01 2345 6789 0123 4567 8901 2345 6789 0123 4567
-const escSet = 0xFF0062022A00;
-escMap = 007101412151113;
+const int escSet = 0xFF0062022A00,
+          escMap = 007101412151113;
 int advanced;
    advanced  =  false;
    for (tokenIdx = 6; tokenIdx <= 130; ++tokenIdx) {
@@ -1497,8 +1486,7 @@ void lexer() {
             literalEncoding = 3;
             goto L2290;
         }
-        curVal.i  =  curToken.i & hashMask;
-        bucket = mapAI(curVal.i);
+        bucket = mapAI(curToken.i & hashMask);
         curIdent  =  curToken.i;
         keywordHashPtr  =  kwordHash[bucket];
         while (keywordHashPtr) {
@@ -1987,8 +1975,7 @@ int l3var2z;
 irptr l3var3z, l3var4z;
 //
     if (l3arg1z == NULL) {
-        curVal.i  =  l3arg2z->id & hashMask;
-        l3var2z = mapAI(curVal.i);
+        l3var2z = mapAI(l3arg2z->id & hashMask);
         l3var1z  =  true;
         l3arg1z  =  symHash[l3var2z];
     } else {
@@ -2074,8 +2061,7 @@ int leftAlign(int val) {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regResWord(int keyword) {
     kword *kw;
-    curVal.i  =  keyword & hashMask;
-    curVal.i = mapai(curVal.i);
+    curVal.i = mapai(keyword & hashMask);
     kw = malloc(sizeof(kword));
     { register kword *kwp = kw;
         kwp->w  =  keyword;
@@ -2099,7 +2085,7 @@ irptr idRec;
     extLine  =  0;
     toAlloc  =  30U | [24,27,28,29];
     aligned  =  leftAlign(curIdent);
-    if ((curIdent == litInput) || (curIdent == litOutput)) {
+    if ((curIdent == t' *INPUT*') || (curIdent == t'*OUTPUT*')) {
         idRec = malloc(offsetof(identrec, szIdent));
         { register identrec *ir = idRec;
             ir->id  =  curIdent;
@@ -2117,7 +2103,7 @@ irptr idRec;
         curVal.i  =  aligned;
         idRec->value  =  allocExtSymbol(toAlloc);
         addToHashTab(idRec);
-        if (curIdent == litInput)
+        if (curIdent == t' *INPUT*')
             inputFile  =  idRec;
         else
             outputFile  =  idRec;
@@ -2140,7 +2126,7 @@ irptr idRec;
         efp->offset  =  aligned;
     }
     if (extLine) {
-        if (curIdent == litOutput)
+        if (curIdent == t'*OUTPUT*')
             fileForOutput  =  curExternFile;
         else
             fileForInput  =  curExternFile;
@@ -2504,8 +2490,7 @@ void takeConstFromExpr() {
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void markTypeSym() {
     if (SY == IDENT) {
-        curVal.i  =  curIdent & hashMask;
-        bucket = mapAI(curVal.i);
+        bucket = mapAI(curIdent & hashMask);
         hashTravPtr  =  symHash[bucket];
         while (hashTravPtr && hashTravPtr->id != curIdent)
             hashTravPtr  =  hashTravPtr->pck.p.next;
@@ -2695,10 +2680,9 @@ L1:     curExpr = uVarPtr;
         /* One integer, but not one multiply: a product with an unsigned
            operand is the unsigned one, and says so in its own type, so a
            chain of them stays unsigned. */
-        resTyp = intType;
-        if (resOp == IMULOP &&
-            (arg1Type == uintType || arg2Type == uintType))
-            resTyp = uintType;
+        resTyp = (resOp == IMULOP &&
+                  (arg1Type == uintType || arg2Type == uintType))
+                 ? uintType : intType;
     }
     curExpr = mkExprFold(resOp, resTyp, leftExpr, curExpr);
 } /* bldArithOp */
@@ -3201,7 +3185,7 @@ int isSimple, sh, wd, ends;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void prepLoad() {
-const constRegTemplate = I8;
+const int constRegTemplate = I8;
 int helper, l4int2z, l4int3z;
 tptr valueType;
 kind l4var5z;
@@ -4540,15 +4524,17 @@ insnltyp *condChain, *thenChain;
         /* Compound boolean (a && b, a || b, ...): the chain already has an
            embedded forward jump to label `payload`. */
         if (16 in insnList->regsused)
-            /* direction=true: embedded jumps fire on FALSE -> reuse them
-               as our elseLab jumps; no extra instruction needed. */
-            elseLab = insnList->payload;
-        else
-            /* direction=false: embedded jumps fire on TRUE -> emit
-               "UJ elseLab" and define payload at this point so the
-               original jumps fall through to the then-branch. */
+            /* Set: an OR, which genBoolAnd built by De Morgan and negateCond
+               flipped, so the embedded jumps fire on TRUE.  Send the
+               fall-through to elseLab and define payload here, where the
+               then-branch starts, so those jumps land on it. */
             addInsnAndOffset(macro + 2,
                              (elseLab << 12) + insnList->payload);
+        else
+            /* Clear: an AND, whose short-circuit jumps already fire on
+               FALSE, which is where elseLab wants them.  Adopt their label
+               and emit nothing. */
+            elseLab = insnList->payload;
     } else {
         /* Simple ilCOND (single comparison, payload=0), or ilLVAL/ilRVAL/ilCONST:
            prepLoad with forValue=false is a no-op for ilCOND, and materializes
@@ -4810,10 +4796,8 @@ L7567:
                     insnList->tail->mode  =  1;
                     /* The unsigned product takes what the m- mode takes:
                        the low half of it, with no P/MI fixup. */
-                    if (exprToGen->typ == uintType)
-                        addToInsnList(KYTA + 64);
-                    else
-                        addToInsnList(macro + mcMULTI);
+                    addToInsnList(exprToGen->typ == uintType
+                                  ? KYTA + 64 : macro + mcMULTI);
                     break;
                 case opfSHIFT:
                     if (!arg2Const) {
@@ -5321,9 +5305,7 @@ typedef struct {
 
 /* One declarator operator.  opFun carries the parameter signature its
    '(...)' spelled out; opArray carries its bounds. */
-const opPtr = 0;
-const opArray = 1;
-const opFun = 2;
+const int opPtr = 0, opArray = 1, opFun = 2;
 
 typedef struct {
             int opKind;
@@ -5390,7 +5372,7 @@ int wasGroup;
         d->bucket  =  bucket;
         d->wasDefined  =  isDefined ||
             ((lookupMode == lookDef) &&
-             ((curIdent == litInput) || (curIdent == litOutput)));
+             ((curIdent == t' *INPUT*') || (curIdent == t'*OUTPUT*')));
         d->foundRec  =  hashTravPtr;
         inSymbol();
     } else if (nameOptional && (SY IN [RPAREN, COMMA, LBRACK])) {
@@ -5842,7 +5824,7 @@ L12247:
         curField  =  NULL;
         curType.rep = malloc(offsetof(types, szScalar));
         while (SY == IDENT) {
-            if (isDefined || (curIdent == litInput) || (curIdent == litOutput))
+            if (isDefined || (curIdent == t' *INPUT*') || (curIdent == t'*OUTPUT*'))
                 error(errIdentAlreadyDefined);
             enumName  =  curIdent;
             enumBucket  =  bucket;
@@ -5980,7 +5962,7 @@ L12366:             error(errNotAType);
                from the high end.  Recognized by its spelling, like FORTRAN
                and ASSEMBLER, so it stays an ordinary identifier elsewhere;
                the test must precede the markTypeSym at 12247. */
-            if ((SY == IDENT) && (curIdent == litLsb)) {
+            if ((SY == IDENT) && (curIdent == t'   **LSB')) { // '__lsb': '_' shares the code of '*'
                 lsbOrder  =  true;
                 inSymbol();
             }
@@ -7050,7 +7032,7 @@ irptr regIdRec;
 tptr regType, regBase;
 int claimed, regOk;
     claimed  =  0U;
-    while ((SY == IDENT) && (curIdent == litRegister)) {
+    while ((SY == IDENT) && (curIdent == t'REGISTER')) { // pins a pointer in an index register
         inSymbol();
         regType = parseTypeRef(skipToSet | [IDENT, SEMICOLON]);
         parseOneDeclarator(&regDecl, regType, isPacked, isForwardRef);
@@ -7150,7 +7132,7 @@ strLabel *curLab;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void caseStatement() { /* caseStatement */
-const caseTabMin = 9;            // clause count from which a switch indexes
+const int caseTabMin = 9;        // clause count from which a switch indexes
 typedef struct {
         casechain *next;
         word value;
@@ -7640,7 +7622,7 @@ void writeProc() {
                     if (helperNo != 21)     /* P/WR */
                         error(35); /* errSecondSpecifierForWriteOnlyForReal */
                 } else {
-                    if (curToken.i == litOct) {
+                    if (curToken.i == t'     OCT') {
                         helperNo  =  26; /* P/WO */
                         defWidth  =  17;
                         if (typeSize(l4typ3z) != 1)
@@ -7971,15 +7953,47 @@ L8888:      skip(skipToSet | statEndSys);
 } /* statement */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseConstDeclValue(tptr *typ, int *value) {
+void parseConstDeclValue(tptr declared, tptr *typ, int *value) {
+eptr boundary;
+int capacity, extent;
     if (SY == STRINGSY) {
         *typ  =  parseLiteral(value, true);
+        if (! isCharArray(declared)) {
+            error(33); /* errIllegalTypesForAssignment */
+        } else {
+            if (declared.rep->asize == 0) {
+                if (declared.p.pad)
+                    extent  =  strWords * declared.rep->perword;
+                else
+                    extent  =  strWords / typeSize(declared.rep->base);
+                declared  =  makeArrayType(extent, declared.rep->base,
+                                            declared.p.pad != 0);
+            }
+            capacity  =  typeSize(declared);
+            if (capacity > strWords)
+                error(33); /* no constant-pool padding */
+            else if (capacity == 1)
+                *value  =  strBuf[0];
+        }
+        *typ  =  declared;
         inSymbol();
         return;
     }
-    constExpr();
-    *typ  =  ceTyp;
-    *value  =  ceVal;
+    if (declared.p.pk == kindArray && declared.rep->asize == 0) {
+        error(64); /* errIncorrectRangeDefinition */
+        declared  =  makeArrayType(1, declared.rep->base,
+                                    declared.p.pad != 0);
+    }
+    boundary  =  (eptr)setup();
+    readNext  =  false;
+    expression();
+    if (! typeCheck(declared, curExpr->typ) &&
+        ! castArith(declared, &curExpr))
+        error(33); /* errIllegalTypesForAssignment */
+    takeConstFromExpr();
+    *typ  =  declared;
+    *value  =  curVal.i;
+    myrollup((int)boundary);
 } /* parseConstDeclValue */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7999,10 +8013,9 @@ int hasMain;
            without one has nothing to run, so neither the block nor the file
            open/close that frames it is emitted, and the module keeps only the
            entry points its E+ routines declare. */
-        curVal.i  =  litMain & hashMask;
-        bucket = mapAI(curVal.i);
+        bucket = mapAI(t'    MAIN' & hashMask);
         l3idr5z  =  symHash[bucket];
-        while (l3idr5z && l3idr5z->id != litMain)
+        while (l3idr5z && l3idr5z->id != t'    MAIN')
             l3idr5z  =  l3idr5z->pck.p.next;
         hasMain  =  (l3idr5z != NULL) && (l3idr5z->pck.p.cl == ROUTINEID) &&
                     (l3idr5z->pck.p.offset != 0);
@@ -8300,9 +8313,9 @@ void regSysProc(int l4arg1z) {
     lineStartOffset  =  moduleOffset;
     l3var5z  =  1;
     savedIdent  =  curIdent;
-    curIdent  =  litOutput;
+    curIdent  =  t'*OUTPUT*';
     defExtern();
-    curIdent  =  litInput;
+    curIdent  =  t' *INPUT*';
     defExtern();
     if (! enableStdInput) {
         inputFile  =  NULL;
@@ -8581,56 +8594,71 @@ void exitScope(int a) {
     labFence  =  numLabTop;
     do {
     if (SY == CONSTSY) {
-        parseDecls(0);
-        while  (SY == IDENT) {
-            if (isDefined)
-                error(errIdentAlreadyDefined);
-            workidr = malloc(offsetof(identrec, szIdent));
-            { register identrec *ir = workidr;
-                ir->pck.next  =  symHash[bucket];
-                ir->id  =  curIdent;
-                ir->list  =  NULL;
-                ir->pck.p.offset  =  curFrameRegTemplate;
-                ir->pck.p.cl  =  ENUMID;
-            }
-            symHash[bucket]  =  workidr;
-            inSymbol();
-            if (charClass != ASSIGNOP)
-                error(errBadSymbol);
-            else
+        /* C-style: one explicit type and a comma-separated declarator list.
+           Read the type under lookUse so a typedef is raised to TYPESY, then
+           switch to lookDef before parseTypeRef reads the first name. */
+        lookup2  =  lookupMode  =  lookUse;
+        inSymbol();
+        markTypeSym();
+        if (! (SY IN [TYPESY, PACKEDSY, STRUCTSY, ENUMSY])) {
+            error(errNotAType);
+            skip(skipToSet | [SEMICOLON]);
+            if (SY == SEMICOLON)
                 inSymbol();
-            parseConstDeclValue(&workidr->typ, &workidr->high);
-            if (workidr->typ == voidType) {
-                error(errNoConstant);
-                workidr->typ  =  intType;
-                workidr->value  =  1;
-            }
-            if (SY == SEMICOLON) {
-                lookupMode  =  lookDef;
-                inSymbol();
-                // markTypeSym: inSymbol() alone, under lookDef, only
-                // checks the current scope for a match -- a bare type
-                // name from an outer scope (e.g. 'int', predefined at
-                // scope 0) reads back as plain IDENT, not TYPESY.
-                // markTypeSym does its own scope-agnostic hash walk to
-                // fix that up -- needed because a declaration can follow
-                // a const group with nothing but its type-spec to
-                // announce it.
-                markTypeSym();
-                // Besides another const name (IDENT, continuing this
-                // group) or a recovery point, a bare type-spec-starting
-                // token (the next variable or routine declaration) or
-                // TYPEDEFSY legitimately ends the const group
-                // -- not an error.
-                if (! (SY IN (skipToSet | [IDENT, TYPEDEFSY, TYPESY,
-                                           PACKEDSY, STRUCTSY, ENUMSY,
-                                           STATICSY]))) {
-                    errAndSkip(errBadSymbol, skipToSet | [IDENT]);
+        } else {
+            lookup2  =  lookupMode  =  lookDef;
+            l2typ13z = parseTypeRef(skipToSet | [IDENT, LPAREN, COMMA,
+                                                 SEMICOLON]);
+            moreDecls  =  true;
+            while (moreDecls) {
+                noExtentOk  =  true;
+                parseOneDeclarator(&curDeclarator, l2typ13z, isPacked,
+                                   isForwardRef);
+                noExtentOk  =  false;
+                lookup2  =  lookupMode  =  lookUse;
+                if (curDeclarator.ptrOnly && SY == LPAREN) {
+                    error(errBadSymbol);       /* no const routines */
+                    skip(skipToSet | [SEMICOLON]);
+                    moreDecls  =  false;
+                    continue;
                 }
-            } else {
-                requiredSymErr(SEMICOLON);
+                if (curDeclarator.wasDefined)
+                    error(errIdentAlreadyDefined);
+                workidr = malloc(offsetof(identrec, szIdent));
+                { register identrec *ir = workidr;
+                    ir->pck.next  =  symHash[curDeclarator.bucket];
+                    ir->id  =  curDeclarator.name;
+                    ir->list  =  NULL;
+                    ir->pck.p.offset  =  curFrameRegTemplate;
+                    ir->pck.p.cl  =  ENUMID;
+                    ir->typ  =  curDeclarator.typ;
+                    ir->value  =  1;
+                }
+                symHash[curDeclarator.bucket]  =  workidr;
+                if (SY != BECOMES || charClass != ASSIGNOP) {
+                    error(errBadSymbol);
+                    if (! (SY IN [COMMA, SEMICOLON]))
+                        skip(skipToSet | [COMMA, SEMICOLON]);
+                } else {
+                    inSymbol();
+                    parseConstDeclValue(curDeclarator.typ, &workidr->typ,
+                                        &workidr->high);
+                }
+                if (workidr->typ == voidType) {
+                    error(errNoConstant);
+                    workidr->typ  =  intType;
+                    workidr->value  =  1;
+                }
+                moreDecls  =  SY == COMMA;
+                if (moreDecls) {
+                    lookup2  =  lookupMode  =  lookDef;
+                    inSymbol();
+                }
             }
+            checkSymAndRead(SEMICOLON);
         }
+        lookup2  =  lookupMode  =  lookUse;
+        markTypeSym();
     }
     objBufIdx  =  1;
     if (SY == TYPEDEFSY) {
@@ -8831,7 +8859,7 @@ void exitScope(int a) {
             while (moreDecls) {
                 if (externDecl && (curProcNesting == 1)) {
                     curIdent  =  curDeclarator.name;
-                    if ((curIdent == litInput) || (curIdent == litOutput))
+                    if ((curIdent == t' *INPUT*') || (curIdent == t'*OUTPUT*'))
                         error(errIdentAlreadyDefined);
                     else
                         defExtern();
@@ -9019,10 +9047,10 @@ void exitScope(int a) {
             }
             if ((SY == EXTERNSY) ||
                 ((SY == IDENT) &&
-                 ((curIdent == litFortran) || (curIdent == litAssembler)))) {
+                 ((curIdent == t' FORTRAN') || (curIdent == t'ASSEMBLE')))) {
                 if (SY == EXTERNSY) {
                     curVal.i  =  [20];
-                } else if (curIdent == litAssembler) {
+                } else if (curIdent == t'ASSEMBLE') {
                     curVal.i  =  [20,26];
                 } else if (checkFortran) {
                     curVal.i  =  [21,24];

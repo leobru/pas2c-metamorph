@@ -1,0 +1,6 @@
+ AND   0 0 0 1   OR   0 1 1 1
+ NOT   1 1 1 0   CMP  0 0 0 1
+ CHAIN 0 0 0 1   MIX  0 0 1 1
+ NEST   7
+ SHORT  0  0   WANT   0  0
+ SHORT  1  0   WANT   1  0

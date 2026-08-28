@@ -9,7 +9,7 @@
 // test agrees with the zero test, and G and H sit outside the range already.
 //
 typedef void *anyptr;
-const NULL = (anyptr)0;
+const anyptr NULL = (anyptr)0;
 typedef __packed __lsb struct { int:1 f; int:6 n; } bits;
 typedef struct { rec *nxt; int v; } rec;
 bits b;

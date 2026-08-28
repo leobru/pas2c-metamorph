@@ -19,7 +19,7 @@
 typedef void *anyptr;
 typedef struct { int a, b, c; } three;
 typedef int trip[3];
-const N = sizeof(three);
+const int N = sizeof(three);
 typedef enum { p = sizeof(three), q } sizes;
 typedef struct {
     int x[sizeof(three) + 1];

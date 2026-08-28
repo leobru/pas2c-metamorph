@@ -3,8 +3,7 @@
 // Array sizes given as constant expressions (not just literals or a
 // single const identifier) are evaluated by the shared constant-expression
 // evaluator.
-const N = 3;
-      M = 2;
+const int N = 3, M = 2;
 int a[N+2];
 int b[N*M];
 int i;
