@@ -1,0 +1,56 @@
+/*=k9,l0*/
+//
+// This machine has one integer but not one multiply.  'unsigned' is a type of
+// its own for that reason alone: a product with an unsigned operand takes the
+// multiply the m- mode takes, and says so in its own type, so a chain of them
+// stays unsigned.  Nothing else propagates -- '(a + 1) * 3' is signed even for
+// unsigned a -- and a cast reaches what that misses.
+//
+// What the two multiplies do differently only shows where a product overflows,
+// which is undefined; what is tested here is that the unsigned one computes
+// what it should in range, and that 'unsigned' is an integer in every other
+// way -- it assigns to and from int, compares, indexes, prints and passes as a
+// parameter, because typeCheck holds any two non-enum scalars compatible.
+//
+// A U-suffixed literal is unsigned -- decimal, octal and hex alike -- and
+// serves as an array bound like any other integer.
+int           tbl[0xAU];
+unsigned      a, b, c;
+unsigned int  d;
+unsigned long long int e;
+int           s;
+//
+typedef __packed struct { unsigned:6 lo; int:40 hi; } bits;
+bits w;
+//
+unsigned twice(unsigned v) { return v * 2; }
+int      half(unsigned v)  { return v / 2; }
+//
+void main() {
+    // In range, the unsigned product is the product.
+    a = 1000;  b = 1000;  c = 3;
+    writeln(" MUL   ", (a * b):10, (a * c):8, (b * 7):8);
+    // The result carries, so a chain stays unsigned end to end.
+    writeln(" CHAIN ", (a * b * c):12, (a * c * b):12);
+    // A cast reaches an expression whose type is not unsigned already.
+    s = 1000;
+    writeln(" CAST  ", ((unsigned)s * 1000):10, ((unsigned)(s + 1) * 2):8);
+    // A 'U' suffix says the digits fill the word, so such a literal is
+    // unsigned and carries the multiply with it -- decimal and octal alike.
+    writeln(" LIT   ", (s * 1000U):10, (1000U * s):10, (s * 01750U):10,
+                      (s * 0x3E8U):10);
+    // The suffix says how to multiply, not what the digits are worth.
+    writeln(" VALUE ", 0xFFU:5, 0xFF:5, 0377U:5, 255U:5);
+    // Every spelling is the one integer, and they assign both ways.
+    d = 7;  e = d + 1;  s = e;  a = s;
+    writeln(" MIX   ", d:3, e:3, s:3, a:3, sizeof(d):3, sizeof(e):3);
+    // An integer in every other way.
+    writeln(" INT   ", (!a):3, abs(a):4, (a > 5):3, (a == 8):3);
+    // 'unsigned:6' is the bit-field 'int:6' is.
+    w.lo = 63;  w.hi = 5;
+    writeln(" BITS  ", (int)w.lo:3, (int)w.hi:3, sizeof(w):3);
+    // A parameter and a result.
+    writeln(" CALL  ", twice(21):4, half(21):4, twice(a):4);
+    tbl[0] = 1;  tbl[9] = 2;
+    writeln(" BOUND ", tbl[0]:3, tbl[9]:3, sizeof(tbl):3, 3U:3);
+}

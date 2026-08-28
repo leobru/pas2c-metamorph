@@ -955,7 +955,6 @@ bool atEOL,
     errors,
     declEntry,
     enableStdInput,
-    fixMult,
     bool110z,
     sortFcst,
     checkFortran;
@@ -976,6 +975,11 @@ TPtr voidType, voidPtr;
 int64_t opPrec[64];
 TPtr BooleanType;
 TPtr IntegerType;
+// This machine has one integer but not one multiply: 'unsigned' is a type of
+// its own only so that a product of unsigned operands takes the multiply the
+// m- mode takes.  Everything else treats the two alike -- typeCheck holds any
+// two non-enum scalars compatible -- which is what isIntTyp is for.
+TPtr UnsignedType;
 TPtr RealType;
 TPtr CharType;
 TPtr charPtrType, flatMemType;
@@ -2335,9 +2339,6 @@ parseComment::parseComment()
             case 'C': case 'c':
                 readOptFlag(checkTypes);
                 break;
-            case 'M': case 'm':
-                readOptFlag(fixMult);
-                break;
             case 'B': case 'b':
                 fileBufSize = readOptVal(4);
                 break;
@@ -2492,7 +2493,7 @@ L2:                 hashTravPtr = symHash[bucket];
                 }
                 goto exitLexer;
             } break; /* IDENT */
-            case INTCONST: { /*=m-*/
+            case INTCONST: {
                 SY = INTCONST;
                 tokenLen = 0;
                 do {
@@ -2525,27 +2526,21 @@ L2:                 hashTravPtr = symHash[bucket];
                                 curToken.ii = curToken.ii | (curVal.ii & BitRange(44, 47));
                                 nextCH();
                             }
-                            if (CH == 'U')
-                                nextCH();
-                            goto exitLexer;
+                            goto Lsuffix;
                         }
                         numFormat = octal;
-                        if (CH == 'U') {
-                            numFormat = fullword;
-                            nextCH();
+                        curToken.ii = 0;
+                        for (tokenIdx = 1; tokenIdx <= tokenLen; ++tokenIdx) {
+                            if (7 < numstr[tokenIdx])
+                                error(20); /* errDigitGreaterThan7 */
+                            curToken.ii = shl48(curToken.ii, 3);
+                            curToken.ii = (numstr[tokenIdx] & 7) | curToken.ii;
                         }
+                        goto Lsuffix;
                     } else {
                         numFormat = decimal;
                         goto exitOctdec;
                     }
-                    curToken.ii = 0;
-                    for (tokenIdx = 1; tokenIdx <= tokenLen; ++tokenIdx) {
-                        if (7 < numstr[tokenIdx])
-                            error(20); /* errDigitGreaterThan7 */
-                        curToken.ii = shl48(curToken.ii, 3);
-                        curToken.ii = (numstr[tokenIdx] & 7) | curToken.ii;
-                    }
-                    goto exitLexer;
                 } exitOctdec:
                 curToken.ii = 0;
                 for (tokenIdx = 1; tokenIdx <= tokenLen; ++tokenIdx) {
@@ -2557,11 +2552,9 @@ L2:                 hashTravPtr = symHash[bucket];
                         curToken.ii = 1;
                     }
                 }
-                if (CH == 'U') {
+                if (CH == 'U' or CH == 'u') {
                     curToken.ii = curToken.ii & ~ Bits(0, 1, 3);
-                    numFormat = fullword;
-                    nextCH();
-                    goto exitLexer;
+                    goto Lsuffix;
                 }
                 expMagnitude = 0;
                 if (CH == '.') {
@@ -2581,7 +2574,7 @@ L2:                 hashTravPtr = symHash[bucket];
                             nextCH();
                         } while (charSymTabBase[CH] == INTCONST);
                 } /*2062*/
-                if (CH == 'E') {
+                if (CH == 'E' or CH == 'e') {
                     if (expMagnitude == 0) {
                         curToken.r = curToken.ii;
                         SY = REALCONST;
@@ -2629,7 +2622,18 @@ L2:                 hashTravPtr = symHash[bucket];
                         curToken.r = curToken.r * expValue;
                 }
                 goto exitLexer;
-            } break; /* INTCONST */ /*=m+*/
+              Lsuffix:
+                /* A 'U' suffix says the digits are a bit pattern filling the
+                   word, which is what fullword records: the literal is
+                   unsigned, so a product of it takes the unsigned multiply.
+                   All three bases end here; only the decimal one has to mask
+                   before it does. */
+                if (CH == 'U' or CH == 'u') {
+                    numFormat = fullword;
+                    nextCH();
+                }
+                goto exitLexer;
+            } break; /* INTCONST */
             case CHARCONST: {
                 literalEncoding = charEncoding;
 L2290:
@@ -3023,6 +3027,13 @@ void errAndSkip(int64_t errNo, int64_t toset)
     skip(toset);
 }
 
+// int and unsigned are one integer in all but the multiply, so a test for
+// "an int" takes either.
+bool isIntTyp(TPtr t)
+{
+    return t == IntegerType or t == UnsignedType;
+} /* isIntTyp */
+
 void parseLiteral(TPtr & litType, Word & litValue,
     bool allowSign)
 {
@@ -3033,7 +3044,7 @@ void parseLiteral(TPtr & litType, Word & litValue,
             l3var1z = charClass;
             inSymbol();
             parseLiteral(litType, litValue, false);
-            if (litType != IntegerType) {
+            if (not isIntTyp(litType)) {
                 error(62); /* errIntegerNeeded */
                 litType = IntegerType;
                 litValue.ii = 1;
@@ -3054,7 +3065,13 @@ L99:        litType.setRep(NULL);
             litValue.ii = hashTravPtr->value();
         } break;
         case INTCONST:
-            litType = IntegerType;
+            /* A 'U' suffix says the digits are a bit pattern filling the
+               word, which is what fullword records, so the literal is
+               unsigned and a product of it takes the unsigned multiply. */
+            if (numFormat == fullword)
+                litType = UnsignedType;
+            else
+                litType = IntegerType;
             break;
         case REALCONST:
             litType = RealType;
@@ -5076,10 +5093,12 @@ L7567:
                     }
                     tryFlip(true);
                     insnList->tail->mode = 1;
-                    if (fixMult)
-                        addToInsnList(macro + mcMULTI);
-                    else
+                    /* The unsigned product takes what the m- mode takes:
+                       the low half of it, with no P/MI fixup. */
+                    if (exprToGen->vt.typ == UnsignedType)
                         addToInsnList(KYTA+64);
+                    else
+                        addToInsnList(macro + mcMULTI);
                     break;
                 case opfSHIFT:
                     if (not arg2Const)
@@ -6327,11 +6346,11 @@ L12366:             error(errNotAType);
         // A later specifier that is not int wins, making 'unsigned char' a
         // char.  Only a built-in type keyword is taken -- a typedef name is
         // raised to TYPESY by markTypeSym, which does not run here.
-        while (curType == IntegerType and SY == TYPESY) {
+        while (isIntTyp(curType) and SY == TYPESY) {
             curType = symType;
             inSymbol();
         }
-        if (curType == IntegerType and SY == COLON) {
+        if (isIntTyp(curType) and SY == COLON) {
             inSymbol();
             if (SY != INTCONST)
                 error(errNumberTooLarge);
@@ -6988,7 +7007,13 @@ void bldArithOp(Operator oper, ExprPtr leftExpr, [[maybe_unused]] bool match)
         resTyp = RealType;
     } else {
         resOp = Operator(oper + (oper != IMODOP));
+        /* One integer, but not one multiply: a product with an unsigned
+           operand is the unsigned one, and says so in its own type, so a
+           chain of them stays unsigned. */
         resTyp = IntegerType;
+        if (resOp == IMULOP and
+            (arg1Type == UnsignedType or arg2Type == UnsignedType))
+            resTyp = UnsignedType;
     }
     curExpr = mkExprFold(resOp, resTyp, leftExpr, curExpr);
 } /* bldArithOp */
@@ -7014,7 +7039,7 @@ void bldRelOp(Operator oper, ExprPtr ex2)
             error(errNeedOtherTypesOfOperands);
     } else {
         if (not areTypesCompatible(ex2) and
-            ((arg2Type != IntegerType) or
+            (not isIntTyp(arg2Type) or
              (arg1Type.p.pk != kindScalar) or
              (oper != INOP))) {
             error(errNeedOtherTypesOfOperands);
@@ -7163,7 +7188,7 @@ void Factor::stdCall()
        these two admits none: the address-of operator is not one of them. */
     if (arg1Type == RealType)
         checkMode = Bits(fnABS);
-    else if (arg1Type == IntegerType)
+    else if (isIntTyp(arg1Type))
         checkMode = Bits(fnABS, fnMALLOC, fnCARD) | Bits(fnMINEL);
     else
         checkMode = 0;
@@ -7172,7 +7197,7 @@ void Factor::stdCall()
         error(errNeedOtherTypesOfOperands);
     if (not (subset(asint64_t, Bits(fnABS, fnSIZEOF)))) {
         arg1Type = routine->typ;
-    } else if (arg1Type == IntegerType and subset(asint64_t, Bits(fnABS))) {
+    } else if (isIntTyp(arg1Type) and subset(asint64_t, Bits(fnABS))) {
         stProcNo = fnABSI;
     }
     if (stProcNo == fnSIZEOF)
@@ -7391,7 +7416,7 @@ void parseUnaryExpression()
         case NOTOP: {
             if (arg1Type == BooleanType)
                 curExpr = mkUnaryFold(NOTOP, BooleanType, curExpr);
-            else if (arg1Type == IntegerType) {
+            else if (isIntTyp(arg1Type)) {
                 curExpr = mkExpr(EQOP, BooleanType, curExpr, mkIntLit(0));
             } else {
                 error(errNeedOtherTypesOfOperands);
@@ -8356,7 +8381,7 @@ struct standProc {
         usedRegs = usedRegs & ~ Bits(12);
         curVarKind = (Kind)(l4typ3z.p.pk);
         helperNo = 20;                   /* C/WI */
-        if (l4typ3z == IntegerType or l4typ3z == BooleanType)
+        if (isIntTyp(l4typ3z) or l4typ3z == BooleanType)
             defWidth = 10;
         else if (l4typ3z == RealType) {
             helperNo = 21;               /* P/WR */
@@ -8996,6 +9021,15 @@ initScalars::initScalars() :
     IntegerType.p.bits = 48;
     IntegerType.p.pk = kindScalar;
 
+    UnsignedType.setRep(
+        besm6_alloc_record<Types>(offsetof(Types, szScalar)));
+    UnsignedType.rep()->numen = 100000;
+    UnsignedType.rep()->start = -1;
+    UnsignedType.rep()->enums = NULL;
+    UnsignedType.p.psize = 1;
+    UnsignedType.p.bits = 48;
+    UnsignedType.p.pk = kindScalar;
+
     CharType.setRep(
         besm6_alloc_record<Types>(offsetof(Types, szScalar)));
     CharType.rep()->numen = 256;
@@ -9052,7 +9086,8 @@ initScalars::initScalars() :
     symType = IntegerType;  regResWord(0515664L      /*"     INT"*/);
                             regResWord(toText("SHORT"));
                             regResWord(toText("LONG"));
-                            regResWord(toText("UNSIGNED"));
+    // short and long say nothing about signedness; unsigned does.
+    symType = UnsignedType; regResWord(toText("UNSIGNED"));
     symType = CharType;     regResWord(043504162L    /*"    CHAR"*/);
     symType = RealType;     regResWord(04654574164L  /*"   FLOAT"*/);
     symType = voidType;     regResWord(066575144L    /*"    VOID"*/);
@@ -10178,7 +10213,6 @@ void initOptions(int argc, char **argv)
     forValue = true;
     atEOL = false;
     checkTypes = true;
-    fixMult = true;
     declEntry = false;
     enableStdInput = false;
     errors = false;
@@ -10193,7 +10227,7 @@ void initOptions(int argc, char **argv)
     progname = progname ? progname+1 : argv[0];
 
     for (;;) {
-        switch (getopt(argc, argv, "vVhiFH:e:c:r:m:u:f:a:k:b:l:")) {
+        switch (getopt(argc, argv, "vVhiFH:e:c:r:u:f:a:k:b:l:")) {
         case EOF:
             break;
         case 'a':
@@ -10255,9 +10289,6 @@ void initOptions(int argc, char **argv)
                 fprintf(stderr, "%s: Bad option -l\n", progname);
                 exit(-1);
             }
-            continue;
-        case 'm':
-            fixMult = (optarg[0] == '+');
             continue;
         case 'r':
             // No fuzzy real comparison; the option is a no-op.
