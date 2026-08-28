@@ -1,0 +1,17 @@
+/*=k9,l0*/
+//
+// BESM accepts one or more instructions and lays them into adjacent halfwords,
+// padding only after the entire list.  A colon keeps the register/address
+// field generated for an lvalue or constant operand and replaces its opcode.
+int source = 42;
+int copied;
+int literal;
+int calculated;
+
+void main() {
+    besm(02200000, 02200000, 02200000);
+    besm(0100000 : source, 0000000 : copied);
+    besm(0100000 : 77, 0000000 : literal);
+    besm(0040000 : source + 1, 0000000 : calculated);
+    writeln("BESM MULTI ", copied:0, ' ', literal:0, ' ', calculated:0);
+}

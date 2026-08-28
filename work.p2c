@@ -7520,6 +7520,7 @@ int defWidth;
 int procNo;
 int helperNo;
 int indCnt;
+int besmOpcode;
 opgen opToForm;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7727,9 +7728,40 @@ void writeProc() {
         }
         break;
     case 2: /* besm */
-        expression();
-        takeConstFromExpr();
-        formAndAlign(curVal.i);
+        do {
+            expression();
+            takeConstFromExpr();
+            if (SY == COLON) {
+                besmOpcode  =  curVal.i;
+                inSymbol();
+                /* An lvalue supplies its address through STORE's final ATX;
+                   any other expression is formed normally through LOAD. */
+                readNext  =  false;
+                expression();
+                prevOpcode  =  0;
+                if (curExpr->op IN lvalOpSet)
+                    formOperator(STORE);
+                else
+                    formOperator(LOAD);
+                /* Replace only the opcode of the instruction just formed;
+                   retain its register and address fields. */
+                if (putLeft)
+                    objBuffer[objBufIdx-1]  =
+                        (objBuffer[objBufIdx-1] & ~02770000U) | besmOpcode;
+                else
+                    leftInsn  =  (leftInsn & ~(02770000U << 24)) |
+                                (besmOpcode << 24);
+            } else {
+                /* Literal commands are not candidates for the ordinary
+                   instruction peepholes.  Reset their history while leaving
+                   putLeft alone, so successive operands fill successive
+                   halves. */
+                prevOpcode  =  0;
+                form1Insn(curVal.i);
+            }
+        } while (SY == COMMA);
+        padToLeft();
+        prevOpcode  =  1;
         break;
     }
     if (procNo in [3,4])

@@ -8325,6 +8325,7 @@ struct standProc {
     int64_t procNo;
     int64_t helperNo;
     int64_t indCnt;
+    int64_t besmOpcode;
     OpGen opToForm;
 
     void verifyType(TPtr t) {
@@ -8515,9 +8516,43 @@ struct standProc {
             }
         } break;
         case 2: { /* besm */
-            expression();
-            takeConstFromExpr();
-            formAndAlign(curVal.ii);
+            do {
+                expression();
+                takeConstFromExpr();
+                if (SY == COLON) {
+                    besmOpcode = curVal.ii;
+                    inSymbol();
+                    /* An lvalue supplies its address through STORE's final
+                       ATX; any other expression is formed normally through
+                       LOAD. */
+                    readNext = false;
+                    expression();
+                    prevOpcode = 0;
+                    if (has(lvalOpSet, curExpr->op))
+                        (void) formOperator(STORE);
+                    else
+                        (void) formOperator(LOAD);
+                    /* Replace only the opcode of the instruction just
+                       formed; retain its register and address fields. */
+                    if (putLeft)
+                        objBuffer[objBufIdx-1] =
+                            (objBuffer[objBufIdx-1] & ~02770000LL) |
+                            besmOpcode;
+                    else
+                        leftInsn =
+                            (leftInsn & ~(02770000LL << 24)) |
+                            (besmOpcode << 24);
+                } else {
+                    /* Literal commands are not candidates for the ordinary
+                       instruction peepholes.  Reset their history while
+                       leaving putLeft alone, so successive operands fill
+                       successive halves. */
+                    prevOpcode = 0;
+                    form1Insn(curVal.ii);
+                }
+            } while (SY == COMMA);
+            padToLeft();
+            prevOpcode = 1;
         } break;
         }
         if (has(Bits(3,4), procNo))
