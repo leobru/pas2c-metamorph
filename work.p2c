@@ -818,7 +818,7 @@ static int constVals[MAXLIT], constNums[MAXLIT];
     } else {
         high  =  FcstCountTo500 - 1;
         do {
-            mid  =  (low + high) / 2;
+            mid  =  (low + high) / 2U;
             if (curVal.i == constVals[mid]) {
                 return constNums[mid];
             }
@@ -1124,7 +1124,7 @@ static int symtbidx[SYMTAB_MAX];
     } else {
         high  =  symTabCnt;
         do {
-            mid  =  (low + high) / 2;
+            mid  =  (low + high) / 2U;
             if (value == symTabArray[mid]) {
                 return symtbidx[mid];
             }
@@ -1722,7 +1722,7 @@ L2290:
            lands in padding that was there already. */
         SY  =  STRINGSY;
         unpck(0, &localBuf[tokenIdx]);
-        strWords  =  (strLen + 6) / 6;
+        strWords  =  (strLen + 6) / 6U;
         for (tokenLen = 0; tokenLen < strWords; ++tokenLen)
             strBuf[tokenLen]  =  pck(&localBuf[6 + 6*tokenLen]);
         /* A one-word string's token is its value, as an integer's is. */
@@ -1872,8 +1872,8 @@ inptr icand;
         perwordVal  =  l3int22z;
         pcksizeVal  =  48 / l3int22z;
         l3int22z  =  asize * pcksizeVal;
-        numBits  =  (l3int22z % 48 == 0) ? 0 : 1;
-        sizeVal  =  l3int22z / 48 + numBits;
+        numBits  =  (l3int22z % 48U == 0) ? 0 : 1;
+        sizeVal  =  l3int22z / 48U + numBits;
         if (sizeVal == 1)
             bitsVal  =  l3int22z;
     } else {
@@ -2955,8 +2955,8 @@ void processInsn() {
             case 0: addJumpInsn(KUZA); break;
             case 1: addJumpInsn(KU1A); break;
             case 2:
-                tempInsn  =  curInsn % 4096;
-                curInsn /= 4096;
+                tempInsn  =  curInsn % 4096U;
+                curInsn /= 4096U;
                 addJumpInsn(KUJ);
                 curInsn  =  tempInsn;
             // FALLTHRU
@@ -2967,8 +2967,8 @@ void processInsn() {
                     error(206);
                 break;
             case 3:
-                 tempInsn  =  curInsn % 4096;
-                 curInsn /= 4096;
+                 tempInsn  =  curInsn % 4096U;
+                 curInsn /= 4096U;
                  l4var213z  =   findLabel();
                  l4inl8z  =  l4inl7z;
                  curInsn  =  tempInsn;
@@ -3305,7 +3305,7 @@ int l4var1z, l4int2z, opCode, l4var4z, l4var5z,
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void getOffset() {
-      l4var6z = insnList->disp % 32768;
+      l4var6z = insnList->disp & 077777;
 } /* getOffset */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7357,7 +7357,10 @@ word minValue, maxValue;
         fixup(0, decoder);
         curVal  =  minValue;
         fixup(-(KU1A+otherOffset), maxValue.i);
-        curVal.i  =  minValue.i / 2;
+        /* The dispatch shifts the value right by one to index the table,
+           which is a logical shift, so the base it is measured from is the
+           label word halved the same way -- unsigned, whatever its sign. */
+        curVal.i  =  minValue.i / 2U;
         form3Insn(ASN64+1, KATI+14, KYTA);
         curVal.i  =  moduleOffset + 1 - curVal.i;
         if (curVal.i < 040000) {
@@ -7366,7 +7369,7 @@ word minValue, maxValue;
         }
         form1Insn(KUJ+I14 + curVal.i);
         padToLeft();
-        if (minValue.i % 2) {
+        if (minValue.i & 1) {
             form1Insn(KUTC);
             decoder = KUJ;
         } else
@@ -7677,7 +7680,7 @@ void checkElement() {
     } 
     if (typeSize(l4typ3z) == 1) {
         helperNo  =  26;               /* P/WO */
-        defWidth  =  (typeBits(l4typ3z) + 5) / 3;
+        defWidth  =  (typeBits(l4typ3z) + 5) / 3U;
     } else {
         error(34); /* errTypeIsNotAFileElementType */
     }
