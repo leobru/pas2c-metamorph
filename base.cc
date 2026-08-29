@@ -4137,110 +4137,109 @@ L33:        prepLoad();
     }; /* tryFlip */
 
     void genBoolAnd() {
-        bool l5var1z, l5var2z;
-        int64_t l5var3z, l5var4z, l5var5z, l5var6z, l5var7z;
-        InsnList * l5ins8z;
-        Word l5var9z;
+        /* A one-constant pair still takes the ordinary chain path. OROP has
+           already negated both lists before calling here, and a constant
+           right operand must not discard the left operand's side effects.
+           The chain also normalizes a surviving nonzero operand to Boolean 1.
+           Two constants fold in mkExprFold. */
+        bool lhsNeg, rhsNeg, oldFVal;
+        int64_t lhsLab, rhsLab, joinLab;
+        InsnList * lhsList;
+        Word allRegs;
 
-        if (arg1Const) {
-            if (arg1Val.ii)
-              insnList = otherIns;
-        } else if (arg2Const) {
-            if (not arg2Val.ii)
-                insnList = otherIns;
+        lhsNeg = has(insnList->regsused, 16);
+        rhsNeg = has(otherIns->regsused, 16);
+        joinLab = condLabCnt;
+        condLabCnt = condLabCnt + 1;
+        oldFVal = forValue;
+        forValue = false;
+        if (insnList->ilm == ilCOND) {
+            lhsLab = insnList->payload.ii;
         } else {
-            l5var1z = has(insnList->regsused, 16);
-            l5var2z = has(otherIns->regsused, 16);
-            l5var5z = condLabCnt;
-            condLabCnt = condLabCnt + 1;
-            forValue = false;
-            l5var6z = l5var1z + macro;
-            l5var7z = l5var2z + macro;
-            if (insnList->ilm == ilCOND) {
-                l5var3z = insnList->payload.ii;
-            } else {
-                l5var3z = 0;
-                prepBoolArg(exprToGen->expr1);
-            }
-            if (otherIns->ilm == ilCOND) {
-                l5var4z = otherIns->payload.ii;
-            } else {
-                l5var4z = 0;
-            }
-            l5var9z.ii = (insnList->regsused | otherIns->regsused);
-            if (l5var3z == 0) {
-                if (l5var4z == 0) {
-                    addInsnAndOffset(l5var6z, l5var5z);
-                    l5ins8z = insnList;
-                    insnList = otherIns;
-                    prepBoolArg(exprToGen->expr2);
-                    addInsnAndOffset(l5var7z, l5var5z);
-                } else {
-                    if (l5var2z) {
-                        addInsnAndOffset(l5var6z, l5var5z);
-                        l5ins8z = insnList;
-                        insnList = otherIns;
-                        addInsnAndOffset(macro + mcJUMP,
-                                         010000 * l5var5z + l5var4z);
-                    } else {
-                        addInsnAndOffset(l5var6z, l5var4z);
-                        l5var5z = l5var4z;
-                        l5ins8z = insnList;
-                        insnList = otherIns;
-                    }
-                }
-            } else {
-                if (l5var4z == 0) {
-                    if (l5var1z) {
-                        addInsnAndOffset(macro + mcJUMP,
-                                         010000 * l5var5z + l5var3z);
-                        l5ins8z = insnList;
-                        insnList = otherIns;
-                        prepBoolArg(exprToGen->expr2);
-                        addInsnAndOffset(l5var7z, l5var5z);
-                    } else {
-                        l5ins8z = insnList;
-                        insnList = otherIns;
-                        prepBoolArg(exprToGen->expr2);
-                        addInsnAndOffset(l5var7z, l5var3z);
-                        l5var5z = l5var3z;
-                    }
-                } else {
-                    if (l5var1z) {
-                        if (l5var2z) {
-                            addInsnAndOffset(macro + mcJUMP,
-                                             010000 * l5var5z + l5var3z);
-                            l5ins8z = insnList;
-                            insnList = otherIns;
-                            addInsnAndOffset(macro + mcJUMP,
-                                             010000 * l5var5z + l5var4z);
-                        } else {
-                            addInsnAndOffset(macro + mcJUMP,
-                                             010000 * l5var4z + l5var3z);
-                            l5ins8z = insnList;
-                            insnList = otherIns;
-                            l5var5z = l5var4z;
-                        }
-                    } else {
-                        l5ins8z = insnList;
-                        insnList = otherIns;
-                        l5var5z = l5var3z;
-                        if (l5var2z)
-                            addInsnAndOffset(macro + mcJUMP,
-                                             010000 * l5var3z + l5var4z);
-                        else
-                            addInsnAndOffset(macro + 3,
-                                             010000 * l5var3z + l5var4z);
-                    }
-                }
-            }
-            insnList->regsused = l5var9z.ii & ~ Bits(16);
-            l5ins8z->tail->next = insnList->head;
-            insnList->head = l5ins8z->head;
-            insnList->ilm = ilCOND;
-            insnList->payload.ii = l5var5z;
-            forValue = true;
+            lhsLab = 0;
+            prepBoolArg(exprToGen->expr1);
         }
+        if (otherIns->ilm == ilCOND)
+            rhsLab = otherIns->payload.ii;
+        else
+            rhsLab = 0;
+        allRegs.ii = insnList->regsused | otherIns->regsused;
+        lhsList = insnList;
+        if (rhsLab == 0) {
+            insnList = otherIns;
+            prepBoolArg(exprToGen->expr2);
+            otherIns = insnList;
+            insnList = lhsList;
+        }
+        if (lhsLab == 0) {
+            if (rhsLab == 0) {
+                addInsnAndOffset(macro + lhsNeg, joinLab);
+                lhsList = insnList;
+                insnList = otherIns;
+                addInsnAndOffset(macro + rhsNeg, joinLab);
+            } else {
+                if (rhsNeg) {
+                    addInsnAndOffset(macro + lhsNeg, joinLab);
+                    lhsList = insnList;
+                    insnList = otherIns;
+                    addInsnAndOffset(macro + mcJUMP,
+                                     010000 * joinLab + rhsLab);
+                } else {
+                    addInsnAndOffset(macro + lhsNeg, rhsLab);
+                    joinLab = rhsLab;
+                    lhsList = insnList;
+                    insnList = otherIns;
+                }
+            }
+        } else {
+            if (rhsLab == 0) {
+                if (lhsNeg) {
+                    addInsnAndOffset(macro + mcJUMP,
+                                     010000 * joinLab + lhsLab);
+                    lhsList = insnList;
+                    insnList = otherIns;
+                    addInsnAndOffset(macro + rhsNeg, joinLab);
+                } else {
+                    lhsList = insnList;
+                    insnList = otherIns;
+                    addInsnAndOffset(macro + rhsNeg, lhsLab);
+                    joinLab = lhsLab;
+                }
+            } else {
+                if (lhsNeg) {
+                    if (rhsNeg) {
+                        addInsnAndOffset(macro + mcJUMP,
+                                         010000 * joinLab + lhsLab);
+                        lhsList = insnList;
+                        insnList = otherIns;
+                        addInsnAndOffset(macro + mcJUMP,
+                                         010000 * joinLab + rhsLab);
+                    } else {
+                        addInsnAndOffset(macro + mcJUMP,
+                                         010000 * rhsLab + lhsLab);
+                        lhsList = insnList;
+                        insnList = otherIns;
+                        joinLab = rhsLab;
+                    }
+                } else {
+                    lhsList = insnList;
+                    insnList = otherIns;
+                    joinLab = lhsLab;
+                    if (rhsNeg)
+                        addInsnAndOffset(macro + mcJUMP,
+                                         010000 * lhsLab + rhsLab);
+                    else
+                        addInsnAndOffset(macro + 3,
+                                         010000 * lhsLab + rhsLab);
+                }
+            }
+        }
+        insnList->regsused = allRegs.ii & ~ Bits(16);
+        lhsList->tail->next = insnList->head;
+        insnList->head = lhsList->head;
+        insnList->ilm = ilCOND;
+        insnList->payload.ii = joinLab;
+        forValue = oldFVal;
     } /* genBoolAnd */
 
 

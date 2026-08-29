@@ -3850,109 +3850,107 @@ L22:
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genBoolAnd() {
-int l5var1z, l5var2z;
-int l5var3z, l5var4z, l5var5z, l5var6z, l5var7z;
-insnltyp *l5ins8z;
-int l5var9z;
-    if (arg1Const) {
-        if (arg1Val.i)
-            insnList  =  otherIns;
-    } else if (arg2Const) {
-        if (! arg2Val.i)
-            insnList  =  otherIns;
+/* A one-constant pair still takes the ordinary chain path.  OROP has already
+   negated both lists before calling here, and a constant right operand must
+   not discard the left operand's side effects.  The chain also normalizes a
+   surviving nonzero operand to Boolean 1.  Two constants fold in mkExprFold. */
+int lhsNeg, rhsNeg;
+int lhsLab, rhsLab, joinLab;
+insnltyp *lhsList;
+int allRegs, oldFVal;
+    lhsNeg  =  (insnList->regsused >> (47-16)) & 1;
+    rhsNeg  =  (otherIns->regsused >> (47-16)) & 1;
+    joinLab  =  condLabCnt;
+    ++condLabCnt;
+    oldFVal  =  forValue;
+    forValue  =  false;
+    if (insnList->ilm == ilCOND) {
+        lhsLab  =  insnList->payload;
     } else {
-        l5var1z  =  (insnList->regsused >> (47-16)) & 1;
-        l5var2z  =  (otherIns->regsused >> (47-16)) & 1;
-        l5var5z  =  condLabCnt;
-        ++condLabCnt;
-        forValue  =  false;
-        l5var6z  =  l5var1z + macro;
-        l5var7z  =  l5var2z + macro;
-        if (insnList->ilm == ilCOND) {
-            l5var3z  =  insnList->payload;
-        } else {
-            l5var3z  =  0;
-            prepBoolArg(exprToGen->expr1);
-        }
-        if (otherIns->ilm == ilCOND) {
-            l5var4z  =  otherIns->payload;
-        } else {
-            l5var4z  =  0;
-        }
-        l5var9z  =  (insnList->regsused | otherIns->regsused);
-        if (l5var3z == 0) {
-            if (l5var4z == 0) {
-                addInsnAndOffset(l5var6z, l5var5z);
-                l5ins8z  =  insnList;
-                insnList  =  otherIns;
-                prepBoolArg(exprToGen->expr2);
-                addInsnAndOffset(l5var7z, l5var5z);
-            } else {
-                if (l5var2z) {
-                    addInsnAndOffset(l5var6z, l5var5z);
-                    l5ins8z  =  insnList;
-                    insnList  =  otherIns;
-                    addInsnAndOffset(macro + mcJUMP,
-                                     (l5var5z << 12) + l5var4z);
-                } else {
-                    addInsnAndOffset(l5var6z, l5var4z);
-                    l5var5z  =  l5var4z;
-                    l5ins8z  =  insnList;
-                    insnList  =  otherIns;
-                }
-            }
-        } else {
-            if (l5var4z == 0) {
-                if (l5var1z) {
-                    addInsnAndOffset(macro + mcJUMP,
-                                     (l5var5z << 12) + l5var3z);
-                    l5ins8z  =  insnList;
-                    insnList  =  otherIns;
-                    prepBoolArg(exprToGen->expr2);
-                    addInsnAndOffset(l5var7z, l5var5z);
-                } else {
-                    l5ins8z  =  insnList;
-                    insnList  =  otherIns;
-                    prepBoolArg(exprToGen->expr2);
-                    addInsnAndOffset(l5var7z, l5var3z);
-                    l5var5z  =  l5var3z;
-                }
-            } else {
-                if (l5var1z) {
-                    if (l5var2z) {
-                        addInsnAndOffset(macro + mcJUMP,
-                                         (l5var5z << 12) + l5var3z);
-                        l5ins8z  =  insnList;
-                        insnList  =  otherIns;
-                        addInsnAndOffset(macro + mcJUMP,
-                                         (l5var5z << 12) + l5var4z);
-                    } else {
-                        addInsnAndOffset(macro + mcJUMP,
-                                         (l5var4z << 12) + l5var3z);
-                        l5ins8z  =  insnList;
-                        insnList  =  otherIns;
-                        l5var5z  =  l5var4z;
-                    }
-                } else {
-                    l5ins8z  =  insnList;
-                    insnList  =  otherIns;
-                    l5var5z  =  l5var3z;
-                    if (l5var2z)
-                        addInsnAndOffset(macro + mcJUMP,
-                                         (l5var3z << 12) + l5var4z);
-                    else
-                        addInsnAndOffset(macro + 3,
-                                         (l5var3z << 12) + l5var4z);
-                }
-            }
-        }
-        insnList->regsused  =  l5var9z & (~[16]);
-        l5ins8z->tail->next  =  insnList->head;
-        insnList->head  =  l5ins8z->head;
-        insnList->ilm  =  ilCOND;
-        insnList->payload  =  l5var5z;
-        forValue  =  true;
+        lhsLab  =  0;
+        prepBoolArg(exprToGen->expr1);
     }
+    if (otherIns->ilm == ilCOND)
+        rhsLab  =  otherIns->payload;
+    else
+        rhsLab  =  0;
+    allRegs  =  insnList->regsused | otherIns->regsused;
+    lhsList  =  insnList;
+    if (rhsLab == 0) {
+        insnList  =  otherIns;
+        prepBoolArg(exprToGen->expr2);
+        otherIns  =  insnList;
+        insnList  =  lhsList;
+    }
+    if (lhsLab == 0) {
+        if (rhsLab == 0) {
+            addInsnAndOffset(macro + lhsNeg, joinLab);
+            lhsList  =  insnList;
+            insnList  =  otherIns;
+            addInsnAndOffset(macro + rhsNeg, joinLab);
+        } else {
+            if (rhsNeg) {
+                addInsnAndOffset(macro + lhsNeg, joinLab);
+                lhsList  =  insnList;
+                insnList  =  otherIns;
+                addInsnAndOffset(macro + mcJUMP,
+                                 (joinLab << 12) + rhsLab);
+            } else {
+                addInsnAndOffset(macro + lhsNeg, rhsLab);
+                joinLab  =  rhsLab;
+                lhsList  =  insnList;
+                insnList  =  otherIns;
+            }
+        }
+    } else {
+        if (rhsLab == 0) {
+            if (lhsNeg) {
+                addInsnAndOffset(macro + mcJUMP,
+                                 (joinLab << 12) + lhsLab);
+                lhsList  =  insnList;
+                insnList  =  otherIns;
+                addInsnAndOffset(macro + rhsNeg, joinLab);
+            } else {
+                lhsList  =  insnList;
+                insnList  =  otherIns;
+                addInsnAndOffset(macro + rhsNeg, lhsLab);
+                joinLab  =  lhsLab;
+            }
+        } else {
+            if (lhsNeg) {
+                if (rhsNeg) {
+                    addInsnAndOffset(macro + mcJUMP,
+                                     (joinLab << 12) + lhsLab);
+                    lhsList  =  insnList;
+                    insnList  =  otherIns;
+                    addInsnAndOffset(macro + mcJUMP,
+                                     (joinLab << 12) + rhsLab);
+                } else {
+                    addInsnAndOffset(macro + mcJUMP,
+                                     (rhsLab << 12) + lhsLab);
+                    lhsList  =  insnList;
+                    insnList  =  otherIns;
+                    joinLab  =  rhsLab;
+                }
+            } else {
+                lhsList  =  insnList;
+                insnList  =  otherIns;
+                joinLab  =  lhsLab;
+                if (rhsNeg)
+                    addInsnAndOffset(macro + mcJUMP,
+                                     (lhsLab << 12) + rhsLab);
+                else
+                    addInsnAndOffset(macro + 3,
+                                     (lhsLab << 12) + rhsLab);
+            }
+        }
+    }
+    insnList->regsused  =  allRegs & (~[16]);
+    lhsList->tail->next  =  insnList->head;
+    insnList->head  =  lhsList->head;
+    insnList->ilm  =  ilCOND;
+    insnList->payload  =  joinLab;
+    forValue  =  oldFVal;
 } /* genBoolAnd */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

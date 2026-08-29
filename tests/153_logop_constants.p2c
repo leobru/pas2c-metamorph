@@ -1,0 +1,30 @@
+/*=k9,l0*/
+// A one-constant logical expression still short-circuits in source order and
+// produces a normalized Boolean value.  In particular, a constant on the
+// right cannot discard evaluation of the left operand.
+int calls;
+
+int side(int value) {
+    ++calls;
+    return value;
+}
+
+void main() {
+    calls = 0;
+    writeln("LOR1 ", (1 || side(0)):0, ' ', calls:0);
+    calls = 0;
+    writeln("LOR0 ", (0 || side(7)):0, ' ', calls:0);
+    calls = 0;
+    writeln("LAND0 ", (0 && side(7)):0, ' ', calls:0);
+    calls = 0;
+    writeln("LAND1 ", (1 && side(7)):0, ' ', calls:0);
+
+    calls = 0;
+    writeln("ROR1 ", (side(0) || 1):0, ' ', calls:0);
+    calls = 0;
+    writeln("ROR0 ", (side(7) || 0):0, ' ', calls:0);
+    calls = 0;
+    writeln("RAND1 ", (side(0) && 1):0, ' ', calls:0);
+    calls = 0;
+    writeln("RAND0 ", (side(7) && 0):0, ' ', calls:0);
+}
