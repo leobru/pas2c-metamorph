@@ -2896,13 +2896,13 @@ Word foldRawInt2(Operator op, const Word &lhs, const Word &rhs)
 
     switch (op) {
     case IDIVOP:
+        // C/DI truncates toward zero and C/MD leaves what it leaves over,
+        // which is what C++ does here; work.p2c folds with the target's own
+        // '/' and '%' and needs neither spelled out.
         r = a / b;
-        // We're not yet ANSI C, % is modulo
-        if (a % b < 0) --r;
         break;
     case IMODOP:
         r = a % b;
-        if (r < 0) r += b > 0 ? b : - b;
         break;
     case IMULOP:
         r = a * b;

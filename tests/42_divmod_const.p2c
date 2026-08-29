@@ -21,8 +21,11 @@
  *                                  then KMUL+KYTA+KRSUB recovers
  *                                  expr - q*const.  Inherits the
  *                                  precision loss of path 2b.
- *   5. expr   /  expr           -> runtime helper (handles negatives
- *                                  with floor-division semantics).
+ *   5. expr   /  expr           -> the runtime helpers C/DI and C/MD,
+ *                                  which truncate toward zero: the
+ *                                  remainder takes the sign of the
+ *                                  dividend, and q*b + r rebuilds a
+ *                                  whatever the signs.
  *
  * Labels avoid a leading sign or digit so BESM-6 carriage control
  * does not overstrike successive lines.
@@ -40,7 +43,8 @@ void main() {
     r = 0 % 7;            writeln(" A08 ", r:0);
     q = 999999 / 1000;    writeln(" A09 ", q:0);
     r = 999999 % 1000;    writeln(" A10 ", r:0);
-    /* constant folding for negative dividend uses floor-division */
+    /* a folded quotient truncates toward zero and the remainder follows the
+       dividend */
     q = -100 / 7;         writeln(" A11 ", q:0);
     r = -100 % 7;         writeln(" A12 ", r:0);
     q = -100 / 4;         writeln(" A13 ", q:0);
@@ -167,10 +171,10 @@ void main() {
     a %= 8;               writeln(" G06 ", a:0);
 
     /* ---------- H. variable / variable (path 5: runtime helper) -----
-     * The runtime helper handles negative dividends with Pascal-style
-     * floor division: q = floor(a/b), r = a - q*b, so r has the sign
-     * of b and 0 <= r < |b|.  Note that path 2 (constant divisor) is
-     * unsuitable for negative dividends.
+     * C/DI truncates: q = trunc(a/b), the sign coming back only after the
+     * fraction has gone.  C/MD takes that same quotient, so r = a - q*b has
+     * the sign of a and 0 <= |r| < |b|.  Note that path 2 (constant divisor)
+     * is unsuitable for negative dividends.
      */
     a = 100;  b = 7;
     q = a / b;            writeln(" H01 ", q:0);

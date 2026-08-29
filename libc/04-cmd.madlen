@@ -1,19 +1,41 @@
  c/md    :      , name,
-                , ntr ,
-            1   , aex , 11b
-                , avx ,
-            15  , stx , 1
-            1   , aex , 11b
-                , avx ,
-            15  , atx , 1
-            15  , a/x , 2
-                , ntr , 3
-            1   , a+x , 11b
-                , ntr ,
-            15  , a*x , 2
-            15  , x-a , 1
-                , ntr , 3
-            1   , a+x , 11b
-            1   , aex , 11b
+C===========================================================
+C C/MD - integer remainder, taking the sign of the dividend.
+C
+C Calling convention for a binary helper:
+C   [M15-1] = the dividend, ACC = the divisor
+C   M13 = return link
+C
+C The remainder is what C/DI leaves over: a - (a/b)*b, worked
+C out in reals and brought back to the integer scale at the
+C end.  Both arguments are wanted twice, so each is stored as a
+C real above the stack top before the divide -- the dividend at
+C M15+1, the divisor at M15+2, the quotient at M15+3.
+C
+C The quotient has to be C/DI's quotient or the two do not
+C pair, so it is truncated the same way: AMX aligns its
+C magnitude against the integer zero, dropping the fraction,
+C and AVX brings the sign back after.  It is left as a real
+C there, exponent and all, because A*X wants it that way; only
+C the remainder is stripped, at the very end.
+C===========================================================
+                , ntr ,          . normalize and round
+            1   , aex , 11b      . =I0  the divisor as a real
+                , avx ,          . normalize it for A/X
+            15  , stx , 1        . park it above the stack, pop the dividend
+            1   , aex , 11b      . =I0  the dividend as a real
+                , avx ,          . normalize it too
+            15  , atx , 1        . park it as well
+            15  , a/x , 2        . the real quotient
+                , ntr , 3        . suppress normalization and rounding
+            15  , atx , 3        . keep the quotient for its sign
+            1   , amx , 11b      . =I0  align |q|: the fraction is gone
+            15  , avx , 3        . negate it back if the quotient was negative
+                , ntr ,          . normalize and round again
+            15  , a*x , 2        . q * the divisor
+            15  , x-a , 1        . the dividend less that
+                , ntr , 3        . suppress normalization and rounding
+            1   , a+x , 11b      . =I0  align the remainder
+            1   , aex , 11b      . =I0  strip the integer exponent
             13  , uj  ,
                 , end ,
