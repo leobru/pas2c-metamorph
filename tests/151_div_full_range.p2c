@@ -1,0 +1,395 @@
+/*=k9,l0*/
+//
+// Integer division across the whole range, by constants of every shape:
+// even and odd, a power of two and not, positive and negative.  An integer
+// is 41 bits wide, so the range is -1099511627776 .. 1099511627775, and the
+// dividends below reach both of its ends.
+//
+// Division truncates toward zero whatever the signs: q = trunc(a/c) and
+// r = a - q*c, so r takes the sign of a and 0 <= |r| < |c|.  A constant
+// divisor has to mean that too.  The compiler divides by a constant its own
+// way, by a reciprocal it works out at compile time, and only a variable
+// divisor reaches the runtime helper.  The two have to agree, and both have
+// to obey the law above.  Three sweeps say so:
+//
+//   MATRIX  the quotient and the remainder a constant divisor gives, at
+//           both ends of the range and on either side of zero.
+//   LADDER  every power of two and every prefix of the range end, with
+//           their neighbours, in both signs.
+//   BAND    a run of consecutive dividends: a reciprocal a shade too large
+//           only shows on the dividends whose quotient falls a shade below
+//           a whole number, which is one residue class in c.
+//   UNSIGN  the same ladder over an unsigned dividend, which is what puts
+//           a constant divisor inline at all: neither the shift nor the
+//           mask there carries a sign, so a signed one takes the helper
+//           and these are the only sweeps above that leave it.
+//
+// QBAD and RBAD count where the constant divisor and the helper part ways;
+// LAW counts the remainders that are not remainders at all, which needs
+// neither of them to be right.
+//
+// Truncation keeps |q*c| within |a|, so nothing here needs a step past the
+// end of the range to say what the remainder is, not even at its very ends.
+//
+int dv[9] = { 0, 1, -1,
+              1099511627775, -1099511627775, 1099511627774,
+              -1099511627774, 549755813888, -549755813888 };
+int lo, qbad, rbad, lbad;
+unsigned uv;
+//
+void chk(int c, int a, int q, int r) {
+    int b, m;
+    b = c;
+    if (q != a / b) qbad = qbad + 1;
+    if (r != a % b) rbad = rbad + 1;
+    m = c;  if (m < 0) m = -m;
+    if (r == 0) return;
+    if (r > 0) { if (a < 0 || r >= m) lbad = lbad + 1; }
+    else       { if (a > 0 || r <= -m) lbad = lbad + 1; }
+}
+void row(int c, int a, int q, int r) {
+    chk(c, a, q, r);
+    writeln(" ", c:8, a:16, q:16, r:10);
+}
+void tally() {
+    writeln(" QBAD ", qbad:6, " RBAD ", rbad:6, " LAW ", lbad:6);
+    qbad = 0;  rbad = 0;  lbad = 0;
+}
+//
+void dP2() { int i; for (i = 0; i < 9; i = i+1)
+    row(2, dv[i], dv[i] / 2, dv[i] % 2); }
+void dP4() { int i; for (i = 0; i < 9; i = i+1)
+    row(4, dv[i], dv[i] / 4, dv[i] % 4); }
+void dP10() { int i; for (i = 0; i < 9; i = i+1)
+    row(10, dv[i], dv[i] / 10, dv[i] % 10); }
+void dP1024() { int i; for (i = 0; i < 9; i = i+1)
+    row(1024, dv[i], dv[i] / 1024, dv[i] % 1024); }
+void dP3() { int i; for (i = 0; i < 9; i = i+1)
+    row(3, dv[i], dv[i] / 3, dv[i] % 3); }
+void dP7() { int i; for (i = 0; i < 9; i = i+1)
+    row(7, dv[i], dv[i] / 7, dv[i] % 7); }
+void dP999983() { int i; for (i = 0; i < 9; i = i+1)
+    row(999983, dv[i], dv[i] / 999983, dv[i] % 999983); }
+void dM2() { int i; for (i = 0; i < 9; i = i+1)
+    row(-2, dv[i], dv[i] / -2, dv[i] % -2); }
+void dM1024() { int i; for (i = 0; i < 9; i = i+1)
+    row(-1024, dv[i], dv[i] / -1024, dv[i] % -1024); }
+void dM3() { int i; for (i = 0; i < 9; i = i+1)
+    row(-3, dv[i], dv[i] / -3, dv[i] % -3); }
+void dM7() { int i; for (i = 0; i < 9; i = i+1)
+    row(-7, dv[i], dv[i] / -7, dv[i] % -7); }
+void dM999983() { int i; for (i = 0; i < 9; i = i+1)
+    row(-999983, dv[i], dv[i] / -999983, dv[i] % -999983); }
+//
+void lP2() { int i, a, t;
+    for (i = 0; i < 40; i = i+1) {
+        a = 1 << i;
+        t = a;  chk(2, t, t / 2, t % 2);
+        t = -a;  chk(2, t, t / 2, t % 2);
+        t = a - 1;  chk(2, t, t / 2, t % 2);
+        t = -a - 1;  chk(2, t, t / 2, t % 2);
+        a = 1099511627775 >> i;
+        t = a;  chk(2, t, t / 2, t % 2);
+        t = -a;  chk(2, t, t / 2, t % 2);
+        t = a - 1;  chk(2, t, t / 2, t % 2);
+        t = -a - 1;  chk(2, t, t / 2, t % 2);
+    } }
+void lP3() { int i, a, t;
+    for (i = 0; i < 40; i = i+1) {
+        a = 1 << i;
+        t = a;  chk(3, t, t / 3, t % 3);
+        t = -a;  chk(3, t, t / 3, t % 3);
+        t = a - 1;  chk(3, t, t / 3, t % 3);
+        t = -a - 1;  chk(3, t, t / 3, t % 3);
+        a = 1099511627775 >> i;
+        t = a;  chk(3, t, t / 3, t % 3);
+        t = -a;  chk(3, t, t / 3, t % 3);
+        t = a - 1;  chk(3, t, t / 3, t % 3);
+        t = -a - 1;  chk(3, t, t / 3, t % 3);
+    } }
+void lP4() { int i, a, t;
+    for (i = 0; i < 40; i = i+1) {
+        a = 1 << i;
+        t = a;  chk(4, t, t / 4, t % 4);
+        t = -a;  chk(4, t, t / 4, t % 4);
+        t = a - 1;  chk(4, t, t / 4, t % 4);
+        t = -a - 1;  chk(4, t, t / 4, t % 4);
+        a = 1099511627775 >> i;
+        t = a;  chk(4, t, t / 4, t % 4);
+        t = -a;  chk(4, t, t / 4, t % 4);
+        t = a - 1;  chk(4, t, t / 4, t % 4);
+        t = -a - 1;  chk(4, t, t / 4, t % 4);
+    } }
+void lP7() { int i, a, t;
+    for (i = 0; i < 40; i = i+1) {
+        a = 1 << i;
+        t = a;  chk(7, t, t / 7, t % 7);
+        t = -a;  chk(7, t, t / 7, t % 7);
+        t = a - 1;  chk(7, t, t / 7, t % 7);
+        t = -a - 1;  chk(7, t, t / 7, t % 7);
+        a = 1099511627775 >> i;
+        t = a;  chk(7, t, t / 7, t % 7);
+        t = -a;  chk(7, t, t / 7, t % 7);
+        t = a - 1;  chk(7, t, t / 7, t % 7);
+        t = -a - 1;  chk(7, t, t / 7, t % 7);
+    } }
+void lP10() { int i, a, t;
+    for (i = 0; i < 40; i = i+1) {
+        a = 1 << i;
+        t = a;  chk(10, t, t / 10, t % 10);
+        t = -a;  chk(10, t, t / 10, t % 10);
+        t = a - 1;  chk(10, t, t / 10, t % 10);
+        t = -a - 1;  chk(10, t, t / 10, t % 10);
+        a = 1099511627775 >> i;
+        t = a;  chk(10, t, t / 10, t % 10);
+        t = -a;  chk(10, t, t / 10, t % 10);
+        t = a - 1;  chk(10, t, t / 10, t % 10);
+        t = -a - 1;  chk(10, t, t / 10, t % 10);
+    } }
+void lP1024() { int i, a, t;
+    for (i = 0; i < 40; i = i+1) {
+        a = 1 << i;
+        t = a;  chk(1024, t, t / 1024, t % 1024);
+        t = -a;  chk(1024, t, t / 1024, t % 1024);
+        t = a - 1;  chk(1024, t, t / 1024, t % 1024);
+        t = -a - 1;  chk(1024, t, t / 1024, t % 1024);
+        a = 1099511627775 >> i;
+        t = a;  chk(1024, t, t / 1024, t % 1024);
+        t = -a;  chk(1024, t, t / 1024, t % 1024);
+        t = a - 1;  chk(1024, t, t / 1024, t % 1024);
+        t = -a - 1;  chk(1024, t, t / 1024, t % 1024);
+    } }
+void lP999983() { int i, a, t;
+    for (i = 0; i < 40; i = i+1) {
+        a = 1 << i;
+        t = a;  chk(999983, t, t / 999983, t % 999983);
+        t = -a;  chk(999983, t, t / 999983, t % 999983);
+        t = a - 1;  chk(999983, t, t / 999983, t % 999983);
+        t = -a - 1;  chk(999983, t, t / 999983, t % 999983);
+        a = 1099511627775 >> i;
+        t = a;  chk(999983, t, t / 999983, t % 999983);
+        t = -a;  chk(999983, t, t / 999983, t % 999983);
+        t = a - 1;  chk(999983, t, t / 999983, t % 999983);
+        t = -a - 1;  chk(999983, t, t / 999983, t % 999983);
+    } }
+void lM3() { int i, a, t;
+    for (i = 0; i < 40; i = i+1) {
+        a = 1 << i;
+        t = a;  chk(-3, t, t / -3, t % -3);
+        t = -a;  chk(-3, t, t / -3, t % -3);
+        t = a - 1;  chk(-3, t, t / -3, t % -3);
+        t = -a - 1;  chk(-3, t, t / -3, t % -3);
+        a = 1099511627775 >> i;
+        t = a;  chk(-3, t, t / -3, t % -3);
+        t = -a;  chk(-3, t, t / -3, t % -3);
+        t = a - 1;  chk(-3, t, t / -3, t % -3);
+        t = -a - 1;  chk(-3, t, t / -3, t % -3);
+    } }
+void lM7() { int i, a, t;
+    for (i = 0; i < 40; i = i+1) {
+        a = 1 << i;
+        t = a;  chk(-7, t, t / -7, t % -7);
+        t = -a;  chk(-7, t, t / -7, t % -7);
+        t = a - 1;  chk(-7, t, t / -7, t % -7);
+        t = -a - 1;  chk(-7, t, t / -7, t % -7);
+        a = 1099511627775 >> i;
+        t = a;  chk(-7, t, t / -7, t % -7);
+        t = -a;  chk(-7, t, t / -7, t % -7);
+        t = a - 1;  chk(-7, t, t / -7, t % -7);
+        t = -a - 1;  chk(-7, t, t / -7, t % -7);
+    } }
+void lM1024() { int i, a, t;
+    for (i = 0; i < 40; i = i+1) {
+        a = 1 << i;
+        t = a;  chk(-1024, t, t / -1024, t % -1024);
+        t = -a;  chk(-1024, t, t / -1024, t % -1024);
+        t = a - 1;  chk(-1024, t, t / -1024, t % -1024);
+        t = -a - 1;  chk(-1024, t, t / -1024, t % -1024);
+        a = 1099511627775 >> i;
+        t = a;  chk(-1024, t, t / -1024, t % -1024);
+        t = -a;  chk(-1024, t, t / -1024, t % -1024);
+        t = a - 1;  chk(-1024, t, t / -1024, t % -1024);
+        t = -a - 1;  chk(-1024, t, t / -1024, t % -1024);
+    } }
+//
+void bP2() { int i, a;
+    for (i = 0; i < 300; i = i+1) {
+        a = lo + i;  chk(2, a, a / 2, a % 2);
+        a = -a;      chk(2, a, a / 2, a % 2);
+    } }
+void bP3() { int i, a;
+    for (i = 0; i < 300; i = i+1) {
+        a = lo + i;  chk(3, a, a / 3, a % 3);
+        a = -a;      chk(3, a, a / 3, a % 3);
+    } }
+void bP7() { int i, a;
+    for (i = 0; i < 300; i = i+1) {
+        a = lo + i;  chk(7, a, a / 7, a % 7);
+        a = -a;      chk(7, a, a / 7, a % 7);
+    } }
+void bP10() { int i, a;
+    for (i = 0; i < 300; i = i+1) {
+        a = lo + i;  chk(10, a, a / 10, a % 10);
+        a = -a;      chk(10, a, a / 10, a % 10);
+    } }
+void bP1024() { int i, a;
+    for (i = 0; i < 300; i = i+1) {
+        a = lo + i;  chk(1024, a, a / 1024, a % 1024);
+        a = -a;      chk(1024, a, a / 1024, a % 1024);
+    } }
+void bP999983() { int i, a;
+    for (i = 0; i < 300; i = i+1) {
+        a = lo + i;  chk(999983, a, a / 999983, a % 999983);
+        a = -a;      chk(999983, a, a / 999983, a % 999983);
+    } }
+void bM3() { int i, a;
+    for (i = 0; i < 300; i = i+1) {
+        a = lo + i;  chk(-3, a, a / -3, a % -3);
+        a = -a;      chk(-3, a, a / -3, a % -3);
+    } }
+void bM7() { int i, a;
+    for (i = 0; i < 300; i = i+1) {
+        a = lo + i;  chk(-7, a, a / -7, a % -7);
+        a = -a;      chk(-7, a, a / -7, a % -7);
+    } }
+void bM1024() { int i, a;
+    for (i = 0; i < 300; i = i+1) {
+        a = lo + i;  chk(-1024, a, a / -1024, a % -1024);
+        a = -a;      chk(-1024, a, a / -1024, a % -1024);
+    } }
+//
+void uP2() { int i;
+    for (i = 0; i < 40; i = i+1) {
+        uv = 1 << i;
+        chk(2, uv, uv / 2, uv % 2);
+        uv = uv - 1;
+        chk(2, uv, uv / 2, uv % 2);
+    } }
+void uP3() { int i;
+    for (i = 0; i < 40; i = i+1) {
+        uv = 1 << i;
+        chk(3, uv, uv / 3, uv % 3);
+        uv = uv - 1;
+        chk(3, uv, uv / 3, uv % 3);
+    } }
+void uP6() { int i;
+    for (i = 0; i < 40; i = i+1) {
+        uv = 1 << i;
+        chk(6, uv, uv / 6, uv % 6);
+        uv = uv - 1;
+        chk(6, uv, uv / 6, uv % 6);
+    } }
+void uP7() { int i;
+    for (i = 0; i < 40; i = i+1) {
+        uv = 1 << i;
+        chk(7, uv, uv / 7, uv % 7);
+        uv = uv - 1;
+        chk(7, uv, uv / 7, uv % 7);
+    } }
+void uP10() { int i;
+    for (i = 0; i < 40; i = i+1) {
+        uv = 1 << i;
+        chk(10, uv, uv / 10, uv % 10);
+        uv = uv - 1;
+        chk(10, uv, uv / 10, uv % 10);
+    } }
+void uP100() { int i;
+    for (i = 0; i < 40; i = i+1) {
+        uv = 1 << i;
+        chk(100, uv, uv / 100, uv % 100);
+        uv = uv - 1;
+        chk(100, uv, uv / 100, uv % 100);
+    } }
+void uP257() { int i;
+    for (i = 0; i < 40; i = i+1) {
+        uv = 1 << i;
+        chk(257, uv, uv / 257, uv % 257);
+        uv = uv - 1;
+        chk(257, uv, uv / 257, uv % 257);
+    } }
+void uP1024() { int i;
+    for (i = 0; i < 40; i = i+1) {
+        uv = 1 << i;
+        chk(1024, uv, uv / 1024, uv % 1024);
+        uv = uv - 1;
+        chk(1024, uv, uv / 1024, uv % 1024);
+    } }
+void uP999983() { int i;
+    for (i = 0; i < 40; i = i+1) {
+        uv = 1 << i;
+        chk(999983, uv, uv / 999983, uv % 999983);
+        uv = uv - 1;
+        chk(999983, uv, uv / 999983, uv % 999983);
+    } }
+//
+void main() {
+    qbad = 0;  rbad = 0;  lbad = 0;
+    writeln(" MATRIX  DIVISOR       DIVIDEND        QUOTIENT REMAINDER");
+    dP2();
+    dP4();
+    dP10();
+    dP1024();
+    dP3();
+    dP7();
+    dP999983();
+    dM2();
+    dM1024();
+    dM3();
+    dM7();
+    dM999983();
+    writeln(" MATRIX");   tally();
+    lP2();
+    lP3();
+    lP4();
+    lP7();
+    lP10();
+    lP1024();
+    lP999983();
+    lM3();
+    lM7();
+    lM1024();
+    writeln(" LADDER");   tally();
+    uP2();
+    uP3();
+    uP6();
+    uP7();
+    uP10();
+    uP100();
+    uP257();
+    uP1024();
+    uP999983();
+    writeln(" UNSIGN");   tally();
+    lo = 1099511627476;
+    bP2();
+    bP3();
+    bP7();
+    bP10();
+    bP1024();
+    bP999983();
+    bM3();
+    bM7();
+    bM1024();
+    writeln(" BAND TOP"); tally();
+    lo = 549755813888;
+    bP2();
+    bP3();
+    bP7();
+    bP10();
+    bP1024();
+    bP999983();
+    bM3();
+    bM7();
+    bM1024();
+    writeln(" BAND MID"); tally();
+    lo = 1;
+    bP2();
+    bP3();
+    bP7();
+    bP10();
+    bP1024();
+    bP999983();
+    bM3();
+    bM7();
+    bM1024();
+    writeln(" BAND LOW"); tally();
+}

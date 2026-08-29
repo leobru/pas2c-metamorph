@@ -3261,7 +3261,13 @@ struct formOperator {
     formOperator(OpGen l3arg1z);
     ~formOperator() { super.pop_back(); }
 
-    int64_t l3int2z, l3int3z;
+    /* scratch3 is one word lent out to four unrelated jobs, none of whose
+       lives overlap: genComparison holds the comparison's distance from NEOP
+       in it, genFullExpr the arithmetic mode of the instruction it is
+       emitting, formOperator's own body first an instruction count and later
+       a jump target.  Each of those says at the point of use what it is
+       holding, since the name cannot. */
+    int64_t l3int2z, scratch3;
     int64_t nextInsn;
     ExprPtr helpExpr;
     OpFlg flags;
@@ -4040,6 +4046,9 @@ struct genFullExpr {
     Word arg1Val, arg2Val;
     Operator curOP;
     int64_t work;
+    /* What genRecip answered about the constant divisor: read by genConstDiv,
+       and by opfMOD to tell a power of two from anything else. */
+    int64_t recip;
 
     void genHelper() {
         InsnList * &saved = formOperator::super.back()->saved;
@@ -4234,22 +4243,6 @@ L33:        prepLoad();
         }
     } /* genBoolAnd */
 
-    void genConstDiv() {
-        // power-of-2 divisors (card==1) collapse to a single
-        // arithmetic shift; other divisors emit a reciprocal multiply first,
-        // then the residual shift.
-        Real r;
-        if (card(arg2Val.ii) > 1) {
-            curVal.r = 1.0 / (double)(int64_t)arg2Val.ii;
-            r = (double)curVal.r * (int64_t)arg2Val.ii;
-            curVal.ii = curVal.ii & BitRange(7, 47);
-            if ((double)r < 1.0)
-                curVal.ii = curVal.ii + 1;
-            curVal.ii = curVal.ii | Bits(0);
-            addToInsnList(KMUL+I8 + getFCSToffset());
-        }
-        addToInsnList(ASN64 + 47 - minel(arg2Val.ii));
-    }; /* genConstDiv */
 
     /* Ternary conditional CONDOP{cond, ALTERN{then, else}}: build one deferred
        ilRVAL chain (cond; UZA/U1A elseLab; then; UJ endLab; elseLab: else;
@@ -4830,7 +4823,7 @@ void genComparison()
     int64_t l5set2z;
     int64_t mode, size;
 
-    int64_t &l3int3z = formOperator::super.back()->l3int3z;
+    int64_t &scratch3 = formOperator::super.back()->scratch3;
     Operator &curOP = genFullExpr::super.back()->curOP;
     bool &arg1Const = genFullExpr::super.back()->arg1Const;
     bool &arg2Const = genFullExpr::super.back()->arg2Const;
@@ -4842,9 +4835,9 @@ void genComparison()
     int64_t &work = genFullExpr::super.back()->work;
     TPtr &l2typ13z = programme::super.back()->l2typ13z;
 
-    l3int3z = curOP - NEOP;
-    negate = l3int3z & 1;
-    if (l3int3z == 6) {     /* IN */
+    scratch3 = curOP - NEOP;
+    negate = scratch3 & 1;
+    if (scratch3 == 6) {     /* IN */
         if (arg1Const) {
             if (arg2Const) {
                 insnList->payload.ii = has(arg2Val.ii, arg1Val.ii);
@@ -4871,7 +4864,7 @@ void genComparison()
         }
     } else { /* 7423 */
         if (negate)
-            l3int3z = l3int3z - 1;
+            scratch3 = scratch3 - 1;
         l2typ13z = insnList->typ;
         curVarKind = (Kind)(l2typ13z.p.pk);
         size = typeSize(l2typ13z);
@@ -4885,10 +4878,10 @@ void genComparison()
         if (size != 1) {
             genFullExpr::super.back()->prepMultiWord();
             addInsnAndOffset(KVTM+I11, 1 - size);
-            addToInsnList(getHelperProc(50 + l3int3z)); /* P/EQ */
+            addToInsnList(getHelperProc(50 + scratch3)); /* P/EQ */
             insnList->ilm = ilRVAL;
             negate = not negate;
-        } else if (l3int3z == 0) {
+        } else if (scratch3 == 0) {
             nextInsn = InsnTemp[AEX];
             genFullExpr::super.back()->tryFlip(true);
 L7504:
@@ -4963,7 +4956,7 @@ genFullExpr::genFullExpr(ExprPtr exprToGen_)
         /*CONDOP*/  opfCOMM,  /*ALTERN*/   opfCOMM,
         /*INCROP*/  opfCOMM,  /*DECROP*/   opfCOMM,
         /*ASSIGNOP*/ opfASSN };
-    int64_t &l3int3z = formOperator::super.back()->l3int3z;
+    int64_t &scratch3 = formOperator::super.back()->scratch3;
     bool &rhsMode = formOperator::super.back()->rhsMode;
     int64_t &nextInsn = formOperator::super.back()->nextInsn;
     OpFlg &flags = formOperator::super.back()->flags;
@@ -5017,7 +5010,7 @@ L7567:
         } else { /* 7625: a foldable op with two constant operands is already
                     folded to GETENUM at construction (mkExprFold), so only the
                     non-constant codegen path remains here. */
-                l3int3z = opToMode[curOP];
+                scratch3 = opToMode[curOP];
                 flags = opFlags[curOP];
                 nextInsn = opToInsn[curOP];
                 switch (flags) {
@@ -5050,34 +5043,131 @@ L7567:
                     genBoolAnd();
                     negateCond();
                     return;
+                /* Division by a constant, inline.  The reciprocal is a real
+                   in [0.5,1) and KMUL keeps the high half of the product,
+                   which is a shift by 40; ASN takes the rest of it.  No sign
+                   arises anywhere, because only an unsigned operand and a
+                   divisor above zero are admitted here -- either operand
+                   unsigned asks for this, the way either asks IMULOP for the
+                   unsigned multiply, and everything else takes C/DI or C/MD.
+
+                   The signed sequences cost five instructions against these
+                   two, which is too much to spend inline; a signed divide
+                   goes to C/DI instead.  They are written out here because
+                   they are what truncation costs if it is ever wanted, and
+                   they are also where a negative divisor would belong --
+                   there the magnitude would divide and one closing negation
+                   would carry the divisor's sign, which is meaningless while
+                   the dividend is unsigned.  KMUL's high half is an
+                   arithmetic shift and carries the sign, ASN does not, so the
+                   residual shift becomes a second multiply by an exact
+                   negative power of two, and what it leaves is the floor.
+                   Truncation is one step up from that wherever the dividend
+                   is negative, and which step depends on whether the
+                   reciprocal is exact:
+
+                     |c| = 2^k   the reciprocal is exact, so the floor is a
+                                 floor and the dividend is biased by |c|-1
+                                 where it is negative.  The bias also keeps it
+                                 off the range minimum, whose magnitude has
+                                 nowhere to go.
+
+                         ATX SP+1 ; MUL 2^-40 ; AAX |c|-1 ; ADD SP+1 ; MUL 2^-k
+
+                     otherwise   the reciprocal is rounded up, and that
+                                 overshoot drops a negative quotient exactly
+                                 one below its truncation, so the sign is
+                                 added back at the end.  The floor is negative
+                                 exactly where the dividend was, so it is its
+                                 own sign mask and the dividend never has to
+                                 be kept.
+
+                         MUL magic ; MUL 2^-k ; ATX SP+1 ; MUL 2^-40 ; RSUB SP+1
+
+                   The sign mask either shape wants is one more multiply:
+                   2^-40 keeps only the sign bit, giving 0 or -1.  Nothing in
+                   either branches, and the word above the stack top is the
+                   only scratch. */
                 case opfMOD:
-                    if (arg2Const and arg2Val.ii > 0) {
-                        prepLoad();
-                        if (card(arg2Val.ii) == 1) {
-                            curVal.ii = BitRange(minel(arg2Val.ii)+1, 47);
-                            addToInsnList(KAAX+I8 + getFCSToffset());
-                            l3int3z = 0;
-                        } else {
-                            addToInsnList(macro + mcPUSH);
-                            genConstDiv();
-                            insnList->tail->mode = 1;
-                            curVal.ii = arg2Val.ii | Bits(0);
-                            addToInsnList(KMUL+I8 + getFCSToffset());
-                            addToInsnList(KYTA+64);
-                            addToInsnList(KRSUB+SP);
-                            l3int3z = 1;
-                        }
-                    } else {
-                        genHelper();
-                    }
-                    break;
                 case opfDIV:
-                    if (arg2Const and arg2Val.ii > 0) {
-                        prepLoad();
-                        genConstDiv();
-                        l3int3z = 1;
-                    } else
+                    /* recip says which of three things the divisor is: 0 for
+                       one not to be divided by inline, 1 for a power of two,
+                       where the shift alone divides and no reciprocal is
+                       wanted, and otherwise the mantissa of 1.0/c, which is
+                       ceil(2^(40+k)/c) with k the index of c's top bit.  That
+                       mantissa is never below 2^39, so it cannot be taken for
+                       either of the other two.
+
+                       The division rounds either way and the product says
+                       which: below 1.0 the mantissa came back short and is
+                       stepped up to the ceiling.  That is the one place the
+                       two compilers meet by different routes, this dividing
+                       in a host double and work.p2c on the machine.
+
+                       Rounding up is what makes the reciprocal usable and
+                       also what limits it: the mantissa overshoots
+                       2^(40+k)/c by some e, and the quotient it yields is one
+                       too high once a*e reaches 2^(40+k).  A dividend stops
+                       below 2^40, so the sequence holds exactly while
+                       e <= 2^k: the largest product it can then face is
+                       (2^40 - 1) * 2^k, which is 2^k short of reaching.
+                       Nothing reconstructs e -- m*c is 2^(40+k) + e and 40+k
+                       is at least 41, so the low half of that product is e
+                       alone.  The target keeps that half for free, an
+                       unsigned multiply being what it does; a host word has
+                       no room for the whole product, so the width is spelled
+                       out here instead. */
+                    recip = 0;
+                    if (arg2Const and rawIntToI64(arg2Val) > 0 and
+                        (exprToGen->expr1->vt.typ == UnsignedType or
+                         exprToGen->expr2->vt.typ == UnsignedType)) {
+                        int64_t c = rawIntToI64(arg2Val);
+                        if (card(c) == 1)
+                            recip = 1;
+                        else {
+                            curVal.r = 1.0 / (double)c;
+                            recip = (double)curVal.r * c < 1.0;
+                            curVal.ii = (curVal.ii & BitRange(7, 47)) + recip;
+                            recip = 0;
+                            if ((int64_t)(((__int128)curVal.ii * c)
+                                          & ((1L << 40) - 1))
+                                <= (1L << (47 - minel(c))))
+                                recip = curVal.ii;
+                        }
+                    }
+                    if (recip == 0) {
                         genHelper();
+                        break;
+                    }
+                    prepLoad();
+                    scratch3 = 1;
+                    if (curOP == IMODOP) {
+                        if (recip == 1) {
+                            /* what is left over a power of two is a mask
+                               away, and wants no quotient at all */
+                            curVal.ii = arg2Val.ii - 1;
+                            addToInsnList(KAAX+I8 + getFCSToffset());
+                            scratch3 = 0;
+                            break;
+                        }
+                        /* the dividend is wanted again once the quotient is
+                           in, so it goes on the stack first */
+                        addToInsnList(macro + mcPUSH);
+                    }
+                    if (recip != 1) {
+                        curVal.ii = recip | Bits(0);
+                        addToInsnList(KMUL+I8 + getFCSToffset());
+                    }
+                    addToInsnList(ASN64 + 47 - minel(arg2Val.ii));
+                    if (curOP == IMODOP) {
+                        /* what is left is the dividend less the quotient
+                           times the divisor */
+                        insnList->tail->mode = 1;
+                        curVal.ii = arg2Val.ii | Bits(0);
+                        addToInsnList(KMUL+I8 + getFCSToffset());
+                        addToInsnList(KYTA+64);
+                        addToInsnList(KRSUB+SP);
+                    }
                     break;
                 case opfMULMSK:
                     if (arg1Const) {
@@ -5110,7 +5200,7 @@ L7567:
                     break;
                 } /* case 10122 */
 L10122:
-                insnList->tail->mode = l3int3z;
+                insnList->tail->mode = scratch3;
         }
     } else { /* 10125 */
         if (curOP <= DEREF) {
@@ -5233,25 +5323,25 @@ L10122:
                 if (curOP == TOREAL) {
                     addToInsnList(KAOX+ZERO);
                     addToInsnList(InsnTemp[AVX]);
-                    l3int3z = 3;
+                    scratch3 = 3;
                     goto L10122;
                 } else if (curOP == TOINT) {
                     /* Real to integer truncates toward zero, in C/TR
                        (libc); the helper returns with the machine in
                        integer mode. */
-                    l3int3z = 2;
+                    scratch3 = 2;
                     addToInsnList(getHelperProc(33)); /* "C/TR" */
                     goto L10122;
                 } else if (curOP == BITNEGOP) {
                     addToInsnList(KAEX+ALLONES);
-                    l3int3z = 1;
+                    scratch3 = 1;
                     goto L10122;
                 } else {
                     addToInsnList(KAVX+ALLONES);
                     if (curOP == RNEGOP)
-                        l3int3z = 3;
+                        scratch3 = 3;
                     else
-                        l3int3z = 1;
+                        scratch3 = 1;
                     goto L10122;
                 }
             }
@@ -5291,11 +5381,11 @@ L10122:
             } else {
                 prepLoad();
                 if (work == fnCARD) {
-                    l3int3z = 0;
+                    scratch3 = 0;
                 } else if (work == fnABS)
-                    l3int3z = 3;
+                    scratch3 = 3;
                 else {
-                    l3int3z = 1;
+                    scratch3 = 1;
                 }
                 addToInsnList(funcInsn[work]);
                 goto L10122;
@@ -5392,11 +5482,11 @@ formOperator::formOperator(OpGen op)
         break;
     case SETREG: {
         if (insnList->head == NULL)
-            l3int3z = 0;
+            scratch3 = 0;
         else if (insnList->head == insnList->tail)
-            l3int3z = 1;
+            scratch3 = 1;
         else
-            l3int3z = 2;
+            scratch3 = 2;
         helpExpr = new Expr;
         helpExpr->expr1 = pinList;
         pinList = helpExpr;
@@ -5410,7 +5500,7 @@ formOperator::formOperator(OpGen op)
         helpExpr->vt.typ.p.psize = 0;
         switch (insnList->st) {
         case stWORD: {
-            if (l3int3z == 0)  {
+            if (scratch3 == 0)  {
                 l3int2z = 14;
             } else {
                 l3var10z.ii = auxRegs & freeRegs;
@@ -5419,7 +5509,7 @@ formOperator::formOperator(OpGen op)
                 } else {
                     l3int2z = 14;
                 }
-                if (l3int3z != 1) {
+                if (scratch3 != 1) {
                     (void) setAddrTo(l3int2z);
                     addToInsnList(KITA + l3int2z);
                     addInsnAndOffset(curFrameRegTemplate, localSize);
@@ -5488,7 +5578,7 @@ formOperator::formOperator(OpGen op)
     } break;
     case BRANCH:
         noTarget = jumpTarget == 0;
-        l3int3z = jumpTarget;
+        scratch3 = jumpTarget;
         if (insnList->ilm == ilCONST) {
             if (insnList->payload.ii) {
                 jumpTarget = 0;
@@ -5515,16 +5605,16 @@ formOperator::formOperator(OpGen op)
                 genOneOp();
                 if (direction) {
                     if (noTarget)
-                        formJump(l3int3z);
+                        formJump(scratch3);
                     else
-                        form1Insn(InsnTemp[UJ] + l3int3z);
+                        form1Insn(InsnTemp[UJ] + scratch3);
                     fixup(0, jumpTarget);
-                    jumpTarget = l3int3z;
+                    jumpTarget = scratch3;
                 } else {
                     if (not noTarget) {
                         if (not putLeft)
                             padToLeft();
-                        fixup(l3int3z, jumpTarget);
+                        fixup(scratch3, jumpTarget);
                     }
                 }
             } else {
@@ -5547,11 +5637,11 @@ formOperator::formOperator(OpGen op)
                     nextInsn = InsnTemp[UZA];
                 if (noTarget) {
                     jumpType = nextInsn;
-                    formJump(l3int3z);
+                    formJump(scratch3);
                     jumpType = InsnTemp[UJ];
-                    jumpTarget = l3int3z;
+                    jumpTarget = scratch3;
                 } else {
-                    form1Insn(nextInsn + l3int3z);
+                    form1Insn(nextInsn + scratch3);
                 }
             }
         }

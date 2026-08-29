@@ -2,30 +2,30 @@
 /*
  * Comprehensive test of integer division and modulo when one operand
  * is a compile-time constant.  The compiler picks among five distinct
- * code paths (see opfDIV / opfMOD in base.pas around line 3800):
+ * code paths (see opfDIV / opfMOD in work.p2c):
  *
  *   1. const op const           -> folded at compile time.
- *   2a. expr  /  (1<<k)          -> single arithmetic shift right (ASN)
- *                                  via the card(arg2)==1 fast path in
+ *   2a. expr  /  (1<<k)          -> single shift right (ASN) via the
+ *                                  card(arg2)==1 fast path in
  *                                  genConstDiv.
- *   2b. expr  /  const (other)   -> reciprocal multiplication via
- *                                  PASDIV(1.0/const).  Because BESM-6
- *                                  reals carry only ~40 mantissa bits
- *                                  the magic constant has up to ~8
- *                                  bits of error: e.g. 1234566/1234567
- *                                  yields 1 instead of 0.  See
- *                                  baddiv.p2c.
+ *   2b. expr  /  const (other)   -> multiplication by a reciprocal worked
+ *                                  out at compile time, then the residual
+ *                                  shift.  genRecip turns away the
+ *                                  divisors whose reciprocal overshoots
+ *                                  too far to hold across the range.
  *   3. expr   %  (1<<k)         -> single bitwise AND with the
  *                                  low-k-bit mask via KAAX.
- *   4. expr   %  const (other)  -> reciprocal mul gives quotient,
- *                                  then KMUL+KYTA+KRSUB recovers
- *                                  expr - q*const.  Inherits the
- *                                  precision loss of path 2b.
- *   5. expr   /  expr           -> the runtime helpers C/DI and C/MD,
- *                                  which truncate toward zero: the
- *                                  remainder takes the sign of the
- *                                  dividend, and q*b + r rebuilds a
- *                                  whatever the signs.
+ *   4. expr   %  const (other)  -> the quotient of path 2, then
+ *                                  KMUL+KYTA+KRSUB recovers expr - q*const.
+ *   5. expr   /  expr           -> the runtime helpers C/DI and C/MD.
+ *
+ * Paths 2 to 4 want an unsigned operand -- neither the shift nor the mask
+ * there carries a sign -- so the B to G sections below, whose dividend is
+ * a plain int, reach the constant divisor through path 5.  What they pin
+ * is the answer, which is the same either way: all five truncate toward
+ * zero, the remainder takes the sign of the dividend, and q*b + r rebuilds
+ * a whatever the signs.  tests/151_div_full_range drives paths 2 to 4
+ * proper, over an unsigned dividend and to both ends of the range.
  *
  * Labels avoid a leading sign or digit so BESM-6 carriage control
  * does not overstrike successive lines.
@@ -50,7 +50,7 @@ void main() {
     q = -100 / 4;         writeln(" A13 ", q:0);
     r = -100 % 4;         writeln(" A14 ", r:0);
 
-    /* ---------- B. variable / power-of-two constant (path 2a) ------- */
+    /* ---------- B. variable / power-of-two constant ---------------- */
     a = 1024;
     q = a / 1;            writeln(" B01 ", q:0);
     q = a / 2;            writeln(" B02 ", q:0);
@@ -66,7 +66,7 @@ void main() {
     q = a / 4;            writeln(" B11 ", q:0);
     q = a / 1024;         writeln(" B12 ", q:0);
 
-    /* ---------- C. variable / non-power-of-two constant (path 2) ---- */
+    /* ---------- C. variable / non-power-of-two constant ------------- */
     a = 100;
     q = a / 3;            writeln(" C01 ", q:0);
     q = a / 5;            writeln(" C02 ", q:0);
@@ -86,7 +86,7 @@ void main() {
     q = a / 13;           writeln(" C15 ", q:0);
     q = a / 999;          writeln(" C16 ", q:0);
 
-    /* ---------- D. variable % power-of-two constant (path 3) -------- */
+    /* ---------- D. variable % power-of-two constant ----------------- */
     a = 1023;
     r = a % 1;            writeln(" D01 ", r:0);   /* mask = empty   */
     r = a % 2;            writeln(" D02 ", r:0);
@@ -104,7 +104,7 @@ void main() {
     a = 65;
     r = a % 64;           writeln(" D13 ", r:0);
 
-    /* ---------- E. variable % non-power-of-two constant (path 4) ---- */
+    /* ---------- E. variable % non-power-of-two constant ------------- */
     a = 100;
     r = a % 3;            writeln(" E01 ", r:0);
     r = a % 5;            writeln(" E02 ", r:0);
@@ -173,8 +173,8 @@ void main() {
     /* ---------- H. variable / variable (path 5: runtime helper) -----
      * C/DI truncates: q = trunc(a/b), the sign coming back only after the
      * fraction has gone.  C/MD takes that same quotient, so r = a - q*b has
-     * the sign of a and 0 <= |r| < |b|.  Note that path 2 (constant divisor)
-     * is unsuitable for negative dividends.
+     * the sign of a and 0 <= |r| < |b|.  A constant divisor answers the
+     * same, which is what the B..G sections above check against these.
      */
     a = 100;  b = 7;
     q = a / b;            writeln(" H01 ", q:0);
