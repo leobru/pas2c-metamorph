@@ -28,7 +28,7 @@ typedef
         SETAND,     SETXOR,     SETOR,
         MUL,        RDIVOP,     ANDOP,     IDIVOP,     IMODOP,
         PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
-        LTOP,       GEOP,       GTOP,       LEOP,       INOP,
+        LTOP,       GEOP,       GTOP,       LEOP,
         IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
         INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
         RMWASSIGN,  op37,       GETENUM,    GETFIELD,   DEREF,
@@ -90,7 +90,7 @@ var
     charSym: symbol['\200'];
     chrClass: operator['\200'];
     iso2text: int:6[86];
-    keywordName: int[22];
+    keywordName: int[21];
     keywordHashPtr: *kword;
     intZero: bitset;
     numFormat: numberFormat;
@@ -240,12 +240,9 @@ void regResWord(keyword: int) {
 }
 //
 void regKeywords() {
-    SY = EXPROP;
-    charClass = INOP;
-    regResWord(keywordName[0]);
     SY = CONSTSY;
     charClass = NOOP;
-    for (idx = 1; idx <= 21; ++idx) {
+    for (idx = 0; idx <= 20; ++idx) {
         if (SY != TYPESY)
             regResWord(keywordName[idx]);
         ++SY;
@@ -827,7 +824,6 @@ void main() {
     charSym['~'] = EXPROP;
     charSym['?'] = EXPROP;
     keywordName =
-    t'      IN',
     t'   CONST',
     t' TYPEDEF',
     t'     VAR',

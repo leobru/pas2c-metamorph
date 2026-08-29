@@ -1,0 +1,176 @@
+/*=k9,l0*/
+//
+// Case labels below zero, over both dispatch shapes.
+//
+// With caseTabMin labels or more running consecutively the switch indexes a
+// table, and the base it indexes from is the smallest label halved.  The
+// dispatch halves the value with a shift, and that shift is logical, so the
+// base has to be the label word halved the same way -- unsigned, whatever
+// its sign.  A signed halving parts company with the shift exactly where the
+// smallest label is odd and negative, which is why both parities are here,
+// and why the spans reach far enough from zero to move the table address.
+//
+// Below that count, and wherever the labels have a gap, the labels are
+// compared one at a time and no base arises.
+//
+// Every span is walked from below its smallest label to above its largest,
+// so an arm selected wrongly shows up as a wrong value and not just as a
+// missing one.  999 is the answer for anything outside.
+//
+int i;
+//
+// 10 labels, -5 to 4: indexed.
+int oddMin(int n) {
+    switch (n) {
+    case -5: return 100;
+    case -4: return 101;
+    case -3: return 102;
+    case -2: return 103;
+    case -1: return 104;
+    case 0: return 105;
+    case 1: return 106;
+    case 2: return 107;
+    case 3: return 108;
+    case 4: return 109;
+    default: return 999;
+    }
+    return 999;
+}
+//
+// 10 labels, -6 to 3: indexed.
+int evenMin(int n) {
+    switch (n) {
+    case -6: return 200;
+    case -5: return 201;
+    case -4: return 202;
+    case -3: return 203;
+    case -2: return 204;
+    case -1: return 205;
+    case 0: return 206;
+    case 1: return 207;
+    case 2: return 208;
+    case 3: return 209;
+    default: return 999;
+    }
+    return 999;
+}
+//
+// 10 labels, -12 to -3: indexed.
+int allNeg(int n) {
+    switch (n) {
+    case -12: return 300;
+    case -11: return 301;
+    case -10: return 302;
+    case -9: return 303;
+    case -8: return 304;
+    case -7: return 305;
+    case -6: return 306;
+    case -5: return 307;
+    case -4: return 308;
+    case -3: return 309;
+    default: return 999;
+    }
+    return 999;
+}
+//
+// 10 labels, -1000 to -991: indexed.
+int farNeg(int n) {
+    switch (n) {
+    case -1000: return 400;
+    case -999: return 401;
+    case -998: return 402;
+    case -997: return 403;
+    case -996: return 404;
+    case -995: return 405;
+    case -994: return 406;
+    case -993: return 407;
+    case -992: return 408;
+    case -991: return 409;
+    }
+    return 999;
+}
+//
+// 11 labels, -999 to -989: indexed.
+int oddWide(int n) {
+    switch (n) {
+    case -999: return 500;
+    case -998: return 501;
+    case -997: return 502;
+    case -996: return 503;
+    case -995: return 504;
+    case -994: return 505;
+    case -993: return 506;
+    case -992: return 507;
+    case -991: return 508;
+    case -990: return 509;
+    case -989: return 510;
+    default: return 999;
+    }
+    return 999;
+}
+//
+// 8 labels, -9 to -1: compared.
+int gapWide(int n) {
+    switch (n) {
+    case -9: return 600;
+    case -8: return 601;
+    case -7: return 602;
+    case -6: return 603;
+    case -4: return 604;
+    case -3: return 605;
+    case -2: return 606;
+    case -1: return 607;
+    default: return 999;
+    }
+    return 999;
+}
+//
+// 5 labels, -7 to -1: compared.
+int gapFew(int n) {
+    switch (n) {
+    case -7: return 700;
+    case -5: return 701;
+    case -3: return 702;
+    case -2: return 703;
+    case -1: return 704;
+    }
+    return 999;
+}
+//
+// 3 labels, -3 to -1: compared.
+int fewNeg(int n) {
+    switch (n) {
+    case -3: return 800;
+    case -2: return 801;
+    case -1: return 802;
+    default: return 999;
+    }
+    return 999;
+}
+//
+void main() {
+    writeln(" ODDMIN");
+    for (i = -7; i <= 6; i = i + 1)
+        writeln("   N ", i:6, " R ", oddMin(i):5);
+    writeln(" EVENMIN");
+    for (i = -8; i <= 5; i = i + 1)
+        writeln("   N ", i:6, " R ", evenMin(i):5);
+    writeln(" ALLNEG");
+    for (i = -14; i <= -1; i = i + 1)
+        writeln("   N ", i:6, " R ", allNeg(i):5);
+    writeln(" FARNEG");
+    for (i = -1002; i <= -989; i = i + 1)
+        writeln("   N ", i:6, " R ", farNeg(i):5);
+    writeln(" ODDWIDE");
+    for (i = -1001; i <= -987; i = i + 1)
+        writeln("   N ", i:6, " R ", oddWide(i):5);
+    writeln(" GAPWIDE");
+    for (i = -11; i <= 1; i = i + 1)
+        writeln("   N ", i:6, " R ", gapWide(i):5);
+    writeln(" GAPFEW");
+    for (i = -9; i <= 1; i = i + 1)
+        writeln("   N ", i:6, " R ", gapFew(i):5);
+    writeln(" FEWNEG");
+    for (i = -5; i <= 1; i = i + 1)
+        writeln("   N ", i:6, " R ", fewNeg(i):5);
+}

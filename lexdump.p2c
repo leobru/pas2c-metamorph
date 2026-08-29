@@ -25,7 +25,7 @@ typedef
         SETAND,     SETXOR,     SETOR,
         MUL,        RDIVOP,     ANDOP,     IDIVOP,     IMODOP,
         PLUSOP,     MINUSOP,    OROP,       NEOP,       EQOP,
-        LTOP,       GEOP,       GTOP,       LEOP,       INOP,
+        LTOP,       GEOP,       GTOP,       LEOP,
         IMULOP,     INTPLUS,    INTMINUS,   CONDOP,     ALTERN,
         INCROP,     DECROP,     ASSIGNOP,   GETELT,     GETVAR,
         RMWASSIGN,  op37,       GETENUM,    GETFIELD,   DEREF,

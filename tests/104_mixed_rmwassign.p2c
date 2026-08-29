@@ -12,6 +12,7 @@ float f;
 int i, n;
 char c;
 int s;
+int has(int, int) assembler;
 //
 void main() {
     // Binary arithmetic, both operand orders.
@@ -59,7 +60,7 @@ void main() {
     // A bit operation on a char and an int prints as a number.
     c  =  'A';
     writeln(" BIT   ", (c | 8):4, (8 | c):4);
-    // Set membership: the element is a scalar, the set an integer word.
+    // Explicit set membership: the set is the first argument.
     i  =  2;
-    writeln(" IN    ", (i in [1,2,3]):2, (i in [4,5]):2);
+    writeln(" IN    ", has([1,2,3], i):2, has([4,5], i):2);
 }

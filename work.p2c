@@ -182,7 +182,7 @@ typedef enum {
       MINUSOP/INTMINUS), so bldArithOp reaches the integer one by adding
       'oper != IMODOP': one step along, and none for '%', which has no real
       flavour to be distinguished from and so is already the integer one;
-   -- NEOP..INOP run contiguously in that order: genComparison indexes them as
+   -- NEOP..LEOP run contiguously in that order: genComparison indexes them as
       curOP-NEOP, and takes the odd ones for the negated sense;
    -- SHLEFT is 0, and SHLEFT..SETOR, GETELT..ALNUM and TOREAL..BITNEGOP are
       each contiguous, being written as ranges.  GETELT..ALNUM is the set whose
@@ -197,7 +197,7 @@ typedef enum {
     MUL,        IMULOP,     RDIVOP,     IDIVOP,     IMODOP,
     PLUSOP,     INTPLUS,    MINUSOP,    INTMINUS,   ANDOP,
     OROP,       NEOP,       EQOP,       LTOP,       GEOP,
-    GTOP,       LEOP,       INOP,       CONDOP,     ALTERN,
+    GTOP,       LEOP,       CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   RMWASSIGN,  GETELT,
     GETVAR,     GETENUM,    GETFIELD,   DEREF,      STKLVAL,
     INDCALL,    PROCADDR,   ALNUM,      TOREAL,     TOINT,
@@ -640,7 +640,7 @@ int helperNames[58] = { 0,
         t'P/B6    ',
         t'P/PB    ',
 /*40*/  t'P/B7    ',
-        t'P/IN    ',
+        0U,           // helper 41 unused
         t'P/IT    ',
         t'P/CK    ',
         t'P/KC    ',
@@ -658,7 +658,7 @@ int helperNames[58] = { 0,
         t'C/SHL   ',
         t'C/SHR   ' };
 int opPrec[ALTERN+1] = {
-    precNone:25,
+    precNone:24,
     [CONDOP]=precCond,
     [OROP]=precOr,
     [ANDOP]=precAnd,
@@ -666,7 +666,7 @@ int opPrec[ALTERN+1] = {
     [SETXOR]=precBitXor,
     [SETAND]=precBitAnd,
     [NEOP]=precEq, [EQOP]=precEq,
-    [LTOP]=precRel, [GEOP]=precRel, [GTOP]=precRel, [LEOP]=precRel, [INOP]=precRel,
+    [LTOP]=precRel, [GEOP]=precRel, [GTOP]=precRel, [LEOP]=precRel,
     [SHLEFT]=precShift, [SHRIGHT]=precShift,
     [PLUSOP]=precAdd, [MINUSOP]=precAdd,
     [MUL]=precMul, [RDIVOP]=precMul, [IDIVOP]=precMul, [IMODOP]=precMul };
@@ -709,8 +709,6 @@ typedef ifcb *pfcb;
 // An external has no body to name its parameters from, so these leave the
 // declarators abstract -- the types alone are what the call sites check.
 void fopen(pfcb, int, int) assembler;
-void fclose(pfcb) assembler;
-void ftruncate(pfcb) assembler;
 void frewind(pfcb) assembler;
 int feof(pfcb) assembler;
 int fgetc(pfcb) assembler;
@@ -719,6 +717,7 @@ void fputw(int, pfcb) assembler;
 int pck(int *) assembler;
 void unpck(int, int *) assembler;
 void unpackt(void *, void *, int) assembler;
+int has(int, int) assembler;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
@@ -757,7 +756,7 @@ char c;
             write(c);
         }
         write(' ');
-        if (errno in [17, 22])
+        if (has([17, 22], errno))
             if (errno == 17)
                 write(errLine:0);
             else
@@ -1426,7 +1425,7 @@ L2175:     error(59); /* errEOLNInStringLiteral */
             return;
         } else if (CH == BACKSLASH) {
             nextCH();
-            if (CH-'0' IN escSet) {
+            if (has(escSet, CH-'0')) {
                 if (CH <= '7') {
                     expLiteral  =  0;
                     tokenLen  =  0;
@@ -1824,7 +1823,7 @@ void error(int errno) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void skip(int toset) {
-    while (!(SY IN toset))
+    while (!has(toset, SY))
         inSymbol();
 } /* skip */
 //
@@ -1914,7 +1913,7 @@ operator l3var1z;
 tptr ret;
     *litValue  =  curToken.i;
     if (SY > STRINGSY) {
-        if (allowSign && (charClass IN [PLUSOP, MINUSOP])) {
+        if (allowSign && has([PLUSOP, MINUSOP], charClass)) {
             l3var1z  =  charClass;
             inSymbol();
             ret = parseLiteral(litValue, false);
@@ -2381,7 +2380,7 @@ tptr t;
    address to take and is left for the caller's type check to refuse. */
 eptr decayArray(eptr e) {
 eptr addr;
-    if (e->typ.p.pk != kindArray || ! (e->op IN lvalOpSet))
+    if (e->typ.p.pk != kindArray || ! has(lvalOpSet, e->op))
         return e;
     if (! isCharArray(e->typ))
         return mkRef(e, getPtrType(e->typ.rep->base));
@@ -2708,15 +2707,9 @@ L1:         error(errNeedOtherTypesOfOperands);
             curExpr = uVarPtr;
             return;
         }
-    } else  {
-        if (!areTypesCompatible(&ex2) &&
-            (!isIntTyp(arg2Type) ||
-             (arg1Type.p.pk != kindScalar) ||
-            (oper != INOP))) {
-            goto L1;
-        }
-    }
-    if (oper IN [GTOP, LEOP]) {
+    } else if (!areTypesCompatible(&ex2))
+        goto L1;
+    if (has([GTOP, LEOP], oper)) {
         resOp = (oper == GTOP) ? LTOP : GEOP;
         curExpr = mkExpr(resOp, boolType, curExpr, ex2);
     } else {
@@ -3047,7 +3040,7 @@ void processInsn() {
                 break;
             } /* switch */
         } else {
-            if (28 in tempInsn) {
+            if ((tempInsn >> (47-28)) & 1) {
                 addInsnToBuf(getValueOrAllocSymtab(curInsn)+tempInsn);
             } else {
                 curval.i  =  curInsn & 077777;
@@ -3250,13 +3243,13 @@ int isSimple;
             if (il->st == stSLICE)
                 genSliceExtract();
             if (forValue && (valueType == boolType) &&
-               (16 in il->regsused))
+               ((il->regsused >> (47-16)) & 1))
                 addToInsnList(KAEX+E1);
             break;
         case ilCOND:
             if (forValue)
                 addInsnAndOffset(macro+mcCOND2INT,
-                    (16 IN il->regsused)*010000 + il->payload);
+                    ((il->regsused >> (47-16)) & 1)*010000 + il->payload);
         } /* switch */
         il->ilm  =  ilRVAL;
         il->st   =  stWORD;   /* the value is a plain word in ACC now */
@@ -3279,8 +3272,8 @@ int omegaIsZeroTest(eptr e) {
    -- so look under it. */
     while (e->op == NOTOP)
         e  =  e->expr1;
-    return (e->typ == boolType) ||
-           (e->op IN [SHLEFT..SETOR,GETELT..ALNUM]);
+    return (e->typ == boolType) |
+           has([SHLEFT..SETOR,GETELT..ALNUM], e->op);
 } /* omegaIsZeroTest */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3381,7 +3374,7 @@ kind l4var7z;
     } else {
         addToInsnList(indexreg[l4int1z] + KUTC);
     }
-    l4bool4z  =  0 in insnList->regsused;
+    l4bool4z  =  insnList->regsused >> (47-0);
     l4st6z  =  insnList->st;
     if (l4st6z != stWORD || l4bool4z)
         prependToInsnList(macro + mcPUSH);
@@ -3759,7 +3752,7 @@ int recip;
    fill gives every one of them the quiet default, and the designators name
    the ones that differ. */
 static int opToInsn[STKLVAL+1] = {
-    0:35,
+    0:34,
     [SHLEFT]=56, [SHRIGHT]=57,
     [SETAND]=KAAX, [SETXOR]=KAEX, [SETOR]=KAOX,
     [MUL]=KMUL, [RDIVOP]=KDIV,
@@ -3768,7 +3761,7 @@ static int opToInsn[STKLVAL+1] = {
     [PLUSOP]=KADD, [MINUSOP]=KSUB,
     [IMULOP]=KMUL, [INTPLUS]=KADD, [INTMINUS]=KSUB };
 static opflg opFlags[STKLVAL+1] = {
-    opfCOMM:35,
+    opfCOMM:34,
     [SHLEFT]=opfSHIFT, [SHRIGHT]=opfSHIFT,
     [ANDOP]=opfAND, [IDIVOP]=opfDIV, [IMODOP]=opfMOD,
     [OROP]=opfOR, [IMULOP]=opfMULMSK, [ASSIGNOP]=opfASSN };
@@ -3789,7 +3782,7 @@ void genHelper() {
 void prepMultiWord() {
 int l5var1z;
 insnltyp *l5var2z;
-    l5var1z  =  12 in otherIns->regsused;
+    l5var1z  =  (otherIns->regsused >> (47-12)) & 1;
     setAddrTo(12);
     if (l5var1z) {
         addToInsnList(KITA+12);
@@ -3812,12 +3805,12 @@ insnltyp *l5var2z;
 void tryFlip(int commutes) {
 int l5var1z;
 insnltyp *l5var2z;
-    if (! (0 in otherIns->regsused)) {
+    if (! (otherIns->regsused >> (47-0))) {
         l5var1z  =  0;
-    } else if (! (0 in insnList->regsused)) {
-        l5var1z  =  commutes + 1;
-    } else {
+    } else if (insnList->regsused >> (47-0)) {
         l5var1z  =  3;
+    } else {
+        l5var1z  =  commutes + 1;
     }
     switch (l5var1z) {
     case 2:
@@ -3868,8 +3861,8 @@ int l5var9z;
         if (! arg2Val.i)
             insnList  =  otherIns;
     } else {
-        l5var1z  =  16 in insnList->regsused;
-        l5var2z  =  16 in otherIns->regsused;
+        l5var1z  =  (insnList->regsused >> (47-16)) & 1;
+        l5var2z  =  (otherIns->regsused >> (47-16)) & 1;
         l5var5z  =  condLabCnt;
         ++condLabCnt;
         forValue  =  false;
@@ -4090,7 +4083,7 @@ int idxOffsets[10];
                     } else {
                             l5var1z  =  insnCopy.addrmd;
                     }
-                    if (l5var1z IN insnList->regsused) {
+                    if (has(insnList->regsused, l5var1z)) {
                          push();
                          insnList->tail->next  =  insnCopy.head;
                          insnCopy.head  =  insnList->head;
@@ -4117,7 +4110,7 @@ int idxOffsets[10];
                         addToInsnList(KADD+I8 + getFCSToffset());
                         insnList->tail->mode  =  1;
                     }
-                    l5var24z  =  0 in insnCopy.regsused;
+                    l5var24z  =  insnCopy.regsused >> (47-0);
                     if (l5var24z)
                         addToInsnList(macro + mcPUSH);
                     saved  =  insnList;
@@ -4183,9 +4176,9 @@ idclass paramClass;
     }
     isProc  =  resTyp == voidType;
     frameSiz  =  isProc ? 8 : 9;
-    isFortrn  =  21 in calleeFl;
-    isAssembler  =  26 in calleeFl;
-    allByRef  =  24 in calleeFl;
+    isFortrn  =  (calleeFl >> (47-21)) & 1;
+    isAssembler  =  (calleeFl >> (47-26)) & 1;
+    allByRef  =  (calleeFl >> (47-24)) & 1;
     insnList = malloc(sizeof(insnltyp));
     insnList->head  =  NULL;
     insnList->tail  =  NULL;
@@ -4370,86 +4363,57 @@ insnltyp *lhsIns, *rhsIns;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genComparison() {
 int negate;
-int l5set2z;
 int mode, size;
     scratch3  =  curOP - NEOP;
     negate  =  scratch3 & 1U;
-    if (scratch3 == 6) {     /* IN */
-        if (arg1Const) {
-            if (arg2Const) {
-                insnList->payload  =  arg1Val.i IN arg2Val.i;
-            } else {
-                l5set2z  =  E48 >> arg1Val.i;
-                if (l5set2z == 0U) {
-                    insnList->payload  =  false;
-                } else {
-                    insnList  =  otherIns;
-                    prepLoad();
-                    curVal.i  =  l5set2z;
-                    addToInsnList(KAAX+I8 + getFCSToffset());
-                    insnList->payload  =  0;
-                    insnList->ilm  =  ilCOND;
-                }
-            }
-        } else {
-            saved  =  insnList;
-            insnList  =  otherIns;
-            otherIns  =  saved;
-            nextInsn  =  41;      /* P/IN */
-            genHelper();
-            insnList->ilm  =  ilRVAL;
-        }
-    } else {
-        if (negate)
-            --scratch3;
-        l2typ13z  =  insnList->typ;
-        curVarKind  =  l2typ13z.p.pk;
-        size  =  typeSize(l2typ13z);
-        if (l2typ13z == realType) {
-            work  =  1;
-        } else if (curVarKind == kindScalar)
-            work  =  3;
-        else {
-            work  =  4;
-        }
-        if (size != 1) {
-            prepMultiWord();
-            addInsnAndOffset(KVTM+I11, 1 - size);
-            addToInsnList(getHelperProc(50 + scratch3)); /* P/EQ */
-            insnList->ilm  =  ilRVAL;
-            negate  =  ! negate;
-        } else if (scratch3 == 0) {
-            nextInsn  =  KAEX;
-            tryFlip(true);
-L7504:      insnList->ilm  =  ilCOND;
-            insnList->payload  =  0;
-        } else {
-            switch (work) {
-            case 1:
-                mode  =  3;
-L7514:          nextInsn  =  KSUB;
-                tryFlip(false);
-                insnList->tail->mode  =  mode;
-                if (mode == 3) {
-                    addToInsnList(KNTR+023);
-                    insnList->tail->mode  =  2;
-                }
-                goto L7504;
-            case 3:
-                mode  =  1;
-                goto L7514;
-            case 4:
-                nextInsn  =  KARX;
-                prepLoad();
-                addToInsnList(KAEX+ALLONES);
-                tryFlip(true);
-                goto L7504;
-            } /* switch */
-        }
-        insnList->regsused  =  insnList->regsused & (~[16]);
-        if (negate)
-             negateCond();
+    scratch3 -= negate;
+    l2typ13z  =  insnList->typ;
+    curVarKind  =  l2typ13z.p.pk;
+    size  =  typeSize(l2typ13z);
+    if (l2typ13z == realType) {
+        work  =  1;
+    } else if (curVarKind == kindScalar)
+        work  =  3;
+    else {
+        work  =  4;
     }
+    if (size != 1) {
+        prepMultiWord();
+        addInsnAndOffset(KVTM+I11, 1 - size);
+        addToInsnList(getHelperProc(50 + scratch3)); /* P/EQ */
+        insnList->ilm  =  ilRVAL;
+        negate  =  ! negate;
+    } else if (scratch3 == 0) {
+        nextInsn  =  KAEX;
+        tryFlip(true);
+L7504:      insnList->ilm  =  ilCOND;
+        insnList->payload  =  0;
+    } else {
+        switch (work) {
+        case 1:
+            mode  =  3;
+L7514:          nextInsn  =  KSUB;
+            tryFlip(false);
+            insnList->tail->mode  =  mode;
+            if (mode == 3) {
+                addToInsnList(KNTR+023);
+                insnList->tail->mode  =  2;
+            }
+            goto L7504;
+        case 3:
+            mode  =  1;
+            goto L7514;
+        case 4:
+            nextInsn  =  KARX;
+            prepLoad();
+            addToInsnList(KAEX+ALLONES);
+            tryFlip(true);
+            goto L7504;
+        } /* switch */
+    }
+    insnList->regsused  =  insnList->regsused & (~[16]);
+    if (negate)
+         negateCond();
 } /* genComparison */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -4508,7 +4472,7 @@ insnltyp *condChain, *thenChain;
        genComparison / genBoolAnd leave the chain in ilCOND form (deferred
        conditional), avoiding the wasteful mcCOND2INT sequence that would
        first materialize a 0/1 in ACC and then re-test it.
-       Direction = (16 in regsused) follows the convention used by
+       Direction = (regsused >> (47-16)) & 1 follows the convention used by
        formOperator(BRANCH): when set, the embedded condition is "negated"
        and a true-condition path is selected by U1A (macro+1); otherwise
        UZA (macro+0) jumps when ACC>=0 (sign clear), i.e., on FALSE. */
@@ -4518,7 +4482,7 @@ insnltyp *condChain, *thenChain;
     if (insnList->ilm == ilCOND && insnList->payload) {
         /* Compound boolean (a && b, a || b, ...): the chain already has an
            embedded forward jump to label `payload`. */
-        if (16 in insnList->regsused)
+        if ((insnList->regsused >> (47-16)) & 1)
             /* Set: an OR, which genBoolAnd built by De Morgan and negateCond
                flipped, so the embedded jumps fire on TRUE.  Send the
                fall-through to elseLab and define payload here, where the
@@ -4536,7 +4500,8 @@ insnltyp *condChain, *thenChain;
            an lvalue/constant to ACC otherwise. Then emit a single deferred
            UZA/U1A to elseLab. */
         prepLoad();
-        addInsnAndOffset(macro + (16 in insnList->regsused), elseLab);
+        addInsnAndOffset(macro +
+            ((insnList->regsused >> (47-16)) & 1), elseLab);
     }
     forValue = true;
     condChain = insnList;
@@ -4617,7 +4582,7 @@ int idxOffset;
     case DEREF:    return e->expr1->op == GETVAR;
     case GETFIELD: return isCheapLval(e->expr1);
     case GETELT:   return stripIdx(e->expr2, &idxOffset)->op == GETVAR;
-    case NOOP:     return (e->typ.p.psize != 0) || (e->typ.p.pad IN liveRegs);
+    case NOOP:     return (e->typ.p.psize != 0) | has(liveRegs, e->typ.p.pad);
     default:       return false;
     }
 } /* isCheapLval */
@@ -4709,7 +4674,7 @@ L7567:
             arg2Val.i  =  otherIns->payload;
         } else
             arg2Const  =  false;
-        if (curOP IN [NEOP, EQOP, LTOP, GEOP, GTOP, LEOP, INOP]) {
+        if (has([NEOP, EQOP, LTOP, GEOP, GTOP, LEOP], curOP)) {
             genComparison();
         } else {
             /* a foldable op with two constant operands is already folded to
@@ -4719,7 +4684,7 @@ L7567:
                 nextInsn  =  opToInsn[curOP];
                 switch (opFlags[curOP]) {
                 case opfCOMM:
-                    tryFlip(curOP in [MUL,PLUSOP,SETOR,SETAND,INTPLUS,IMULOP]);
+                    tryFlip(has([MUL,PLUSOP,SETOR,SETAND,INTPLUS,IMULOP], curOP));
                     break;
                 case opfHELP:
                     genHelper();
@@ -5026,7 +4991,7 @@ L10122:         insnList->tail->mode  =  scratch3;
         }
     } else if (curOP == ALNUM || curOP == INDCALL)
         genEntry();
-    else if (curOP IN [TOREAL..BITNEGOP]) {
+    else if (has([TOREAL..BITNEGOP], curOP)) {
         genFullExpr(exprToGen->expr1);
         /* a unary op with a constant operand is already folded at construction
            (mkUnaryFold/castToReal), so there is no ilCONST case here. */
@@ -5099,7 +5064,7 @@ L10122:         insnList->tail->mode  =  scratch3;
         curVal.i  =  exprToGen->typ.p.pad;
         /* A spilled base has a frame slot to come back from, so it needs no
            liveness test. */
-        if (exprToGen->typ.p.psize || curVal.i IN liveRegs) {
+        if (exprToGen->typ.p.psize || has(liveRegs, curVal.i)) {
             insnList = malloc(sizeof(insnltyp));
             { register insnltyp *il = insnList;
                 il->typ  =  exprToGen->expr2->typ;
@@ -5141,7 +5106,7 @@ L10122:         insnList->tail->mode  =  scratch3;
         return;
 //  if (l3arg1z == DOIT)                        /* see dropPostFixup */
 //      curExpr = dropPostFixup(curExpr);
-    if (! (l3arg1z IN [FORMOP, DFLTWDTH]))
+    if (! has([FORMOP, DFLTWDTH], l3arg1z))
         genFullExpr(curExpr);
     switch (l3arg1z) {
     case DOIT:
@@ -5265,7 +5230,7 @@ L10122:         insnList->tail->mode  =  scratch3;
                    the accumulator holds is decided by what is under it. */
                 if (! omegaIsZeroTest(curExpr))
                     addToInsnList(KAEX);
-                direction  =  (16 in insnList->regsused);
+                direction  =  (insnList->regsused >> (47-16)) & 1;
                 if (insnList->ilm == ilCOND &&
                     insnList->payload) {
                     genOneOp();
@@ -5463,7 +5428,7 @@ int wasGroup;
              ((curIdent == t' *INPUT*') || (curIdent == t'*OUTPUT*')));
         d->foundRec  =  hashTravPtr;
         inSymbol();
-    } else if (nameOptional && (SY IN [RPAREN, COMMA, LBRACK])) {
+    } else if (nameOptional && has([RPAREN, COMMA, LBRACK], SY)) {
         /* Abstract declarator: a formal parameter's name is optional
            ('int', 'int *', 'int [3]').  curDeclarator is a global, so
            the fields the name would have filled are cleared here; the
@@ -5793,8 +5758,8 @@ pair *curSlot;
     // nested record uses a typedef'd type name.
     cases1  =  cases;
     cases2  =  cases;
-    while (SY IN [IDENT, TYPESY, ENUMSY, STRUCTSY, UNIONSY, PACKEDSY]) {
-        if (SY IN [STRUCTSY, UNIONSY]) {
+    while (has([IDENT, TYPESY, ENUMSY, STRUCTSY, UNIONSY, PACKEDSY], SY)) {
+        if (has([STRUCTSY, UNIONSY], SY)) {
             nestedIsUnion  =  SY == UNIONSY;
             if (isUnion)
                 cases  =  cases1;
@@ -5981,7 +5946,7 @@ L12247:
         }
     } else if (charClass == MUL) {
         inSymbol();
-        if (! (SY IN [IDENT,TYPESY])) {
+        if (! has([IDENT,TYPESY], SY)) {
             error(errNoIdent);
             curType  =  voidPtr;
         } else {
@@ -6003,7 +5968,7 @@ L12366:             error(errNotAType);
             }
             inSymbol();
         }
-    } else if (SY IN [IDENT,TYPESY]) {
+    } else if (has([IDENT,TYPESY], SY)) {
         if (SY == TYPESY) {
             curType  =  symType;
         } else if ((hashTravPtr == NULL) && inTypeDef) {
@@ -6056,7 +6021,7 @@ L12366:             error(errNotAType);
             }
             goto L12247;
         }
-        if (SY IN [STRUCTSY, UNIONSY]) {
+        if (has([STRUCTSY, UNIONSY], SY)) {
             // A union is a kindStruct whose members overlap (same base offset,
             // size = max member); the only difference from a struct is the
             // layout mode passed to parseRecordDecl.
@@ -6372,11 +6337,11 @@ tptr routTyp, formType;
         { register identrec *ir = subroutine;
             if (ir->typ != voidType)
                 liveRegs &= ~(ir->flags & ~calleeSaved);
-            noArgs  =  ! (24 in ir->flags);
+            noArgs  =  1 ^ ((ir->flags >> (47-24)) & 1);
         }
     } else {
         routTyp  =  ptrBase(callee->typ);
-        noArgs  =  ! (24 in routTyp.rep->rflags);
+        noArgs  =  1 ^ ((routTyp.rep->rflags >> (47-24)) & 1);
     }
     callExpr = malloc(sizeof(expr));
     argList  =  callExpr;
@@ -6478,7 +6443,7 @@ int hasFields;
         badExpr();
         return;
     }
-    if (stProcNo IN [fnSIZEOF, fnOFFSETOF]) {
+    if (has([fnSIZEOF, fnOFFSETOF], stProcNo)) {
         lookupMode = lookUse;
         inSymbol();
         if (SY == TYPESY) {
@@ -6709,7 +6674,7 @@ L14567:         ;
        parsePostfix is a no-op when SY is not a postfix token. */
     parsePostfix();
     if (charClass == INCROP || charClass == DECROP) {
-        if (! (curExpr->op IN lvalOpSet))
+        if (! has(lvalOpSet, curExpr->op))
             error(27);
         if (! typeCheck(curExpr->typ, intType) && eltStep(curExpr->typ) == 0)
             error(62);
@@ -6724,7 +6689,8 @@ void parseUnaryExpression() {
 operator oper;
 eptr leftExpr;
     oper = NOOP;
-    if (charClass IN [PLUSOP, MINUSOP, BITNEGOP, NOTOP, MUL, SETAND, INCROP, DECROP]) {
+    if (has([PLUSOP, MINUSOP, BITNEGOP, NOTOP, MUL, SETAND, INCROP, DECROP],
+            charClass)) {
         if (charClass != PLUSOP)
             oper = charClass;
         inSymbol();
@@ -6788,7 +6754,7 @@ eptr leftExpr;
         case SETAND:
             if (curExpr->op == PROCADDR)
                 break;   /* a function designator is already its address */
-            if (! (curExpr->op IN lvalOpSet))
+            if (! has(lvalOpSet, curExpr->op))
                 error(27); /* errExpressionWhereVariableExpected */
             if ((curExpr->op == GETELT) &&
                 (curExpr->expr1->op == GETVAR) &&
@@ -6821,7 +6787,7 @@ eptr leftExpr;
             break;
         case INCROP:
         case DECROP:
-            if (! (curExpr->op IN lvalOpSet)) {
+            if (! has(lvalOpSet, curExpr->op)) {
                 error(27); /* errExpressionWhereVariableExpected */
                 return;
             }
@@ -6884,7 +6850,7 @@ int match;
                then synthesises the equivalent ASSIGNOP for emission. */
             /* An array is never an lvalue: its name in a value context is
                an address, so there is nothing to assign to. */
-            if (! (leftExpr->op IN lvalOpSet) ||
+            if (! has(lvalOpSet, leftExpr->op) ||
                 leftExpr->typ.p.pk == kindArray)
                 error(27); /* errExpressionWhereVariableExpected */
             parsePrc(precAssign);
@@ -7255,7 +7221,7 @@ word minValue, maxValue;
     firstType.rep = NULL;
     goodMode  =  true;
     do {
-        if (! (SY IN [SEMICOLON, ENDSY])) {
+        if (! has([SEMICOLON, ENDSY], SY)) {
             padToLeft();
             arithMode  =  1;
             if (SY == DEFAULTSY) {
@@ -7311,7 +7277,7 @@ word minValue, maxValue;
                 }
             }
             checkSymAndRead(COLON);
-            while (!(SY in [CASESY,DEFAULTSY,ENDSY]))
+            while (!has([CASESY,DEFAULTSY,ENDSY], SY))
                 statement();
             goodMode  =  goodMode && (arithMode == 1);
         }
@@ -7712,7 +7678,7 @@ void writeProc() {
                 }
                 noWidth  =  false;
                 if (firstWidth == NULL &&
-                    helperNo IN [22,23,24]) {  /* WC,A6,A7 */
+                    has([22,23,24], helperNo)) {  /* WC,A6,A7 */
                     helperNo += 5;  /* CW,6A,7A */
                     noWidth  =  true;
                 } else {
@@ -7749,7 +7715,7 @@ void writeProc() {
                         opToForm  =  FRACWIDTH;
                 }
                 formOperator(opToForm);
-                if (helperNo IN [23,24,28,29] || /* A6,A7,6A,7A */
+                if (has([23,24,28,29], helperNo) || /* A6,A7,6A,7A */
                     helperNo == 49)
                     form1Insn(KVTM+I10 + defWidth);
                 else {
@@ -7801,7 +7767,7 @@ void writeProc() {
                 readNext  =  false;
                 expression();
                 prevOpcode  =  0;
-                if (curExpr->op IN lvalOpSet)
+                if (has(lvalOpSet, curExpr->op))
                     formOperator(STORE);
                 else
                     formOperator(LOAD);
@@ -7826,7 +7792,7 @@ void writeProc() {
         prevOpcode  =  1;
         break;
     }
-    if (procNo in [3,4])
+    if (has([3,4], procNo))
         arithMode  =  1;
     checkSymAndRead(RPAREN);
 } /* standProc */
@@ -7861,7 +7827,7 @@ void writeProc() {
             inSymbol();
         }
     }
-    nest  =  SY IN [BEGINSY,SWITCHSY];
+    nest  =  has([BEGINSY,SWITCHSY], SY);
     if (nest)
         ++lineNesting;
     if (setjmp(&jb8888))
@@ -8017,8 +7983,8 @@ L8888:      skip(skipToSet | statEndSys);
            instead of spinning.  Only these keywords are caught; other stray
            tokens (the SEMICOLON of a labelled empty statement, CASESY/DEFAULTSY
            between switch arms) keep the original silent behaviour. */
-        if (SY IN [TYPEDEFSY, TYPESY, CONSTSY, ENUMSY, STRUCTSY,
-                   UNIONSY, PACKEDSY, STATICSY]) {
+        if (has([TYPEDEFSY, TYPESY, CONSTSY, ENUMSY, STRUCTSY,
+                 UNIONSY, PACKEDSY, STATICSY], SY)) {
             error(errBadSymbol);
             inSymbol();
         }
@@ -8174,7 +8140,7 @@ int hasMain;
     } else if (CH != '\0') {
         do {
             statement();
-            l2bool8z = (SY IN blockBegSys) || (SY == TYPESY) || (CH == '\0');
+            l2bool8z = has(blockBegSys | [TYPESY], SY) | (CH == '\0');
             if (! l2bool8z)
                 errAndSkip(errBadSymbol, skipToSet);
         } while (! l2bool8z);
@@ -8680,7 +8646,7 @@ void exitScope(int a) {
         lookup2  =  lookupMode  =  lookUse;
         inSymbol();
         markTypeSym();
-        if (! (SY IN [TYPESY, PACKEDSY, STRUCTSY, ENUMSY])) {
+        if (! has([TYPESY, PACKEDSY, STRUCTSY, ENUMSY], SY)) {
             error(errNotAType);
             skip(skipToSet | [SEMICOLON]);
             if (SY == SEMICOLON)
@@ -8717,7 +8683,7 @@ void exitScope(int a) {
                 symHash[curDeclarator.bucket]  =  workidr;
                 if (SY != BECOMES || charClass != ASSIGNOP) {
                     error(errBadSymbol);
-                    if (! (SY IN [COMMA, SEMICOLON]))
+                    if (! has([COMMA, SEMICOLON], SY))
                         skip(skipToSet | [COMMA, SEMICOLON]);
                 } else {
                     inSymbol();
@@ -8839,13 +8805,13 @@ void exitScope(int a) {
     // field-group loop condition), so those must be recognized as a
     // declaration start too, or a leading '__packed int x;' would never
     // be seen as one.
-    while (SY IN [TYPESY, PACKEDSY, STRUCTSY, ENUMSY, EXTERNSY,
-                  STATICSY]) {
+    while (has([TYPESY, PACKEDSY, STRUCTSY, ENUMSY, EXTERNSY,
+                STATICSY], SY)) {
         staticDecl  =  SY == STATICSY;
         if (staticDecl) {
             inSymbol();
             markTypeSym();
-            if (! (SY IN [TYPESY, PACKEDSY, STRUCTSY, ENUMSY])) {
+            if (! has([TYPESY, PACKEDSY, STRUCTSY, ENUMSY], SY)) {
                 error(errBadSymbol);
                 skip(skipToSet | [SEMICOLON]);
                 if (SY == SEMICOLON)
@@ -8858,7 +8824,7 @@ void exitScope(int a) {
         if (externDecl) {
             inSymbol();
             markTypeSym();
-            if (! (SY IN [TYPESY, PACKEDSY, STRUCTSY, ENUMSY])) {
+            if (! has([TYPESY, PACKEDSY, STRUCTSY, ENUMSY], SY)) {
                 error(errBadSymbol);
                 skip(skipToSet | [SEMICOLON]);
                 if (SY == SEMICOLON)
@@ -9168,20 +9134,20 @@ L23301:     ;
         return;
     }
     if (bodyBlock) {
-        if (! (SY IN (bodyStatSys | blockBegSys)) &&
-            ! (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,STATICSY,ENDSY]))
+        if (! has(bodyStatSys | blockBegSys, SY) &&
+            ! has([TYPESY,PACKEDSY,STRUCTSY,ENUMSY,STATICSY,ENDSY], SY))
             errAndSkip(84 /* errErrorInDeclarations */,
                        skipToSet | bodyStatSys | blockBegSys | [ENDSY]);
     } else if (CH != '\0' && (SY != BEGINSY) &&
-       ! (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,STATICSY]) &&
-       ! (SY IN blockBegSys))
+       ! has([TYPESY,PACKEDSY,STRUCTSY,ENUMSY,STATICSY], SY) &&
+       ! has(blockBegSys, SY))
         errAndSkip(84 /* errErrorInDeclarations */, skipToSet);
-    } while (! ((bodyBlock && ((SY IN bodyStatSys) ||
-                               (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,
-                                       STATICSY,ENDSY]))) ||
-                (! bodyBlock && ((CH == '\0') || (SY in statBegSys) ||
-                                 (SY IN [TYPESY,PACKEDSY,STRUCTSY,ENUMSY,
-                                         STATICSY])))));
+    } while (! ((bodyBlock && (has(bodyStatSys, SY) ||
+                               has([TYPESY,PACKEDSY,STRUCTSY,ENUMSY,
+                                    STATICSY,ENDSY], SY))) ||
+                (! bodyBlock && ((CH == '\0') || has(statBegSys, SY) ||
+                                 has([TYPESY,PACKEDSY,STRUCTSY,ENUMSY,
+                                      STATICSY], SY)))));
     // Checked once per programme() call (guarded by curProcNesting==1, so
     // effectively once for the whole compile), not once per do-while
     // iteration: each variable or typedef declaration stands on its own,
@@ -9236,6 +9202,7 @@ L23301:     ;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void initTables() { /* initTables */
+void ftruncate(pfcb) assembler;
 int idx, jdx;
 
 //
@@ -9246,11 +9213,11 @@ operator op;
         indexreg[idx]  =  idx << 20;
     jumpType  =  KUJ;
     for (op = MUL; op <= ASSIGNOP; ++op) {
-        if (op IN [MUL, RDIVOP, PLUSOP, MINUSOP]) {
+        if (has([MUL, RDIVOP, PLUSOP, MINUSOP], op)) {
             opToMode[op]  =  3;
-        } else if (op IN [IDIVOP, IMODOP]) {
+        } else if (has([IDIVOP, IMODOP], op)) {
             opToMode[op]  =  2;
-        } else if (op IN [IMULOP, INTPLUS, INTMINUS]) {
+        } else if (has([IMULOP, INTPLUS, INTMINUS], op)) {
             opToMode[op]  =  1;
         } else {
             opToMode[op]  =  0;
@@ -9283,9 +9250,6 @@ static int resWordName[20] = {
         t'  STATIC' };
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    SY  =  EXPROP;
-    charClass  =  INOP;
-    regResWord(t'      IN');
     SY  =  CONSTSY;
     charClass  =  NOOP;
     /* CONSTSY..STATICSY are the consecutive reserved-word table.  TYPESY
@@ -9320,6 +9284,7 @@ static int resWordName[20] = {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void finalize() {
+void fclose(pfcb) assembler;
 int idx, cnt;
     pasinfor.sizes[0]  =  1;
     pasinfor.sizes[1]  =  symTabPos - 074000 - 1;

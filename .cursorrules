@@ -4,7 +4,7 @@ Do not do "git commit"
 
 Grep only in files *.p2c and *.cc
 
-Do not look into any subdirectory except tests/
+Do not look into any subdirectory except tests/ and libc/
 
 work.p2c is the compiler source, base.cc is its
 host-native mirror. Change them together.
@@ -24,3 +24,5 @@ Do not claim success on compiler changes until `make check` (self-host fixpoint)
 
 Before modifying work.p2c or base.cc, save the known good state for ease of
 reverting if needed.
+
+When creating tests, fill gaps in numbering first.

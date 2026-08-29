@@ -209,7 +209,7 @@ enum Insn {
       MINUSOP/INTMINUS), so bldArithOp reaches the integer one by adding
       'oper != IMODOP': one step along, and none for '%', which has no real
       flavour to be distinguished from and so is already the integer one;
-   -- NEOP..INOP run contiguously in that order: genComparison indexes them as
+   -- NEOP..LEOP run contiguously in that order: genComparison indexes them as
       curOP-NEOP, and takes the odd ones for the negated sense;
    -- SHLEFT is 0, and SHLEFT..SETOR, GETELT..ALNUM and TOREAL..BITNEGOP are
       each contiguous, being written as ranges.  GETELT..ALNUM is the set whose
@@ -225,7 +225,7 @@ enum Operator {
     MUL,        IMULOP,     RDIVOP,     IDIVOP,     IMODOP,
     PLUSOP,     INTPLUS,    MINUSOP,    INTMINUS,   ANDOP,
     OROP,       NEOP,       EQOP,       LTOP,       GEOP,
-    GTOP,       LEOP,       INOP,       CONDOP,     ALTERN,
+    GTOP,       LEOP,       CONDOP,     ALTERN,
     INCROP,     DECROP,     ASSIGNOP,   RMWASSIGN,
     GETELT,     GETVAR,     GETENUM,    GETFIELD,   DEREF,
     STKLVAL,    INDCALL,    PROCADDR,   ALNUM,
@@ -1046,7 +1046,7 @@ std::string Expr::p()
     static const char * opName[] = {
         "SHLEFT","SHRIGHT","SETAND","SETXOR","SETOR","MUL","IMULOP","RDIVOP",
         "IDIVOP","IMODOP","PLUSOP","INTPLUS","MINUSOP","INTMINUS","ANDOP",
-        "OROP","NEOP","EQOP","LTOP","GEOP","GTOP","LEOP","INOP","CONDOP",
+        "OROP","NEOP","EQOP","LTOP","GEOP","GTOP","LEOP","CONDOP",
         "ALTERN","INCROP","DECROP","ASSIGNOP","RMWASSIGN","GETELT","GETVAR",
         "GETENUM","GETFIELD","DEREF","STKLVAL","INDCALL","PROCADDR","ALNUM",
         "TOREAL","TOINT","NOTOP","INEGOP","RNEGOP","BITNEGOP","STANDPROC",
@@ -4820,104 +4820,70 @@ void genCopy()
 void genComparison()
 {
     bool negate;
-    int64_t l5set2z;
     int64_t mode, size;
 
     int64_t &scratch3 = formOperator::super.back()->scratch3;
     Operator &curOP = genFullExpr::super.back()->curOP;
-    bool &arg1Const = genFullExpr::super.back()->arg1Const;
-    bool &arg2Const = genFullExpr::super.back()->arg2Const;
-    Word &arg1Val = genFullExpr::super.back()->arg1Val;
-    Word &arg2Val = genFullExpr::super.back()->arg2Val;
-    InsnList * &otherIns = genFullExpr::super.back()->otherIns;
-    InsnList * &saved = formOperator::super.back()->saved;
     int64_t &nextInsn = formOperator::super.back()->nextInsn;
     int64_t &work = genFullExpr::super.back()->work;
     TPtr &l2typ13z = programme::super.back()->l2typ13z;
 
     scratch3 = curOP - NEOP;
     negate = scratch3 & 1;
-    if (scratch3 == 6) {     /* IN */
-        if (arg1Const) {
-            if (arg2Const) {
-                insnList->payload.ii = has(arg2Val.ii, arg1Val.ii);
-            } else {
-                l5set2z = Bits(arg1Val.ii);
-                if (l5set2z == Bits()) {
-                    insnList->payload.ii = false;
-                } else {
-                    insnList = otherIns;
-                    prepLoad();
-                    curVal.ii = l5set2z;
-                    addToInsnList(KAAX+I8 + getFCSToffset());
-                    insnList->payload.ii = 0;
-                    insnList->ilm = ilCOND;
-                }
-            } /* 7412 */
-        } else { /* 7413 */
-            saved = insnList;
-            insnList = otherIns;
-            otherIns = saved;
-            nextInsn = 41;      /* P/IN */
-            genFullExpr::super.back()->genHelper();
-            insnList->ilm = ilRVAL;
-        }
-    } else { /* 7423 */
-        if (negate)
-            scratch3 = scratch3 - 1;
-        l2typ13z = insnList->typ;
-        curVarKind = (Kind)(l2typ13z.p.pk);
-        size = typeSize(l2typ13z);
-        if (l2typ13z == RealType) {
-            work = 1;
-        } else if (curVarKind == kindScalar)
-            work = 3;
-        else {
-            work = 4;
-        }
-        if (size != 1) {
-            genFullExpr::super.back()->prepMultiWord();
-            addInsnAndOffset(KVTM+I11, 1 - size);
-            addToInsnList(getHelperProc(50 + scratch3)); /* P/EQ */
-            insnList->ilm = ilRVAL;
-            negate = not negate;
-        } else if (scratch3 == 0) {
-            nextInsn = InsnTemp[AEX];
-            genFullExpr::super.back()->tryFlip(true);
+    if (negate)
+        scratch3 = scratch3 - 1;
+    l2typ13z = insnList->typ;
+    curVarKind = (Kind)(l2typ13z.p.pk);
+    size = typeSize(l2typ13z);
+    if (l2typ13z == RealType) {
+        work = 1;
+    } else if (curVarKind == kindScalar)
+        work = 3;
+    else {
+        work = 4;
+    }
+    if (size != 1) {
+        genFullExpr::super.back()->prepMultiWord();
+        addInsnAndOffset(KVTM+I11, 1 - size);
+        addToInsnList(getHelperProc(50 + scratch3)); /* P/EQ */
+        insnList->ilm = ilRVAL;
+        negate = not negate;
+    } else if (scratch3 == 0) {
+        nextInsn = InsnTemp[AEX];
+        genFullExpr::super.back()->tryFlip(true);
 L7504:
-            insnList->ilm = ilCOND;
-            insnList->payload.ii = 0;
-        } else { /* 7510 */
-            switch (work) {
-            case 1: { /*7513*/
-                mode = 3;
+        insnList->ilm = ilCOND;
+        insnList->payload.ii = 0;
+    } else { /* 7510 */
+        switch (work) {
+        case 1: { /*7513*/
+            mode = 3;
 L7514:
-                nextInsn = InsnTemp[SUB];
-                genFullExpr::super.back()->tryFlip(false);
-                insnList->tail->mode = mode;
-                if (mode == 3) {
-                    addToInsnList(KNTR+023);
-                    insnList->tail->mode = 2;
-                }
-                goto L7504;
-            } break;
-            case 3: { /*7536*/
-                mode = 1;
-                goto L7514;
-            } break;
-            case 4: { /*7540*/
-                nextInsn = InsnTemp[ARX];
-                prepLoad();
-                addToInsnList(KAEX+ALLONES);
-                genFullExpr::super.back()->tryFlip(true);
-                goto L7504;
-            } break;
-            }; /* case */
-        }; /* 7554 */
-        insnList->regsused = insnList->regsused & ~ Bits(16);
-        if (negate)
-            negateCond();
-    } /* 7562 */
+            nextInsn = InsnTemp[SUB];
+            genFullExpr::super.back()->tryFlip(false);
+            insnList->tail->mode = mode;
+            if (mode == 3) {
+                addToInsnList(KNTR+023);
+                insnList->tail->mode = 2;
+            }
+            goto L7504;
+        } break;
+        case 3: { /*7536*/
+            mode = 1;
+            goto L7514;
+        } break;
+        case 4: { /*7540*/
+            nextInsn = InsnTemp[ARX];
+            prepLoad();
+            addToInsnList(KAEX+ALLONES);
+            genFullExpr::super.back()->tryFlip(true);
+            goto L7504;
+        } break;
+        }; /* case */
+    }; /* 7554 */
+    insnList->regsused = insnList->regsused & ~ Bits(16);
+    if (negate)
+        negateCond();
 } /* genComparison */
 
 struct Level {
@@ -4933,7 +4899,7 @@ genFullExpr::genFullExpr(ExprPtr exprToGen_)
     /* Positional, since g++ takes no designated array initialisers: the
        entries run in Operator order from SHLEFT, and everything past
        ASSIGNOP is the quiet default. */
-    static int64_t opToInsn[48] = {
+    static int64_t opToInsn[47] = {
         /*SHLEFT*/ 56,   /*SHRIGHT*/  57,
         /*SETAND*/ KAAX, /*SETXOR*/   KAEX, /*SETOR*/ KAOX,
         /*MUL*/    KMUL, /*IMULOP*/   KMUL,
@@ -4941,7 +4907,7 @@ genFullExpr::genFullExpr(ExprPtr exprToGen_)
         /*IMODOP*/ 7,                              /* P/MD */
         /*PLUSOP*/ KADD, /*INTPLUS*/  KADD,
         /*MINUSOP*/ KSUB, /*INTMINUS*/ KSUB };
-    static OpFlg opFlags[48] = {
+    static OpFlg opFlags[47] = {
         /*SHLEFT*/  opfSHIFT, /*SHRIGHT*/  opfSHIFT,
         /*SETAND*/  opfCOMM,  /*SETXOR*/   opfCOMM, /*SETOR*/ opfCOMM,
         /*MUL*/     opfCOMM,  /*IMULOP*/   opfMULMSK,
@@ -4952,7 +4918,7 @@ genFullExpr::genFullExpr(ExprPtr exprToGen_)
         /*ANDOP*/   opfAND,   /*OROP*/     opfOR,
         /*NEOP*/    opfCOMM,  /*EQOP*/     opfCOMM,
         /*LTOP*/    opfCOMM,  /*GEOP*/     opfCOMM, /*GTOP*/ opfCOMM,
-        /*LEOP*/    opfCOMM,  /*INOP*/     opfCOMM,
+        /*LEOP*/    opfCOMM,
         /*CONDOP*/  opfCOMM,  /*ALTERN*/   opfCOMM,
         /*INCROP*/  opfCOMM,  /*DECROP*/   opfCOMM,
         /*ASSIGNOP*/ opfASSN };
@@ -5005,7 +4971,7 @@ L7567:
         } else
             arg2Const = false;
         if (has((Bits(NEOP) | Bits(EQOP) | Bits(LTOP) | Bits(GEOP) |
-             Bits(GTOP) | Bits(LEOP) | Bits(INOP)), curOP)) {
+             Bits(GTOP) | Bits(LEOP)), curOP)) {
             genComparison();
         } else { /* 7625: a foldable op with two constant operands is already
                     folded to GETENUM at construction (mkExprFold), so only the
@@ -7122,13 +7088,8 @@ void bldRelOp(Operator oper, ExprPtr ex2)
             (oper >= LTOP) and
             not isCharArray(arg1Type))
             error(errNeedOtherTypesOfOperands);
-    } else {
-        if (not areTypesCompatible(ex2) and
-            (not isIntTyp(arg2Type) or
-             (arg1Type.p.pk != kindScalar) or
-             (oper != INOP))) {
-            error(errNeedOtherTypesOfOperands);
-        }
+    } else if (not areTypesCompatible(ex2)) {
+        error(errNeedOtherTypesOfOperands);
     }
     if (oper == GTOP or oper == LEOP) {
         if (oper == GTOP)
@@ -10199,9 +10160,6 @@ struct initTables {
                 06556515756L             /*"   UNION"*/,
                 0624564656256L           /*"  RETURN"*/,
                 0636441645143L           /*"  STATIC"*/};
-        SY = EXPROP;
-        charClass = INOP;
-        regResWord(toText("IN"));
         SY = CONSTSY;
         charClass = NOOP;
         // CONSTSY..STATICSY are the consecutive reserved-word table. TYPESY
@@ -10596,7 +10554,6 @@ int main(int argc, char **argv)
     opPrec[GEOP] = precRel;
     opPrec[GTOP] = precRel;
     opPrec[LEOP] = precRel;
-    opPrec[INOP] = precRel;
     opPrec[SHLEFT] = precShift;
     opPrec[SHRIGHT] = precShift;
     opPrec[PLUSOP] = precAdd;
@@ -10686,7 +10643,7 @@ int64_t helperNames[58] = { 0L,
         06017422600000000L      /*"P/B6    "*/,
         06017604200000000L      /*"P/PB    "*/,
 /*40*/  06017422700000000L      /*"P/B7    "*/,
-        06017515600000000L      /*"P/IN    "*/,
+        0,                      /* helper 41 unused */
         06017516400000000L      /*"P/IT    "*/,
         06017435300000000L      /*"P/CK    "*/,
         06017534300000000L      /*"P/KC    "*/,

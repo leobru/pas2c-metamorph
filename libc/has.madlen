@@ -1,0 +1,37 @@
+ HAS:,NAME,
+C===========================================================
+C HAS - test membership in a one-word Pascal set.
+C Replica of P/IN in paslib/p_in.dtran.
+C
+C Calling convention:
+C   ACC          = element number, numbered from the word's MSB
+C   top of stack = 48-bit set
+C   M1           = Pascal runtime constant-table base
+C   M13          = return link
+C
+C Result:
+C   ACC = 1 if the element is present, 0 otherwise.
+C   The stacked set operand is consumed on every path.
+C
+C [M1+26B] has its low six bits clear.  Masking the element
+C number with it and shifting six places therefore rejects
+C values outside 0..63.  For an accepted value, [M1+25B] is
+C the MSB mask; shifting it right by the element number makes
+C the corresponding set mask.  Values 48..63 make that mask
+C zero and consequently return false.
+C===========================================================
+ ,NTR,3                    . suppress normalization and rounding
+ ,ATI,14                   . M14 := element number; ACC is unchanged
+ 1,AAX,26B                 . retain all but the low six index bits
+ ,ASN,64+6                 . right-shift 6: zero iff index is in 0..63
+ ,U1A,*0006B               . outside that range -> discard set, return false
+ 1,XTA,25B                 . ACC := MSB mask (set element zero)
+ 14,ASN,64                 . ACC >>= M14, selecting the requested element
+ 15,AAX,                   . pop set; ACC := set & element mask
+ 13,UZA,                   . absent: return directly with ACC = 0
+ 1,XTA,10B                 . present: ACC := 1
+ 13,UJ,                    . return true
+ *0006B:15,UTM,-1         . invalid index: discard the stacked set
+ ,XTA,                     . ACC := 0
+ 13,UJ,                    . return false
+ ,END,
