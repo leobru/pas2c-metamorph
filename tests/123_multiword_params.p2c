@@ -1,11 +1,11 @@
 /*=k9,l0*/
 //
-// Parameters wider than a word are copied into the callee's frame by
-// P/LNGPAR, from the frame slot the signature records for each formal.  The
-// signature is the only record of that layout once the declaration's body is
-// gone, so a routine declared ahead of its definition -- where the
-// declaration settles the layout and the definition restates the list --
-// exercises it from both ends.
+// Parameters wider than a word occupy one argument slot per word, and the
+// call site fills those slots with the struct's own words.  The signature is
+// the only record of that layout once the declaration's body is gone, so a
+// routine declared ahead of its definition -- where the declaration settles
+// the layout and the definition restates the list -- exercises it from both
+// ends.
 //
 typedef struct { int a, b, c; } rec;
 typedef int trip[3];

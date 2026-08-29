@@ -1,0 +1,76 @@
+/*=k9,l0*/
+//
+// A formal wider than a word claims one argument slot per word, and the call
+// site pushes the struct's own words into them -- passed by value in the
+// literal sense.  What the callee's signature laid out and what the call site
+// emits have to agree, so the cases worth pinning are the ends of the list: a
+// struct alone in it, a struct last (its final word is the one that rides in
+// the accumulator rather than being pushed), a struct first with the pushes
+// behind it, and two structs side by side.
+//
+typedef struct { int a, b; } pair;
+typedef struct { int p, q, r, s, t; } five;
+typedef struct { pair inner; int z; } outer;
+typedef int (*pairfn)(pair);
+//
+// Declared ahead of their definitions: the declaration settles the frame
+// layout, and the definition restates the list onto the same slots.
+int mixed(pair m, int k, five f);
+void show(pair m);
+//
+// A struct as the only formal: one formal, yet more than one argument slot.
+int only(pair m)          { return m.a * 10 + m.b; }
+int last(int k, pair m)   { return k * 100 + m.a * 10 + m.b; }
+int first(pair m, int k)  { return m.a * 100 + m.b * 10 + k; }
+int two(pair m, pair n)   { return m.a * 1000 + m.b * 100 + n.a * 10 + n.b; }
+int big(five f)           { return f.p + f.q * 2 + f.r * 3 + f.s * 4 + f.t * 5; }
+//
+int mixed(pair m, int k, five f) {
+    return m.a + m.b * 2 + k * 3 + f.p * 4 + f.t * 5;
+}
+//
+// A procedure, whose frame starts one word below a function's.
+void show(pair m) { writeln(" SHOW ", m.a:0, " ", m.b:0); }
+//
+// A value parameter is the callee's own copy: writing it must not reach the
+// caller's variable.
+int bump(pair m) { m.a = m.a + 100; return m.a * 10 + m.b; }
+//
+// A struct formal handed on to another routine, and used through recursion.
+int passon(pair m) { return only(m) + 2000; }
+//
+int deep(pair m, int n) {
+    if (n == 0)
+        return m.a * 10 + m.b;
+    m.a = m.a + 1;
+    return deep(m, n - 1);
+}
+//
+pair g2;
+pair h2;
+pair arr[2];
+five g5;
+outer o;
+pairfn fp;
+//
+void main() {
+    g2.a = 3;   g2.b = 4;
+    h2.a = 5;   h2.b = 6;
+    g5.p = 1;   g5.q = 2;   g5.r = 3;   g5.s = 4;   g5.t = 5;
+    arr[0].a = 8;   arr[0].b = 9;
+    arr[1].a = 1;   arr[1].b = 2;
+    o.inner.a = 7;  o.inner.b = 0;  o.z = 99;
+    writeln(" ONLY ", only(g2):0, " LAST ", last(7, g2):0);
+    writeln(" FIRST ", first(g2, 7):0, " TWO ", two(g2, h2):0);
+    writeln(" BIG ", big(g5):0, " MIXED ", mixed(g2, 7, g5):0);
+    show(g2);
+    writeln(" BUMP ", bump(g2):0, " KEPT ", g2.a:0);
+    writeln(" PASSON ", passon(g2):0, " DEEP ", deep(g2, 3):0);
+    // The words come from an address that is not a variable's own.
+    writeln(" ELT ", only(arr[1]):0, " MEMB ", only(o.inner):0);
+    // Two calls in one expression, the inner one marshalling as well.
+    writeln(" NEST ", (two(g2, h2) + only(arr[0])):0);
+    // And one through a pointer, whose slots come from the routine type.
+    fp = only;
+    writeln(" PTR ", fp(h2):0, " Z ", o.z:0);
+}

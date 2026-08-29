@@ -173,7 +173,7 @@ typedef enum {
 //
 typedef enum {
         TYPEID,     ENUMID,     ROUTINEID,  VARID,
-        FORMALID,   FIELDID,    REGID,       STATICID
+        FIELDID,    REGID,      STATICID
 } idclass;
 //
 /* The order carries meaning, in four places:
@@ -2011,17 +2011,18 @@ void checkSymAndRead(symbol sym) {
 } /* checkSymAndRead */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-int argCount(irptr p) {
+/* The argument slots a signature claims.  A formal wider than a word occupies
+   that many consecutive slots, so the count is in words, not in formals: it is
+   what the caller must reserve and what the callee unwinds. */
+int argWords(sigptr it) {
 int i;
-sigptr it;
-    it  =  p->r1.sig;
     i  =  0;
     while (it) {
-        ++i;
+        i += typeSize(it->ptyp);
         it  =  it->next;
     }
     return i;
-} /* argCount */
+} /* argWords */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 /* The routine type proper: a result type and a parameter signature.  The
@@ -4148,10 +4149,10 @@ void genEntry() { /* genEntry */
 eptr l5exp1z, l5exp2z, calleeExp;
 irptr l5idr5z;
 int isProc, firstArg, isIndir, isFortrn, isAssembler, allByRef;
-int calleeFl, frameSiz, manyArgs, tailMacro;
+int calleeFl, frameSiz, manyArgs, tailMacro, slot;
 insnltyp *l5inl20z;
 tptr routTyp, resTyp;
-idclass paramClass;
+sigptr curSig;
 //
     l5exp1z  =  exprToGen->expr1;
     isIndir  =  exprToGen->op == INDCALL;
@@ -4163,13 +4164,14 @@ idclass paramClass;
         calleeExp  =  exprToGen->expr2;
         routTyp  =  ptrBase(calleeExp->typ);
         resTyp  =  routTyp.rep->rresult;
-        manyArgs  =  routTyp.rep->rparams != NULL &&
-                     routTyp.rep->rparams->next != NULL;
+        curSig  =  routTyp.rep->rparams;
+        manyArgs  =  argWords(curSig) >= 2;
         calleeFl  =  routTyp.rep->rflags | [0:15];
     } else {
         l5idr5z  =  exprToGen->id2;
         resTyp  =  l5idr5z->typ;
-        manyArgs  =  argCount(l5idr5z) >= 2;
+        curSig  =  l5idr5z->r1.sig;
+        manyArgs  =  argWords(curSig) >= 2;
         calleeFl  =  l5idr5z->flags;
     }
     isProc  =  resTyp == voidType;
@@ -4207,20 +4209,32 @@ idclass paramClass;
         l5exp1z  =  l5exp1z->expr1;
         l5inl20z  =  insnList;
         genFullExpr(l5exp2z);
-        /* Every formal is taken by value; one that does not fit a word is
-           passed by address instead, which the callee knows to expect. */
-        paramClass  =  VARID;
-L1:     if (paramClass == FORMALID || allByRef) {
-            setAddrTo(14);
-            addToInsnList(KITA+14);
-        } else {
-            if (typeSize(insnList->typ) != 1) {
-                paramClass  =  FORMALID;
-                goto L1
-            } else {
+        /* The formal says how many argument slots the actual fills, since it
+           is the formal that laid the callee's frame out.  One wider than a
+           word claims that many, and the struct's own words go into them:
+           passed by value in the literal sense.  Each push fuses with the
+           load that follows it into an XTS, and the last word is left in the
+           accumulator, where an argument of one word would have been.
+           A formal one word wide takes an address instead of a value when the
+           value does not fit one -- which is how a file reaches a pointer
+           formal -- and FORTRAN takes an address whatever the widths. */
+        if (allByRef || curSig == NULL || typeSize(curSig->ptyp) == 1) {
+            if (! allByRef && typeSize(insnList->typ) == 1) {
                 prepLoad();
+            } else {
+                setAddrTo(14);
+                addToInsnList(KITA+14);
+            }
+        } else {
+            setAddrTo(14);
+            for (slot = 0; slot < typeSize(curSig->ptyp); ++slot) {
+                if (slot)
+                    addToInsnList(macro + mcPUSH);
+                addInsnAndOffset(I14 + KXTA, slot);
             }
         }
+        if (curSig)
+            curSig  =  curSig->next;
         if (! firstArg)
             prependToInsnList(macro + mcPUSH);
         firstArg  =  false;
@@ -4229,7 +4243,7 @@ L1:     if (paramClass == FORMALID || allByRef) {
             insnList->head  =  l5inl20z->head;
         }
         insnList->regsused  =  insnList->regsused | l5inl20z->regsused;
-    } /* while -> 7061 */
+    }
     if (isFortrn) {
         addToInsnList(KNTR+2);
         insnList->tail->mode  =  4;
@@ -6099,7 +6113,7 @@ int l3int1z, frame, l3var3z;
                 symTab[l3arg1z - 074000]  =  [24, 29] | frame & halfWord;
             ir->r1.pos  =  moduleOffset;
         }
-        l3arg1z  =  argCount(procName);
+        l3arg1z  =  argWords(procName->r1.sig);
         if (l3var3z) {
             if (entryPtCnt <= 40) {
                 entryPtTable[entryPtCnt]  =  leftAlign(procName->id);
@@ -6574,7 +6588,7 @@ int hasFields;
                     }
                 }
                 break;
-            case VARID: case FORMALID: case REGID: case STATICID:
+            case VARID: case REGID: case STATICID:
                 parseLval();
             } /* switch */
         break;
@@ -6805,6 +6819,32 @@ operator oper;
 eptr leftExpr, thenExpr;
 int curPrec;
 int match;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void bldByPrc(int prec) {
+    switch (prec) {
+    case precMul:
+    case precAdd:
+        bldArithOp(oper, leftExpr, match);
+        break;
+    case precRel:
+    case precEq:
+        bldRelOp(oper, leftExpr);
+        break;
+    case precShift:
+    case precBitAnd:
+    case precBitXor:
+    case precBitOr:
+        bldBitOp(oper, leftExpr);
+        break;
+    case precAnd:
+    case precOr:
+        bldLogOp(oper, leftExpr, match);
+        break;
+    }
+} /* bldByPrc */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     /* Parse left operand with unary operators */
     parseUnaryExpression();
 
@@ -6861,22 +6901,7 @@ int match;
                    ready for RMWASSIGN.expr2.  RMWASSIGN.expr1 carries the
                    original lvalue subtree, evaluated once at codegen time. */
                 match = typeCheck(arg1Type, arg2Type);
-                switch (opPrec[oper]) {
-                case precMul:
-                case precAdd:
-                    bldArithOp(oper, leftExpr, match);
-                    break;
-                case precShift:
-                case precBitAnd:
-                case precBitXor:
-                case precBitOr:
-                    bldBitOp(oper, leftExpr);
-                    break;
-                case precAnd:
-                case precOr:
-                    bldLogOp(oper, leftExpr, match);
-                    break;
-                }
+                bldByPrc(opPrec[oper]);
                 curExpr->expr1 = curExpr->expr2;
                 curExpr->expr2 = NULL;
                 arg2Type = curExpr->typ;
@@ -6914,25 +6939,7 @@ int match;
             arg2Type = curExpr->typ;
             match = typeCheck(arg1Type, arg2Type);
 
-            switch (curPrec) {
-            case precMul:
-            case precAdd:
-                bldArithOp(oper, leftExpr, match);
-                break;
-            case precRel:
-            case precEq:
-                bldRelOp(oper, leftExpr);
-                break;
-            case precShift:
-            case precBitAnd:
-            case precBitXor:
-            case precBitOr:
-                bldBitOp(oper, leftExpr);
-                break;
-            case precAnd:
-            case precOr:
-                bldLogOp(oper, leftExpr, match);
-            }
+            bldByPrc(curPrec);
         }
     }
 } /* parsePrc */
@@ -7859,7 +7866,7 @@ L8888:      skip(skipToSet | statEndSys);
                 break;
             }
         }
-        /* VARID / FORMALID / FIELDID, or ROUTINEID with non-NULL typ
+        /* VARID / FIELDID, or ROUTINEID with non-NULL typ
            (function call): assignment, function call, or other expression
            used as a statement.  readNext := false keeps the current SY
            (the leading IDENT) for expression() to consume. */
@@ -8042,9 +8049,8 @@ int capacity, extent;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void defineRoutine(int bodyBlock) {
-int l3var1z, l3var2z, l3int4z;
+int l3var1z, l3var2z;
 irptr l3idr5z;
-sigptr curSig5z;
 int l3var7z;
 int hasMain;
     objBufIdx  =  1;
@@ -8094,25 +8100,6 @@ int hasMain;
     sizeCount  =  localSize;
     if (! bodyBlock && SY != BEGINSY && CH != '\0')
         requiredSymErr(BEGINSY);
-    if ((E48 >> 23) & procName->flags) {
-        curSig5z  =  procName->r1.sig;
-        l3int4z  =  8;
-        if (procName->typ != voidType)
-        l3int4z  =  9;
-        while (curSig5z) {
-            if (curSig5z->s1.p.pclass == VARID) {
-                l3var2z  =  typeSize(curSig5z->ptyp);
-                if (l3var2z != 1) {
-                    form3Insn(KVTM+I14 + l3int4z,
-                              KVTM+I12 + l3var2z,
-                              KVTM+I11 + curSig5z->s1.p.poffset);
-                    formAndAlign(getHelperProc(45)); /* "P/LNGPAR" */
-                }
-            }
-            ++l3int4z;
-            curSig5z  =  curSig5z->next;
-        }
-    }
     l3var2z  =  lineNesting;
     if (bodyBlock) {
         while (SY != ENDSY && CH != '\0')
@@ -8403,9 +8390,7 @@ void parseParameters(sigptr matchTo) {
 sigptr newSig, lastSig;
 tptr paramType;
 int packedFlag;
-int extraWords, l3var5z, l3var6z;
 int noComma, matching, ii;
-    extraWords  =  0;
     formalCnt  =  0;
     lastSig  =  NULL;
     matching  =  matchTo != NULL;
@@ -8431,9 +8416,9 @@ int noComma, matching, ii;
         noExtentOk  =  false;
         /* An array parameter is a pointer to its element, as in C.  The
            actual is the array's address either way, so the call site does
-           not move; what goes is the copy into the callee's frame, which
-           P/LNGPAR makes for every formal wider than a word.  A struct
-           parameter keeps its copy: C passes structs by value. */
+           not move; what goes is the run of argument slots a formal wider
+           than a word claims.  A struct parameter keeps them: C passes
+           structs by value, and here that is literal. */
         if (curDeclarator.typ.p.pk == kindArray)
             curDeclarator.typ  =  getPtrType(curDeclarator.typ.rep->base);
         if (matching) {
@@ -8460,9 +8445,9 @@ int noComma, matching, ii;
             else
                 lastSig->next  =  newSig;
             lastSig  =  newSig;
-            ++l2int18z;
-            if (typeSize(curDeclarator.typ) != 1)
-                extraWords  =  extraWords + typeSize(curDeclarator.typ);
+            /* A formal claims one argument slot per word, so a struct's own
+               words are the ones the caller pushes. */
+            l2int18z += typeSize(curDeclarator.typ);
         }
         /* The name is remembered, not registered: with no identrec yet there
            is nothing to hash, so a repeated formal is caught against the
@@ -8492,21 +8477,6 @@ int noComma, matching, ii;
            signature, so nothing here may move it. */
         if (matchTo)
             error(errNoCommaOrParenOrTooFewArgs);
-    } else if (extraWords) {
-        curIdRec->flags  =  curIdRec->flags | [23];
-        l3var6z  =  l2int18z;
-        l2int18z += extraWords;
-        newSig  =  curIdRec->r1.sig;
-        while (newSig) {
-            if (newSig->s1.p.pclass == VARID) {
-                l3var5z  =  typeSize(newSig->ptyp);
-                if (l3var5z != 1) {
-                    newSig->s1.p.poffset  =  l3var6z;
-                    l3var6z += l3var5z;
-                }
-            }
-            newSig  =  newSig->next;
-        }
     }
     checkSymAndRead (RPAREN);
     lookup2  =  lookupMode  =  lookUse;
