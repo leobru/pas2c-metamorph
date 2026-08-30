@@ -61,26 +61,8 @@ C collect an optional decimal width and precision without consuming an arg.
                  ,ATX,HASPREC
                 8,VTM,WIDTH              . Parsed digits initially target width
  DIGCHK:       13,VJM,NEXTCH
-                 ,A-X,ASCII0
-                 ,U1A,NODIG
-                 ,X-A,NINE
-                 ,U1A,NODIG
-                 ,X-A,NINE
-                 ,ATX,DIGIT
-                8,XTA,
-                 ,A*X,E48TEN
-                 ,YTA,64
-                 ,ARX,DIGIT
-                8,ATX,
-                 ,UJ,DIGCHK
- NODIG:        14,UTM,-56B
-               14,V1M,NONPER
-                1,XTA,8
-                 ,ATX,HASPREC
-                8,VTM,PREC               . Digits after '.' target precision
-                 ,UJ,DIGCHK
-C Conversion dispatch; Dubna has already uppercased the format letters.
- NONPER:       14,UTM,56B
+C Try a conversion before treating the same character as format syntax.
+C The UTM chain leaves ACC untouched, so its failure restores M14 from ACC.
  DISPATCH:     14,VZM,UNKNOWN
                14,UTM,-45B
                14,VZM,FMPCT
@@ -100,7 +82,31 @@ C Conversion dispatch; Dubna has already uppercased the format letters.
                14,VZM,FMS
                14,UTM,123B-124B
                14,VZM,FMT
-                 ,UJ,UNKNOWN
+                 ,ATI,14
+ CHECKDIG:     14,UTM,-52B              . '*' takes the next argument
+               14,VZM,STARARG
+               14,UTM,52B
+                 ,A-X,ASCII0
+                 ,U1A,NODIG
+                 ,X-A,NINE
+                 ,U1A,NODIG
+                 ,X-A,NINE
+                 ,ATX,DIGIT
+                8,XTA,
+                 ,A*X,E48TEN
+                 ,YTA,64
+                 ,ARX,DIGIT
+                8,ATX,
+                 ,UJ,DIGCHK
+ NODIG:        14,UTM,-56B
+               14,V1M,UNKNOWN
+                1,XTA,8
+                 ,ATX,HASPREC
+                8,VTM,PREC               . Digits after '.' target precision
+                 ,UJ,DIGCHK
+ STARARG:      13,VJM,GETARG
+                8,ATX,                   . Save argument to current M8 target
+                 ,UJ,DIGCHK
  FMPCT:         ,XTA,PERCENT
                13,VJM,OUTCH
                  ,UJ,LOOP

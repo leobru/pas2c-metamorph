@@ -1329,11 +1329,13 @@ void printErrMsg(int64_t errNo)
 
 void printTextWord(int64_t val)
 {
-    auto str = toAscii(val);
-    const char *s = str.c_str();
-    while (*s == ' ')
-        s++;
-    fputs(s, stdout);
+    // work.p2c is 'write(' '); PASTPR(val)', and PASTPR prints the whole text
+    // word -- eight characters, the name right-aligned in them.  Trimming the
+    // blanks, or dropping the space in front, would shift every name the
+    // listing prints and the two compilers' listings would differ by
+    // whitespace alone.
+    putchar(' ');
+    fputs(toAscii(val).c_str(), stdout);
 }
 
 std::string Word::pt() const
@@ -9930,7 +9932,11 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     else
                         curIdRec->value() = localSize;
                     if (PASINFOR.listMode == 3) {
-                        printf("%26s", "VARIABLE ");
+                        /* 25, not 26: work.p2c writes 'VARIABLE ':26, and
+                           the runtime counts the literal's terminator in the
+                           padding without printing it, so a width of w comes
+                           out w-1 columns wide. */
+                        printf("%25s", "VARIABLE ");
                         printTextWord(d.name);
                         printf(" OFFSET (%ld) %05loB. WORDS=%05loB\n",
                                curProcNesting, curIdRec->value(), jj);

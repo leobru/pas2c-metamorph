@@ -5769,8 +5769,13 @@ pair *curSlot;
         printTextWord(curField->id);
         write(".OFFSET=", curField->pck.p.offset:5 oct, 'B');
         if (curField->fpk.p.pckfield) {
+/*
             write(".<<=SHIFT=", curField->fpk.p.shift:2,
                   ". WIDTH=", curField->fpk.p.width:2, " BITS");
+*/
+            printf(".<<=SHIFT=%2d. WIDTH=%2d BITS",
+                   curField->fpk.p.shift,
+                   curField->fpk.p.width);
         } else {
             write(".WORDS=", typeSize(curField->typ):0);
         }
@@ -9365,10 +9370,12 @@ int idx, cnt;
         fputw(longSyms[cnt], &_CHILD_);
     fclose(&_CHILD_);
     if (PASINFOR.listMode) {
-        writeln("     MODULE HEADER:   HDR REL    0    0 LSYM NCODE   0 CONST DATA SETS");
-        write((lineCnt - 1):6, " LINES STRUCTURE ");
+        printf(
+"     MODULE HEADER:   HDR REL    0    0 LSYM NCODE   0 CONST DATA SETS\n%6d LINES STRUCTURE ",
+            lineCnt - 1);
         for (idx = 0; idx <= 9; ++idx)
-            write(pasinfor.sizes[idx]:idx?4:0, ' ');
+            // write(pasinfor.sizes[idx]:idx?4:0, ' ');
+            printf("%*d ", idx?4:1, pasinfor.sizes[idx]);
         writeln();
     }
     entryPtTable[entryPtCnt]  =  0U;

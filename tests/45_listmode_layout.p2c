@@ -1,0 +1,36 @@
+/*=k9,l3*/
+//
+// Option l3 makes the compiler report the layout it settled on: one line per
+// record field -- packed ones carrying their shift and width, plain ones
+// their size -- and one per variable, with the nesting level it belongs to
+// and its offset within that frame.  Nothing about the compiled program
+// changes, so what pins this is the listing itself, which the harness shows
+// only for a failing compile: hence the undeclared name on the last line.
+//
+// The diagnostics are whole lines, which both compilers have to produce to
+// the column.  They do not name the error, though: the harness already
+// requires one, and the two word it differently -- PASMITXT under the
+// emulator, the built-in table on the host.
+//
+typedef __packed struct { int:6 tagbits; int:1 flagbit; int:20 spare; } hdr;
+typedef struct { int alpha; hdr head; char label[8]; int omega; } rec;
+//
+// Two file-scope variables: the first lands at the start of the module's
+// data, the second after it.
+rec globrec;
+int topmost;
+//
+// Two locals, so the nesting level and the frame offsets are reported too.
+void f() {
+    int locnum;
+    rec locrec;
+    locnum = 1;
+    locrec.alpha = locnum;
+    topmost = locrec.alpha;
+}
+//
+void main() {
+    topmost = 0;
+    f();
+    undeclaredOnPurpose = 1;
+}
