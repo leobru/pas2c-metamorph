@@ -1014,8 +1014,8 @@ KeyWord * KeyWordHashTabBase[128]; // array [0..127] of @KeyWord;
 Symbol charSymTabBase[256]; // array ['_000'..'_177'] of Symbol;
 IdentRecPtr symHash[128]; // array [0..127] of IdentRecPtr;
 IdentRecPtr fieldHash[128]; //array [0..127] of IdentRecPtr;
-int64_t helperMap[58];
-extern int64_t helperNames[58]; // array [1..57] of int64_t;
+int64_t helperMap[59];
+extern int64_t helperNames[59]; // array [1..58] of int64_t;
 
 // Zero-based backing storage; symTabPos and stored references remain BESM
 // symbol-table addresses starting at 074000.
@@ -5313,7 +5313,8 @@ L10122:
                the tag register and ITA turns it into an integer word, as just
                above for a routine's entry. */
             genFullExpr(exprToGen->expr1);
-            if (insnList->ilm == ilCONST)
+            if (insnList->ilm == ilCONST and
+                exprToGen->expr1->vt.typ.p.pk != kindArray)
                 error(201);
             setAddrTo(14);
             addToInsnList(KITA+14);
@@ -6733,11 +6734,14 @@ bool isCharArray(TPtr arg)
    unconditionally.  The shapes are the ones the '&' arm builds for '&a[0]':
    a char array yields a byte index into flat memory, six bytes to a word,
    the unpacked case pointing at the rightmost byte of the element's own
-   word.  An array that is not an lvalue -- the result of a cast -- has no
-   address to take and is left for the caller's type check to refuse. */
+   word.  A string literal is an array constant whose payload is either its
+   word or its FCST offset; setAddrTo makes either form addressable.  Any other
+   array that is not an lvalue -- the result of a cast -- has no address to
+   take and is left for the caller's type check to refuse. */
 ExprPtr decayArray(ExprPtr e)
 {
-    if (e->vt.typ.p.pk != kindArray or not has(lvalOpSet, e->op))
+    if (e->vt.typ.p.pk != kindArray or
+       (not has(lvalOpSet, e->op) and e->op != GETENUM))
         return e;
     if (not isCharArray(e->vt.typ))
         return mkRef(e, getPtrType(e->vt.typ.rep()->base));
@@ -8580,6 +8584,34 @@ struct standProc {
             error(36); /*errTooFewArguments */
     } /* writeProc */
 
+    void printfProc() {
+        int64_t argCount;
+        bool isFormat;
+
+        argCount = 0;
+        isFormat = true;
+        do {
+            expression();
+            if (curExpr->vt.typ.p.pk == kindArray)
+                curExpr = decayArray(curExpr);
+            if (isFormat and not isCharPtr(curExpr->vt.typ)) {
+                error(40); /* errIncompatibleArgumentTypes */
+                curExpr = uVarPtr;
+            } else if (typeSize(curExpr->vt.typ) != 1) {
+                error(40); /* errIncompatibleArgumentTypes */
+                curExpr = uVarPtr;
+            }
+            (void) formOperator(LOAD);
+            form1Insn(KXTS);   /* C/PRINTF owns and removes every argument */
+            if (isFormat)
+                isFormat = false;
+            else
+                argCount = argCount + 1;
+        } while (SY == COMMA);
+        form1Insn(KVTM+I10 + getValueOrAllocSymtab(-(argCount + 1)));
+        formAndAlign(getHelperProc(58)); /* "C/PRINTF" */
+    } /* printfProc */
+
     standProc() { /* standProc */
         IdentRecPtr &l3idr12z = Statement::super.back()->l3idr12z;
 
@@ -8642,8 +8674,17 @@ struct standProc {
             padToLeft();
             prevOpcode = 1;
         } break;
+        case 5: { /* printf */
+            inSymbol();
+            if (SY == RPAREN)
+                error(36); /* errTooFewArguments */
+            else {
+                readNext = false;
+                printfProc();
+            }
+        } break;
         }
-        if (has(Bits(3,4), procNo))
+        if (has(BitRange(3,5), procNo))
             arithMode = 1;
         checkSymAndRead(RPAREN);
     }
@@ -9123,12 +9164,13 @@ struct initScalars {
 initScalars::initScalars() :
     curIdRec(programme::super.back()->curIdRec)
 {
-    // Keep the historical procNo values 2..4 for these procedures. FREE and
+    // Keep the historical procNo values 2..4 and append PRINTF as 5. FREE and
     // HALT are ordinary ASSEMBLER routines supplied by libc.
-    static int64_t systemProcNames[3] = {
+    static int64_t systemProcNames[4] = {
     /*2*/   042456355L              /*"    BESM"*/,
             06762516445L            /*"   WRITE"*/,
-            067625164455456L        /*" WRITELN"*/};
+            067625164455456L        /*" WRITELN"*/,
+            0606251566446L          /*"  PRINTF"*/};
     IdentRecPtr programObj;
     BooleanType.setRep(
         besm6_alloc_record<Types>(offsetof(Types, szScalar)));
@@ -9244,7 +9286,7 @@ initScalars::initScalars() :
 
     temptype.setRep(NULL);
     sysProcNum = 2;
-    for (l3var5z = 0; l3var5z <= 2; ++l3var5z) {
+    for (l3var5z = 0; l3var5z <= 3; ++l3var5z) {
         regSysProc(systemProcNames[l3var5z]);
     }
     sysProcNum = 0;
@@ -10184,7 +10226,7 @@ struct initTables {
     void initArrays() {
         FcstCnt = 0;
         FcstTotal = 0;
-        for (idx=1; idx <= 57; ++idx)
+        for (idx=1; idx <= 58; ++idx)
             helperMap[idx] = 0;
     } /* initArrays */
 
@@ -10612,7 +10654,7 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
     }
 }
 
-int64_t helperNames[58] = { 0L,
+int64_t helperNames[59] = { 0L,
         06017210000000000L      /*"P/1     "*/,
         04317220000000000L      /*"C/2     "*/,
         04317230000000000L      /*"C/3     "*/,
@@ -10669,4 +10711,5 @@ int64_t helperNames[58] = { 0L,
         06017465500000000L      /*"P/FM    "*/,
         06017565600000000L      /*"P/NN    "*/,
         04317635054000000L      /*"C/SHL   "*/,
-        04317635062000000L      /*"C/SHR   "*/};
+        04317635062000000L      /*"C/SHR   "*/,
+        04317606251566446L      /*"C/PRINTF"*/};

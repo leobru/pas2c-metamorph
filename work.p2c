@@ -598,8 +598,8 @@ symbol charSym[128] = {
     [';']=SEMICOLON, ['[']=LBRACK, [']']=RBRACK, ['=']=BECOMES,
     [':']=COLON, ['!']=EXPROP, ['~']=EXPROP, ['?']=EXPROP };
 hashArray symHash = NULL:128, fieldHash = NULL:128;
-int helperMap[58] = 0:58;
-int helperNames[58] = { 0,
+int helperMap[59] = 0:59;
+int helperNames[59] = { 0,
         t'P/1     ',
         t'C/2     ',
         t'C/3     ',
@@ -656,7 +656,8 @@ int helperNames[58] = { 0,
         t'P/FM    ',
         t'P/NN    ',
         t'C/SHL   ',
-        t'C/SHR   ' };
+        t'C/SHR   ',
+        t'C/PRINTF' };
 int opPrec[ALTERN+1] = {
     precNone:24,
     [CONDOP]=precCond,
@@ -2377,11 +2378,14 @@ tptr t;
    unconditionally.  The shapes are the ones the '&' arm builds for '&a[0]':
    a char array yields a byte index into flat memory, six bytes to a word,
    the unpacked case pointing at the rightmost byte of the element's own
-   word.  An array that is not an lvalue -- the result of a cast -- has no
-   address to take and is left for the caller's type check to refuse. */
+   word.  A string literal is an array constant whose payload is either its
+   word or its FCST offset; setAddrTo makes either form addressable.  Any other
+   array that is not an lvalue -- the result of a cast -- has no address to
+   take and is left for the caller's type check to refuse. */
 eptr decayArray(eptr e) {
 eptr addr;
-    if (e->typ.p.pk != kindArray || ! has(lvalOpSet, e->op))
+    if (e->typ.p.pk != kindArray ||
+       (! has(lvalOpSet, e->op) && e->op != GETENUM))
         return e;
     if (! isCharArray(e->typ))
         return mkRef(e, getPtrType(e->typ.rep->base));
@@ -5025,7 +5029,8 @@ L10122:         insnList->tail->mode  =  scratch3;
            tag register and ITA turns it into an integer word, as just above
            for a routine's entry. */
         genFullExpr(exprToGen->expr1);
-        if (insnList->ilm == ilCONST)
+        if (insnList->ilm == ilCONST &&
+           exprToGen->expr1->typ.p.pk != kindArray)
             error(201);
         setAddrTo(14);
         addToInsnList(KITA+14);
@@ -7772,6 +7777,33 @@ void writeProc() {
 } /* writeProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void printfProc() {
+int argCount, isFormat;
+    argCount  =  0;
+    isFormat  =  true;
+    do {
+        expression();
+        if (curExpr->typ.p.pk == kindArray)
+            curExpr  =  decayArray(curExpr);
+        if (isFormat && ! isCharPtr(curExpr->typ)) {
+            error(40); /* errIncompatibleArgumentTypes */
+            curExpr  =  uVarPtr;
+        } else if (typeSize(curExpr->typ) != 1) {
+            error(40); /* errIncompatibleArgumentTypes */
+            curExpr  =  uVarPtr;
+        }
+        formOperator(LOAD);
+        form1Insn(KXTS);       /* C/PRINTF owns and removes every argument */
+        if (isFormat)
+            isFormat  =  false;
+        else
+            ++argCount;
+    } while (SY == COMMA);
+    form1Insn(KVTM+I10 + getValueOrAllocSymtab(-(argCount + 1)));
+    formAndAlign(getHelperProc(58)); /* "C/PRINTF" */
+} /* printfProc */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     curVal.i  =  l3idr12z->low;
     procNo  =  curVal.i;
     oldOffset  =  moduleOffset;
@@ -7828,8 +7860,17 @@ void writeProc() {
         padToLeft();
         prevOpcode  =  1;
         break;
+    case 5: /* printf */
+        inSymbol();
+        if (SY == RPAREN)
+            error(36); /* errTooFewArguments */
+        else {
+            readNext  =  false;
+            printfProc();
+        }
+        break;
     }
-    if (has([3,4], procNo))
+    if (has([3:5], procNo))
         arithMode  =  1;
     checkSymAndRead(RPAREN);
 } /* standProc */
@@ -8203,12 +8244,13 @@ irptr l3var7z, programObj;
 int l3var8z, sysProcNum;
 tptr temptype;
 int l3var11z;
-// Keep the historical procNo values 2..4 for these procedures.  FREE and HALT
-// are ordinary ASSEMBLER routines supplied by libc.
-static int systemProcNames[3] = {
+// Keep the historical procNo values 2..4 and append PRINTF as 5.  FREE and
+// HALT are ordinary ASSEMBLER routines supplied by libc.
+static int systemProcNames[4] = {
 /*2*/   t'    BESM',
         t'   WRITE',
-        t' WRITELN' };
+        t' WRITELN',
+        t'  PRINTF' };
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysProc(int l4arg1z) {
@@ -8333,7 +8375,7 @@ void regSysProc(int l4arg1z) {
     }
     temptype.rep = NULL;
     sysProcNum  =  2;
-    for (l3var5z = 0; l3var5z <= 2; ++l3var5z) {
+    for (l3var5z = 0; l3var5z <= 3; ++l3var5z) {
         regSysProc(systemProcNames[l3var5z]);
     }
     sysProcNum  =  0;
