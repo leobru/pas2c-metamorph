@@ -620,12 +620,12 @@ int helperNames[59] = { 0,
         t'P/DS    ',
         t'P/HT    ',
 /*20*/  t'C/WI    ',
-        t'P/WR    ',
-        t'P/WC    ',
-        t'P/A6    ',
-        t'P/A7    ',
-        t'P/WX    ',
-        t'P/WO    ',
+        t'C/WR    ',
+        t'C/WC    ',
+        t'C/A6    ',
+        t'C/A7    ',
+        t'C/WX    ',
+        t'C/WO    ',
         t'P/CW    ',
         t'P/6A    ',
         t'P/7A    ',
@@ -5235,8 +5235,7 @@ L10122:         insnList->tail->mode  =  scratch3;
         genOneOp();
         break;
     case DFLTWDTH:
-        // Write routines need integer exponent on widths
-        curVal.i  =  curVal.i | 0xD<<44;
+        // The caller supplies the width in the selected helper's ABI.
         form1Insn(KXTA+I8 + getFCSToffset());
         break;
     case FRACWIDTH:
@@ -7278,9 +7277,8 @@ word minValue, maxValue;
                     /* No CASESY was consumed, so the label's own first token
                        is the current SY.  readNext := false keeps it for
                        expression(); skipping it instead derails the arm and
-                       leaves the next CASESY/DEFAULTSY in statement context,
-                       where the routine-body loop spins on a symbol
-                       statement() will not consume. */
+                       spills the following labels into statement context,
+                       where each costs an error of its own. */
                     readNext = false;
                 }
                 expression();
@@ -7653,17 +7651,17 @@ void checkElement() {
         return;
     }
     if (l4typ3z == realType) {
-        helperNo  =  21;               /* P/WR */
+        helperNo  =  21;               /* C/WR */
         defWidth  =  14;
         return;
     }
     if (l4typ3z == charType) {
-        helperNo  =  22;               /* P/WC */
+        helperNo  =  22;               /* C/WC */
         defWidth  =  1;
         return;
     }
     if (curVarKind == kindScalar && l4typ3z.rep->start != -1) {
-        helperNo  =  25;               /* P/WX */
+        helperNo  =  25;               /* C/WX */
         dumpEnumNames(l4typ3z);
         defWidth  =  8;
         return;
@@ -7681,13 +7679,13 @@ void checkElement() {
         if (l4typ3z.p.pad == 0)
             helperNo  =  49;            /* P/WA */
         else if (6 >= defWidth)
-            helperNo  =  23;            /* P/A6 */
+            helperNo  =  23;            /* C/A6 */
         else
-            helperNo  =  24;           /* P/A7 */
+            helperNo  =  24;           /* C/A7 */
         return;
     } 
     if (typeSize(l4typ3z) == 1) {
-        helperNo  =  26;               /* P/WO */
+        helperNo  =  26;               /* C/WO */
         defWidth  =  (typeBits(l4typ3z) + 5) / 3U;
     } else {
         error(34); /* errTypeIsNotAFileElementType */
@@ -7707,11 +7705,11 @@ void writeProc() {
                     firstWidth = parseWidthSpecifier();
                 if (SY == COLON) {
                     secondWidth = parseWidthSpecifier();
-                    if (helperNo != 21)     /* P/WR */
+                    if (helperNo != 21)     /* C/WR */
                         error(35); /* errSecondSpecifierForWriteOnlyForReal */
                 } else {
                     if (curToken.i == t'     OCT') {
-                        helperNo  =  26; /* P/WO */
+                        helperNo  =  26; /* C/WO */
                         defWidth  =  17;
                         if (typeSize(l4typ3z) != 1)
                             error(34); /* errTypeIsNotAFileElementType */
@@ -7725,22 +7723,20 @@ void writeProc() {
                     noWidth  =  true;
                 } else {
                     if (firstWidth == NULL) {
-                        curVal.i  =  defWidth | 0xD<<44;
+                        curVal.i  =  defWidth;
                         formOperator(DFLTWDTH);
                     } else {
                         curExpr  =  firstWidth;
                         formOperator(LOAD);
-                        form1Insn(KAOX+ZERO);
                     }
                 }
-                if (helperNo == 21) {       /* P/WR */
+                if (helperNo == 21) {       /* C/WR */
                     if (secondWidth == NULL) {
-                        curVal.i  =  4 | 0xD<<44;
+                        curVal.i  =  4;
                         form1Insn(KXTS+I8 + getFCSToffset());
                     } else {
                         curExpr  =  secondWidth;
                         formOperator(FRACWIDTH);
-                        form1Insn(KAOX+ZERO);
                     }
                 }
                 curExpr  =  l4exp7z;
@@ -7750,7 +7746,7 @@ void writeProc() {
                     else
                         opToForm  =  LOAD;
                 } else {
-                    if (helperNo == 24 ||       /* P/A7 */
+                    if (helperNo == 24 ||       /* C/A7 */
                         helperNo == 49)      /* P/WA */
                         opToForm  =  PUSHSET11;
                     else
@@ -7761,7 +7757,7 @@ void writeProc() {
                     helperNo == 49)
                     form1Insn(KVTM+I10 + defWidth);
                 else {
-                    if (helperNo == 25)  /* P/WX */
+                    if (helperNo == 25)  /* C/WX */
                         form1Insn(KVTM+I11 + l4typ3z.rep->start);
                 }
                 callHelperWithArg();
@@ -8054,13 +8050,25 @@ L8888:      skip(skipToSet | statEndSys);
         formOperator(DOIT);
         checkSymAndRead(SEMICOLON);
         break;
+    case CASESY: case DEFAULTSY:
+        /* A switch label where a statement was expected.  parseCase takes
+           labels only at the top of its own body, so one written any deeper
+           -- Duff's device interleaves them with a do-while -- arrives here,
+           as does one with no switch around it at all.  The whole label has
+           to go, colon included: dropping the keyword alone would leave the
+           constant and the colon for the enclosing loop to spin on instead.
+           The statement the label was attached to still parses. */
+        errAndSkip(errBadSymbol, [COLON, SEMICOLON, ENDSY, NOSY]);
+        if (SY == COLON)
+            inSymbol();
+        break;
     default:
         /* A declaration keyword reached statement context -- it leaked here
            from a malformed routine header (see bad.p2c).  Report and consume it
            so the enclosing 'while (SY != ENDSY) statement()' loops make progress
-           instead of spinning.  Only these keywords are caught; other stray
-           tokens (the SEMICOLON of a labelled empty statement, CASESY/DEFAULTSY
-           between switch arms) keep the original silent behaviour. */
+           instead of spinning.  Other stray tokens -- the SEMICOLON of a
+           labelled empty statement above all -- keep the original silent
+           behaviour. */
         if (has([TYPEDEFSY, TYPESY, CONSTSY, ENUMSY, STRUCTSY,
                  UNIONSY, PACKEDSY, STATICSY], SY)) {
             error(errBadSymbol);

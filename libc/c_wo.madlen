@@ -1,0 +1,79 @@
+ C/WO:,NAME,                    . Write one 48-bit word in octal
+C===========================================================
+C C/WO - format ACC as octal for Pascal write(value oct[:width]).
+C
+C   In:  ACC = the word to print
+C        [SP-1] = integer field width
+C   Out: the field is written through P/CW; the value and width
+C        arguments are removed from the stack.
+C
+C The full representation is 16 octal digits.  A width greater
+C than 16 is supplied as leading spaces by C/SP.  For a width at
+C most 16, 16-width selects the first generated digit, thereby
+C retaining the requested number of low-order digits.
+C
+C After P/HIDE and the extra delta slot are pushed, M8 marks the
+C start of the 16-character digit buffer.  Relative to M8:
+C   -1 = 16-width (clamped to 0 for widths greater than 16)
+C   -2..-5 = M6, M7, M8 and M13 saved by P/HIDE
+C   -6 = the shifting copy of the input word
+C   -7 = output digit count (the width, clamped to 16)
+C M6 first addresses the shifting word, then the digit to emit;
+C M7 is first the 16-pass generator counter, then the output count.
+C===========================================================
+ PASZERO*:,LC,1                  . ASCII '0' character
+ P/HIDE:,SUBP,                  . Save M13 and scratch registers M6..M8
+ P/EDIH:,SUBP,                  . Restore M6..M8 and M13
+ C/SP:,SUBP,                    . Print -ACC spaces when ACC is negative
+ P/CW:,SUBP,                    . Print one character from ACC
+C --- prologue and field-width handling ---
+ ,NTR,7                         . Plain P2C integer arithmetic
+ 15,ATX,                        . Push the word being formatted
+ 14,VJM,P/HIDE                  . Save M13 and M6..M8
+ ,UTC,SIXTEEN
+ ,XTA,                          . ACC := integer 16 (full octal width)
+ 15,A-X,-6                     . ACC := 16 - requested width
+ 15,ATX,                        . Push digit-start delta at [M8-1]
+ 13,VJM,C/SP                    . Width > 16: emit width-16 leading spaces
+ 15,XTA,-1                     . Reload delta = 16-width
+ ,NTR,27B                       . Additive sign test, with suppression enabled
+ ,UZA,*0011B                    . Delta >= 0 (width <= 16): keep it
+ ,UTC,SIXTEEN
+ ,XTA,                          . Width > 16: output all 16 digits
+ 15,ATX,-7                     . Clamp the output count to 16
+ ,XTA,                          . ACC := mem[0] = 0
+ 15,ATX,-1                     . Clamp the digit-start delta to 0
+C --- generate sixteen ASCII octal digits above M8 ---
+ *0011B:15,UTC,-6
+ 6,VTM,                         . M6 := address of the shifting input word
+ 7,VTM,-15                      . -15 through 0 gives 16 VLM passes
+ 15,MTJ,8                       . M8 := start of the generated digit buffer
+ *0013B:6,XTA,                  . Reload the remaining source bits
+ ,ASN,64-3                      . Shift left 3; next high octal digit -> Y
+ 6,ATX,                         . Save the shifted remainder
+ ,YTA,                          . ACC := the three bits shifted into Y
+ ,UTC,PASZERO*
+ ,ARX,                          . ACC := '0' + digit (0..7)
+ 15,ATX,                        . Push the ASCII digit into the buffer
+ 7,VLM,*0013B                  . Generate all sixteen digits
+C --- select the requested suffix and write it ---
+ 8,WTC,-1                      . C := digit-start delta at [M8-1]
+ 14,VTM,                        . M14 := delta
+ 8,MTJ,6                       . M6 := start of the 16-digit buffer
+ 14,J+M,6                      . M6 += delta: first digit to print
+ 8,XTA,-7                      . ACC := clamped output width
+ ,ATI,7                         . M7 := number of digits to print
+ *0022B:7,VZM,*0025B           . Count exhausted: restore and return
+ 7,UTM,-1                      . Consume one output position
+ 6,XTA,                         . ACC := next ASCII octal digit
+ 13,VJM,P/CW                   . Write it
+ 6,UTM,1                       . Advance through the digit buffer
+ ,UJ,*0022B                    . Continue until M7 reaches zero
+C --- discard temporaries, restore saved registers and return ---
+ *0025B:8,UTC,-1
+ 15,VTM,                        . SP := M8-1, just above P/HIDE's save area
+ 14,VJM,P/EDIH                 . Restore M6..M8 and M13
+ 15,UTM,-2                     . Drop the saved value and field-width argument
+ 13,UJ,                         . Return to the caller
+ SIXTEEN:,LOG,20                . Full width of a 48-bit word in octal digits
+ ,END,

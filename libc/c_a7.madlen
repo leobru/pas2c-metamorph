@@ -1,0 +1,20 @@
+ C/A7:,NAME,
+C===========================================================
+C C/A7 - write M10 packed characters at M11 in a plain integer
+C field width supplied in ACC.  P/7AD performs the actual output;
+C C/SP supplies any leading spaces and returns through P/7AD.
+C===========================================================
+ P/HIDE:,SUBP,
+ P/7AD:,SUBP,
+ C/SP:,SUBP,
+ 15,XTA,                     . Pop the width argument
+ 1,ATX,3                     . Save plain width in runtime scratch
+ 14,VJM,P/HIDE               . Save M13 and M6..M8
+ 11,MTJ,8                    . M8 := character address
+ 10,MTJ,7                    . M7 := character count
+ ,ITA,10                     . ACC := plain character count
+ ,NTR,7                      . Plain P2C integer arithmetic
+ 1,A-X,3                     . ACC := count - width
+ 13,VTM,P/7AD                . C/SP returns into the actual writer
+ ,UJ,C/SP
+ ,END,

@@ -1,0 +1,21 @@
+ C/SP:,NAME,
+C===========================================================
+C C/SP - emit -ACC spaces when ACC is a negative plain integer;
+C return immediately when it is zero or positive.  This is P/SP
+C using P2C's plain-integer arithmetic mode instead of tagged values.
+C===========================================================
+ P/PF:,SUBP,
+ SPACE*:,LC,1
+ LOOP:13,UZA,                  . Nonnegative: return through M13
+ ,ITS,13                       . Preserve the negative count
+ ,UTC,SPACE*
+ ,XTS,                         . Preserve M13; ACC := one space
+ 12,WTC,
+ ,ATX,                         . Store it through the output FCB
+ 13,VJM,P/PF                   . Advance/flush the file buffer
+ 15,XTA,                       . Pop saved M13
+ ,STI,13                       . Restore M13; pop saved count
+ ,NTR,7                        . P/PF need not preserve arithmetic mode
+ 1,A+X,8                       . Plain count := count + 1
+ ,UJ,LOOP
+ ,END,

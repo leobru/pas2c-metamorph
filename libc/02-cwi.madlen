@@ -1,4 +1,9 @@
  C/WI    :,NAME,
+C===========================================================
+C C/WI - write a plain integer value in a field whose width is
+C also a plain integer.  The routine adds the BESM integer tag
+C only to its private arithmetic copy of the value.
+C===========================================================
  P/7A    :,SUBP,
  PASZERO*:,LC,1
  PASMINS*:,LC,1
@@ -54,9 +59,9 @@ C WIDTH DIGITS SIGN CURVAL VALUE R13 R8 R2
           ,UJ,LOOP
  OUTPUT:  ,ITA,2     . <- NUM_DIGITS
         15,ARX,-6    . + SIGN
-         1,AEX,11B   . =I0
+c         ,NTR,7     . PLAIN P2C INTEGER ARITHMETIC
         15,A-X,-20   . ACC = NUM_DIGITS + SIGN - WIDTH
-          ,CALL,P/SP . IF ACC < 0, WRITE -ACC SPACES
+          ,CALL,C/SP . IF ACC < 0, WRITE -ACC SPACES
         15,XTA,-6    . <- SIGN
           ,UZA,NOMINUS
           ,UTC,PASMINS*

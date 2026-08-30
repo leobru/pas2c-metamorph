@@ -13,14 +13,14 @@ C and otherwise ignored.  Unknown percent sequences are copied literally and
 C consume no actual.
 C===========================================================
  C/WI:          ,SUBP,
- P/WO:          ,SUBP,
- P/WR:          ,SUBP,
- P/WC:          ,SUBP,
+ C/WO:          ,SUBP,
+ C/WR:          ,SUBP,
+ C/WC:          ,SUBP,
  P/CW:          ,SUBP,
- P/A6:          ,SUBP,
+ C/A6:          ,SUBP,
  P/6A:          ,SUBP,
  P/WOLN:        ,SUBP,
- P/SP:          ,SUBP,
+ C/SP:          ,SUBP,
  PUTS:          ,SUBP,
  STRLEN:        ,SUBP,
  PASTPR:        ,SUBP,
@@ -45,8 +45,6 @@ C constants and static scratch storage below; only P/HIDE's four words use SP.
                 7,XTA,
                  ,ATX,FMTPTR
                 7,UTM,1
-                 ,ITA,7
-                 ,ATX,ARGPTR
  LOOP:         13,VJM,NEXTCH
                  ,UZA,DONE
                14,UTM,-45B
@@ -60,35 +58,26 @@ C collect an optional decimal width and precision without consuming an arg.
                  ,XTA,
                  ,ATX,WIDTH
                  ,ATX,PREC
-                 ,ATX,HASWIDTH
                  ,ATX,HASPREC
+                8,VTM,WIDTH              . Parsed digits initially target width
  DIGCHK:       13,VJM,NEXTCH
                  ,A-X,ASCII0
                  ,U1A,NODIG
                  ,X-A,NINE
                  ,U1A,NODIG
                  ,X-A,NINE
-                 ,ATX,VALUE
-                 ,XTA,HASPREC
-                 ,U1A,PRECDIG
-                1,XTA,8
-                 ,ATX,HASWIDTH
-                 ,XTA,WIDTH
+                 ,ATX,DIGIT
+                8,XTA,
                  ,A*X,E48TEN
                  ,YTA,64
-                 ,ARX,VALUE
-                 ,ATX,WIDTH
-                 ,UJ,DIGCHK
- PRECDIG:        ,XTA,PREC
-                 ,A*X,E48TEN
-                 ,YTA,64
-                 ,ARX,VALUE
-                 ,ATX,PREC
+                 ,ARX,DIGIT
+                8,ATX,
                  ,UJ,DIGCHK
  NODIG:        14,UTM,-56B
                14,V1M,NONPER
                 1,XTA,8
                  ,ATX,HASPREC
+                8,VTM,PREC               . Digits after '.' target precision
                  ,UJ,DIGCHK
 C Conversion dispatch; Dubna has already uppercased the format letters.
  NONPER:       14,UTM,56B
@@ -116,61 +105,57 @@ C Conversion dispatch; Dubna has already uppercased the format letters.
                13,VJM,OUTCH
                  ,UJ,LOOP
  FMD:          13,VJM,GETARG
-                 ,XTA,HASWIDTH
+                 ,XTA,WIDTH
                  ,U1A,DWIDTH
                  ,XTA,W10
                  ,ATX,WIDTH
  DWIDTH:         ,XTA,WIDTH
-                1,AOX,9
                  ,XTS,
-                 ,XTA,VALUE
+                7,XTA,-1
                12,VTM,*OUTPUT*
                13,VJM,C/WI
                  ,UJ,LOOP
  FMO:          13,VJM,GETARG
-                 ,XTA,HASWIDTH
+                 ,XTA,WIDTH
                  ,U1A,OWIDTH
                  ,XTA,W17
                  ,ATX,WIDTH
  OWIDTH:         ,XTA,WIDTH
-                1,AOX,9
                  ,XTS,
-                 ,XTA,VALUE
+                7,XTA,-1
                12,VTM,*OUTPUT*
-               13,VJM,P/WO
+               13,VJM,C/WO
                  ,UJ,LOOP
  FMC:          13,VJM,GETARG
-                 ,XTA,HASWIDTH
+                 ,XTA,WIDTH
                  ,UZA,CNOWID
                  ,XTA,WIDTH
-                1,AOX,9
                  ,XTS,
-                 ,XTA,VALUE
+                7,XTA,-1
                12,VTM,*OUTPUT*
-               13,VJM,P/WC
+               13,VJM,C/WC
                  ,UJ,LOOP
- CNOWID:         ,XTA,VALUE
+ CNOWID:        7,XTA,-1
                12,VTM,*OUTPUT*
                13,VJM,P/CW
                  ,UJ,LOOP
  FMA:          13,VJM,GETARG
-                 ,XTA,HASWIDTH
+                 ,XTA,WIDTH
                  ,UZA,ANOWID
                  ,XTA,WIDTH
-                1,AOX,9
                  ,XTS,
-                 ,XTA,VALUE
+                7,XTA,-1
                10,VTM,6
                12,VTM,*OUTPUT*
-               13,VJM,P/A6
+               13,VJM,C/A6
                  ,UJ,LOOP
- ANOWID:         ,XTA,VALUE
+ ANOWID:        7,XTA,-1
                10,VTM,6
                12,VTM,*OUTPUT*
                13,VJM,P/6A
                  ,UJ,LOOP
  FMREAL:       13,VJM,GETARG
-                 ,XTA,HASWIDTH
+                 ,XTA,WIDTH
                  ,U1A,RWIDTH
                  ,XTA,W14
                  ,ATX,WIDTH
@@ -179,34 +164,30 @@ C Conversion dispatch; Dubna has already uppercased the format letters.
                  ,XTA,W4
                  ,ATX,PREC
  RPREC:          ,XTA,WIDTH
-                1,AOX,9
                  ,XTS,
                  ,XTA,PREC
-                1,AOX,9
                  ,XTS,
-                 ,XTA,VALUE
+                7,XTA,-1
                12,VTM,*OUTPUT*
-               13,VJM,P/WR
+               13,VJM,C/WR
                  ,UJ,LOOP
 C PUTS already understands arbitrary byte alignment, NUL and LF.  An
 C explicit width is left padding only; precision is deliberately ignored.
  FMS:          13,VJM,GETARG
-                 ,XTA,HASWIDTH
+                 ,XTA,WIDTH
                  ,UZA,SOUT
                  ,XTA,WIDTH
-                1,AOX,9
                  ,ATX,PREC
-                 ,XTA,VALUE
+                7,XTA,-1
                13,VJM,STRLEN
-                1,AEX,9
+                 ,NTR,7
                  ,A-X,PREC
                12,VTM,*OUTPUT*
-                 ,CALL,P/SP
- SOUT:           ,XTA,VALUE
+                 ,CALL,C/SP
+ SOUT:          7,XTA,-1
                13,VJM,PUTS
                  ,UJ,LOOP
  FMT:          13,VJM,GETARG
-                 ,XTA,VALUE
                13,VJM,PASTPR
                  ,UJ,LOOP
 C Print the '%' of an unknown sequence, then let the main loop resume at the
@@ -216,17 +197,13 @@ C character immediately following it.  No actual argument is consumed.
                  ,XTA,PCTPTR
                  ,ATX,FMTPTR
                  ,UJ,LOOP
-C Return the next actual.  The entry-SP word is the exclusive end; a missing
-C actual terminates formatting without looking beyond the compiler's frame.
- GETARG:         ,XTA,ARGPTR
+C Return the next actual through M7.  The entry-SP word is the exclusive end;
+C a missing actual terminates formatting without looking beyond the frame.
+ GETARG:         ,ITA,7
                  ,AEX,ENTRYSP
-                 ,UZA,DONE
-                 ,XTA,ARGPTR
-                1,ARX,8
-                 ,ATX,ARGPTR
-                 ,WTC,ARGPTR
-                 ,XTA,-1
-                 ,ATX,VALUE
+                ,UZA,DONE
+               7,XTA,
+                7,UTM,1
                13,UJ,
 C Load through the runtime's packed-char descriptor, then advance the format
 C byte pointer by one.
@@ -271,18 +248,16 @@ C argument sequence by assigning its base to SP.
  NINE:           ,LOG,11
  ASCII0:         ,LOG,60
  E48TEN:         ,LOG,4000000000000012
- W4:             ,INT,4
- W10:            ,INT,10
- W14:            ,INT,14
- W17:            ,INT,17
+ W4:             ,LOG,4
+ W10:            ,LOG,12
+ W14:            ,LOG,16
+ W17:            ,LOG,21
  ARGBASE:        ,BSS,1
  ENTRYSP:        ,BSS,1
  FMTPTR:         ,BSS,1
- ARGPTR:         ,BSS,1
  PCTPTR:         ,BSS,1
  WIDTH:          ,BSS,1
  PREC:           ,BSS,1
- HASWIDTH:       ,BSS,1
  HASPREC:        ,BSS,1
- VALUE:          ,BSS,1
+ DIGIT:          ,BSS,1
                  ,END,

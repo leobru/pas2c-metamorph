@@ -1,0 +1,20 @@
+ C/A6:,NAME,
+C===========================================================
+C C/A6 - write the M10 characters packed in ACC, padded to a
+C plain integer field width at [SP-1].  The old P/A6 tagged the
+C character count before subtracting the width; both are plain here.
+C===========================================================
+ C/SP:,SUBP,
+ P/6A:,SUBP,
+ ,ITS,13                     . Push packed characters; ACC := M13
+ ,ITS,10                     . Push return link; ACC := count
+ 15,ATX,                     . Push M10
+ ,NTR,7                      . Plain P2C integer arithmetic
+ 15,A-X,-4                  . ACC := character count - width
+ 13,VJM,C/SP                 . Print width-count leading spaces
+ 15,XTA,                     . Pop saved M10
+ ,STI,10                     . Restore M10; pop M13
+ ,STI,13                     . Restore M13; pop packed characters
+ 15,UTM,-1                  . Drop the caller's width argument
+ ,UJ,P/6A                    . Tail-call the unpadded writer
+ ,END,

@@ -1,0 +1,270 @@
+ C/WR:,NAME,
+C===========================================================
+C C/WR - format a REAL for output, with plain integer width and
+C precision arguments.  This is P/WR with its internal counters,
+C widths, precision and decimal exponent kept as untagged words.
+C Real/integer representation changes remain explicit only where
+C a floating-point operation actually needs one.
+C
+C   In:  [SP-2] = plain field width
+C        [SP-1] = plain precision
+C        ACC    = REAL value
+C   Out: formatted field through FILE in M12; both format words
+C        are removed from the stack.
+C===========================================================
+ SPACE*:,LC,1
+ PASZERO*:,LC,1
+ PASMINS*:,LC,1
+ PASPERID:,LC,1
+ PASPLUS*:,LC,1
+ P/CW:,SUBP,
+ C/TR:,SUBP,
+ C/A7:,SUBP,
+ C/WI:,SUBP,
+ ,NTR,
+ ,AVX,
+ ,NTR,3
+ ,ITS,13
+ ,XTS,
+ 14,BASE,TEN
+ ,XTS,
+ 15,UTM,3
+C Normalize the precision control and remember fixed/scientific mode.
+ PRECLOOP:,XTA,TEN
+ 15,A-X,-7
+ ,UZA,PREC10
+ ,A+X,TEN
+ ,UZA,PREC20
+ ,AVX,MINUS9
+ 15,ATX,-7
+ ,XTA,ONE
+ 15,ATX,-4
+ ,UJ,PRECLOOP
+ PREC20:,XTA,TEN
+ ,UJ,SETPREC
+ PREC10:,A+X,MINUS9
+ ,U1A,HAVEPREC
+ ,XTA,ONE
+ SETPREC:15,ATX,-7
+ HAVEPREC:15,XTA,-8
+ 15,WTC,-4
+ ,A-X,EIGHT
+ ,UZA,WIDTHOK
+ 15,WTC,-4
+ ,XTA,EIGHT
+ 15,ATX,-8
+C Derive and emit the leading-space count.
+ WIDTHOK:15,XTA,-8
+ 15,A-X,-7
+ 15,ATX,-8
+ 15,XTA,-4
+ ,U1A,FIXED
+ SPACELOOP:15,XTA,-8
+ ,A-X,EIGHT
+ ,U1A,SIGN
+ ,UTC,SPACE*
+ ,XTA,
+ 13,VJM,P/CW
+ 14,VTM,TEN
+ 15,XTA,-8
+ ,A-X,ONE
+ 15,ATX,-8
+ ,UJ,SPACELOOP
+C Print the value sign and make the working value positive.
+ SIGN:15,XTA,-6
+ ,NTR,20B
+ ,U1A,MINUS
+ ,UTC,SPACE*
+ ,XTA,
+ ,UJ,PUTSIGN
+ ISZERO:,XTA,ONE
+ ,UJ,SAVEDEXP
+ MINUS:,AVX,MINUS9
+ 15,ATX,-6
+ ,UTC,PASMINS*
+ ,XTA,
+ PUTSIGN:13,VJM,P/CW
+ 14,VTM,TEN
+ 15,XTA,-6
+ ,UZA,ISZERO
+C Convert the binary exponent to a plain decimal exponent.
+ ,ASN,64+41
+ ,A-X,BIAS
+ 1,AEX,11B
+ ,NTR,
+ ,A*X,LOGTEN2
+ ,NTR,3
+ 1,A+X,11B
+ 1,AEX,11B
+ SAVEDEXP:15,ATX,-8
+ ,AMX,
+ ,ATI,13
+ 14,J+M,13
+ 15,XTA,-8
+ ,NTR,20B
+ ,U1A,NEGEXP
+ 15,XTA,-6
+ 13,A/X,22B
+ ,UJ,SCALED
+ NEGEXP:15,XTA,-6
+ 13,A*X,22B
+ SCALED:15,ATX,-6
+ ,A-X,REAL1
+ ,UZA,ROUND
+ 15,XTA,-6
+ ,A*X,REAL10
+ 15,ATX,-6
+ 15,XTA,-8
+ ,NTR,3
+ ,A-X,ONE
+ 15,ATX,-8
+C Round at the requested precision and extract the significant digits.
+ ROUND:13,VJM,ADDROUND
+ ,X-A,REAL10
+ ,UZA,DIGITS
+ 15,XTA,-6
+ ,A/X,REAL10
+ 15,ATX,-6
+ 15,XTA,-8
+ ,NTR,3
+ ,A+X,ONE
+ 15,ATX,-8
+ DIGITS:,XTA,ONE
+ 15,ATX,-3
+ NEXTDIG:15,XTA,-6
+ 13,VJM,C/TR
+ 15,ATX,-2
+ 1,AEX,11B
+ ,NTR,
+ 15,X-A,-6
+ ,AMX,
+ 15,WTC,-7
+ ,A*X,REAL1
+ ,NTR,3
+ 1,A+X,11B
+ 1,AEX,11B
+ 1,ATX,4
+ 15,XTA,-2
+ ,U1A,PUTINT
+ 15,XTA,-6
+ ,NTR,20B
+ ,UZA,PUTINT
+ 15,XTA,-3
+ 11,VTM,MINUSZERO
+ 10,VTM,2
+ 15,ATX,
+ 13,VJM,C/A7
+ ,UJ,PUTFRAC
+C C/WI takes both its value and field width as plain integers.
+ PUTINT:15,XTA,-3
+ 15,XTS,-3
+ 13,VJM,C/WI
+C Decimal point, fraction, and optional scientific exponent.
+ PUTFRAC:,UTC,PASPERID
+ ,XTA,
+ 13,VJM,P/CW
+ 13,VTM,SPACE*
+ 13,XTA,
+ 15,ATX,-1
+ ,UTC,PASZERO*
+ ,XTA,
+ 13,ATX,
+ 15,XTA,-7
+ 1,XTS,4
+ 13,VJM,C/WI
+ 15,XTA,-4
+ ,U1A,DONE
+ 14,VTM,TEN
+ ,XTA,EMARK
+ 13,VJM,P/CW
+ 14,VTM,PASPLUS*
+ 15,XTA,-8
+ ,NTR,23B
+ ,UZA,POSEXP
+ ,AVX,MINUS9
+ 15,ATX,-8
+ 14,VTM,PASMINS*
+ POSEXP:,XTA,TEN
+ 13,VJM,P/CW
+ 14,VTM,TEN
+ ,XTA,TWO
+ 15,XTS,-9
+ 13,VJM,C/WI
+C Restore the shared blank and return past value, width and precision.
+ DONE:15,XTA,-1
+ ,UTC,SPACE*
+ ,ATX,
+ 15,UTM,-8
+ 15,WTC,3
+ ,UJ,
+ FIXED:15,XTA,-8
+ ,A-X,ONE
+ 15,ATX,-3
+ 13,VTM,NEXTDIG
+C Add the signed 0.5*10^-precision rounding constant.
+ ADDROUND:11,VTM,
+ 15,XTA,-6
+ ,NTR,20B
+ ,UZA,POSROUND
+ 11,VTM,MINUS9
+ POSROUND:,NTR,
+ 15,WTC,-7
+ ,XTA,TWO
+ 11,AVX,
+ 15,A+X,-6
+ 15,ATX,-6
+ 13,UJ,
+C===========================================================
+C Plain integer constants and floating-point scale tables.
+C TWO must remain immediately before the rounding table: precision
+C is applied to it with WTC above.
+C===========================================================
+ MINUSZERO:,ISO,2H-0
+ ONE:,LOG,1
+ TEN:,LOG,12
+ MINUS9:,LOG,7777 7777 7777 7767
+ EIGHT:,LOG,10
+ FOUR:,LOG,4
+ BIAS:,LOG,100
+ LOGTEN2:,REAL,3.0102E-01
+ EMARK:,ISO,6H′′′′′′′′′′E
+ TWO:,LOG,2
+ ,REAL,5.E-02
+ ,REAL,5.E-03
+ ,REAL,5.E-04
+ ,REAL,5.00000000001E-05
+ ,REAL,5.00000000001E-06
+ ,REAL,5.00000000002E-07
+ ,REAL,5.E-08
+ ,REAL,5.00000000001E-09
+ ,REAL,5.00000000002E-10
+ ,REAL,5.00000000002E-11
+ C/TENS:,ENTRY,
+ REAL1:,REAL,1.
+ REAL10:,REAL,1.E01
+ ,REAL,1.E02
+ ,REAL,1.E03
+ ,REAL,1.E04
+ ,REAL,1.E05
+ ,REAL,1.E06
+ ,REAL,1.E07
+ ,REAL,1.E08
+ ,REAL,1.E09
+ ,REAL,1.E10
+ ,REAL,1.E11
+ ,REAL,1.E12
+ ,REAL,1.E13
+ ,REAL,1.E14
+ ,REAL,1.E15
+ ,REAL,1.E16
+ ,REAL,1.E17
+ ,REAL,1.E18
+ ,LOG,7757 7777 7777 7777
+ ,DATA,
+ /0212B:,ISO,6H′′′′′′′′′′.
+ /0213B:,ISO,6H′′′′′′′′′′+
+ 1,SET,/0212B
+ 1,,PASPERID
+ 1,SET,/0213B
+ 1,,PASPLUS*
+ ,END,

@@ -1,0 +1,18 @@
+ C/WC:,NAME,
+C===========================================================
+C C/WC - write one character in a field whose width is a plain
+C integer.  C/SP emits max(width-1, 0) leading spaces; P/CW then
+C writes the saved character.
+C===========================================================
+ C/SP:,SUBP,
+ P/CW:,SUBP,
+ ,ITS,13                     . Push character; ACC := return link
+ 1,XTS,8                     . Push link; ACC := plain integer 1
+ ,NTR,7                      . Plain P2C integer arithmetic
+ 15,A-X,-3                  . ACC := 1 - width
+ 13,VJM,C/SP                 . Print width-1 leading spaces
+ 15,XTA,                     . Pop saved return link
+ ,STI,13                     . Restore M13; pop character
+ 15,UTM,-1                  . Drop the caller's width argument
+ ,UJ,P/CW                    . Tail-call the one-character writer
+ ,END,

@@ -1,0 +1,49 @@
+ C/WX:,NAME,
+C===========================================================
+C C/WX / C/WXD - write an enumeration name as eight packed
+C BESM-6 characters in a field whose width is a plain integer.
+C
+C C/WX looks up the ordinal in the table based by M11 and M8;
+C an ordinal outside one byte prints *NOTSCA*.  C/WXD is the
+C shared entry after the packed word has been selected.
+C===========================================================
+ PASISOXT:,SUBP,               . Internal-character to ISO translator
+ C/SP:,SUBP,                   . Print -ACC spaces when ACC is negative
+ P/CW:,SUBP,                   . Print one ISO character from ACC
+ ,ATI,14                       . M14 := ordinal
+ ,UTC,BYTEMASK
+ ,AAX,                         . Clear the low eight bits
+ ,UZA,LOOKUP                   . It fits: select enumNames[ordinal]
+ ,UTC,NOTSCALAR
+ ,XTA,                         . Otherwise print the diagnostic text
+ ,UJ,WRITEIT
+ NOTSCALAR:,TEXT,8H*NOTSCA*
+ LOOKUP:14,UTC,                . WT += ordinal
+ 8,UTC,                        . WT += caller-supplied table bias
+ 11,XTA,                       . ACC := enum-name word
+C --- common packed-word writer ---
+ C/WXD:,ENTRY,
+ WRITEIT:,ITS,13               . Push word; ACC := return link
+ ,ITS,8                        . Push return link; ACC := caller's M8
+ 15,ATX,                       . Save caller's M8
+ ,UTC,EIGHT
+ ,XTA,                         . ACC := plain integer 8
+ ,NTR,7                        . Plain P2C integer arithmetic
+ 15,A-X,-4                    . ACC := 8 - field width
+ 13,VJM,C/SP                   . Emit any leading spaces
+ 8,VTM,-7                      . Eight packed characters
+ LOOP:15,XTA,-3                . Reload shifting packed word
+ ,ASN,64-6                     . Move its high character into Y
+ 15,ATX,-3                     . Save the remainder
+ ,YTA,                         . ACC := six-bit internal character
+ 13,VJM,PASISOXT               . Translate to ISO
+ 13,VJM,P/CW                   . Write it
+ 8,VLM,LOOP
+ 15,XTA,                       . Pop caller's M8
+ ,STI,8                        . Restore M8; pop return link
+ ,ATI,13                       . Restore M13
+ 15,UTM,-2                    . Drop packed word and caller width
+ 13,UJ,
+ EIGHT:,LOG,10                 . Eight characters, as a plain integer
+ BYTEMASK:,OCT,7777 7777 7777 74
+ ,END,
