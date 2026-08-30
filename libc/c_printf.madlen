@@ -7,11 +7,12 @@ C and every actual, all as one-word C-like values, then leaves in M10 the
 C negative total word count (format included).  Thus SP+M10 is the format
 C slot and the following words are the actuals in source order.
 C
-C Format letters are case-insensitive.  A decimal width is accepted for all
-C conversions; .precision is used by F/E and otherwise ignored.  Unknown
-C percent sequences are copied literally and consume no actual.
+C Dubna uppercases the format; only uppercase conversion letters are checked.
+C A decimal width is accepted for all conversions; .precision is used by F/E
+C and otherwise ignored.  Unknown percent sequences are copied literally and
+C consume no actual.
 C===========================================================
- P/WI:          ,SUBP,
+ C/WI:          ,SUBP,
  P/WO:          ,SUBP,
  P/WR:          ,SUBP,
  P/WC:          ,SUBP,
@@ -25,383 +26,239 @@ C===========================================================
  PASTPR:        ,SUBP,
  P/HIDE:        ,SUBP,
  P/EDIH:        ,SUBP,
+ P/08:          ,SUBP,
+ P/LDAR:        ,SUBP,
  *OUTPUT*:      ,LC,30
-C P/HIDE saves M13 and the three scratch registers M6..M8.  Its four words
-C followed by twelve locals put the fixed SP sixteen words above entry SP.
+C P/HIDE saves M13 and the three scratch registers M6..M8.  M6 then bases the
+C constants and static scratch storage below; only P/HIDE's four words use SP.
+                 ,NTR,3
                14,VJM,P/HIDE
+                6,BASE,NEWLINE
                15,MTJ,8
                 8,UTM,-4
                 8,MTJ,7
                10,J+M,7
-               15,UTM,14B
-C Local slots, relative to the fixed SP (octal address fields):
-C -14B argument-frame base; -13B entry SP/end; -12B format byte pointer;
-C -11B next actual; -10B current percent; -7 current character;
-C -6 width; -5 precision; -4/-3 presence flags; -2 value/end;
-C -1 byte-pointer scratch or saved internal link.
                  ,ITA,7
-               15,ATX,-14B
+                 ,ATX,ARGBASE
                  ,ITA,8
-               15,ATX,-13B
+                 ,ATX,ENTRYSP
                 7,XTA,
-               15,ATX,-12B
+                 ,ATX,FMTPTR
                 7,UTM,1
                  ,ITA,7
-               15,ATX,-11B
+                 ,ATX,ARGPTR
  LOOP:         13,VJM,NEXTCH
-               15,ATX,-7
                  ,UZA,DONE
-                 ,UTC,PERCENT
-                 ,AEX,
-                 ,UZA,PCT
-               15,XTA,-7
+               14,UTM,-45B
+               14,VZM,PCT
                13,VJM,OUTCH
                  ,UJ,LOOP
-C Begin one conversion.  Save the address of '%' for literal recovery and
+C Begin one conversion.  Save the address after '%' for literal recovery and
 C collect an optional decimal width and precision without consuming an arg.
- PCT:          15,XTA,-12B
-                 ,UTC,ONE
-                 ,A-X,
-               15,ATX,-10B
-                 ,XTA,ZERO
-               15,ATX,-6
-               15,ATX,-5
-                 ,XTA,ZERO
-               15,ATX,-4
-               15,ATX,-3
-               13,VJM,NEXTCH
-               15,ATX,-7
- DIGCHK:       15,XTA,-7
-                 ,ATI,6
-                6,UTM,-60B
-                6,VZM,DIG0
-                6,UTM,-1
-                6,VZM,DIG1
-                6,UTM,-1
-                6,VZM,DIG2
-                6,UTM,-1
-                6,VZM,DIG3
-                6,UTM,-1
-                6,VZM,DIG4
-                6,UTM,-1
-                6,VZM,DIG5
-                6,UTM,-1
-                6,VZM,DIG6
-                6,UTM,-1
-                6,VZM,DIG7
-                6,UTM,-1
-                6,VZM,DIG8
-                6,UTM,-1
-                6,VZM,DIG9
-                 ,UJ,NODIG
- DIG0:          6,VTM,0
-                 ,UJ,GOTDIG
- DIG1:          6,VTM,1
-                 ,UJ,GOTDIG
- DIG2:          6,VTM,2
-                 ,UJ,GOTDIG
- DIG3:          6,VTM,3
-                 ,UJ,GOTDIG
- DIG4:          6,VTM,4
-                 ,UJ,GOTDIG
- DIG5:          6,VTM,5
-                 ,UJ,GOTDIG
- DIG6:          6,VTM,6
-                 ,UJ,GOTDIG
- DIG7:          6,VTM,7
-                 ,UJ,GOTDIG
- DIG8:          6,VTM,8
-                 ,UJ,GOTDIG
- DIG9:          6,VTM,9
- GOTDIG:      15,XTA,-3
+ PCT:            ,XTA,FMTPTR
+                 ,ATX,PCTPTR
+                 ,XTA,
+                 ,ATX,WIDTH
+                 ,ATX,PREC
+                 ,ATX,HASWIDTH
+                 ,ATX,HASPREC
+ DIGCHK:       13,VJM,NEXTCH
+                 ,A-X,ASCII0
+                 ,U1A,NODIG
+                 ,X-A,NINE
+                 ,U1A,NODIG
+                 ,X-A,NINE
+                 ,ATX,VALUE
+                 ,XTA,HASPREC
                  ,U1A,PRECDIG
-                 ,XTA,ONE
-               15,ATX,-4
-               15,XTA,-6
-                 ,ATI,7
-                7,J+M,7
-                7,MTJ,8
-                7,J+M,7
-                7,J+M,7
-                8,J+M,7
-                6,J+M,7
-                 ,ITA,7
-               15,ATX,-6
-                 ,UJ,MORDIG
- PRECDIG:      15,XTA,-5
-                 ,ATI,7
-                7,J+M,7
-                7,MTJ,8
-                7,J+M,7
-                7,J+M,7
-                8,J+M,7
-                6,J+M,7
-                 ,ITA,7
-               15,ATX,-5
- MORDIG:       13,VJM,NEXTCH
-               15,ATX,-7
+                1,XTA,8
+                 ,ATX,HASWIDTH
+                 ,XTA,WIDTH
+                 ,A*X,E48TEN
+                 ,YTA,64
+                 ,ARX,VALUE
+                 ,ATX,WIDTH
                  ,UJ,DIGCHK
- NODIG:        15,XTA,-7
-                 ,UTC,PERIOD
-                 ,AEX,
-                 ,U1A,DISPATCH
-                 ,XTA,ONE
-               15,ATX,-3
-               13,VJM,NEXTCH
-               15,ATX,-7
+ PRECDIG:        ,XTA,PREC
+                 ,A*X,E48TEN
+                 ,YTA,64
+                 ,ARX,VALUE
+                 ,ATX,PREC
                  ,UJ,DIGCHK
-C Conversion dispatch, with each upper/lower spelling named explicitly.
- DISPATCH:     15,XTA,-7
-                 ,UZA,UNKNOWN0
-                 ,UTC,PERCENT
-                 ,AEX,
-                 ,UZA,FMPCT
-               15,XTA,-7
-                 ,UTC,UPD
-                 ,AEX,
-                 ,UZA,FMD
-               15,XTA,-7
-                 ,UTC,LOD
-                 ,AEX,
-                 ,UZA,FMD
-               15,XTA,-7
-                 ,UTC,UPO
-                 ,AEX,
-                 ,UZA,FMO
-               15,XTA,-7
-                 ,UTC,LOO
-                 ,AEX,
-                 ,UZA,FMO
-               15,XTA,-7
-                 ,UTC,UPS
-                 ,AEX,
-                 ,UZA,FMS
-               15,XTA,-7
-                 ,UTC,LOS
-                 ,AEX,
-                 ,UZA,FMS
-               15,XTA,-7
-                 ,UTC,UPF
-                 ,AEX,
-                 ,UZA,FMREAL
-               15,XTA,-7
-                 ,UTC,LOF
-                 ,AEX,
-                 ,UZA,FMREAL
-               15,XTA,-7
-                 ,UTC,UPE
-                 ,AEX,
-                 ,UZA,FMREAL
-               15,XTA,-7
-                 ,UTC,LOE
-                 ,AEX,
-                 ,UZA,FMREAL
-               15,XTA,-7
-                 ,UTC,UPC
-                 ,AEX,
-                 ,UZA,FMC
-               15,XTA,-7
-                 ,UTC,LOC
-                 ,AEX,
-                 ,UZA,FMC
-               15,XTA,-7
-                 ,UTC,UPA
-                 ,AEX,
-                 ,UZA,FMA
-               15,XTA,-7
-                 ,UTC,LOA
-                 ,AEX,
-                 ,UZA,FMA
-               15,XTA,-7
-                 ,UTC,UPT
-                 ,AEX,
-                 ,UZA,FMT
-               15,XTA,-7
-                 ,UTC,LOT
-                 ,AEX,
-                 ,UZA,FMT
+ NODIG:        14,UTM,-56B
+               14,V1M,NONPER
+                1,XTA,8
+                 ,ATX,HASPREC
+                 ,UJ,DIGCHK
+C Conversion dispatch; Dubna has already uppercased the format letters.
+ NONPER:       14,UTM,56B
+ DISPATCH:     14,VZM,UNKNOWN
+               14,UTM,-45B
+               14,VZM,FMPCT
+               14,UTM,45B-101B
+               14,VZM,FMA
+               14,UTM,101B-103B
+               14,VZM,FMC
+               14,UTM,103B-104B
+               14,VZM,FMD
+               14,UTM,104B-105B
+               14,VZM,FMREAL
+               14,UTM,105B-106B
+               14,VZM,FMREAL
+               14,UTM,106B-117B
+               14,VZM,FMO
+               14,UTM,117B-123B
+               14,VZM,FMS
+               14,UTM,123B-124B
+               14,VZM,FMT
                  ,UJ,UNKNOWN
  FMPCT:         ,XTA,PERCENT
                13,VJM,OUTCH
                  ,UJ,LOOP
  FMD:          13,VJM,GETARG
-               15,XTA,-4
+                 ,XTA,HASWIDTH
                  ,U1A,DWIDTH
                  ,XTA,W10
-               15,ATX,-6
- DWIDTH:       15,XTA,-6
-                 ,AOX,IZERO
+                 ,ATX,WIDTH
+ DWIDTH:         ,XTA,WIDTH
+                1,AOX,9
                  ,XTS,
-               15,XTA,-3
+                 ,XTA,VALUE
                12,VTM,*OUTPUT*
-               13,VJM,P/WI
+               13,VJM,C/WI
                  ,UJ,LOOP
  FMO:          13,VJM,GETARG
-               15,XTA,-4
+                 ,XTA,HASWIDTH
                  ,U1A,OWIDTH
                  ,XTA,W17
-               15,ATX,-6
- OWIDTH:       15,XTA,-6
-                 ,AOX,IZERO
+                 ,ATX,WIDTH
+ OWIDTH:         ,XTA,WIDTH
+                1,AOX,9
                  ,XTS,
-               15,XTA,-3
+                 ,XTA,VALUE
                12,VTM,*OUTPUT*
                13,VJM,P/WO
                  ,UJ,LOOP
  FMC:          13,VJM,GETARG
-               15,XTA,-4
+                 ,XTA,HASWIDTH
                  ,UZA,CNOWID
-               15,XTA,-6
-                 ,AOX,IZERO
+                 ,XTA,WIDTH
+                1,AOX,9
                  ,XTS,
-               15,XTA,-3
+                 ,XTA,VALUE
                12,VTM,*OUTPUT*
                13,VJM,P/WC
                  ,UJ,LOOP
- CNOWID:       15,XTA,-2
+ CNOWID:         ,XTA,VALUE
                12,VTM,*OUTPUT*
                13,VJM,P/CW
                  ,UJ,LOOP
  FMA:          13,VJM,GETARG
-               15,XTA,-4
+                 ,XTA,HASWIDTH
                  ,UZA,ANOWID
-               15,XTA,-6
-                 ,AOX,IZERO
+                 ,XTA,WIDTH
+                1,AOX,9
                  ,XTS,
-               15,XTA,-3
+                 ,XTA,VALUE
                10,VTM,6
                12,VTM,*OUTPUT*
                13,VJM,P/A6
                  ,UJ,LOOP
- ANOWID:       15,XTA,-2
+ ANOWID:         ,XTA,VALUE
                10,VTM,6
                12,VTM,*OUTPUT*
                13,VJM,P/6A
                  ,UJ,LOOP
  FMREAL:       13,VJM,GETARG
-               15,XTA,-4
+                 ,XTA,HASWIDTH
                  ,U1A,RWIDTH
                  ,XTA,W14
-               15,ATX,-6
- RWIDTH:       15,XTA,-3
+                 ,ATX,WIDTH
+ RWIDTH:         ,XTA,HASPREC
                  ,U1A,RPREC
                  ,XTA,W4
-               15,ATX,-5
- RPREC:        15,XTA,-6
-                 ,AOX,IZERO
+                 ,ATX,PREC
+ RPREC:          ,XTA,WIDTH
+                1,AOX,9
                  ,XTS,
-               15,XTA,-6
-                 ,AOX,IZERO
+                 ,XTA,PREC
+                1,AOX,9
                  ,XTS,
-               15,XTA,-4
+                 ,XTA,VALUE
                12,VTM,*OUTPUT*
                13,VJM,P/WR
                  ,UJ,LOOP
 C PUTS already understands arbitrary byte alignment, NUL and LF.  An
 C explicit width is left padding only; precision is deliberately ignored.
  FMS:          13,VJM,GETARG
-               15,XTA,-4
+                 ,XTA,HASWIDTH
                  ,UZA,SOUT
-               15,XTA,-6
-                 ,AOX,IZERO
-               15,ATX,-5
-               15,XTA,-2
+                 ,XTA,WIDTH
+                1,AOX,9
+                 ,ATX,PREC
+                 ,XTA,VALUE
                13,VJM,STRLEN
-                 ,AEX,IZERO
-               15,A-X,-5
+                1,AEX,9
+                 ,A-X,PREC
                12,VTM,*OUTPUT*
                  ,CALL,P/SP
- SOUT:         15,XTA,-2
+ SOUT:           ,XTA,VALUE
                13,VJM,PUTS
                  ,UJ,LOOP
  FMT:          13,VJM,GETARG
-               15,XTA,-2
+                 ,XTA,VALUE
                13,VJM,PASTPR
                  ,UJ,LOOP
-C Unknown sequences are replayed from '%' through the current non-NUL byte.
- UNKNOWN:      15,XTA,-12B
-               15,ATX,-2
-               15,XTA,-10B
-               15,ATX,-12B
- UNKLOOP:      15,XTA,-12B
-               15,AEX,-2
-                 ,UZA,LOOP
-               13,VJM,NEXTCH
+C Print the '%' of an unknown sequence, then let the main loop resume at the
+C character immediately following it.  No actual argument is consumed.
+ UNKNOWN:        ,XTA,PERCENT
                13,VJM,OUTCH
-                 ,UJ,UNKLOOP
-C A trailing/incomplete percent sequence excludes the NUL and then returns.
- UNKNOWN0:     15,XTA,-12B
-                 ,UTC,ONE
-                 ,A-X,
-               15,ATX,-2
-               15,XTA,-10B
-               15,ATX,-12B
- UNK0LOOP:     15,XTA,-12B
-               15,AEX,-2
-                 ,UZA,DONE
-               13,VJM,NEXTCH
-               13,VJM,OUTCH
-                 ,UJ,UNK0LOOP
+                 ,XTA,PCTPTR
+                 ,ATX,FMTPTR
+                 ,UJ,LOOP
 C Return the next actual.  The entry-SP word is the exclusive end; a missing
 C actual terminates formatting without looking beyond the compiler's frame.
- GETARG:       15,XTA,-11B
-               15,AEX,-13B
+ GETARG:         ,XTA,ARGPTR
+                 ,AEX,ENTRYSP
                  ,UZA,DONE
-               15,XTA,-11B
-                 ,ATI,6
-                6,XTA,
-               15,ATX,-2
-                6,UTM,1
-                 ,ITA,6
-               15,ATX,-11B
-               15,XTA,-2
+                 ,XTA,ARGPTR
+                1,ARX,8
+                 ,ATX,ARGPTR
+                 ,WTC,ARGPTR
+                 ,XTA,-1
+                 ,ATX,VALUE
                13,UJ,
-C Byte load from a flat char pointer.  This is the PUTS/STRLEN six-bytes-per-
-C word calculation; the main format pointer advances by one byte.
- NEXTCH:       15,XTA,-12B
-               15,ATX,-1
-                 ,UTC,ONE
-                 ,ARX,
-               15,ATX,-12B
-               15,XTA,-1
-                 ,UTC,INV6
-                 ,A*X,
-                 ,ATI,6
-                 ,UTC,SIX
-                 ,A*X,
-                 ,YTA,64
-               15,X-A,-1
-                 ,ASN,64-3
-                 ,UTC,FORTY
-                 ,X-A,
-                 ,ATI,7
-                6,XTA,
-                7,ASN,64
-                 ,UTC,LOWBYT
-                 ,AAX,
-               13,UJ,
+C Load through the runtime's packed-char descriptor, then advance the format
+C byte pointer by one.
+ NEXTCH:         ,ITA,13
+                 ,XTS,FMTPTR
+                 ,XTS,FMTPTR
+                1,ARX,8
+                 ,STX,FMTPTR
+               14,VTM,
+               11,VTM,P/08
+               13,VJM,P/LDAR
+                 ,ATI,14
+               15,WTC,
+                 ,UJ,
 C One literal format byte.  LF terminates OUTPUT exactly as PUTS does.
- OUTCH:        15,ATX,-7
+ OUTCH:        15,ATX,1
                  ,ITA,13
-               15,ATX,-1
-               15,XTA,-7
-                 ,UTC,NEWLINE
-                 ,AEX,
+               15,XTS,
+                 ,AEX,NEWLINE
                  ,UZA,OUTNL
-               15,XTA,-7
+                 ,AEX,NEWLINE
                12,VTM,*OUTPUT*
                13,VJM,P/CW
                  ,UJ,OUTRET
  OUTNL:        13,VJM,P/WOLN
- OUTRET:       15,XTA,-1
-                 ,ATI,13
-               15,XTA,-7
-               13,UJ,
-C Drop the locals, let P/EDIH restore M6..M8 and M13, then discard the
-C caller's contiguous argument sequence by assigning its base to SP.
- DONE:         15,XTA,-14B
+ OUTRET:       15,WTC,
+                 ,UJ,
+C Let P/EDIH restore M6..M8 and M13, then discard the caller's contiguous
+C argument sequence by assigning its base to SP.
+ DONE:           ,XTA,ARGBASE
                  ,ATI,10
-               15,XTA,-13B
+                 ,XTA,ENTRYSP
                  ,ATI,8
                 8,MTJ,15
                15,UTM,4
@@ -409,34 +266,23 @@ C caller's contiguous argument sequence by assigning its base to SP.
                  ,UJ,P/EDIH
  RET:          10,MTJ,15
                13,UJ,
- ZERO:           ,LOG,0000 0000 0000 0000
- ONE:            ,LOG,0000 0000 0000 0001
- LOWBYT:         ,LOG,0000 0000 0000 0377
  NEWLINE:        ,LOG,0000 0000 0000 0012
  PERCENT:        ,LOG,0000 0000 0000 0045
- PERIOD:         ,LOG,0000 0000 0000 0056
- UPD:            ,LOG,0000 0000 0000 0104
- LOD:            ,LOG,0000 0000 0000 0144
- UPO:            ,LOG,0000 0000 0000 0117
- LOO:            ,LOG,0000 0000 0000 0157
- UPS:            ,LOG,0000 0000 0000 0123
- LOS:            ,LOG,0000 0000 0000 0163
- UPF:            ,LOG,0000 0000 0000 0106
- LOF:            ,LOG,0000 0000 0000 0146
- UPE:            ,LOG,0000 0000 0000 0105
- LOE:            ,LOG,0000 0000 0000 0145
- UPC:            ,LOG,0000 0000 0000 0103
- LOC:            ,LOG,0000 0000 0000 0143
- UPA:            ,LOG,0000 0000 0000 0101
- LOA:            ,LOG,0000 0000 0000 0141
- UPT:            ,LOG,0000 0000 0000 0124
- LOT:            ,LOG,0000 0000 0000 0164
- IZERO:          ,INT,0
+ NINE:           ,LOG,11
+ ASCII0:         ,LOG,60
+ E48TEN:         ,LOG,4000000000000012
  W4:             ,INT,4
  W10:            ,INT,10
  W14:            ,INT,14
  W17:            ,INT,17
- INV6:           ,LOG,4002 5252 5252 5253
- SIX:            ,LOG,4000 0000 0000 0006
- FORTY:          ,LOG,0000 0000 0000 0050
+ ARGBASE:        ,BSS,1
+ ENTRYSP:        ,BSS,1
+ FMTPTR:         ,BSS,1
+ ARGPTR:         ,BSS,1
+ PCTPTR:         ,BSS,1
+ WIDTH:          ,BSS,1
+ PREC:           ,BSS,1
+ HASWIDTH:       ,BSS,1
+ HASPREC:        ,BSS,1
+ VALUE:          ,BSS,1
                  ,END,
