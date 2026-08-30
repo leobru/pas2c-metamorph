@@ -94,7 +94,7 @@ const int64_t
     mcADDSTK2REG = 8,
     mcADDACC2REG = 9,
     /* Adjacent, and in this order: genEntry picks between them with
-       'firstArg + mcSTK2ADDR', argument 1 being on the stack or not. */
+       'mcACC2ADDR - needPush', argument 1 being on the stack or not. */
     mcSTK2ADDR = 10,
     mcACC2ADDR = 11,
     mcMALLOC = 12,
@@ -4572,7 +4572,11 @@ struct genEntry {
 
     ExprPtr l5exp1z, l5exp2z, calleeExp;
     IdentRecPtr l5idr5z;
-    bool isProc, firstArg, isIndir, isFortrn, isAssembler, allByRef;
+    // needPush says the accumulator holds a value that has to be pushed
+    // before another is loaded over it -- which is the same thing as "this is
+    // not the first argument", and after the list the same thing again as
+    // "argument 1 is on the stack" for the indirect call's tail macro.
+    bool isProc, needPush, isIndir, isFortrn, isAssembler, allByRef;
     int64_t calleeFl, frameSiz, tailMacro, slot;
     bool manyArgs;
     InsnListPtr l5inl20z;
@@ -4596,6 +4600,13 @@ int64_t allocGlobalObject(IdentRecPtr l6arg1z)
 
 genEntry::genEntry()
 {
+    // A struct argument at least this wide is streamed onto the stack by
+    // C/LNGPAR instead of by one load per word.  The call is three
+    // instructions, or four where the struct is the first argument and has to
+    // load word 0 itself, whatever the width; below this the unrolled run is
+    // shorter.  The width is where size turns, not speed: C/LNGPAR runs about
+    // three instructions per word against the unrolled one.
+    const int64_t loopArgSz = 4;
     ExprPtr & exprToGen = genFullExpr::super.back()->exprToGen;
     l5exp1z = exprToGen->expr1;
     isIndir = exprToGen->op == INDCALL;
@@ -4635,7 +4646,7 @@ genEntry::genEntry()
     insnList->ilm = ilRVAL;
     insnList->st = stWORD;      // prepLoad reads st on every ilRVAL list
     if (isFortrn) {
-        firstArg = not isProc;
+        needPush = isProc;
         if (checkFortran) {
             addToInsnList(getHelperProc(53)); /* "P/MF" */
         }
@@ -4643,7 +4654,7 @@ genEntry::genEntry()
         // The first argument travels in the accumulator and the ones after it
         // are pushed.  An assembler routine reads those off the stack top and
         // has no frame of its own, so nothing is skipped for it.
-        firstArg = true;
+        needPush = false;
         if (not isAssembler and manyArgs) {
             addToInsnList(KUTM+SP + frameSiz);
         }
@@ -4670,19 +4681,40 @@ genEntry::genEntry()
                 setAddrTo(14);
                 addToInsnList(KITA+14);
             }
-        } else {
+        } else if (typeSize(curSig->ptyp) < loopArgSz) {
             setAddrTo(14);
             for (slot = 0; slot < typeSize(curSig->ptyp); ++slot) {
                 if (slot)
                     addToInsnList(macro + mcPUSH);
-                addInsnAndOffset(indexreg[14] + KXTA, slot);
+                addInsnAndOffset(I14 + KXTA, slot);
             }
+        } else {
+            // C/LNGPAR streams the words instead.  Its opening XTS pushes
+            // whatever is in the accumulator, which is the previous argument
+            // -- so that push is the one this loop would have prepended, and
+            // word 0 is read from where the address register already points.
+            // As the first argument there is nothing to push ahead of the
+            // struct, so word 0 is loaded here and the register starts one
+            // past it.
+            slot = typeSize(curSig->ptyp) - 1;
+            if (not needPush) {
+                ++insnList->disp;
+                setAddrTo(14);
+                addInsnAndOffset(I14 + KXTA, -1);
+                --slot;
+            } else {
+                setAddrTo(14);
+                needPush = false;
+            }
+            addToInsnList(KVTM+I12 + getValueOrAllocSymtab(-slot));
+            addToInsnList(getHelperProc(45)); /* "C/LNGPAR" */
+            insnList->regsused = insnList->regsused | Bits(12, 13);
         } /* 7027 */
         if (curSig)
             curSig = curSig->next;
-        if (not firstArg)
+        if (needPush)
             prependToInsnList(macro + mcPUSH);
-        firstArg = false;
+        needPush = true;
         if (l5inl20z->tail) {
             l5inl20z->tail->next = insnList->head;
             insnList->head = l5inl20z->head;
@@ -4709,9 +4741,9 @@ genEntry::genEntry()
         if (insnList->head or insnList->ilm != ilLVAL
             or insnList->st != stWORD or insnList->addrmd == 15) {
             prepLoad();
-            if (not firstArg)
+            if (needPush)
                 prependToInsnList(macro + mcPUSH);
-            tailMacro = firstArg + mcSTK2ADDR;
+            tailMacro = mcACC2ADDR - needPush;
         } else {
             curInsnTemplate = InsnTemp[WTC];
             prepLoad();
@@ -10625,7 +10657,7 @@ int64_t helperNames[58] = { 0L,
         06017516400000000L      /*"P/IT    "*/,
         06017435300000000L      /*"P/CK    "*/,
         06017534300000000L      /*"P/KC    "*/,
-        06017545647604162L      /*"P/LNGPAR"*/,
+        04317545647604162L      /*"C/LNGPAR"*/,
         06017544441620000L      /*"P/LDAR  "*/,
         06017202043000000L      /*"P/00C   "*/,
         06017636441620000L      /*"P/STAR  "*/,

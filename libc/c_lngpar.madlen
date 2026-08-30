@@ -1,0 +1,30 @@
+ C/LNGPAR:,NAME,
+C===========================================================
+C C/LNGPAR - stream a wide struct argument onto the stack.
+C
+C Calling convention:
+C   M14 = address of the first word to LOAD
+C   M12 = -K, VLM testing before it increments, so the body
+C         runs K+1 times and M12 finishes at zero
+C   ACC = the word to push first
+C
+C Result:
+C   ACC, then [M14] .. [M14+K-1], have been pushed, and
+C   [M14+K] is left in the accumulator.
+C
+C The caller instantiates that two ways for a struct of N
+C words.  When the struct is not the first argument the
+C accumulator already holds the previous one, so M14 is the
+C struct's own address and M12 = -(N-1): the opening XTS is
+C the push of that previous argument.  When it is the first
+C there is nothing to push ahead of it, so the caller loads
+C word 0 itself, passes M14 one past it and M12 = -(N-2).
+C Either way words 0..N-2 land in the argument slots and word
+C N-1 is left in the accumulator, where an argument of one
+C word would have been.
+C===========================================================
+ LOOP:14,XTS,
+      14,UTM,1
+      12,VLM,LOOP
+      13, UJ,
+        ,END,

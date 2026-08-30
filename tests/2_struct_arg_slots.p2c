@@ -8,9 +8,14 @@
 // the accumulator rather than being pushed), a struct first with the pushes
 // behind it, and two structs side by side.
 //
+// From loopArgSz words up the call site stops loading word by word and hands
+// the streaming to C/LNGPAR, so the same positions are walked again at a
+// width well past the threshold: the two shapes have to answer alike.
+//
 typedef struct { int a, b; } pair;
 typedef struct { int p, q, r, s, t; } five;
 typedef struct { pair inner; int z; } outer;
+typedef struct { int a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12; } wide;
 typedef int (*pairfn)(pair);
 //
 // Declared ahead of their definitions: the declaration settles the frame
@@ -39,6 +44,21 @@ int bump(pair m) { m.a = m.a + 100; return m.a * 10 + m.b; }
 // A struct formal handed on to another routine, and used through recursion.
 int passon(pair m) { return only(m) + 2000; }
 //
+// Twelve words, past loopArgSz, so C/LNGPAR streams these.  The weights are
+// all distinct, so a dropped, duplicated or misordered word shows up.
+int wsum(wide w) {
+    return w.a1 + w.a2*2 + w.a3*3 + w.a4*4 + w.a5*5 + w.a6*6 +
+           w.a7*7 + w.a8*8 + w.a9*9 + w.a10*10 + w.a11*11 + w.a12*12;
+}
+//
+// A wide formal handed on to another wide call, from a frame slot this time.
+int wfirst(wide w, int k)         { return wsum(w) + k * 1000; }
+int wlast(int k, wide w)          { return wsum(w) + k * 10000; }
+int wmid(int j, wide w, int k)    { return j * 100000 + wsum(w) + k * 1000; }
+int wtwo(wide v, wide w) {
+    return v.a1 * 100000 + v.a12 * 1000 + w.a1 * 100 + w.a12;
+}
+//
 int deep(pair m, int n) {
     if (n == 0)
         return m.a * 10 + m.b;
@@ -51,6 +71,7 @@ pair h2;
 pair arr[2];
 five g5;
 outer o;
+wide gw;
 pairfn fp;
 //
 void main() {
@@ -60,6 +81,9 @@ void main() {
     arr[0].a = 8;   arr[0].b = 9;
     arr[1].a = 1;   arr[1].b = 2;
     o.inner.a = 7;  o.inner.b = 0;  o.z = 99;
+    gw.a1 = 1;  gw.a2 = 2;  gw.a3 = 3;  gw.a4 = 4;
+    gw.a5 = 5;  gw.a6 = 6;  gw.a7 = 7;  gw.a8 = 8;
+    gw.a9 = 9;  gw.a10 = 10;  gw.a11 = 11;  gw.a12 = 12;
     writeln(" ONLY ", only(g2):0, " LAST ", last(7, g2):0);
     writeln(" FIRST ", first(g2, 7):0, " TWO ", two(g2, h2):0);
     writeln(" BIG ", big(g5):0, " MIXED ", mixed(g2, 7, g5):0);
@@ -73,4 +97,8 @@ void main() {
     // And one through a pointer, whose slots come from the routine type.
     fp = only;
     writeln(" PTR ", fp(h2):0, " Z ", o.z:0);
+    // Past the threshold: the same positions, streamed by C/LNGPAR.
+    writeln(" WSUM ", wsum(gw):0, " WFIRST ", wfirst(gw, 7):0);
+    writeln(" WLAST ", wlast(7, gw):0, " WMID ", wmid(2, gw, 7):0);
+    writeln(" WTWO ", wtwo(gw, gw):0);
 }
