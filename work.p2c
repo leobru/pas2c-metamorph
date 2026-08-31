@@ -1426,6 +1426,14 @@ L2175:     error(59); /* errEOLNInStringLiteral */
             return;
         } else if (CH == BACKSLASH) {
             nextCH();
+            /* A backslash immediately before the physical newline splices
+               the next source line into this literal.  It occupies no slot;
+               the next iteration reads the first character of the new line. */
+            if (CH == '\n') {
+                endOfLine();
+                --tokenIdx;
+                continue;
+            }
             if (has(escSet, CH-'0')) {
                 if (CH <= '7') {
                     expLiteral  =  0;
@@ -7212,7 +7220,7 @@ int oldLocalSize, oldFreeRegs, blockRegs;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void reportStmtType() {
-    writeln(" STATEMENT ", stmtname:0, " IN ", startLine:0, " LINE");
+    printf(" STATEMENT %a IN %d LINE\n", stmtname, startLine);
 } /* reportStmtType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

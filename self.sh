@@ -14,6 +14,25 @@ cat << EOF > tmp$$
 *file:work,41
 *file:wrksrc,44
 *file:self,67,w
+*no list
+*assem
+ PASCONTR:,NAME,DTRAN  /01.06.84/
+ PASINFOR:,LC,18
+ P/SETEXF:,SUBP,
+ RGEXPORT:,LC,1
+ 14,VTM,*0004B
+ 14,XTA,2
+ ,UTC,RGEXPORT
+ ,ATX,
+ 14,XTA,3
+ ,UTC,PASINFOR
+ ,ATX,3
+ ,UJ,P/SETEXF
+ *0004B:,TEXT,8HPASINPUT
+ ,LOG,${src_extent} 400
+ ,LOG,2
+ ,INT,0
+ ,END,
 *system
 *     *pascom and pasmitxt
 *libra:42
@@ -21,8 +40,6 @@ cat << EOF > tmp$$
 *libra:41
 *libra:43
 *libra:22
-*call pashelp
-P 2 0 ${src_extent}B .
 *call allmemory
 *call *pascom
 *copy:20,270000,670000

@@ -12,12 +12,11 @@ C
 C The word counterpart of FGETC.  A word file has no line
 C structure, so none of FGETC's end-of-line translation applies
 C and the element is taken straight from f^.  P/GF owns all
-C cursor movement and buffer/refill state and its Pascal
-C interface aborts when called at EOF, so FILE[2] is tested
-C first, exactly as in FGETC: the XOR both detects the EOF
-C marker and leaves the zero word that C expects as the
-C sentinel.  Save the result and the caller's M13 while P/GF
-C advances to the next element.
+C cursor movement and buffer/refill state and does nothing once
+C FILE[2] is set, so FILE[2] is tested first, exactly as in
+C FGETC: the XOR both detects the EOF marker and leaves the zero
+C word that C expects as the sentinel.  Save the result and the
+C caller's M13 while P/GF advances to the next element.
 C===========================================================
  P/GF:          ,SUBP,
                 ,ATI ,12     . M12 := fcb

@@ -1,0 +1,75 @@
+ PASGIVEP:,NAME,DTRAN  /01.06.84/    . Flush a partial packed word
+C===========================================================
+C PASGIVEP - "PASCAL GIVE Partial".  Flushes any partially
+C  filled packed-output word back to its rightful place in
+C  the buffer using [M1+35B] (saved cursor) and [M1+36B]
+C  (working pointer) to walk the touched range.  The final
+C  pass fires off the disk write through P/ZI.
+C  Returns at once through M13 when FILE[7] is non-zero.
+C
+C  Also labelled FLUSHBUF in p_sys.asm.
+C===========================================================
+C Register convention (see FILE.md):
+C   M12 = base of the FILE record being acted on
+C   M1  = runtime constant table ([M1+8] = 1U, [M1+9] = integer-tag
+C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
+C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
+C   M13 = link register set by the calling VJM
+C   M14 = secondary link (used inside packed-mode helpers)
+ P/ZI:,SUBP,                 . read/write a disk zone via *70
+ 12,XTA,7                    . ACC := FILE[7]
+ 13,U1A,                     . FILE[7]!=0 -> return via M13
+ ,ITA,13                     . ACC := M13 (link)
+ 1,XTS,36B                   . push link, ACC := [M1+30B]
+ ,U1A,RESUME                 . non-zero -> resume mid-flush
+ 1,XTA,35B                   . else seed [M1+30B] from cache
+ 1,ATX,36B
+ WALKLOOP:1,WTC,36B          . loop: WT := [M1+30B]
+ ,XTA,
+ ,UZA,WALKDONE               . hit zero -> done
+ 1,XTA,36B
+ 15,ATX,1                    . save current ptr
+ 1,WTC,36B
+ ,XTA,
+ 1,ATX,36B                   . advance [M1+30B]
+ ,UJ,WALKLOOP
+ WALKDONE:1,XTA,36B
+ 1,AEX,35B                   . compare with cache
+ ,U1A,DIVERGED               . diverged -> DIVERGED
+ 1,ATX,35B
+ WRITEOUT:,ITA,12            . ACC := M12
+ 15,ATX,
+ 1,WTC,36B
+ ,WTC,2
+ 12,VTM,
+ 12,XTA,2
+ ,UZA,CLEARBUF
+ 12,XTA,11B
+ 12,AEX,12B
+ ,UZA,CLEARBUF
+ 13,VJM,P/ZI                 . disk write via track helper
+ CLEARBUF:,XTA,
+ 12,ATX,7                    . FILE[7] := 0
+ 15,XTA,
+ ,ATI,12                     . restore M12
+ RESUME:1,XTA,36B
+ 15,ATX,1
+ 1,WTC,36B
+ ,XTA,
+ 1,ATX,36B
+ 1,XTA,35B
+ 15,WTC,1
+ ,ATX,
+ 15,XTA,1
+ 1,ATX,35B
+ 12,ATX,7
+ ,ITA,12
+ 15,WTC,1
+ ,ATX,2
+ 15,WTC,
+ ,UJ,                        . indirect return
+ DIVERGED:,XTA,
+ 15,WTC,1
+ ,ATX,
+ ,UJ,WRITEOUT
+ ,END,

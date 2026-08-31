@@ -1,0 +1,51 @@
+ P/GL:,NAME,DTRAN  /01.06.84/    . Refill the input line from stdin
+C===========================================================
+C P/GL - stdin input-refill helper, called from P/GF and from
+C  P/CO's reset path.  This is the only user of READ*, so it is
+C  the stdin path only: it runs PASEOF (the MONCARD eof test)
+C  then, if data is real, calls READ* to pull one console/card
+C  line (<=80 chars) into the file's 14-word buffer at FILE[12].
+C  (Disk files refill from the *70 syscall path instead, in
+C  PASINBUF, not from here.)
+C
+C  Labelled READLINE in p_sys.asm.
+C===========================================================
+C Register convention (see FILE.md):
+C   M12 = base of the FILE record being acted on
+C   M1  = runtime constant table ([M1+8] = 1U, [M1+9] = integer-tag
+C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
+C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
+C   M13 = link register set by the calling VJM
+C   M14 = secondary link (used inside packed-mode helpers)
+ PASEOFCD:,LC,1              . end-of-file sentinel record
+ PASEOF:,SUBP,               . MONCARD eof-card detector
+ READ*:,SUBP,                . read one stdin line into a 14-word buffer
+ P/CB:,SUBP,                 . close the current buffer window
+ P/RACPAK:,SUBP,             . unpack one element from the buffer
+ P/RS:,SUBP,                 . return through the stack top
+ ,ITA,13
+ 1,XTS,10B                   . push link, ACC := [M1+8]
+ 12,ATX,10B                  . stash f^ in FILE[8]
+ 13,VJM,PASEOF               . check end-of-input card
+ ,UZA,ATEOF                  . EOF -> common tail
+ ,ITA,8
+ ,ITS,12                     . push M8, M12
+ 15,ATX,
+ 12,XTS,14B                  . push FILE[12] (buf start)
+ 13,VJM,READ*                . read one stdin line (<=80 chars) into the buffer
+ ,NTR,3
+ 15,XTA,
+ ,STI,12                     . restore M12
+ ,ATI,8                      . restore M8
+ 12,WTC,14B
+ ,XTA,
+ ,UTC,PASEOFCD               . C := address of EOF sentinel for following AEX
+ ,AEX,
+ ,U1A,CLOSEBUF
+ ATEOF:1,XTA,10B             . on EOF: reset f^
+ 12,ATX,2                    . FILE[2] := f^
+ 12,ATX,30B                  . FILE[24]:= f^
+ CLOSEBUF:14,VJM,P/CB        . flush the buffer window
+ 13,VTM,P/RS
+ ,UJ,P/RACPAK                . unpack via P/RACPAK
+ ,END,

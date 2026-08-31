@@ -3,111 +3,114 @@
 *file:pascom,67,w
 *no list
 *assem
- *РАSСОМ :  , NАМЕ,        .DТRАN  /01.06.84/
- FLGЕХ*  :  , LС  ,1
- МОNIТОR*:  , SUВР,
- Р/РАGЕS :  , SUВР,
- РАSINFОR:  , LС  ,19
- МОNСАRD*:  , LС  ,14
- RЕFЕNТRУ:  , LС  ,1
- ЕNТRУ*  :  , LС  ,42
- ISОРGОSТ:  , LС  ,22
- ISОРТЕХТ:  , LС  ,11
- ISОРIТМ :  , LС  ,22
- ISОРRЕSV:  , LС  ,22
- *INPUT* :  , LС  ,30
- *OUTPUT*:  , LС  ,30
- *СНILD* :  , LС  ,30
- P/SYS   :  , SUBP,
- РАSISОСD:  , SUВР,
- РАSLISТ :  , SUВР,
- GАМ/0   :  , ЕQU ,РАSINFОR+1
- Р/РАМРАМ:  , SUВР,
- РАSСОNТR:  , SUВР,
+ *PASCOM :  , NAME,        .DTRAN  /01.06.84/
+ FLGEX*  :  , LC  ,1
+ MONITOR*:  , SUBP,
+ P/PAGES :  , SUBP,
+ PASINFOR:  , LC  ,19
+ MONCARD*:  , LC  ,14
+ REFENTRY:  , LC  ,1
+ ENTRY*  :  , LC  ,42
+ ISOPGOST:  , LC  ,22
+ ISOPTEXT:  , LC  ,11
+ ISOPITM :  , LC  ,22
+ ISOPRESV:  , LC  ,22
+ *INPUT* :  , LC  ,30
+ *OUTPUT*:  , LC  ,30
+ *CHILD* :  , LC  ,30
+ PASMITXT:  , SUBP,
+ PASISOCD:  , SUBP,
+ PASLIST :  , SUBP,
+ GAM/0   :  , EQU ,PASINFOR+1
+ P/PAMPAM:  , SUBP,
+ PASCONTR:  , SUBP,
+ C/WI    :  , SUBP,
+ P/RC    :  , SUBP,
+ PASOUT  :  , SUBP,
  P/FIRP  :  , PC  ,1024
- РАSСОМРL:  , SUВР,
- GАМ/5   :  , ЕQU ,ЕNТRУ*-1
- GАМ/7   :  , ЕQU ,РАSINFОR+8
- GАN/0   :  , ЕQU ,МОNIТОR*+2
- RЕАD*   :  , SUВР,
-С===========================================
- *РАSСАL :  ,ЕNТRУ,
-С===========================================
-          13, VJМ ,РАSISОСD
-          13, VJМ ,РАSLISТ
-           8, VТМ ,РАSINFОR
-           8, АТХ ,
-            , UТС ,*0054В  .=2
-            , ХТА ,
-           8, АТХ ,22В
-           8, VТМ ,*0044В
-          14, VТМ ,RЕFЕNТRУ
-          14, ХТА ,
-            , UZА ,*0010В
-          14, ХТА ,
-            , АТХ ,*0045В
- *0010В  : 9, VТМ ,GАМ/0   .РАSINFОR+1
-          14, VТМ ,-6
-          13, VJМ ,Р/РАМРАМ
-          13, VJМ ,РАSСОNТR
-          13, VJМ ,РАSСОМРL
-            , ХТА ,FLGЕХ*
-            , U1А ,*0033В
-          11, VТМ ,GАМ/5   .ЕNТRУ*-1
- *0016В  :11, UТМ ,1
-          11, ХТА ,
-            , U1А ,*0016В
-            , UТС ,*СНILD*
-            , ХТА ,3
-          10, VТМ ,*0053В  .=:001
-          10, АОХ ,
-          11, АТХ ,1
-          14, VJМ ,Р/РАGЕS
-            , IТА ,9
-            , АSN ,64-20
-          11, АОХ ,1
-          15, АТХ ,1
-          10, АЕХ ,
-          15, АТХ ,2
+ PASCOMPL:  , SUBP,
+ GAM/5   :  , EQU ,ENTRY*-1
+ GAM/7   :  , EQU ,PASINFOR+8
+ GAN/0   :  , EQU ,MONITOR*+2
+ READ*   :  , SUBP,
+C===========================================
+ *PASCAL :  ,ENTRY,
+C===========================================
+          13, VJM ,PASISOCD
+          13, VJM ,PASLIST
+           8, VTM ,PASINFOR
+           8, ATX ,
+            , UTC ,*0054B  .=2
+            , XTA ,
+           8, ATX ,22B
+           8, VTM ,*0044B
+          14, VTM ,REFENTRY
+          14, XTA ,
+            , UZA ,*0010B
+          14, XTA ,
+            , ATX ,*0045B
+ *0010B  : 9, VTM ,GAM/0   .PASINFOR+1
+          14, VTM ,-6
+          13, VJM ,P/PAMPAM
+          13, VJM ,PASCONTR
+          13, VJM ,PASCOMPL
+            , XTA ,FLGEX*
+            , U1A ,*0033B
+          11, VTM ,GAM/5   .ENTRY*-1
+ *0016B  :11, UTM ,1
+          11, XTA ,
+            , U1A ,*0016B
+            , UTC ,*CHILD*
+            , XTA ,3
+          10, VTM ,*0053B  .=:001
+          10, AOX ,
+          11, ATX ,1
+          14, VJM ,P/PAGES
+            , ITA ,9
+            , ASN ,64-20
+          11, AOX ,1
+          15, ATX ,1
+          10, AEX ,
+          15, ATX ,2
           15, *70 ,1
-          14, VТМ ,-9
-           8, VТМ ,GАМ/7   .РАSINFОR+8
-          13, VJМ ,Р/РАМРАМ
+          14, VTM ,-9
+           8, VTM ,GAM/7   .PASINFOR+8
+          13, VJM ,P/PAMPAM
           15, *70 ,2
-            , UJ  ,GАN/0   .МОNIТОR*+2
- *0033В  :  , UТС ,МОNСАRD*
-            , ХТА ,
-            , АSN ,64-8
-            , УТА ,
-            , UТС ,*0055В  .=52
-            , АЕХ ,
-            , UZА ,GАN/0   .МОNIТОR*+2
-            , IТS ,15
-          13, VJМ ,RЕАD*
-            , UJ  ,*0033В
-         : 2, VТМ ,35051В
-          11, МТJ ,640
-            , ВSS ,1
-            , АТХ ,200В
-            , АТХ ,400В
- *0044В  :  , АТХ ,
-            , Z00 ,FLGЕХ*
- *0045В  :  , АТХ ,
-            , Z00 ,ЕNТRУ*
-          13, АТХ ,
-            , АТХ ,
-            , АТХ ,
-            , Z00 ,ISОРIТМ
-            , АТХ ,
-            , Z00 ,ISОРGОSТ
-            , АТХ ,
-            , Z00 ,ISОРRЕSV
-            , АТХ ,
-            , Z00 ,ISОРТЕХТ
- *0053В  :  , ОСТ ,001
- *0054В  :  , LОG ,2
- *0055В  :  , LОG ,52
-            , ЕND ,
+            , UJ  ,GAN/0   .MONITOR*+2
+ *0033B  :  , UTC ,MONCARD*
+            , XTA ,
+            , ASN ,64-8
+            , YTA ,
+            , UTC ,*0055B  .=52
+            , AEX ,
+            , UZA ,GAN/0   .MONITOR*+2
+            , ITS ,15
+          13, VJM ,READ*
+            , UJ  ,*0033B
+         : 2, VTM ,35051B
+          11, MTJ ,640
+            , BSS ,1
+            , ATX ,200B
+            , ATX ,400B
+ *0044B  :  , ATX ,
+            , Z00 ,FLGEX*
+ *0045B  :  , ATX ,
+            , Z00 ,ENTRY*
+          13, ATX ,
+            , ATX ,
+            , ATX ,
+            , Z00 ,ISOPITM
+            , ATX ,
+            , Z00 ,ISOPGOST
+            , ATX ,
+            , Z00 ,ISOPRESV
+            , ATX ,
+            , Z00 ,ISOPTEXT
+ *0053B  :  , OCT ,001
+ *0054B  :  , LOG ,2
+ *0055B  :  , LOG ,52
+            , END ,
  PASMITXT:,NAME,
  15,ATX,
  1,AAX,10B
@@ -360,6 +363,9 @@ C Some padding just in case
  ERR125:,TEXT,8HRETURN*
  ERR126:,TEXT,8HSTATIC*
  ERR/LAST:,TEXT,8HUNKNOWN*
+ ,END,
+ C/WR:,NAME,
+ ,SJ,
  ,END,
 *to perso:670000
 *end file

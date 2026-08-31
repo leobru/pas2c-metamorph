@@ -3,13 +3,59 @@
 Layout of the per-file control block reached via index register **M12** by the
 runtime helpers (`P/CO`, `P/IT`, `P/GF`, `P/PF`, `P/TF`, `P/RF`, `P/WL`,
 `P/WOLN`). All offsets below are in **decimal**; the parallel octal column shows
-the literal that appears in `p_sys.asm` (`12, ATX ,nnB`).
+the literal that appears in the sources (`12, ATX ,nnB`).
+
+## Runtime modules
+
+The file runtime lives one routine to a module in `paslib/`. `paslib/p_sys.asm`
+is the single-module reconstruction of library 22's combined `P/SYS`; every
+`*NNNNB` address quoted below is one of its addresses, and it is the reference
+the per-routine modules are checked against — together they reassemble to the
+same 883 instructions.
+
+| file | module | entry points | role |
+| --- | --- | --- | --- |
+| `p_ah.asm` | `P/AH` | — | fatal-error abort handler |
+| `p_mod.asm` | `P/MOD` | `P/DIV` | integer modulo / divide ABI glue |
+| `p_it.asm` | `P/IT` | — | indirect-tail return |
+| `p_co.asm` | `P/CO` | `P/RE1`, `P/RE2` | create / open / reset a file |
+| `pasctrp.asm` | `PASCTRP` | `P/GT`, `P/CT`, `P/ZI` | track allocation and zone I/O |
+| `p_gf.asm` | `P/GF` | `P/RACPAK`, `P/UP` | get an element; unpack the window |
+| `p_ad.asm` | `P/AD` | — | advance the buffer iterator |
+| `p_gl.asm` | `P/GL` | — | refill the input line from stdin |
+| `pasinbuf.asm` | `PASINBUF` | — | allocate / refill the input buffer |
+| `pasgivep.asm` | `PASGIVEP` | — | flush a partial packed-output word |
+| `p_pk.asm` | `P/PK` | — | pack ACC into the buffer slot |
+| `p_pf.asm` | `P/PF` | `P/OB`, `P/RS` | put an element; flush the buffer to disk |
+| `p_woln.asm` | `P/WOLN` | `P/WL`, `P/FL` | end an output line; print a record |
+| `p_rf.asm` | `P/RF` | `P/OR` | reset for reading; pre-reset flush |
+| `p_tf.asm` | `P/TF` | `P/OI`, `P/CB` | rewrite; open input; close the window |
+
+The helpers that reach across a module boundary need a name, so `p_sys.asm`'s
+internal labels are entry points here:
+
+| `p_sys.asm` | entry | | `p_sys.asm` | entry |
+| --- | --- | --- | --- | --- |
+| `ABORT` | `P/AH` | | `PACKBUF` | `P/PK` |
+| `GETTRACK` | `P/GT` | | `CLOSEWIN` | `P/CB` |
+| `CHKTRACK` | `P/CT` | | `OUTRESET` | `P/OR` |
+| `ZONEIO` | `P/ZI` | | `OPENIN` | `P/OI` |
+| `ADVANCE` | `P/AD` | | `*0642B` | `P/OB` |
+| `READLINE` | `P/GL` | | `*0667B` | `P/UP` |
+| `*0632B` | `P/RS` | | `*0600B` | `P/FL` |
+
+`FLUSHBUF`, `FLUSHLIN` and `OUTFIN` were second labels on `PASGIVEP`, `P/WL`
+and `P/TF`; those entry names are used throughout instead.
+
+Two `,LC,` commons carry the constants that cross a module boundary, both
+seeded by the `,DATA,` image in `pasctrp.asm`: `PASLANE*` (the `0o76000`
+buffer/lane mask) and `PASIOBIT` (the `FILE[23]` stdin/stdout tag bit).
 
 | Off | Oct | Use                                       | Set by / Used by |
 |----:|----:|-------------------------------------------|------------------|
 |  0  |  0  | In-buffer element cursor                  | P/CO init = SP; P/GF/P/PF advance with `12, ARX ,21B` (+[17] words); compared to [1] via `12, AEX ,1` to detect window exhaustion |
 |  1  |  1  | End-of-window sentinel (limit for [0])    | P/CO init from buffer layout; compared via `12, AEX ,1` to detect buffer exhaustion |
-|  2  |  2  | EOF / pending flag                        | P/CO clears; P/GF aborts "GET(F) EOF=TRUE" if non-zero (`U1A` at *0306B*); P/PF aborts "PUT(F) EOF=FALSE" if zero (`UZA` at *0537B*); `P/EO`/`feof` return this field unchanged (0 = not EOF, non-zero = EOF) |
+|  2  |  2  | EOF / pending flag                        | P/CO clears; P/GF returns without advancing if non-zero; P/PF aborts "PUT(F) NOT AT EOF" if zero (`UZA` at *0537B*); `P/EO`/`feof` return this field unchanged (0 = not EOF, non-zero = EOF) |
 |  3  |  3  | Mode/state byte; in the disk subsystem also the file's track-table descriptor / current track id | `1, ATX ,3` early in P/CO; set to a track id by GETTRACK / CLOSEWIN / OPENIN; conditionally zeroed at *0141B |
 |  4  |  4  | Open mode: input(0)/output(non-0)         | Checked by P/RE1, PASCTRP, P/GF, P/PF, P/RF, P/TF |
 |  5  |  5  | Buffered I/O: within-window bit-shift / step counter. Disk subsystem: current zone / track-entry cursor | Buffered: `12, XTA ,5` … `AEX ,17B` (compare with FILE[15]), reset to FILE[15] on wrap. Disk: holds the track id / zone, used as an address via `12, WTC ,5` in GETTRACK / ZONEIO / CLOSEWIN |

@@ -1,0 +1,78 @@
+ PASINBUF:,NAME,DTRAN  /01.06.84/    . Allocate / refill the input buffer
+C===========================================================
+C PASINBUF - allocate/refill the input buffer.  Called from
+C  P/CO once the file is opened, from P/GF when the window
+C  runs dry, and from P/RF.  Pushes M13 then snapshots
+C  FILE[5]/FILE[6] into FILE[15]/FILE[16] and FILE[13] into
+C  FILE[19] so that PASGIVEP can restore them later, then runs
+C  a VLM-driven copy loop to scoop disk records into the inline
+C  buffer.  If we run out we tail-call P/GT to claim more
+C  tracks, and finish through P/UP.
+C===========================================================
+C Register convention (see FILE.md):
+C   M12 = base of the FILE record being acted on
+C   M1  = runtime constant table ([M1+8] = 1U, [M1+9] = integer-tag
+C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
+C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
+C   M13 = link register set by the calling VJM
+C   M14 = secondary link (used inside packed-mode helpers)
+ PASGIVEP:,SUBP,             . flush a partial packed-output word
+ P/GT:,SUBP,                 . claim/allocate disk tracks
+ P/UP:,SUBP,                 . unpack the refilled buffer, then return
+ ,ITA,13
+ 12,XTS,6                    . push M13, ACC := FILE[6]
+ ,ATI,10                     . M10 := FILE[6]
+ 12,XTA,7
+ ,U1A,HAVEBUF                . FILE[7]!=0 -> already initialised
+ 13,VJM,PASGIVEP             . call PASGIVEP to release old buf
+ 10,VZM,HAVEBUF
+ 13,VJM,P/GT                 . allocate fresh tracks
+ HAVEBUF:12,WTC,7
+ ,XTA,1
+ ,ATI,9
+ 9,UTM,1777B                 . M9 += 01777 (zone size - 1)
+ 12,XTA,5
+ 12,ATX,17B                  . FILE[15] := FILE[5]
+ 12,XTA,6
+ 12,ATX,20B                  . FILE[16] := FILE[6]
+ 12,XTA,15B
+ ,ATI,13                     . M13 := FILE[13]
+ 12,XTA,13B
+ ,ATI,14                     . M14 := FILE[11]
+ COPYLOOP:10,VLM,COPYWORD    . VLM loop: copy disk -> buffer
+ ,UJ,CHKZONE
+ COPYWORD:9,UTC,
+ 10,XTA,                     . ACC := next disk word
+ 13,UTC,-1
+ 14,ATX,                     . store into buffer
+ 14,VLM,COPYLOOP
+ ,ITA,10
+ DONECOPY:12,ATX,6           . FILE[6] := M10 (descriptor)
+ 12,XTA,14B
+ 12,ATX,23B                  . FILE[19] := FILE[12]
+ 12,ATX,                     . FILE[0]  := FILE[12]
+ ,UJ,P/UP
+ NEXTZONE:12,XTA,5
+ 1,ARX,10B                   . ACC += 1U
+ 15,ATX,1
+ 12,AEX,4
+ ,UZA,DONECOPY
+ ,UJ,MORETRKS
+ CHKZONE:12,XTA,4
+ ,U1A,NEXTZONE
+ 12,WTC,5
+ ,XTA,
+ 15,ATX,1
+ ,UZA,DONECOPY
+ MORETRKS:15,XTA,1
+ 12,ATX,5
+ ,ITA,13
+ ,ITS,14                     . push M13; ACC := M14
+ 1,XTS,10B
+ 13,VJM,P/GT                 . request more tracks
+ 15,XTA,
+ ,STI,14
+ ,ATI,13
+ 10,VTM,76001B
+ ,UJ,COPYWORD                . resume copy loop
+ ,END,

@@ -2650,6 +2650,16 @@ L2175:                      error(59); /* errEOLNInStringLiteral */
                             // reads KOI-8, so map each (case-folded) letter
                             // directly to the same control code escMap yields.
                             nextCH();
+                            /* A backslash immediately before the physical
+                               newline splices the next source line into this
+                               literal.  It occupies no slot; the next
+                               iteration reads the first character of the new
+                               line. */
+                            if (CH == '\n') {
+                                endOfLine();
+                                --tokenIdx;
+                                continue;
+                            }
                             if ('0' <= CH and CH <= '7') {
                                 expLiteral = 0;
                                 for (tokenLen = 0; ; ) {

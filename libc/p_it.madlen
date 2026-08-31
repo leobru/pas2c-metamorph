@@ -1,0 +1,12 @@
+ P/IT:,NAME,DTRAN  /01.06.84/    . Indirect-tail return
+C===========================================================
+C P/IT - "Indirect Tail" return.  Pops the two-word activation
+C  frame off the BESM-6 stack and jumps to the saved link
+C  address now exposed at SP+1.  Used by every runtime routine
+C  that allocated a 2-word save area before doing real work,
+C  and by the compiler as helper #42.
+C===========================================================
+ 15,UTM,-2                   . SP -= 2 (drop saved frame)
+ 15,WTC,1                    . WT := mem[SP+1] = saved return addr
+ ,UJ,                        . jump to it
+ ,END,

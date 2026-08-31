@@ -1,0 +1,119 @@
+ P/RF:,NAME,DTRAN  /01.06.84/    . Reset a file for reading
+C===========================================================
+C P/RF - reset a Pascal file for reading.  Tears down any in-
+C  flight write state, sets FILE[12]/FILE[19]/FILE[0] to the
+C  start of the buffer and turns on the "no element pending"
+C  flag so the first GET will trigger PASINBUF.
+C
+C P/OR - pre-reset sanity check, called from P/CO and P/RF.
+C  Returns at once unless FILE[2] is set and FILE[9] differs
+C  from FILE[10]; otherwise it packs or writes out whatever is
+C  still buffered before the reset proceeds.
+C
+C  Labelled in p_sys.asm: P/OR = OUTRESET.
+C===========================================================
+C Register convention (see FILE.md):
+C   M12 = base of the FILE record being acted on
+C   M1  = runtime constant table ([M1+8] = 1U, [M1+9] = integer-tag
+C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
+C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
+C   M13 = link register set by the calling VJM
+C   M14 = secondary link (used inside packed-mode helpers)
+ PASLANE*:,LC,1              . 0o76000 buffer/lane mask
+ P/AD:,SUBP,                 . advance the file buffer iterator
+ PASINBUF:,SUBP,             . allocate / refill the input buffer
+ P/RACPAK:,SUBP,             . unpack one element from the buffer
+ P/UP:,SUBP,                 . finish a refill (unpack if packed)
+ P/PK:,SUBP,                 . pack ACC into the buffer slot
+ P/ZI:,SUBP,                 . read/write a disk zone via *70
+ P/OB:,SUBP,                 . flush the output buffer to disk
+ P/RS:,SUBP,                 . return through the stack top
+ P/OR:,SUBP,                 . forward decl, defined below
+ ,NTR,3
+ ,ITA,13                     . save link
+ 15,ATX,
+ 13,VJM,P/OR                 . flush any pending write
+ 12,XTA,11B                  . ACC := FILE[9]
+ 12,ATX,12B                  . FILE[10] := FILE[9]
+ 12,XTA,14B                  . ACC := FILE[12]
+ 12,ATX,23B                  . FILE[19] := FILE[12]
+ 12,ATX,                     . FILE[0]  := FILE[12]
+ 12,XTA,22B                  . packed? -> rewind window too
+ ,UZA,SETLANE
+ 12,XTA,15B
+ 12,ATX,                     . FILE[0]  := FILE[13]
+ SETLANE:,UTC,PASLANE*       . C := address of 0o76000 lane mask
+ ,XTA,
+ 12,ATX,6                    . FILE[6]  := lane mask
+ 1,XTA,10B
+ 12,ATX,10B                  . FILE[8]  := 1U (mark f^ valid)
+ 12,XTA,4                    . ACC := FILE[4]
+ ,U1A,OUTZONE                . non-zero -> output reset
+ 12,XTA,3                    . else FILE[3] -> FILE[5]
+ 12,ATX,5
+ ,UJ,SEEDBUF
+ OUTZONE:,XTA,
+ 12,ATX,5                    . FILE[5] := 0
+ SEEDBUF:14,VJM,P/AD         . advance-buf to seed FILE[7]
+ 12,XTA,11B
+ ,U1A,NOPEND
+ 1,XTA,10B
+ 12,ATX,2                    . FILE[2] := 1U
+ ,UJ,P/RS
+ NOPEND:,XTA,
+ 12,ATX,2
+ 12,XTA,16B                  . ACC := FILE[14]
+ ,U1A,P/UP
+ 13,VTM,P/RS
+ ,UJ,PASINBUF                . refill via PASINBUF
+ FLUSHZON:12,XTA,7
+ ,UZA,P/RS
+ 12,XTA,6
+ ,UTC,PASLANE*               . C := address of lane mask for following AEX
+ ,AEX,
+ ,UZA,P/RS
+ 13,VJM,P/ZI
+ ,UJ,P/RS
+C ---- P/OR: pre-reset sanity check (called from P/CO and P/RF)
+ P/OR:,ENTRY,
+ 12,XTA,2                    . ACC := FILE[2]
+ 13,UZA,                     . zero -> return via M13
+ 12,XTA,11B
+ 12,AEX,12B                  . FILE[9] != FILE[10] => buffered
+ 13,UZA,
+ ,ITA,13
+ 12,XTS,22B                  . push link, ACC := FILE[18]
+ ,UZA,TXTFLUSH               . text -> TXTFLUSH
+ 12,XTA,
+ 12,AEX,15B                  . compare FILE[0] with FILE[13]
+ ,UZA,CHKPACK
+ 14,VJM,P/PK                 . packed: pack out final bits
+ 12,XTA,23B
+ 1,ARX,10B
+ 12,ATX,23B
+ ,UJ,CHKPACK
+ TXTFLUSH:12,XTA,
+ 12,ATX,23B                  . FILE[19] := FILE[0]
+ 12,AEX,14B                  . compare to FILE[12]
+ ,UZA,FLUSHZON
+ CHKPACK:12,XTA,16B
+ ,U1A,SAVECUR
+ 12,XTA,14B
+ 12,AEX,23B
+ ,UZA,P/RS
+ 12,XTA,13B
+ 1,XTS,10B
+ ,NTR,3
+ 12,A-X,23B
+ 12,A+X,14B
+ 12,ATX,13B                  . FILE[11] := FILE[12]+FILE[13]-...
+ 13,VJM,P/OB                 . disk-write helper
+ 15,XTA,
+ 12,ATX,13B
+ 13,VTM,P/RS
+ ,UJ,P/ZI                    . then claim a track
+ SAVECUR:12,XTA,23B
+ 12,ATX,16B                  . FILE[14] := FILE[19]
+ 15,WTC,
+ ,UJ,
+ ,END,

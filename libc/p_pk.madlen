@@ -1,0 +1,47 @@
+ P/PK:,NAME,DTRAN  /01.06.84/    . Pack ACC into the buffer slot
+C===========================================================
+C P/PK - "Pack into the current buffer slot".  Helper used by
+C  P/PF, P/WL and P/OR.  Loads M10/M11 from FILE[20]/FILE[21]
+C  (shift amount and -loop count, both plain numbers), walks
+C  M9 down by the element width and OR-folds the new bits
+C  into the word at FILE[19].  Returns through M14.
+C
+C  Labelled PACKBUF in p_sys.asm.
+C===========================================================
+C Register convention (see FILE.md):
+C   M12 = base of the FILE record being acted on
+C   M1  = runtime constant table ([M1+8] = 1U, [M1+9] = integer-tag
+C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
+C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
+C   M13 = link register set by the calling VJM
+C   M14 = secondary link (used inside packed-mode helpers)
+ 12,XTA,15B                  . ACC := FILE[13]
+ 12,ATX,                     . FILE[0] := FILE[13] (reset cursor)
+ 12,XTA,24B                  . ACC := FILE[20] (ASN shift amount)
+ ,ATI,10                     . M10 := shift amount
+ 12,XTA,25B                  . ACC := FILE[21] (VLM loop count)
+ ,ATI,11                     . M11 := loop count (negative)
+ 12,XTA,1                    . ACC := FILE[1]
+ ,ATI,9
+ 12,XTA,31B                  . ACC := FILE[25] (post-OR mask)
+ ,UZA,FOLD
+ 11,UTM,-1
+ MASKLOOP:9,UTC,-1           . slow loop: pack one word at a time
+ 11,XTA,
+ 1,AAX,14B                   . AND with [M1+12]=positive-mant mask
+ 9,UTC,-1
+ 11,ATX,
+ 11,VLM,MASKLOOP
+ 12,XTA,25B
+ ,ATI,11
+ FOLD:,XTA,
+ FOLDLOOP:9,UTC,-2           . tight loop: shift+OR
+ 11,AEX,
+ 10,ASN,                     . shift ACC by M10 = FILE[20]
+ 11,VLM,FOLDLOOP
+ 9,AEX,-1
+ 12,ASX,26B                  . ASX ACC by FILE[22] (-shift)
+ 12,WTC,23B                  . WT := FILE[19] (cursor)
+ ,ATX,                       . merge result into buffer
+ 14,UJ,                      . return via M14
+ ,END,

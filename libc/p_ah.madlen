@@ -1,0 +1,56 @@
+ P/AH:,NAME,DTRAN  /01.06.84/    . Runtime fatal-error abort handler
+C===========================================================
+C P/AH - fatal-error handler shared by the whole runtime.
+C  Entered by `,UJ,P/AH' with M10 pointing at an ,ISO, error
+C  message.  Re-seeds PASZERO* with ASCII '0' (it might have
+C  been used as scratch by earlier P/WXD output), then prints:
+C   - the error text (P/PRINT reads from M11 = M10+2),
+C   - the offending file's external name (FILE[26]) via P/WXD,
+C     which reads the field-width parameter (= 12) that we
+C     leave on the stack one slot below P/WXD's frame.
+C   - a CRLF (P/WOLN -> P/WL).
+C  If a post-mortem-dump entry was installed at PASPMDAD it is
+C  called with M13 := STOP*; otherwise we jump straight to STOP*.
+C
+C  Callers: P/CO (NO BIND EXT FILE), PASCTRP (NO EXTFILE TRAKCS,
+C  NO LOCFILE TRAKCS), P/PF (PUT(F) NOT AT EOF).  M12 must
+C  address the FILE record being reported.
+C
+C  Labelled ABORT in p_sys.asm.
+C===========================================================
+ PASZERO*:,LC,1              . ASCII '0' constant
+ PASPMDAD:,LC,1              . post-mortem-dump entry, or 0
+ P/PRINT:,SUBP,              . printf-like core (in p_print)
+ P/WOLN:,SUBP,               . write the *OUTPUT* line so far
+ P/WXD:,SUBP,                . write a 48-bit word as 6-bit chars
+ P/WL:,SUBP,                 . terminate the current line
+ STOP*:,SUBP,                . runtime STOP / fatal exit
+ P/DA:,SUBP,                 . print "OVERANGE IN" diagnostic
+ P/HT:,SUBP,                 . HALT - terminate the program
+C  P/DA and P/HT are declared but never called: the declaration
+C  is what pulls those error-path modules into the load.
+ ,UTC,ZEROCHR.=60            . C := address of ASCII '0' constant
+ ,XTA,
+ ,UTC,PASZERO*               . C := address of PASZERO* destination
+ ,ATX,
+ 10,MTJ,11                   . M11 := M10 (caller's error-msg ptr)
+ 11,UTM,2                    . skip ,ISO, header words
+ 13,VJM,P/PRINT              . print the error string
+ ,UTC,WIDTH12.=I12           . C := address of field-width constant 12
+ ,XTA,
+ 12,XTS,32B                  . push width=12; ACC := FILE[26]=name
+ 15,ATX,                     . push the ext name as P/WXD argument
+ 13,VJM,P/WOLN               . write OUTPUT line so far
+ 15,XTA,                     . pop the ext name back into ACC
+ 13,VJM,P/WXD                . print it (8 6-bit chars, padded)
+ 13,VJM,P/WL                 . terminate the line
+ 14,VTM,PASPMDAD             . M14 := &PASPMDAD
+ 14,XTA,                     . ACC := PASPMDAD
+ ,UZA,STOP*                  . if not installed, just STOP
+ 13,VTM,STOP*                . arrange PMD to return to STOP*
+ 14,WTC,                     . WT  := PASPMDAD value
+ ,UJ,                        . jump to PASPMDAD
+C---------------------------------------------------------------
+ ZEROCHR:,LOG,60             . '0' character (re-seeds PASZERO*)
+ WIDTH12:,INT,12             . field width for the P/WXD call
+ ,END,

@@ -15,7 +15,11 @@ void frewind(fileblk *fcb) assembler;
 int fgetw(fileblk *fcb) assembler;
 //
 fileblk f;
-int w;
+int w, off;
+//
+// FILE[19] is the buffer cursor and FILE[12] the buffer start; both are
+// absolute addresses that move with the loader map, so what is checked is
+// the cursor as an offset from the start.
 //
 void main() {
     fopen(&f, 010000100060, 0);
@@ -27,15 +31,20 @@ void main() {
     fputw(1234, &f);
     fputw(2345, &f);
     fputw(3456, &f);
-    writeln("put ", f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
+    off = f.w19 - f.w12;
+    writeln("put ", f.w2:0, ' ', off:0, ' ', f.w27:0);
 
     frewind(&f);
-    writeln("rewind ", f.w4:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
+    off = f.w19 - f.w12;
+    writeln("rewind ", f.w4:0, ' ', f.w2:0, ' ', off:0, ' ', f.w27:0);
     w = fgetw(&f);
-    writeln("get1 ", w:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
+    off = f.w19 - f.w12;
+    writeln("get1 ", w:0, ' ', f.w2:0, ' ', off:0, ' ', f.w27:0);
     w = fgetw(&f);
-    writeln("get2 ", w:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
+    off = f.w19 - f.w12;
+    writeln("get2 ", w:0, ' ', f.w2:0, ' ', off:0, ' ', f.w27:0);
 
     fclose(&f);
-    writeln("close ", f.w4:0, ' ', f.w2:0, ' ', f.w19:0, ' ', f.w27:0);
+    off = f.w19 - f.w12;
+    writeln("close ", f.w4:0, ' ', f.w2:0, ' ', off:0, ' ', f.w27:0);
 }

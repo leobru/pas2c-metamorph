@@ -1,0 +1,88 @@
+ P/WOLN:,NAME,DTRAN  /01.06.84/    . Terminate an output line
+C===========================================================
+C P/WOLN - "Write OUTPUT Line".  Wires M12 to the *OUTPUT*
+C  FILE record, then falls through into P/WL.
+C
+C P/WL - terminate the current line on FILE @ M12.  Pushes
+C  the LF char (PASEOLSY) into the buffer, then funnels into
+C  P/PF to ship the data out.  Handles the page-eject case
+C  for the line-printer.
+C
+C  Labelled in p_sys.asm: P/WL = FLUSHLIN, P/FL = *0600B.
+C===========================================================
+C Register convention (see FILE.md):
+C   M12 = base of the FILE record being acted on
+C   M1  = runtime constant table ([M1+8] = 1U, [M1+9] = integer-tag
+C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
+C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
+C   M13 = link register set by the calling VJM
+C   M14 = secondary link (used inside packed-mode helpers)
+ *OUTPUT*:,LC,30             . 30-word FILE record of OUTPUT
+ PASEOLSY:,LC,1              . end-of-line char (ASCII LF)
+ PASENDS*:,LC,1              . line-printer NEWLINE constant
+ SPACE*:,LC,1                . ASCII space constant
+ P/PF:,SUBP,                 . put f^ and advance the file
+ P/PRINT:,SUBP,              . printf-like core (in p_print)
+ P/TF:,SUBP,                 . truncate / rewrite the file
+ P/PK:,SUBP,                 . pack ACC into the buffer slot
+ P/FL:,SUBP,                 . forward decl, defined below
+ 12,VTM,*OUTPUT*
+C===========================================
+ P/WL:,ENTRY,
+C===========================================
+ 12,XTA,27B                  . ACC := FILE[23]
+ 1,AAX,10B
+ ,U1A,P/FL                   . stdin/out -> the printer path
+ ,UTC,PASEOLSY               . C := address of LF character
+ ,XTA,
+ 12,WTC,                     . WT := FILE[0]
+ ,ATX,                       . buffer[FILE[0]] := LF
+ ,UJ,P/PF                    . fall through to P/PF
+ SETPRINT:12,WTC,14B         . inner helper for P/WOLN trailer
+ 10,VTM,
+ 12,WTC,23B
+ 11,VTM,
+ 14,UJ,
+C---------------------------------------------------------------
+C P/FL - flush the buffered record to the line printer.  P/WL
+C  falls in here for a stdin/stdout file, and P/PF jumps here
+C  when it finds the same FILE[23] bit set.
+ P/FL:,ENTRY,
+ ,ITA,13                     . line-printer terminator path
+ ,ITS,2                      . save M2
+ 12,XTS,
+ ,ATI,2
+ 12,AEX,15B
+ ,U1A,BLANKPG
+ 14,VJM,SETPRINT
+ ,UTC,PASENDS*               . PASENDS* = page-feed control
+ ,XTA,
+ ,ASN,64-40
+ 11,ATX,
+ DOPRINT:13,VJM,P/PRINT      . issue PRINT8 to flush record
+ 12,XTA,15B
+ 12,AEX,23B
+ ,UZA,NEWPAGE
+ 13,VJM,P/TF                 . call P/TF helper
+ PRTDONE:15,XTA,
+ ,STI,2
+ ,ATI,13                     . restore M13
+ 13,UJ,                      . return
+ NEWPAGE:13,VJM,P/TF
+ ,UTC,SPACE*
+ ,XTA,
+ 12,WTC,
+ ,ATX,                       . buffer[0] := space
+ 13,VTM,PRTDONE
+ ,UJ,P/PF                    . issue final PUT
+ BLANKPG:,UTC,PASENDS*       . blank-page path
+ FILLLOOP:,XTA,
+ 2,ATX,
+ 2,UTM,1
+ ,ITA,2
+ 12,AEX,1
+ ,U1A,FILLLOOP
+ 14,VJM,P/PK                 . pack remainder
+ 14,VJM,SETPRINT             . header words
+ ,UJ,DOPRINT                 . then print
+ ,END,

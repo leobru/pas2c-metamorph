@@ -10,8 +10,9 @@ C Result:
 C   ACC = current character, with PASEOLSY returned for EOL;
 C         zero at EOF.
 C
-C P/GF owns ordinary cursor movement and buffer/refill state.  Its
-C Pascal interface aborts when called with FILE[2] non-zero.  A
+C P/GF owns ordinary cursor movement and buffer/refill state.  It
+C does nothing once FILE[2] is set, so FILE[2] is tested here to
+C produce the zero word C wants as its EOF sentinel.  A
 C synthetic stdin line boundary is recorded in FILE[24] with a
 C space in f^.  At that boundary, compare MONCARD* with PASEOFCD
 C before READ*; a match marks EOF and preserves the monitor card.

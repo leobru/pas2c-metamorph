@@ -113,7 +113,7 @@ C The UTM chain leaves ACC untouched, so its failure restores M14 from ACC.
  FMD:          13,VJM,GETARG
                  ,XTA,WIDTH
                  ,U1A,DWIDTH
-                 ,XTA,W10
+                 ,XTA,                   . No extra spaces by default
                  ,ATX,WIDTH
  DWIDTH:         ,XTA,WIDTH
                  ,XTS,
@@ -255,7 +255,6 @@ C argument sequence by assigning its base to SP.
  ASCII0:         ,LOG,60
  E48TEN:         ,LOG,4000000000000012
  W4:             ,LOG,4
- W10:            ,LOG,12
  W14:            ,LOG,16
  W17:            ,LOG,21
  ARGBASE:        ,BSS,1

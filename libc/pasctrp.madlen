@@ -1,0 +1,139 @@
+ PASCTRP:,NAME,DTRAN  /01.06.84/    . Disk track allocation and zone I/O
+C===========================================================
+C PASCTRP - "PASCAL CONTROL/TRACKS Pre-allocate".  Reserves
+C  packed-file disk tracks before the first physical write,
+C  using the runtime track table at [M1+37B].  Falls through
+C  into P/GT.
+C P/GT - claim/allocate the next disk track for a packed file.
+C P/CT - validate the track table; reports "NO EXTFILE TRAKCS"
+C  if it is empty, "NO LOCFILE TRAKCS" if the local pool is
+C  exhausted.
+C P/ZI - read or write one disk zone through the *70 syscall.
+C
+C   FILE[3]/FILE[4] hold the file's track-table descriptor.
+C   FILE[5]         running track-window cursor = current zone
+C                   number (the ZZZZ field fed to the *70 syscall;
+C                   see the disk-I/O note below).
+C   FILE[6]         is the lane mask (PASLANE* = 0o76000).
+C   [M1+37B]        scratches the FCST literal that the
+C                   `1,WTC,37B' instruction in the loop reads
+C                   to obtain the next track header to clear.
+C External file designators and the *70 disk I/O syscall.
+C
+C An external file designator (an FCST literal; it is stashed in
+C FILE[26]) is the octal word  LLLLNNZZZZ , each letter one octal
+C digit:
+C   LLLL = file length,
+C   NN   = logical unit (device) number the file resides on,
+C   ZZZZ = starting zone number on that unit.
+C The file occupies consecutive zones from ZZZZ; FILE[5] holds
+C the current zone as I/O advances.  Note the low 18 bits of the
+C designator (00NN ZZZZ) already line up with the unit/zone
+C fields of the syscall argument below.
+C
+C The `,*70,` instruction is the disk read/write supervisor call.
+C EA points at a one-word argument; its octal layout is
+C   00D0 PP00 00NN ZZZZ
+C   ZZZZ = zone to transfer        (bits 1..12)
+C   NN   = logical unit number     (bits 13..18)
+C   PP   = page number             (bits 31..36)
+C   D    = 0 write / 1 read         (bit 40)
+C Pages and zones are 02000 (1024) words long and every disk
+C transfer is page-aligned.  The D direction bit (bit 40) is the
+C READBIT literal - an ,OCT, value, which the assembler packs
+C left-to-right, so the digits 001 land in bits 42..40 = bit 40.
+C The read path (ZIOREAD, reached when FILE[4]=0) ORs it in for
+C D=1; the write path (ZIOWRITE) leaves D=0.
+C
+C  Labelled in p_sys.asm: P/GT = GETTRACK, P/CT = CHKTRACK,
+C  P/ZI = ZONEIO.
+C===========================================================
+C Register convention (see FILE.md):
+C   M12 = base of the FILE record being acted on
+C   M1  = runtime constant table ([M1+8] = 1U, [M1+9] = integer-tag
+C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
+C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
+C   M13 = link register set by the calling VJM
+C   M14 = secondary link (used inside packed-mode helpers)
+ PASLANE*:,LC,1              . 0o76000 buffer/lane mask (seeded below)
+ PASIOBIT:,LC,1              . FILE[23] stdin/stdout tag bit (seeded below)
+ P/AH:,SUBP,                 . fatal-error abort handler
+ P/CT:,SUBP,                 . forward decl, defined below
+ 12,XTA,4                    . ACC := FILE[4]
+ ,U1A,LANETEST
+ 12,XTA,3                    . check FILE[3]
+ ,UZA,P/CT
+ LANETEST:12,XTA,6           . ACC := FILE[6] (lane mask)
+ ,UTC,PASLANE*               . C := address of constant 0o76000
+ ,AEX,                       . sentinel test
+ P/GT:,ENTRY,
+ 13,UZA,                     . if no work, return via M13
+ 12,XTA,4
+ ,ATI,14                     . M14 := FILE[4] (0 = read side, !=0 = write side)
+ ,UTC,READBIT.=:001          . C := &D-bit literal
+ ,XTA,                       . ACC := D bit (bit 40)
+ 14,VZM,ZIOREAD              . FILE[4]==0 (read) -> ZIOREAD with D=1 in ACC
+ 12,AOX,3                    . else OR FILE[3] into ACC
+ ,UJ,ZIOZONE
+ P/CT:,ENTRY,
+ 12,XTA,4
+ ,UZA,NEWTRACK
+ 12,XTA,5
+ 1,ARX,10B                   . ACC += 1U  ([M1+8])
+ 12,ATX,5                    . FILE[5] += 1
+ 12,A-X,4                    . compare to FILE[4]
+ 13,U1A,                     . FILE[5]+1-FILE[4] < 0 -> return
+ :10,VTM,MSGEXTF.=6H NO EX
+ ,UJ,P/AH
+ ERRLOCF:10,VTM,MSGLOCF.=6H NO LO
+ ,UJ,P/AH
+ NEWTRACK:1,XTA,37B          . ACC := [M1+31] (track-table head)
+ ,UZA,ERRLOCF                . empty -> "NO LOCFILE TRAKCS"
+ 12,XTA,3                    . check FILE[3]
+ ,UZA,SETTRK3
+ 1,XTA,37B                   . track[0]
+ 12,WTC,5                    . WT  := FILE[5] (window cursor)
+ ,ATX,                       . store next track
+ ,UJ,CLAIMTRK
+ SETTRK3:1,XTA,37B
+ 12,ATX,3                    . FILE[3] := track id
+ CLAIMTRK:1,XTA,37B
+ 12,ATX,5                    . FILE[5] := track id
+ 1,WTC,37B                   . WT  := [M1+31]
+ ,XTA,                       . pop entry from [M1+31] head
+ 1,ATX,37B                   . store back next-pointer
+ ,XTA,                       . ACC := 0
+ 12,WTC,5
+ ,ATX,                       . zero the freshly-claimed track
+ 13,UJ,                      . return
+ P/ZI:,ENTRY,
+ 12,XTA,4
+ ,U1A,ZIOWRITE
+ ZIOREAD:12,WTC,5            . WT := FILE[5] (current zone/track entry)
+ ,AOX,1                      . OR in the unit/zone word (00NN ZZZZ) for *70
+ ZIOARG:15,ATX,1             . begin the *70 arg word at mem[SP+1] (unit/zone part)
+ 12,WTC,7                    . WT := FILE[7] (current page/buffer slot)
+ ,XTA,1
+ ,ASN,64-20                  . position the page (PP) field
+ 15,AOX,1                    . OR the page part into the arg word
+ 15,ATX,1                    . mem[SP+1] := completed *70 argument (00D0 PP00 00NN ZZZZ)
+ 15,*70,1                    . disk read/write syscall, arg at mem[SP+1] (D set earlier per FILE[4])
+ 13,UJ,
+ ZIOWRITE:12,XTA,3
+ ZIOZONE:12,ARX,5            . ACC += FILE[5]
+ ,UJ,ZIOARG
+ MSGEXTF:,ISO,18H NO EXTFILE TRAKCS
+ MSGLOCF:,ISO,18H NO LOCFILE TRAKCS
+C---------------------------------------------------------------
+ READBIT:,OCT,001            . D bit (bit 40) for the *70 syscall
+C---------------------------------------------------------------
+C Load-time images for the two constants this module owns.  Each
+C copy is a pair: `wordcount,SET,source' then `copies,,dest'.
+ ,DATA,
+ /LANEVAL:,LOG,7 6000        . the lane mask value
+ /IOBITVL:,LOG,2             . the stdin/stdout tag bit
+ 1,SET,/LANEVAL
+ 1,,PASLANE*
+ 1,SET,/IOBITVL
+ 1,,PASIOBIT
+ ,END,

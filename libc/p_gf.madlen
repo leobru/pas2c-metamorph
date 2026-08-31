@@ -1,0 +1,127 @@
+ P/GF:,NAME,DTRAN  /01.06.84/    . Get the next element of a file
+C===========================================================
+C P/GF - get next element of FILE @ M12 into f^ at [M1+8].
+C  FILE[2] non-zero means the file stands at EOF and the get
+C  is a no-op.  FILE[2] zero selects in-window cursor advance
+C  (packed mode) or refill from disk via PASINBUF / from
+C  stdin via P/GL.
+C
+C P/RACPAK - unpack one packed element from the disk-loaded
+C  buffer; see the fuller note at its entry below.
+C
+C P/UP - the tail both PASINBUF and P/RF end a refill on:
+C  unpack the freshly filled window when the file is packed,
+C  otherwise return straight through the stack top.
+C
+C  Labelled in p_sys.asm: P/UP = *0667B.
+C===========================================================
+C Register convention (see FILE.md):
+C   M12 = base of the FILE record being acted on
+C   M1  = runtime constant table ([M1+8] = 1U, [M1+9] = integer-tag
+C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
+C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
+C   M13 = link register set by the calling VJM
+C   M14 = secondary link (used inside packed-mode helpers)
+ SPACE*:,LC,1                . ASCII space constant
+ PASIOBIT:,LC,1              . FILE[23] stdin/stdout tag bit
+ PASINBUF:,SUBP,             . allocate / refill the input buffer
+ P/CB:,SUBP,                 . close the current buffer window
+ P/GL:,SUBP,                 . refill the input line from stdin
+ P/AD:,SUBP,                 . advance the file buffer iterator
+ P/RS:,SUBP,                 . return through the stack top
+ P/RACPAK:,SUBP,             . forward decl, defined below
+ ,NTR,3
+ 12,XTA,2                    . ACC := FILE[2] (EOF marker)
+ 13,U1A,                     . at EOF the get does nothing
+ 12,XTA,10B                  . ACC := FILE[8] (f^)
+ 12,AEX,11B                  . XOR with FILE[9]
+ ,UZA,STDINGET               . stdin path / EOLN handling
+ 12,XTA,10B
+ 1,ARX,10B                   . ACC += 1U with end-around carry
+ 12,ATX,10B                  . FILE[8] := f^ + 1U (OR if bit 1 was clear)
+ NEXTELT:12,XTA,22B          . ACC := FILE[18] (elem width)
+ ,UZA,TXTADV                 . text mode -> TXTADV
+ 12,XTA,                     . packed: ACC := FILE[0] (bit ptr)
+ 12,ARX,21B                  . += FILE[17] (bit step)
+ 12,ATX,
+ 12,AEX,1                    . compare to FILE[1] (sentinel)
+ 13,U1A,                     . not wrapped -> return
+ 12,XTA,23B                  . ACC := FILE[19] (window cursor)
+ 1,ARX,10B
+ 12,ATX,23B                  . FILE[19] += 1
+ 12,AEX,15B                  . compare to FILE[13]
+ ,U1A,P/RACPAK               . FILE[19] != FILE[13] -> unpack via P/RACPAK
+ 12,XTA,2
+ ,UZA,PASINBUF               . if pending cleared -> PASINBUF
+ CLOSEBUF:14,VJM,P/CB        . else close the buffer window
+ 13,UJ,                      . return via M13
+ STDINGET:12,XTA,27B         . ACC := FILE[23] (I/O kind bits)
+ ,UTC,PASIOBIT               . C := address of bit-1 mask
+ ,AAX,
+ ,UZA,SETEOF                 . not stdin/out -> SETEOF
+ 12,XTA,30B                  . ACC := FILE[24] (EOLN flag)
+ 1,AEX,10B                   . XOR with 1U
+ 12,ATX,30B                  . toggle EOLN
+ ,UZA,P/GL                   . trigger disk read on transition
+ 14,VTM,SPACE*               . else f^ := ' '
+ ,ITA,14
+ 12,ATX,                     . FILE[0] := ' ' addr
+ 13,UJ,
+ SETEOF:1,XTA,10B            . normal stdin path
+ 12,ATX,2                    . FILE[2] := 1U
+ 12,XTA,16B                  . ACC := FILE[14] (packed flag)
+ ,U1A,NEXTELT                . packed -> join NEXTELT
+ 12,XTA,20B                  . text: ACC := FILE[16] (saved [6])
+ 12,ATX,6                    . FILE[6] := descriptor
+ 12,XTA,5                    . ACC := FILE[5] (shift)
+ 12,AEX,17B                  . compare with FILE[15] (wrap)
+ ,UZA,NEXTELT
+ 14,VJM,P/AD                 . wrap via advance-buf helper
+ 12,XTA,17B                  . FILE[5] := FILE[15]
+ 12,ATX,5
+ ,UJ,NEXTELT
+ TXTADV:12,XTA,              . text-mode bit advance
+ 12,ARX,21B                  . ACC += FILE[17]
+ 12,ATX,                     . FILE[0] := ACC
+ 12,AEX,15B                  . compare with FILE[13]
+ 13,U1A,                     . FILE[0] != FILE[13] -> return
+ 12,XTA,2
+ ,UZA,PASINBUF
+ ,UJ,CLOSEBUF
+C===========================================
+ P/RACPAK:,ENTRY,
+C===========================================
+C P/RACPAK - "Read Accumulator Packed".  Unpacks one packed
+C  element from the disk-loaded buffer.  FILE[20] supplies the
+C  ASN shift amount (= 64 - elSize), FILE[21] the negative VLM
+C  loop count, FILE[22] the second-stage ASX shift, and FILE[25]
+C  the post-OR pattern (sign/tag bits).  All four are plain
+C  numbers - no instruction patching takes place.
+ 12,XTA,1                    . ACC := FILE[1] (window end)
+ ,ATI,9
+ 12,XTA,24B                  . ACC := FILE[20] (ASN shift amount)
+ ,ATI,10                     . M10 := shift amount
+ 12,WTC,25B                  . WT  := FILE[21] (loop count base)
+ 11,VTM,-1
+ 12,WTC,23B                  . WT  := FILE[19] (cursor)
+ ,XTA,
+ 15,ATX,1                    . push first word read
+ UNPKLOOP:15,XTA,1           . loop: re-load it
+ 10,ASN,                     . shift ACC by M10 (= FILE[20])
+ 15,ATX,1
+ ,YTA,                       . extract bits shifted out
+ 12,AEX,31B                  . XOR with FILE[25] (sign/tag mask)
+ 11,UTC,-1
+ 9,ATX,                      . store at FILE[1]+M9 slot
+ 11,VLM,UNPKLOOP             . VLM: ++M11; loop while M11 != 0
+ 12,XTA,15B                  . ACC := FILE[13]
+ 12,ATX,                     . FILE[0] := FILE[13] (reset cursor)
+ 13,UJ,
+C---------------------------------------------------------------
+C P/UP: finish a refill - unpack if packed, else just return.
+ P/UP:,ENTRY,
+ 12,XTA,22B
+ ,UZA,P/RS
+ 13,VTM,P/RS
+ ,UJ,P/RACPAK                . unpack via P/RACPAK
+ ,END,

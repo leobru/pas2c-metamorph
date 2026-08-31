@@ -1,0 +1,340 @@
+ P/CO:,NAME,DTRAN  /01.06.84/    . Create / open / reset a file
+C===========================================================
+C P/CO - create/open a Pascal file.
+C
+C Setup convention (see FILE.md):
+C   M12 = FILE record base
+C   M11 = base-type size  (becomes FILE[17], bit-step)
+C   M10 = fileBufSize     (sizes the inline buffer)
+C   M9  = elSize          (becomes FILE[18], element width)
+C   ACC = external file name (FCST literal), or 0 internal file
+C
+C Re-entered as P/RE1 when only the rewind/reopen logic is
+C needed.  The REOPEN path handles capacity-decrement on
+C subsequent calls; the main body computes the buffer layout,
+C packed-mode bit-step constants and stashes M11/SP into
+C FILE[3]/[4]/[5] and runtime scratch slots [M1+3..5].
+C
+C P/RE1 - reposition / reopen helper, also reached by the
+C  fall-through above.  Decides between the read-side
+C  (FILE[4]=0) and write-side (FILE[4]!=0) prep paths.
+C
+C P/RE2 - second half of the reset (rewind) sequence.  Splits
+C  on FILE[4] to choose between the packed and text branches,
+C  programs FILE[2]/FILE[8] for a pending read and forks into
+C  PASINBUF.
+C===========================================================
+C Register convention (see FILE.md):
+C   M12 = base of the FILE record being acted on
+C   M1  = runtime constant table ([M1+8] = 1U, [M1+9] = integer-tag
+C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
+C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
+C   M13 = link register set by the calling VJM
+C   M14 = secondary link (used inside packed-mode helpers)
+ P/BEXF:,SUBP,               . FCST->external-name lookup
+ C/MD:,SUBP,                 . integer remainder helper
+ C/DI:,SUBP,                 . integer divide helper
+ P/WL:,SUBP,                 . terminate the current line
+ P/OI:,SUBP,                 . open an input file
+ P/AD:,SUBP,                 . advance the file buffer iterator
+ P/OR:,SUBP,                 . reset output state / flush a write
+ P/ZI:,SUBP,                 . read/write a disk zone via *70
+ P/OB:,SUBP,                 . flush the output buffer to disk
+ P/RACPAK:,SUBP,             . unpack one element from the buffer
+ PASINBUF:,SUBP,             . allocate / refill the input buffer
+ P/GL:,SUBP,                 . refill the input line from stdin
+ P/TF:,SUBP,                 . truncate / rewrite the file
+ P/AH:,SUBP,                 . fatal-error abort handler
+ P/RS:,SUBP,                 . return through the stack top
+ ,NTR,3                      . R := 3 (suppress normalization and rounding)
+ 1,ATX,3                     . [M1+3] := caller's FCST literal
+ 12,ATX,32B                  . FILE[26] := ext name (LLLLNNZZZZ designator)
+ ,ITA,13                     . ACC := M13 (return addr)
+ 15,XTS,-3                   . push it; ACC := caller's flag word
+ ,UZA,REOPEN                 . zero => re-open path (P/CO again)
+ 12,XTA,33B                  . ACC := FILE[27] (capacity)
+ 1,A-X,10B                   . ACC -= [M1+8] = 1U
+ 12,ATX,33B                  . FILE[27] := --capacity
+ 12,XTA,33B                  . re-read for sign test
+ ,U1A,P/RS                   . decremented capacity is non-zero -> P/IT
+C===========================================
+ P/RE1:,ENTRY,
+C===========================================
+ 12,XTA,27B                  . ACC := FILE[23] (I/O kind bits)
+ 1,AAX,10B                   . AND with [M1+8] = 1 (stdin/out bit)
+ ,UZA,NOFLUSH                . not stdin/out -> skip flush
+ 12,XTA,11B                  . check FILE[9] (in-progress bits)
+ ,UZA,NOFLUSH
+ 13,VJM,P/WL                 . flush partial line (P/WL inner)
+ NOFLUSH:12,XTA,4            . ACC := FILE[4] (open-mode)
+ ,U1A,OUTPATH                . non-zero => output path
+ 13,VJM,P/OI                 . input path: open helper
+ ADVTAIL:14,VTM,P/RS         . arm M14 to point at P/IT trap
+ ,UJ,P/AD                    . jump to advance-buffer helper
+ OUTPATH:13,VJM,P/OR         . output: reset helper
+ 12,XTA,16B                  . ACC := FILE[14] (packed flag)
+ ,UZA,ADVTAIL                . text file -> back to common tail
+ 12,XTA,11B                  . non-zero bit-counter?
+ ,UZA,ADVTAIL
+ 12,XTA,22B                  . ACC := FILE[18] (elem width)
+ ,U1A,PACKCALC               . non-zero => alternate calc
+ 12,XTA,21B                  . ACC := FILE[17] (bit step)
+ 1,AOX,11B                   . tag as integer ([M1+9])
+ 12,A*X,11B                  . multiply by FILE[9]
+ ,YTA,30B                    . extract product fraction
+ WINCAP:1,X-A,10B            . ACC := 1 - ACC
+ 12,ATX,13B                  . FILE[11] := computed window upper
+ 13,VJM,P/OB                 . sub-helper
+ 13,VTM,ADVTAIL              . link back to ADVTAIL
+ ,UJ,P/ZI                    . jump into PASCTRP tail
+ PACKCALC:12,XTA,16B         . ACC := FILE[14]
+ 12,ATX,23B                  . FILE[19] := packed flag
+ 12,XTA,11B                  . ACC := FILE[9]
+ 1,A-X,10B                   . ACC -= 1
+ ,UTC,LIT2.=2                . C := address of constant 2
+ ,XTS,                       . push FILE[9]-1, ACC := 2
+ 12,A-X,25B                  . ACC := 2 - FILE[21] = elems per word
+ 13,VJM,C/DI                 . (FILE[9]-1) / elems per word
+ 1,ARX,10B                   . ACC += 1U
+ ,UJ,WINCAP                  . merge with text path
+C===========================================================
+C BEXFRET / DECBITS / STDFLAV / PUREOUT / PUREIN / REOPEN form
+C  the FCST-literal decoder.  P/CO loads the FCST word into
+C  [M1+3] and peels off bit fields (3-bit, 7-bit, 13-bit) to
+C  populate FILE[3], FILE[4] and the stdin/out flag in
+C  FILE[23].  P/BEXF translates a non-zero FCST low-byte into
+C  an external file name and returns via BEXFRET.
+C===========================================================
+ BEXFRET:1,ATX,3             . save BEXF result back into [M1+3]
+ ,UJ,DECBITS
+ DECFCST:1,XTA,3             . ACC := raw FCST word
+ ,UTC,MSKNAME.=:0077         . C := &mask (0o77 in bits 37..42; ,OCT, left-packed)
+ ,AAX,                       . isolate the FCST ext-name field (bits 37..42)
+ 13,VTM,BEXFRET              . link for BEXF return
+ ,U1A,P/BEXF                 . if any low bits, look up ext name
+ DECBITS:1,XTA,3             . reload FCST (or BEXF result)
+ ,ASN,64-7                   . normalise the field positions
+ ,ASN,64+13
+ 1,ATX,3                     . [M1+3] := repositioned bits
+ 14,VTM,IOBIT                . M14 := address of bit-1 mask
+ 14,AAX,                     . AND with that mask
+ ,U1A,STDFLAV                . bit set => stdin/out branch
+ 1,XTA,3                     . else extract FILE[4] field
+ ,ASN,64+21
+ 12,ATX,4                    . FILE[4] := open-mode bits
+ 1,XTA,3
+ ,ASN,64+3
+ ,UTC,MSKMODE.=77 7777
+ ,AAX,                       . mask to FILE[3] width
+ 12,ATX,3                    . FILE[3] := mode/state byte
+ ,UJ,SETUPTL                 . join common tail
+C ---- TXTDFLT: default values for FILE[20] and FILE[21]     ----
+C  Two more LOG constants, sister table to CONTAB..  Used by
+C  the stdin/stdout (text-mode) prep below so that the P/PK
+C  packer sees a sane shift-amount and loop-count even when no
+C  real packed math was performed.
+ TXTDFLT:,LOG,70             . 56 - default FILE[20] (shift)
+ ,LOG,7 7774                 . -4 in 17-bit signed = FILE[21]
+C ---- STDLAY: stdin/stdout buffer layout (no real buffer) ----
+ STDLAY:10,J+M,15            . M15 := M15 + M10 (alloc fileBufSize)
+ ,ITA,15
+ 12,ATX,15B                  . FILE[13] := current SP
+ 12,ATX,                     . FILE[0]  := SP (head=tail)
+ 15,UTM,6                    . reserve 6 sentinel words
+ ,ITA,15
+ 12,ATX,1                    . FILE[1] := end-of-window sentinel
+ 14,VTM,TXTDFLT              . M14 -> defaults table
+ 14,XTA,                     . ACC := mem[TXTDFLT] = 56
+ 12,ATX,24B                  . FILE[20] := 56 (default shift amt)
+ 14,XTA,1                    . ACC := mem[REINIT] = -4
+ 12,ATX,25B                  . FILE[21] := -4 (default loop cnt)
+ ,ASN,64-20                  . left-shift 20 (derive FILE[9] seed)
+ 12,ATX,11B                  . FILE[9]  := signed-shifted -4
+ 1,XTA,25B                   . ACC := [M1+21] = MSB constant
+ 12,ATX,26B                  . FILE[22] := MSB seed
+ ,XTA,                       . ACC := 0
+ 12,ATX,3                    . FILE[3]  := 0
+ 12,ATX,4                    . FILE[4]  := 0 (text/input)
+ 12,ATX,7                    . FILE[7]  := 0 (FILE[7] WTC slot)
+ 12,XTA,16B                  . ACC := FILE[14] (packed flag)
+ ,UZA,TXTFTCH                . text -> TXTFTCH (joins P/RE2)
+ ,XTA,
+ 12,ATX,11B                  . packed: FILE[9] := 0
+ 1,XTA,10B                   . ACC := [M1+8] = 1U
+ 12,ATX,2                    . FILE[2] := 1 (pending)
+ ,UJ,RE2EXIT                 . join exit tail
+C ---- stdin/stdout flavour (FCST bit 1 set) ----
+ STDFLAV:1,XTA,3
+ ,ASN,64+3
+ 14,AEX,1                    . XOR with IOBIT+1 = halfword 2
+ ,UZA,PUREOUT                . pure stdout
+ 1,AEX,10B                   . else XOR with 1U
+ ,UZA,PUREIN                 . pure stdin
+ ,UJ,ERRBIND                 . else error: "NO BIND EXT FILE"
+ PUREOUT:,XTA,
+ 10,VTM,16B                  . M10 := offset 14 (FILE[14])
+ SETKIND:12,ATX,16B          . FILE[14] := 0 (text mode)
+ 14,XTA,                     . ACC := mem[M14] = bit-1 mask
+ 12,ATX,27B                  . FILE[23] := mask (stdin/out tag)
+ ,UJ,SETUPTL
+ PUREIN:14,VTM,TESTB3        . M14 -> literal 3 at TESTB3
+ 1,XTA,10B
+ 10,VTM,25B                  . M10 := 21 (FILE[21])
+ ,UJ,SETKIND
+C ---- REOPEN: re-entry from caller flag word = 0 ----
+ REOPEN:1,XTA,3
+ ,UZA,REINIT
+ 1,XTA,10B
+ 12,A+X,33B                  . FILE[27] += 1
+ 12,ATX,33B
+ 1,AEX,10B                   . sanity-check the result
+ ,U1A,P/RS                   . mismatch -> trap
+ REINIT:,XTA,                . re-init defaults
+ 12,ATX,2                    . FILE[2]  := 0
+ 12,ATX,27B                  . FILE[23] := 0
+ 12,ATX,31B                  . FILE[25] := 0
+ 1,XTA,10B
+ 12,ATX,10B                  . FILE[8]  := 1U
+ 1,XTA,3                     . ACC := [M1+3]
+ ,U1A,DECFCST                . FCST non-zero -> decode it
+ 12,ATX,4                    . else FILE[4] := 0
+ 12,ATX,3                    . FILE[3] := 0
+ 1,XTA,10B
+ 12,ATX,33B                  . FILE[27] := 1U
+C ---- SETUPTL: common tail used by both setup branches ----
+ SETUPTL:,ITA,9              . ACC := M9 = elSize
+ 12,ATX,22B                  . FILE[18] := elSize (bits)
+ ,ITA,11                     . ACC := M11 = base-type size
+ 12,STX,21B                  . FILE[17] := M11 (bit-step)
+ 1,STX,3                     . [M1+3] := M11 (scratch save)
+ 1,STX,4                     . [M1+4] := M11 (scratch save)
+ ,ITA,15                     . ACC := SP
+ 12,ATX,14B                  . FILE[12] := SP (buffer start)
+ 12,ATX,23B                  . FILE[19] := SP (current cursor)
+ 12,ATX,                     . FILE[0]  := SP
+ 12,XTA,27B                  . ACC := FILE[23]
+ ,UTC,IOBIT                  . C := address of bit-1 mask IOBIT
+ ,AAX,
+ ,U1A,STDLAY                 . stdin/stdout -> minimal layout
+ 15,UTM,36B                  . else reserve 30 buffer words
+ ,ITA,10                     . ACC := M10 = fileBufSize
+ ,ASN,64-8                   . convert to words
+ 1,ATX,5                     . [M1+5] := word-count scratch
+ 12,A-X,21B                  . ACC -= FILE[17] (bit-step)
+ ,U1A,ALIGNED                . not aligned -> ALIGNED
+ 1,XTA,5                     . else compute remainder...
+ 12,XTS,21B                  . push ACC, load FILE[17]
+ 13,VJM,C/MD                 . ACC := bufWords mod bit-step
+ 1,X-A,5                     . ACC := [M1+5] - ACC
+ 15,ATX,                     . push remainder
+ BUFEND:12,ARX,14B           . ACC += FILE[12] (buf start)
+ 12,STX,15B                  . FILE[13] := buffer end
+ 1,X-A,10B                   . ACC := 1U - ACC
+ 12,ATX,13B                  . FILE[11] := buffer-window cap
+ 9,VTM,CONTAB                . M9 -> literal table at CONTAB..
+ 12,XTA,22B                  . ACC := FILE[18] (elSize bits)
+ ,UZA,TXTWIN                 . text -> skip packed prep
+ 9,X-A,                      . ACC = mem[M9+0] - elSize = 64-eSz
+ 12,ATX,24B                  . FILE[20] := 64 - elSize (shift amt)
+ 9,XTA,1                     . ACC := mem[M9+1] = 48 (word bits)
+ 12,XTS,22B                  . push 48, ACC := elSize
+ 13,VJM,C/DI                 . ACC := 48 / elSize (elems/word)
+ 1,ATX,5                     . [M1+5] := elems/word
+ 9,X-A,2                     . ACC := mem[M9+2] - elems = 2 - q
+ 12,ATX,25B                  . FILE[21] := 2 - (48/elSize)
+ 9,XTA,1                     . ACC := 48 again
+ 12,XTS,22B                  . push 48, ACC := elSize
+ 13,VJM,C/MD                 . ACC := 48 mod elSize (remainder)
+ 9,X-A,                      . ACC := 64 - remainder
+ ,ASN,64-41                  . left-shift 41 into the exponent field (ASX seed)
+ 12,ATX,26B                  . FILE[22] := neg shift seed
+ 1,XTA,5                     . ACC := [M1+5] = elems/word
+ 12,ARX,15B                  . ACC += FILE[13]
+ 12,ATX,1                    . FILE[1] := wrap sentinel
+ ,UJ,BUFTOP
+ TXTWIN:12,XTA,15B           . text mode: just copy FILE[13]
+ 12,ATX,1
+ BUFTOP:,ATI,15              . SP := computed buffer top
+ ,XTA,
+ 12,ATX,7                    . FILE[7] := 0 (clear WTC operand)
+ 13,VJM,P/TF                 . call P/TF helper (output finish)
+C===========================================
+ P/RE2:,ENTRY,
+C===========================================
+ 12,XTA,4                    . ACC := FILE[4] (open-mode)
+ ,UZA,INPMODE                . input file -> INPMODE
+ ,ASN,64-10                  . shift to expose width nibble
+ 12,XTS,22B                  . push, ACC := FILE[18]
+ ,U1A,PACKREM                . non-zero -> packed remainder calc
+ 12,XTA,21B                  . ACC := FILE[17] (bit step)
+ 13,VJM,C/DI                 . ACC := FILE[4] width / bit-step
+ PENDRD:12,ATX,11B           . FILE[9]  := result
+ 12,ATX,12B                  . FILE[10] := shadow copy
+ ,UZA,ERRBIND                . zero -> "NO BIND EXT FILE"
+ ,XTA,                       . else clear staged state
+ 12,ATX,2                    . FILE[2]  := 0 (no pending read)
+ 12,ATX,16B                  . FILE[14] := 0
+ 1,XTA,10B
+ 12,ATX,10B                  . FILE[8]  := 1U (f^ valid)
+ 13,VTM,RE2EXIT              . link return through RE2EXIT
+ ,UJ,PASINBUF                . jump to PASINBUF
+ TXTFTCH:13,VJM,P/GL         . text-mode fetch + EOF check
+ ,UTC,LIT120.=120            . C := address of constant 0o120
+ ,XTA,
+ 12,ATX,11B                  . FILE[9] := 0o120
+ RE2EXIT:,XTA,
+ 12,ATX,30B                  . FILE[24] := 0 (clear EOLN)
+ 1,XTS,4                     . push [M1+4]
+ 1,XTS,3                     . push [M1+3]
+ ,ATI,13                     . M13 := ACC (link)
+ 13,UJ,                      . return to caller
+ PACKREM:15,XTA,             . pop divide pre-result
+ 1,AOX,11B
+ 1,A*X,5                     . ACC *= [M1+5]
+ ,YTA,30B
+ ,UJ,PENDRD
+ ALIGNED:12,XTA,21B          . join from the aligned case above
+ 15,ATX,
+ ,UJ,BUFEND
+ ERRBIND:10,VTM,MSGBIND.=6H NO BI
+ ,UJ,P/AH
+ INPMODE:12,WTC,14B          . input mode: WT := FILE[12]
+ ,ATX,                       . zero the buffer slot
+ 12,XTA,22B
+ ,UZA,RE2EXIT                . text -> common exit
+ 13,VTM,RE2EXIT
+ ,UJ,P/RACPAK                . join P/RACPAK
+ MSGBIND:,ISO,18H NO BIND EXT FILE
+C---------------------------------------------------------------
+C Small literal pool used by P/CO and friends.  These are
+C plain data words, NOT instructions and NOT self-modifying
+C templates - P/CO loads them through `9,VTM,CONTAB; 9,XTA,N'
+C and friends, treating them as a six-entry table.  M1 (the
+C constant base) does not work for them because the values
+C are needed alongside other constants only known here.
+C
+C   CONTAB+0 = 64  (shift base; 64 - elSize -> bit step)
+C   CONTAB+1 = 48  (BESM-6 word width in bits; divisor)
+C   IOBIT    =  2  (= CONTAB+2; bit-1 mask that tests FILE[23]
+C                   for "is *INPUT* / *OUTPUT*".  The same value
+C                   is the PASIOBIT common that P/GF and P/PF use)
+C   CONTAB+3 = 50  (only the dtran lists it; never loaded)
+C   CONTAB+4 = 51  (likewise)
+C   TESTB3   =  3  (= CONTAB+5; test bit pattern 0o3, read
+C                   through M14 by the SETKIND path)
+C===========================================================
+ CONTAB:,LOG,100
+ ,LOG,60
+ IOBIT:,LOG,2
+ ,LOG,62
+ ,LOG,63
+ TESTB3:,LOG,3
+C---------------------------------------------------------------
+C Literal pool.  ,LOG, values are right-justified (numeric);
+C ,OCT, values are packed left-to-right, so a short ,OCT,
+C constant names a high bit.
+ LIT120:,LOG,120             . 0o120 placeholder for FILE[9]
+ LIT2:,LOG,2                 . literal 2 (packed divide)
+ MSKNAME:,OCT,0077           . mask 0o77 in bits 37..42; FCST name field
+ MSKMODE:,LOG,77 7777        . mask 0o777777 (FILE[3] width)
+ ,END,

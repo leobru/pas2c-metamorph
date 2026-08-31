@@ -1,0 +1,48 @@
+ P/AD:,NAME,DTRAN  /01.06.84/    . Advance the file buffer iterator
+C===========================================================
+C P/AD - advance buffer iterator (the [M1+35B]/[M1+36B] cache).
+C  Called from P/CO, P/GF's text path, P/RF and P/TF to step
+C  the FILE[7] WTC operand by one element.  Uses [M1+35B] as
+C  the previous-FILE[7] snapshot and [M1+36B] as a copy of it.
+C  Returns through M14; FILE[7] = 0 returns at once.
+C
+C  Labelled ADVANCE in p_sys.asm.
+C===========================================================
+C Register convention (see FILE.md):
+C   M12 = base of the FILE record being acted on
+C   M1  = runtime constant table ([M1+8] = 1U, [M1+9] = integer-tag
+C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
+C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
+C   M13 = link register set by the calling VJM
+C   M14 = secondary link (used inside packed-mode helpers)
+ 12,XTA,7                    . ACC := FILE[7]
+ 14,UZA,                     . FILE[7]=0 -> return via M14
+ 1,AEX,35B                   . compare to [M1+29] cache
+ ,U1A,SLOWPATH               . changed -> slow path
+ 12,WTC,7                    . WT := FILE[7]
+ ,XTA,                       . ACC := mem[WT]
+ 1,ATX,35B                   . refresh [M1+29] := new value
+ ,UJ,STORECUR
+ SLOWPATH:1,XTA,35B          . pull cached value
+ 15,ATX,1                    . save on stack
+ SCANLOOP:15,WTC,1           . loop scanning ahead
+ ,XTA,
+ 12,AEX,7
+ ,UZA,RELINK
+ 15,WTC,1
+ ,XTA,
+ 15,ATX,1
+ ,UJ,SCANLOOP
+ RELINK:12,WTC,7
+ ,XTA,
+ 15,WTC,1
+ ,ATX,                       . write new buffer slot
+ STORECUR:1,XTA,36B          . ACC := [M1+30] (working ptr)
+ 12,WTC,7
+ ,ATX,
+ 12,XTA,7
+ 1,ATX,36B                   . refresh [M1+30] := FILE[7]
+ ,XTA,
+ 12,ATX,7                    . FILE[7] := 0 (consumed)
+ 14,UJ,                      . return via M14
+ ,END,
