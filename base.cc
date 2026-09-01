@@ -25,6 +25,34 @@
 #include <set>
 #include <functional>
 
+template <size_t N>
+constexpr int64_t toText(const char (&str)[N])
+{
+    static_assert(N <= 9, "TEXT word cannot hold more than 8 characters");
+    int64_t ret = 0;
+
+    for (size_t i = 0; i + 1 < N; ++i) {
+        unsigned code = 0;
+        char ch = str[i];
+        if ('0' <= ch && ch <= '9')
+            code = ch - '0' + 020;
+        else if ('A' <= ch && ch <= 'Z')
+            code = ch - 'A' + 041;
+        else if ('a' <= ch && ch <= 'z')
+            code = ch - 'a' + 041;
+        else if (ch == '*' || ch == '_')
+            code = 012;
+        else if (ch == '+')
+            code = 036;
+        else if (ch == '-')
+            code = 035;
+        else if (ch == '/')
+            code = 017;
+        ret = ret << 6 | code;
+    }
+    return ret;
+}
+
 FILE * pasinput = stdin;
 int PASINPUT;
 const char *outFileName = "output.obj";
@@ -1081,7 +1109,6 @@ std::string Expr::p()
 // and programme.  The C++ mirror represents mainProgram as initScalars, so
 // provide the same shared path for prefix external variable declarations.
 int64_t leftAlign(int64_t val);
-int64_t toText(const char *str);
 void addToHashTab(IdentRecPtr arg);
 void error(int64_t errNo);
 int64_t allocExtSymbol(int64_t newSym);
@@ -1096,7 +1123,7 @@ void defExtern()
     IdentRecPtr idRec;
 
     aligned.ii = leftAlign(curIdent);
-    if (curIdent == toText(" *INPUT*") || curIdent == toText("*OUTPUT*")) {
+    if (curIdent == toText("*INPUT*") || curIdent == toText("*OUTPUT*")) {
         idRec = besm6_alloc_record<IdentRec>(offsetof(IdentRec, szIdent));
         idRec->id = curIdent;
         idRec->pck.offset = 0;
@@ -1112,7 +1139,7 @@ void defExtern()
         curVal = aligned;
         idRec->value() = allocExtSymbol(047000000 | 30);
         addToHashTab(idRec);
-        if (curIdent == toText(" *INPUT*"))
+        if (curIdent == toText("*INPUT*"))
             inputFile = idRec;
         else
             outputFile = idRec;
@@ -1341,14 +1368,6 @@ std::string Word::pt() const
     return toAscii(ii);
 }
 
-
-int64_t toText(const char * str) {
-    int64_t ret;
-    ret = 0;
-    for (; *str; ++str)
-        ret = ret << 6 | koi2text[*str & 0xFF];
-    return ret;
-}
 
 int64_t leftAlign(int64_t val)
 {
@@ -5912,7 +5931,7 @@ void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
         d.bucket = bucket;
         d.wasDefined = isDefined /* ||
             (lookupMode == lookDef &&
-             (curIdent == toText(" *INPUT*") || curIdent == toText("*OUTPUT*"))) */;
+             (curIdent == toText("*INPUT*") || curIdent == toText("*OUTPUT*"))) */;
         d.foundRec = hashTravPtr;
         inSymbol();
     } else if (nameOptional and has(Bits(RPAREN, COMMA, LBRACK), SY)) {
@@ -6335,7 +6354,7 @@ L12247:
         curType.setRep(
             besm6_alloc_record<Types>(offsetof(Types, szScalar)));
         while (SY == IDENT) {
-            if (isDefined || curIdent == toText(" *INPUT*") || curIdent == toText("*OUTPUT*"))
+            if (isDefined || curIdent == toText("*INPUT*") || curIdent == toText("*OUTPUT*"))
                 error(errIdentAlreadyDefined);
             enumName = curIdent;
             enumBucket = bucket;
@@ -7763,9 +7782,9 @@ void setStrLab()
 
 void setBrCont()
 {
-    curIdent = 04262454153LL;         /* BREAK */
+    curIdent = toText("BREAK");
     setStrLab();
-    curIdent = 04357566451566545LL;   /* CONTINUE */
+    curIdent = toText("CONTINUE");
     setStrLab();
 } /* setBrCont */
 
@@ -8764,7 +8783,7 @@ Statement::Statement()
                 liveRegs = Bits();
                 forStatement();
             } else if (SY == SWITCHSY) {
-                curIdent = 04262454153LL;      /* BREAK */
+                curIdent = toText("BREAK");
                 setStrLab();
                 caseStatement();
                 brContTarget(); /* removing break */
@@ -8942,7 +8961,7 @@ void defineRoutine(bool bodyBlock = false)
             // is the name of a program, and two libraries carrying it would
             // collide.
             symTab[2] = 040000000 | 020;
-            entryPtTable[1] = symTab[0] = 05657606257476241L; /*NOPROGRA*/
+            entryPtTable[1] = symTab[0] = toText("NOPROGRA");
         }
     }
     lineStartOffset = moduleOffset;
@@ -9049,9 +9068,9 @@ struct initScalars {
 initScalars::initScalars() :
     curIdRec(programme::super.back()->curIdRec)
 {
-    static int64_t systemProcNames[2] = {
-    /*0*/   042456355L              /*"    BESM"*/,
-            0606251566446L          /*"  PRINTF"*/};
+    static constexpr int64_t systemProcNames[2] = {
+    /*0*/   toText("BESM"),
+            toText("PRINTF")};
     IdentRecPtr programObj;
     BooleanType.setRep(
         besm6_alloc_record<Types>(offsetof(Types, szScalar)));
@@ -9133,14 +9152,14 @@ initScalars::initScalars() :
     // in every lookup mode.  '_' shares the code of '*', cf. "**PACKED".
     SY = TYPESY;
     // This machine has one integer, so every C spelling of one names it.
-    symType = IntegerType;  regResWord(0515664L      /*"     INT"*/);
+    symType = IntegerType;  regResWord(toText("INT"));
                             regResWord(toText("SHORT"));
                             regResWord(toText("LONG"));
     // short and long say nothing about signedness; unsigned does.
     symType = UnsignedType; regResWord(toText("UNSIGNED"));
-    symType = CharType;     regResWord(043504162L    /*"    CHAR"*/);
-    symType = RealType;     regResWord(04654574164L  /*"   FLOAT"*/);
-    symType = voidType;     regResWord(066575144L    /*"    VOID"*/);
+    symType = CharType;     regResWord(toText("CHAR"));
+    symType = RealType;     regResWord(toText("FLOAT"));
+    symType = voidType;     regResWord(toText("VOID"));
 
     curIdRec = besm6_alloc_record<IdentRec>(
         offsetof(IdentRec, szIdent));
@@ -9172,15 +9191,15 @@ initScalars::initScalars() :
     }
     sysProcNum = 0;
     temptype = RealType;
-    regSysProc(0414263L /*"     ABS"*/);
+    regSysProc(toText("ABS"));
     temptype = IntegerType;
-    regSysProc(0635172455746L /*"  SIZEOF"*/);
-    regSysProc(05746466345645746L /*"OFFSETOF"*/);
+    regSysProc(toText("SIZEOF"));
+    regSysProc(toText("OFFSETOF"));
     temptype = voidPtr;
-    regSysProc(0554154545743L /*"  MALLOC"*/);
+    regSysProc(toText("MALLOC"));
     temptype = IntegerType;
-    regSysProc(043416244L /*"    CARD"*/);
-    regSysProc(05551564554L /*"   MINEL"*/);
+    regSysProc(toText("CARD"));
+    regSysProc(toText("MINEL"));
 
     // The first token of the source is read here, not by the caller: sources
     // usually open with a type keyword (int, void), so the predefined type
@@ -9193,15 +9212,13 @@ initScalars::initScalars() :
         offsetof(IdentRec, szRoutine));
     symTabPos = 074004;
     programObj->pck.cl = ROUTINEID; 
-    curVal.ii = 06041634357556054L; /* PASCOMPL */
+    curVal.ii = toText("PASCOMPL");
     programObj->id = curVal.ii;
     programObj->r1.pos = 0;
     symTab[0] = leftAlign(curVal.ii);
 
     entryPtTable[1] = symTab[0];
-    entryPtTable[3] = (Bits(0,1,6,7) | Bits(10,12) | BitRange(14,18) |
-                       BitRange(21,25) | Bits(28,30) | Bits(35,36) |
-                       Bits(38,39) | Bits(41)); /*"PROGRAM "*/
+    entryPtTable[3] = toText("PROGRAM ");
     entryPtTable[2] = Bits(1);
     entryPtTable[4] = Bits(1);
     entryPtCnt = 5;
@@ -9222,7 +9239,7 @@ initScalars::initScalars() :
     savedIdent.ii = curIdent;
     curIdent = toText("*OUTPUT*");
     defExtern();
-    curIdent = toText(" *INPUT*");
+    curIdent = toText("*INPUT*");
     defExtern();
     if (!enableStdInput) {
         inputFile = NULL;
@@ -9751,7 +9768,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             while (moreDecls) {
                 if (externDecl and curProcNesting == 1) {
                     curIdent = d.name;
-                    if (curIdent == toText(" *INPUT*") or curIdent == toText("*OUTPUT*"))
+                    if (curIdent == toText("*INPUT*") or curIdent == toText("*OUTPUT*"))
                         error(errIdentAlreadyDefined);
                     else
                         defExtern();
@@ -10076,27 +10093,27 @@ struct initTables {
     } /* initInsnTemplates */
 
     void regKeyWords() {
-        static int64_t resWordNameBase[20] = {
-                04357566364L             /*"   CONST"*/,
-                064716045444546L         /*" TYPEDEF"*/,
-                045566555L               /*"    ENUM"*/,
-                01212604143534544L       /*"**PACKED"*/,
-                0636462654364L           /*"  STRUCT"*/,
-                05146L                   /*"      IF"*/,
-                0636751644350L           /*"  SWITCH"*/,
-                06750515445L             /*"   WHILE"*/,
-                0465762L                 /*"     FOR"*/,
-                047576457L               /*"    GOTO"*/,
-                045546345L               /*"    ELSE"*/,
-                04457L                   /*"      DO"*/,
-                0457064456256L           /*"  EXTERN"*/,
-                04262454153L             /*"   BREAK"*/,
-                04357566451566545L       /*"CONTINUE"*/,
-                043416345L               /*"    CASE"*/,
-                044454641655464L         /*" DEFAULT"*/,
-                06556515756L             /*"   UNION"*/,
-                0624564656256L           /*"  RETURN"*/,
-                0636441645143L           /*"  STATIC"*/};
+        static constexpr int64_t resWordNameBase[20] = {
+                toText("CONST"),
+                toText("TYPEDEF"),
+                toText("ENUM"),
+                toText("**PACKED"),
+                toText("STRUCT"),
+                toText("IF"),
+                toText("SWITCH"),
+                toText("WHILE"),
+                toText("FOR"),
+                toText("GOTO"),
+                toText("ELSE"),
+                toText("DO"),
+                toText("EXTERN"),
+                toText("BREAK"),
+                toText("CONTINUE"),
+                toText("CASE"),
+                toText("DEFAULT"),
+                toText("UNION"),
+                toText("RETURN"),
+                toText("STATIC")};
         SY = CONSTSY;
         charClass = NOOP;
         // CONSTSY..STATICSY are the consecutive reserved-word table. TYPESY
@@ -10540,61 +10557,61 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
 }
 
 int64_t helperNames[59] = { 0L,
-        06017210000000000L      /*"P/1     "*/,
-        04317220000000000L      /*"C/2     "*/,
-        04317230000000000L      /*"C/3     "*/,
-        04317240000000000L      /*"C/4     "*/,
-        04317250000000000L      /*"C/5     "*/,
-        04317260000000000L      /*"C/6     "*/,
-        04317554400000000L      /*"C/MD    "*/,
-        06017555100000000L      /*"P/MI    "*/,
-        06017604100000000L      /*"P/PA    "*/,
-/*10*/  06017655600000000L      /*"P/UN    "*/,
-        04317445100000000L      /*"C/DI    "*/,
-        06017454100000000L      /*"P/EA    "*/,
-        06017214400000000L      /*"P/1D    "*/,
-        06017474400000000L      /*"P/GD    "*/,
-        04317450000000000L      /*"C/E     "*/,
-        04317454600000000L      /*"C/EF    "*/,
-        06017566700000000L      /*"P/NW    "*/,
-        06017446300000000L      /*"P/DS    "*/,
-        06017506400000000L      /*"P/HT    "*/,
-/*20*/  04317675100000000L      /*"C/WI    "*/,
-        04317676200000000L      /*"C/WR    "*/,
-        04317674300000000L      /*"C/WC    "*/,
-        04317412600000000L      /*"C/A6    "*/,
-        04317412700000000L      /*"C/A7    "*/,
-        04317677000000000L      /*"C/WX    "*/,
-        04317675700000000L      /*"C/WO    "*/,
-        06017436700000000L      /*"P/CW    "*/,
-        04317264100000000L      /*"C/6A    "*/,
-        04317274100000000L      /*"C/7A    "*/,
-/*30*/  06017675400000000L      /*"P/WL    "*/,
-        06017675754560000L      /*"P/WOLN  "*/,
-        06017626200000000L      /*"P/RR    "*/,
-        04317646200000000L      /*"C/TR    "*/,
-        06017546600000000L      /*"P/LV    "*/,
-        04657604556000000L      /*"FOPEN   "*/,
-        04643545763450000L      /*"FCLOSE  "*/,
-        06017426000000000L      /*"P/BP    "*/,
-        06017422600000000L      /*"P/B6    "*/,
-        06017604200000000L      /*"P/PB    "*/,
-/*40*/  06017422700000000L      /*"P/B7    "*/,
+        toText("P/1     "),
+        toText("C/2     "),
+        toText("C/3     "),
+        toText("C/4     "),
+        toText("C/5     "),
+        toText("C/6     "),
+        toText("C/MD    "),
+        toText("P/MI    "),
+        toText("P/PA    "),
+/*10*/  toText("P/UN    "),
+        toText("C/DI    "),
+        toText("P/EA    "),
+        toText("P/1D    "),
+        toText("P/GD    "),
+        toText("C/E     "),
+        toText("C/EF    "),
+        toText("P/NW    "),
+        toText("P/DS    "),
+        toText("P/HT    "),
+/*20*/  toText("C/WI    "),
+        toText("C/WR    "),
+        toText("C/WC    "),
+        toText("C/A6    "),
+        toText("C/A7    "),
+        toText("C/WX    "),
+        toText("C/WO    "),
+        toText("P/CW    "),
+        toText("C/6A    "),
+        toText("C/7A    "),
+/*30*/  toText("P/WL    "),
+        toText("P/WOLN  "),
+        toText("P/RR    "),
+        toText("C/TR    "),
+        toText("P/LV    "),
+        toText("FOPEN   "),
+        toText("FCLOSE  "),
+        toText("P/BP    "),
+        toText("P/B6    "),
+        toText("P/PB    "),
+/*40*/  toText("P/B7    "),
         0,                      /* helper 41 unused */
-        06017516400000000L      /*"P/IT    "*/,
-        06017435300000000L      /*"P/CK    "*/,
-        06017534300000000L      /*"P/KC    "*/,
-        04317545647604162L      /*"C/LNGPAR"*/,
-        06017544441620000L      /*"P/LDAR  "*/,
-        06017202043000000L      /*"P/00C   "*/,
-        06017636441620000L      /*"P/STAR  "*/,
-        06017674100000000L      /*"P/WA    "*/,
-/*50*/  06017456100000000L      /*"P/EQ    "*/,
-        06017624100000000L      /*"P/RA    "*/,  // placeholder: keeps the compare family contiguous
-        06017474500000000L      /*"P/GE    "*/,
-        06017554600000000L      /*"P/MF    "*/,
-        06017465500000000L      /*"P/FM    "*/,
-        06017565600000000L      /*"P/NN    "*/,
-        04317635054000000L      /*"C/SHL   "*/,
-        04317635062000000L      /*"C/SHR   "*/,
-        04317606251566446L      /*"C/PRINTF"*/};
+        toText("P/IT    "),
+        toText("P/CK    "),
+        toText("P/KC    "),
+        toText("C/LNGPAR"),
+        toText("P/LDAR  "),
+        toText("P/00C   "),
+        toText("P/STAR  "),
+        toText("P/WA    "),
+/*50*/  toText("P/EQ    "),
+        toText("P/RA    "),  // placeholder: keeps the compare family contiguous
+        toText("P/GE    "),
+        toText("P/MF    "),
+        toText("P/FM    "),
+        toText("P/NN    "),
+        toText("C/SHL   "),
+        toText("C/SHR   "),
+        toText("C/PRINTF")};
