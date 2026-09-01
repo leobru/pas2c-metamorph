@@ -5,5 +5,5 @@ void main() {
     a = 5;
     b = ~a;
     // On 48-bit BESM-6, ~5 should flip all bits
-    printf("~5 = %o\n", b);
+    printf("~5 = %017o\n", b);
 }

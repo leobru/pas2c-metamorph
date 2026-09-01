@@ -54,21 +54,21 @@ void main() {
 
     m.w = 0;
     m.r.a = 1;
-    printf(" MSB A=1 %17o\n", m.w);
+    printf(" MSB A=1 %017o\n", m.w);
     m.w = 0;
     m.r.tail = 'A';
-    printf(" MSB T=A %17o\n", m.w);
+    printf(" MSB T=A %017o\n", m.w);
 
     l.w = 0;
     l.r.a = 1;
-    printf(" LSB A=1 %17o\n", l.w);
+    printf(" LSB A=1 %017o\n", l.w);
     l.w = 0;
     l.r.c = 1;
-    printf(" LSB C=1 %17o\n", l.w);
+    printf(" LSB C=1 %017o\n", l.w);
 
     u.w = 0;
     u.bits = 1;
-    printf(" UNION   %17o\n", u.w);
+    printf(" UNION   %017o\n", u.w);
 
     m.w = 0;
     m.r.a = 63;

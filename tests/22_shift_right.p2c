@@ -4,5 +4,5 @@ int a, b;
 void main() {
     a = ~0U;
     for (b = 0; b < 10; b = b + 1)
-        printf(" ~0u >> %d = %o\n", b+1, a >> (b+1));
+        printf(" ~0u >> %d = %017o\n", b+1, a >> (b+1));
 }

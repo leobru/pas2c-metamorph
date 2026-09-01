@@ -3,9 +3,9 @@ void main() {
     char *fmt;
 
     /* The format reaches C/PRINTF as an ordinary runtime value. */
-    fmt = "D=%d O=%o C=%c A=%a S=%s F=%f E=%e %%\n";
+    fmt = "D=%d O=%017o C=%c A=%a S=%s F=%f E=%e %%\n";
     printf(fmt, -42, 63, 'X', 'ABCDEF', "str", 1.5, 1.5);
-    printf("[%5.1S][%4C][%8A][%6D][%6O]\n",
+    printf("[%5.1S][%4C][%8A][%6D][%06O]\n",
            "xy", 'Q', 'ABCDEF', 7, 8);
     printf("F=[%10.2F] E=[%12.3E] T=[%12T]\n",
            1.5, 2.25, t'ABCDEFGH');

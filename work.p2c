@@ -848,7 +848,7 @@ int err, errPos, prevPos, listMode,
     startPos, lastErr;
     listMode  =  pasinfor.listMode;
     if (listMode || errsInLine) {
-        printf(" %5o%5d%3d%c", lineStartOffset + PASINFOR.startOffset,
+        printf(" %05o%5d%3d%c", lineStartOffset + PASINFOR.startOffset,
               lineCnt, lineNesting, commentModeCH);
         startPos  =  12;
         do
@@ -859,7 +859,10 @@ int err, errPos, prevPos, listMode,
         }
         putln();
         if (errsInLine) {
-            printf("%*s%*c0", startPos, "*****", errMap[0]+1, ' ');
+            // lineBuf is indexed from 0, so a position field of errMap[0]
+            // columns is one short of what the marker needs; the format
+            // carries the column, as it carries the '0'.
+            printf("%*s  %*c0", startPos, "*****", errMap[0], ' ');
             lastErr  =  errsInLine - 1;
             for (err = 1; err <= lastErr; ++err) {
                 errPos  =  errMap[err];
@@ -5754,7 +5757,7 @@ pair *curSlot;
         printf("%16c", ' ');
         if (curField->fpk.p.pckfield)
             printf("PACKED");
-        printf(" FIELD  %t.OFFSET=%5oB", curField->id, curField->pck.p.offset);
+        printf(" FIELD  %t.OFFSET=%05oB", curField->id, curField->pck.p.offset);
         if (curField->fpk.p.pckfield) {
             printf(".<<=SHIFT=%2d. WIDTH=%2d BITS",
                    curField->fpk.p.shift,
@@ -8871,7 +8874,7 @@ void exitScope(int a) {
                     else
                         curIdRec->value  =  localSize;
                     if (PASINFOR.listMode == 3) {
-                        printf("%25s %t OFFSET (%d) %5oB. WORDS=%5oB\n",
+                        printf("%25s %t OFFSET (%d) %05oB. WORDS=%05oB\n",
                                "VARIABLE ", curDeclarator.name,
                                curProcNesting, curIdRec->value, jj);
                     }
@@ -9275,7 +9278,7 @@ void main() {
     fopen(&_CHILD_, 010000100000, t'*CHILD* ');
     if (PASINFOR.listMode)
         puts(boilerplate);
-    printf(" INITHEAP = %5o\n", setup());
+    printf(" INITHEAP = %05o\n", setup());
     if (setjmp(&jb9999)) goto L9999;
     initOptions();
     curInsnTemplate  =  0;
@@ -9288,6 +9291,6 @@ L9999:  printf(" IN %d LINES %d ERRORS\n", totalErrors, lineCnt-1);
     } else {
         finalize();
         *PASINFOR.errors  =  false;
-        printf(" MAXHEAP = %5o\n", maxHeap);
+        printf(" MAXHEAP = %05o\n", maxHeap);
     }
 }

@@ -29,7 +29,7 @@ void main() {
     printf(f, "%s%3d %c\n", "ABC", -7, 'Z');
     // A padded %s reaches the file through STRLEN and C/SP, which leave the
     // destination in M12 alone.
-    printf(f, "%5s%2o\n", "XY", 9);
+    printf(f, "%5s%02o\n", "XY", 9);
     frewind(&f);
     c = fgetc(&f);
     while (c != 0) {

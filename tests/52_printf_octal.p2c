@@ -1,0 +1,18 @@
+/*=k9,l0*/
+//
+// An octal field is C's: the digits the value needs, the width a minimum,
+// blanks on the left.  A leading zero in the width asks for the runtime's own
+// field instead -- the low digits of the word, zero-filled -- which is what
+// dumping a word wants; sixteen of them are the whole word, so a seventeenth
+// column is a blank rather than a digit.
+//
+// L and H are length modifiers.  Every actual is one word, so they are
+// accepted and ignored, which lets a format written for a host C compiler
+// read the same here.
+//
+void main() {
+    printf(" MIN   [%o][%o][%o]\n", 0, 8, 64);
+    printf(" WIDE  [%5o][%2o][%1o]\n", 8, 64, 64);
+    printf(" FILL  [%05o][%016o][%017o]\n", 8, 8, 8);
+    printf(" LONG  [%ld][%5ld][%05lo][%3lld][%hd]\n", 42, 42, 8, 7, 5);
+}
