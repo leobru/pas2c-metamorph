@@ -9,7 +9,6 @@ enum { X = 5, Y = X + 3 } e2;
 enum { RED, GREEN, BLUE } color;
 enum { LO = -2, MID, HI } ev;
 int val;
-void putln() assembler;
 void main() {
     val = A; printf(" A=%d\n", val);
     val = B; printf(" B=%d\n", val);
@@ -19,6 +18,11 @@ void main() {
     val = Y; printf(" Y=%d\n", val);
     ev = MID; printf(" MID=%d\n", ev);
     ev = HI;  printf(" HI=%d\n", ev);
-    // A plain (sequential) enum still prints its enumerator name:
-    color = GREEN; write(" color=", color);  putln();
+    // A plain (sequential) enum still prints its enumerator name, which %t
+    // writes from the name table the argument now selects in.  Each ordinal
+    // picks its own entry -- the name right-aligned in its eight-character
+    // word -- and a width pads that word on the left.
+    color = GREEN; printf(" color=%t\n", color);
+    color = RED;   printf(" first=%t\n", color);
+    color = BLUE;  printf(" last =%12t|\n", color);
 }

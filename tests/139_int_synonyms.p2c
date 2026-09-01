@@ -45,11 +45,10 @@ void main() {
     printf(" DECL  %3d%3d%3d%3d\n", n, (*p), tbl[0], tbl[2]);
     // 'unsigned char' is a char: the last specifier wins.
     ch = 'Z';
-    printf(" CHAR   %c ", ch);
-    write(pk);
-    printf("  SIZEOF%3d%3d\n", sizeof(ch), sizeof(pk));
-    // 'unsigned:6' is the bit-field 'int:6' is (which writes in octal unless
-    // asked for an int, so these are cast).
+    printf(" CHAR   %c %c%c%c%c%c%c  SIZEOF%3d%3d\n", ch, pk[0], pk[1], pk[2], pk[3],
+           pk[4], pk[5], sizeof(ch), sizeof(pk));
+    // 'unsigned:6' is the bit-field 'int:6' is (a narrow scalar of its own,
+    // so these are cast to int).
     w.lo = 63;  w.mid = 7;  w.hi = 5;
     printf(" BITS  %3d%3d%3d%3d\n", (int)w.lo, (int)w.mid, (int)w.hi, sizeof(w));
     printf(" CALL  %3d\n", twice(21));

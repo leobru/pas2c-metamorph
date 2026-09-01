@@ -5,5 +5,5 @@
 // double quotes.
 //
 void main() {
-    write('SEVENCH');
+    static int foo = 'SEVENCH';
 }

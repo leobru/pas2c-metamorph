@@ -4,8 +4,8 @@
 // constant: one character is a char, and two to six characters -- as many as
 // pack into a word -- are that word as an int, right-aligned in it, so the
 // literal compares, assigns and labels a case like any other integer.  Double quotes give a
-// packed character array of the length written, which is what write takes as
-// text and what a one-word packed char array holds.  A string too long for a
+// packed character array of the length written, which is what a one-word
+// packed char array holds.  A string too long for a
 // word -- more than six characters in ISO, or eight in TEXT -- is written in
 // double quotes; tests/115 has the single-quoted form it refuses.
 //
@@ -31,9 +31,7 @@ void main() {
     printf("ABCDEFG");
     putln();
     // Six characters in double quotes fill a one-word packed char array.
-    printf(" ALFA   ");
-    write(a);
-    putln();
+    printf(" ALFA   %c%c%c%c%c%c\n", a[0], a[1], a[2], a[3], a[4], a[5]);
     // One character is still a char, and an escape is one character.
     c  =  'A';
     printf(" CHAR  %4d%4d%4d%4d\n", (int)c, (int)'A', (int)'\052', (int)'\'');

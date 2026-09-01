@@ -30,7 +30,6 @@ char un[6];
 char *cp;
 int i;
 //
-void putln() assembler;
 void main() {
     // A scalar's address, read and written through.
     x  =  41;
@@ -66,9 +65,7 @@ void main() {
     cp  =  &al[2];
     printf(" ALFA  %c%c%c\n", *cp, cp[1], *(cp - 2));
     *cp  =  'Z';
-    printf(" STORE ");
-    write(al);
-    putln();
+    printf(" STORE %c%c%c%c%c%c\n", al[0], al[1], al[2], al[3], al[4], al[5]);
     // A packed array wider than a word: index 7 lies in the second word.
     for (i = 0; i <= 11; i = i + 1)
         s[i]  =  (char)(65 + i);

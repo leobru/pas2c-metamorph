@@ -5,10 +5,6 @@
 // a C string: the padding is the terminator, so strlen and puts stop on it
 // instead of running off the end into whatever follows.
 //
-// write emits every character the type counts, the padding among them, but a
-// NUL takes no column: an array longer than its string prints as the string,
-// where space padding would have printed the slack as blanks.
-//
 // The terminator is part of a literal's length, so a string constant is one
 // character longer than it is written.  That costs a word only where the
 // characters fill the last word exactly and the terminator has nowhere else
@@ -32,6 +28,7 @@ int guard = 4242;
 int i;
 //
 void putln() assembler;
+void putchar(char) assembler;
 void main() {
     // The padding is NUL, and it is inside the array.
     printf(" PART ");
@@ -43,20 +40,18 @@ void main() {
     printf(" FULL ");
     for (i = 0; i < 12; i = i + 1) printf("%4d", (int)full[i]);
     printf("  SIZEOF%3d\n", sizeof(full));
-    // The padding goes out with the rest and takes no column.
-    printf(" W ");
-    printf("[");  write(part);  printf("]");
-    printf("[");  write(hole);  printf("]");
-    printf("[");  write(full);  printf("]\n");
     // strlen and puts stop at the first NUL, wherever it came from.
     printf(" STRLEN%3d%3d%3d\n", strlen(part), strlen(hole), strlen(hole + 7));
-    write(" SNUG [", snug, "]  GUARD", guard:6);  putln();
+    // Its six characters, and the scalar no dropped terminator reached.
+    printf(" SNUG ");
+    for (i = 0; i < 6; i = i + 1)  printf("%4d", (int)snug[i]);
+    printf("  GUARD%6d\n", guard);
     // A literal's own length counts the terminator; only a string that fills
     // its last word exactly pays a word for it.
     printf(" SZ%3d%3d%3d%3d%3d\n", sizeof("ABC"), sizeof("ABCDE"), sizeof("ABCDEF"),
            sizeof("ABCDEFG"), sizeof("ABCDEFGHIJKL"));
     printf(" P ");
-    printf("[");  puts(part);      printf("]");
-    printf("[");  puts(hole);      printf("]");
-    printf("[");  puts(hole + 7);  printf("]\n");
+    putchar('[');  puts(part);      putchar(']');
+    putchar('[');  puts(hole);      putchar(']');
+    putchar('[');  puts(hole + 7);  printf("]\n");
 }

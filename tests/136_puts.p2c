@@ -3,7 +3,7 @@
 // puts walks a byte string to its NUL.  Every byte goes to *OUTPUT*, except
 // a '\n', which ends the line instead of being put.  Nothing is appended, so
 // a string that does not end in a newline leaves the line open for whatever
-// writes next -- which here is the program's own write, into the same file.
+// writes next -- which here is the program's own printf, into the same file.
 //
 void puts(char *) assembler;
 //

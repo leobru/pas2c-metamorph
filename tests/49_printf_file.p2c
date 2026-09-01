@@ -1,6 +1,6 @@
 /*=l0*/
-// PRINTF takes write's optional leading file argument: an object of the
-// 30-word size of a file is the destination, and the format follows it.
+// PRINTF takes an optional leading file argument: an object of the 30-word
+// size of a file is the destination, and the format follows it.
 // C/PRINTF writes to the FILE in M12, so every conversion follows the
 // argument, the %s and \n paths included.
 //

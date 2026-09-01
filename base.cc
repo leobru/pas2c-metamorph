@@ -240,9 +240,7 @@ static_assert(IMULOP == MUL + 1 and IDIVOP == RDIVOP + 1 and
 
 enum OpGen {
     gen0,  STORE, LOAD,  FORMOP,  SETREG,
-    DOIT,  SETREG12,  DFLTWDTH,
-    FRACWIDTH, SETREG11, PUSHSET11,
-    BRANCH
+    DOIT,  SETREG12,  BRANCH
 };
 
 // Flags for ops that can potentially be optimized if one operand is a constant
@@ -5494,8 +5492,7 @@ formOperator::formOperator(OpGen op)
         return;
 //  if (op == DOIT)                             /* see dropPostFixup */
 //      curExpr = dropPostFixup(curExpr);
-    if (op != FORMOP &&
-        op != DFLTWDTH)
+    if (op != FORMOP)
         (void) genFullExpr(curExpr);
     switch (op) {
     case gen0:
@@ -5578,22 +5575,6 @@ formOperator::formOperator(OpGen op)
             error(errVarTooComplex);
         (void) setAddrTo(12);
         genOneOp();
-    } break;
-    case DFLTWDTH: {
-        // The caller supplies the width in the selected helper's ABI.
-        form1Insn(KXTA+I8 + getFCSToffset());
-    } break;
-    case FRACWIDTH: {
-        prepLoad();
-        prependToInsnList(macro + mcPUSH);
-        genOneOp();
-    } break;
-    case SETREG11: case PUSHSET11: {
-        setAddrTo(11);
-        if (op == PUSHSET11)
-            prependToInsnList(macro + mcPUSH);
-        genOneOp();
-        usedRegs = usedRegs | Bits(12);
     } break;
     case LOAD: {
         prepLoad();
@@ -6390,8 +6371,8 @@ L12247:
             error(errNoIdent);
         } else {
             curType.rep()->numen = span;
-            // start = -1 suppresses the name table (writeProc then prints the
-            // value as an integer): explicit values can be sparse or negative,
+            // start = -1 suppresses the name table (the value then prints as
+            // an integer): explicit values can be sparse or negative,
             // so there is no dense name array to index by value.
             curType.rep()->start = hasExplicit ? -1 : 0;
             curType.p.psize = 1;
@@ -8429,17 +8410,10 @@ void returnOp() {
 
 struct standProc {
 
-    TPtr l4typ2z, l4typ3z;
-    ExprPtr firstWidth, secondWidth;
+    TPtr l4typ3z;
     ExprPtr l4exp7z, workExpr;
-    bool noWidth, needR12;
-    int64_t oldOffset;
-    int64_t defWidth;
     int64_t procNo;
-    int64_t helperNo;
-    int64_t indCnt;
     int64_t besmOpcode;
-    OpGen opToForm;
 
     void startWrite() {
         expression();
@@ -8454,140 +8428,8 @@ struct standProc {
                 workExpr->op = GETVAR;
                 workExpr->id1 = outputFile;
             }
-            needR12 = true;
         }
     } /* startWrite */
-
-    ExprPtr parseWidthSpecifier() {
-        expression();
-        if (not typeCheck(IntegerType, curExpr->vt.typ)) {
-            error(14); /* errExprIsNotInteger */
-            return uVarPtr;
-        } else
-            return curExpr;
-    } /* parseWidthSpecifier */
-
-    void callHelperWithArg() {
-        if (has(usedRegs, 12) or needR12) {
-            curExpr = workExpr;
-            (void) formOperator(SETREG12);
-        }
-        needR12 = false;
-        formAndAlign(getHelperProc(helperNo));
-        disableNorm();
-    } /* callHelperWithArg */
-
-    void checkElementForReadWrite() {
-        usedRegs = usedRegs & ~ Bits(12);
-        curVarKind = (Kind)(l4typ3z.p.pk);
-        helperNo = 20;                   /* C/WI */
-        if (isIntTyp(l4typ3z) or l4typ3z == BooleanType)
-            defWidth = 10;
-        else if (l4typ3z == RealType) {
-            helperNo = 21;               /* C/WR */
-            defWidth = 14;
-        } else if (l4typ3z == CharType) {
-            helperNo = 22;               /* C/WC */
-            defWidth = 1;
-        } else if (curVarKind == kindScalar
-                   and l4typ3z.rep()->start != -1) {
-            helperNo = 25;               /* C/WX */
-            dumpEnumNames(l4typ3z);
-            defWidth = 8;
-        } else if (curVarKind == kindScalar
-                   and l4typ3z.rep()->enums) {
-            // Explicit-value enum (start == -1): name printing suppressed,
-            // so print the value as a decimal integer, exactly like int.
-            helperNo = 20;               /* C/WI */
-            defWidth = 10;
-        } else if (isCharArray(l4typ3z)) {
-            defWidth = l4typ3z.rep()->asize;
-            if (l4typ3z.p.pad == 0)
-                helperNo = 49;            /* P/WA */
-            else if (6 >= defWidth)
-                helperNo = 23;            /* C/A6 */
-            else
-                helperNo = 24;           /* C/A7 */
-        } else if (typeSize(l4typ3z) == 1) {
-            helperNo = 26;               /* C/WO */
-            defWidth = (typeBits(l4typ3z) + 5) / 3;
-        } else {
-            error(34); /* errTypeIsNotAFileElementType */
-        }
-    } /* checkElementForReadWrite */
-
-    void writeProc() {
-        workExpr = NULL;
-        do {
-            startWrite();
-            if (l4exp7z != workExpr) {
-                checkElementForReadWrite();
-                secondWidth = NULL;
-                firstWidth = NULL;
-                if (SY == COLON)
-                    firstWidth = parseWidthSpecifier();
-                if (SY == COLON) {
-                    secondWidth = parseWidthSpecifier();
-                    if (helperNo != 21)    /* C/WR */
-                        error(35); /* errSecondSpecifierForWriteOnlyForReal */
-                } else if (curToken.ii == toText("OCT")) {
-                    helperNo = 26; /* C/WO */
-                    defWidth = 17;
-                    if (typeSize(l4typ3z) != 1)
-                        error(34); /* errTypeIsNotAFileElementType */
-                    inSymbol();
-                }
-                noWidth = false;
-                if (firstWidth == NULL and
-                    has(BitRange(22,24), helperNo)) {  /* WC,A6,A7 */
-                    helperNo = helperNo + 5;       /* CW,C/6A,7A */
-                    noWidth = true;
-                } else {
-                    if (firstWidth == NULL) {
-                        curVal.ii = defWidth;
-                        (void) formOperator(DFLTWDTH);
-                    } else {
-                        curExpr = firstWidth;
-                        (void) formOperator(LOAD);
-                    }
-                }
-                if (helperNo == 21) {       /* C/WR */
-                    if (secondWidth == NULL) {
-                        curVal.ii = 4;
-                        form1Insn(KXTS+I8 + getFCSToffset());
-                    } else {
-                        curExpr = secondWidth;
-                        (void) formOperator(FRACWIDTH);
-                    }
-                }
-                curExpr = l4exp7z;
-                if (noWidth) {
-                    if (helperNo == 29)     /* C/7A */
-                        opToForm = SETREG11;
-                    else
-                        opToForm = LOAD;
-                } else {
-                    if (helperNo == 24 or       /* C/A7 */
-                        helperNo == 49)     /* P/WA */
-                        opToForm = PUSHSET11;
-                    else
-                        opToForm = FRACWIDTH;
-                }
-                (void) formOperator(opToForm);
-                if (has(Bits(23,24,28,29), helperNo) or /* A6,A7,C/6A,7A */
-                    helperNo == 49)
-                    form1Insn(KVTM+I10 + defWidth);
-                else {
-                    if (helperNo == 25) /* C/WX */
-                        form1Insn(KVTM+I11 + l4typ3z.rep()->start);
-                }
-                callHelperWithArg();
-            }
-        } while (SY == COMMA);
-        usedRegs = usedRegs | Bits(12);
-        if (oldOffset == moduleOffset)
-            error(36); /*errTooFewArguments */
-    } /* writeProc */
 
     void printfProc() {
         int64_t argCount;
@@ -8613,6 +8455,17 @@ struct standProc {
                     curExpr = uVarPtr;
                 }
                 (void) formOperator(LOAD);
+                /* An enum printed by name has no conversion of its own, so
+                   the actual is the name itself: the entry the ordinal
+                   selects in the table C/WX would have indexed, for %t to
+                   write. */
+                l4typ3z = curExpr->vt.typ;
+                if (l4typ3z.p.pk == kindScalar and l4typ3z.rep()->start != -1) {
+                    dumpEnumNames(l4typ3z);
+                    form1Insn(KATI+14);
+                    form1Insn(KUTC+I14);
+                    form1Insn(KXTA+I8 + l4typ3z.rep()->start);
+                }
                 form1Insn(KXTS);  /* C/PRINTF owns and removes every argument */
                 isFormat = false;
                 argCount = argCount + 1;
@@ -8632,15 +8485,11 @@ struct standProc {
 
         curVal.ii = l3idr12z->low();
         procNo = curVal.ii;
-        oldOffset = moduleOffset;
         if (SY != LPAREN) {
             error(45); /* errNoOpenParenForStandProc */
             return;
         }
         switch (procNo) {
-        case 3: { /* write */
-            writeProc();
-        } break;
         case 2: { /* besm */
             do {
                 expression();
@@ -8680,7 +8529,7 @@ struct standProc {
             padToLeft();
             prevOpcode = 1;
         } break;
-        case 4: { /* printf */
+        case 3: { /* printf */
             inSymbol();
             if (SY == RPAREN)
                 error(36); /* errTooFewArguments */
@@ -8690,7 +8539,7 @@ struct standProc {
             }
         } break;
         }
-        if (has(BitRange(3,4), procNo))
+        if (procNo == 3)
             arithMode = 1;
         checkSymAndRead(RPAREN);
     }
@@ -8736,8 +8585,8 @@ Statement::Statement()
                     if (l3var6z == ROUTINEID) {
                         l3idr12z = hashTravPtr;
                         if (l3idr12z->pck.offset == 0) {
-                            /* System procedure (WRITE, PUT, GET, NEW, ...):
-                               special syntax, handled directly. */
+                            /* System procedure (BESM, PRINTF): special
+                               syntax, handled directly. */
                             inSymbol();
                             standProc();
                             checkSymAndRead(SEMICOLON);
@@ -9181,18 +9030,18 @@ struct initScalars {
 initScalars::initScalars() :
     curIdRec(programme::super.back()->curIdRec)
 {
-    // Procedure numbers run from 2, the historical value of BESM, and WRITE
-    // keeps its historical 3. FREE and HALT are ordinary ASSEMBLER routines
-    // supplied by libc, and a line is terminated by PRINTF or by libc's PUTLN.
-    static int64_t systemProcNames[3] = {
+    // Procedure numbers run from 2, the historical value of BESM. FREE and
+    // HALT are ordinary ASSEMBLER routines supplied by libc, and everything a
+    // program writes goes through PRINTF, a line terminated by libc's PUTLN or
+    // by the format itself.
+    static int64_t systemProcNames[2] = {
     /*2*/   042456355L              /*"    BESM"*/,
-            06762516445L            /*"   WRITE"*/,
             0606251566446L          /*"  PRINTF"*/};
     IdentRecPtr programObj;
     BooleanType.setRep(
         besm6_alloc_record<Types>(offsetof(Types, szScalar)));
     BooleanType.rep()->numen = 2;
-    BooleanType.rep()->start = 0;
+    BooleanType.rep()->start = -1;
     BooleanType.rep()->enums = NULL;
     BooleanType.p.psize = 1;
     BooleanType.p.bits = 1;
@@ -9303,7 +9152,7 @@ initScalars::initScalars() :
 
     temptype.setRep(NULL);
     sysProcNum = 2;
-    for (l3var5z = 0; l3var5z <= 2; ++l3var5z) {
+    for (l3var5z = 0; l3var5z <= 1; ++l3var5z) {
         regSysProc(systemProcNames[l3var5z]);
     }
     sysProcNum = 0;

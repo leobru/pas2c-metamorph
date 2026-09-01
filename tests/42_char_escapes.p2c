@@ -3,7 +3,7 @@
 int ok;
 void main() {
     // Six characters are a word only in single quotes now: double
-    // quotes carry a terminator, and 'oct' wants one word.
+    // quotes carry a terminator, and %o wants one word.
     printf(" %3o %3o %3o %3o %3o %3o %3o %3o %3o %10o\n", '\101', '\7', '\a', '\b', '\f', '\n', '\r',
            '\t', '\v', '\0\0\76\0\0\5');
 }
