@@ -19,48 +19,48 @@ void main() {
     f  =  10.0;
     i  =  3;
     n  =  f + i;
-    writeln(" BINL  ", n:4);
+    printf(" BINL  %4d\n", n);
     n  =  i + f;
-    writeln(" BINR  ", n:4);
+    printf(" BINR  %4d\n", n);
     n  =  f - i;
-    writeln(" BINS  ", n:4);
+    printf(" BINS  %4d\n", n);
     n  =  i - f;
-    writeln(" BINT  ", n:4);
+    printf(" BINT  %4d\n", n);
     n  =  f * i;
-    writeln(" BINM  ", n:4);
+    printf(" BINM  %4d\n", n);
     // The same mixtures as op-assign: a real lvalue and an integer right
     // operand.  The right operand is the one that has to widen.
     f  =  10.0;
     f  +=  i;
     n  =  f;
-    writeln(" PLEQ  ", n:4);
+    printf(" PLEQ  %4d\n", n);
     f  =  10.0;
     f  -=  i;
     n  =  f;
-    writeln(" MIEQ  ", n:4);
+    printf(" MIEQ  %4d\n", n);
     f  =  10.0;
     f  *=  i;
     n  =  f;
-    writeln(" MUEQ  ", n:4);
+    printf(" MUEQ  %4d\n", n);
     // A fraction survives, so this is real arithmetic and not integer.
     f  =  2.5;
     f  +=  i;
     n  =  f * 2;
-    writeln(" FRAC  ", n:4);
+    printf(" FRAC  %4d\n", n);
     // An integer lvalue with a real right operand, in the spelling that
     // holds both conversions: the lvalue's own value widens on the way in,
     // and the result narrows at the store.
     n  =  10;
     n  =  n + f;
-    writeln(" INTL  ", n:4);
+    printf(" INTL  %4d\n", n);
     // A real compared with an integer, both orders.
     f  =  2.5;
     i  =  3;
-    writeln(" REL   ", (f < i):2, (i < f):2, (f > i):2, (f == i):2);
+    printf(" REL   %2d%2d%2d%2d\n", (f < i), (i < f), (f > i), (f == i));
     // A bit operation on a char and an int prints as a number.
     c  =  'A';
-    writeln(" BIT   ", (c | 8):4, (8 | c):4);
+    printf(" BIT   %4d%4c\n", (c | 8), (8 | c));
     // Explicit set membership: the set is the first argument.
     i  =  2;
-    writeln(" IN    ", has([1,2,3], i):2, has([4,5], i):2);
+    printf(" IN    %2d%2d\n", has([1,2,3], i), has([4,5], i));
 }

@@ -15,6 +15,7 @@ typedef enum { stWORD, stSLICE, stPACKED } state;
 state st;
 int i, k, calls;
 //
+void putln() assembler;
 // Three consecutive labels: short enough to compare.
 int small3(state s) {
     switch (s) {
@@ -103,34 +104,34 @@ int bump() {
 }
 //
 void main() {
-    write(" SMALL3 ");
-    st  =  stWORD;   write(small3(st):4);
-    st  =  stSLICE;  write(small3(st):4);
-    st  =  stPACKED; write(small3(st):4);
-    writeln();
-    write(" GAP3  ");
+    printf(" SMALL3 ");
+    st  =  stWORD;   printf("%4d", small3(st));
+    st  =  stSLICE;  printf("%4d", small3(st));
+    st  =  stPACKED; printf("%4d", small3(st));
+    putln();
+    printf(" GAP3  ");
     for (i = 0; i <= 5; i = i + 1)
-        write(gap3(i):4);
-    writeln();
-    write(" WIDE12");
+        printf("%4d", gap3(i));
+    putln();
+    printf(" WIDE12");
     for (i = 0; i <= 12; i = i + 1)
-        write(wide12(i):4);
-    writeln();
-    write(" WIDE-1");
-    writeln(wide12(-1):4);
-    write(" NINE  ");
+        printf("%4d", wide12(i));
+    putln();
+    printf(" WIDE-1");
+    printf("%4d\n", wide12(-1));
+    printf(" NINE  ");
     for (i = 19; i <= 29; i = i + 1)
-        write(nine(i):4);
-    writeln();
-    write(" EIGHT ");
+        printf("%4d", nine(i));
+    putln();
+    printf(" EIGHT ");
     for (i = 19; i <= 28; i = i + 1)
-        write(eight(i):4);
-    writeln();
-    write(" WIDEV ");
-    write(wideVals(-70):4, wideVals(0):4, wideVals(100000):4);
-    write(wideVals(1000000):4, wideVals(-71):4, wideVals(5):4);
-    writeln();
+        printf("%4d", eight(i));
+    putln();
+    printf(" WIDEV ");
+    printf("%4d%4d%4d", wideVals(-70), wideVals(0), wideVals(100000));
+    printf("%4d%4d%4d", wideVals(1000000), wideVals(-71), wideVals(5));
+    putln();
     calls  =  0;
     k  =  small3((state)bump());
-    writeln(" ONCE   ", k:4, calls:4);
+    printf(" ONCE   %4d%4d\n", k, calls);
 }

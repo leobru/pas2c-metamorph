@@ -10,11 +10,11 @@ typedef __packed struct {
 point p;
 int words[8];
 void main() {
-    writeln(" size int=", sizeof(int):0);
-    writeln(" size point=", sizeof(point):0);
-    writeln(" size words=", sizeof(words):0);
-    writeln(" off x=", offsetof(point, x):0);
-    writeln(" off y=", offsetof(point, y):0);
-    writeln(" off packed b=", offsetof(tiny, b):0);
-    writeln(" off packed c=", offsetof(tiny, c):0);
+    printf(" size int=%d\n", sizeof(int));
+    printf(" size point=%d\n", sizeof(point));
+    printf(" size words=%d\n", sizeof(words));
+    printf(" off x=%d\n", offsetof(point, x));
+    printf(" off y=%d\n", offsetof(point, y));
+    printf(" off packed b=%d\n", offsetof(tiny, b));
+    printf(" off packed c=%d\n", offsetof(tiny, c));
 }

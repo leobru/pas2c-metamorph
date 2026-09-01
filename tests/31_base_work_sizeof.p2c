@@ -3,5 +3,5 @@
 int words[8];
 
 void main() {
-    writeln("RESULT ", sizeof(words):0);
+    printf("RESULT %d\n", sizeof(words));
 }

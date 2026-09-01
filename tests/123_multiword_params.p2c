@@ -26,8 +26,8 @@ trip v;
 void main() {
     g.a = 1; g.b = 2; g.c = 3;
     v[0] = 10; v[1] = 20; v[2] = 30;
-    writeln(" S=", sum3(g, 100):0, " A=", addup(v, g):0, " P=", plain(9, 4):0);
+    printf(" S=%d A=%d P=%d\n", sum3(g, 100), addup(v, g), plain(9, 4));
     g.a = 7;
-    writeln(" S2=", sum3(g, 0):0, " A2=", addup(v, g):0);
-    writeln(" B=", bump(g):0, " KEPT=", g.a:0);
+    printf(" S2=%d A2=%d\n", sum3(g, 0), addup(v, g));
+    printf(" B=%d KEPT=%d\n", bump(g), g.a);
 }

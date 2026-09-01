@@ -29,28 +29,27 @@ int      half(unsigned v)  { return v / 2; }
 void main() {
     // In range, the unsigned product is the product.
     a = 1000;  b = 1000;  c = 3;
-    writeln(" MUL   ", (a * b):10, (a * c):8, (b * 7):8);
+    printf(" MUL   %10d%8d%8d\n", (a * b), (a * c), (b * 7));
     // The result carries, so a chain stays unsigned end to end.
-    writeln(" CHAIN ", (a * b * c):12, (a * c * b):12);
+    printf(" CHAIN %12d%12d\n", (a * b * c), (a * c * b));
     // A cast reaches an expression whose type is not unsigned already.
     s = 1000;
-    writeln(" CAST  ", ((unsigned)s * 1000):10, ((unsigned)(s + 1) * 2):8);
+    printf(" CAST  %10d%8d\n", ((unsigned)s * 1000), ((unsigned)(s + 1) * 2));
     // A 'U' suffix says the digits fill the word, so such a literal is
     // unsigned and carries the multiply with it -- decimal and octal alike.
-    writeln(" LIT   ", (s * 1000U):10, (1000U * s):10, (s * 01750U):10,
-                      (s * 0x3E8U):10);
+    printf(" LIT   %10d%10d%10d%10d\n", (s * 1000U), (1000U * s), (s * 01750U), (s * 0x3E8U));
     // The suffix says how to multiply, not what the digits are worth.
-    writeln(" VALUE ", 0xFFU:5, 0xFF:5, 0377U:5, 255U:5);
+    printf(" VALUE %5d%5d%5d%5d\n", 0xFFU, 0xFF, 0377U, 255U);
     // Every spelling is the one integer, and they assign both ways.
     d = 7;  e = d + 1;  s = e;  a = s;
-    writeln(" MIX   ", d:3, e:3, s:3, a:3, sizeof(d):3, sizeof(e):3);
+    printf(" MIX   %3d%3d%3d%3d%3d%3d\n", d, e, s, a, sizeof(d), sizeof(e));
     // An integer in every other way.
-    writeln(" INT   ", (!a):3, abs(a):4, (a > 5):3, (a == 8):3);
+    printf(" INT   %3d%4d%3d%3d\n", (!a), abs(a), (a > 5), (a == 8));
     // 'unsigned:6' is the bit-field 'int:6' is.
     w.lo = 63;  w.hi = 5;
-    writeln(" BITS  ", (int)w.lo:3, (int)w.hi:3, sizeof(w):3);
+    printf(" BITS  %3d%3d%3d\n", (int)w.lo, (int)w.hi, sizeof(w));
     // A parameter and a result.
-    writeln(" CALL  ", twice(21):4, half(21):4, twice(a):4);
+    printf(" CALL  %4d%4d%4d\n", twice(21), half(21), twice(a));
     tbl[0] = 1;  tbl[9] = 2;
-    writeln(" BOUND ", tbl[0]:3, tbl[9]:3, sizeof(tbl):3, 3U:3);
+    printf(" BOUND %3d%3d%3d%3d\n", tbl[0], tbl[9], sizeof(tbl), 3U);
 }

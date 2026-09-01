@@ -8,9 +8,9 @@ void main() {
     x = 42;
     p = &x;
     value = *p;                // Pointer dereference → st2 → P/LDARIN
-    writeln("Value via pointer: ", value:0);
+    printf("Value via pointer: %d\n", value);
     
     x = 99;
     value = *p;
-    writeln("Updated value: ", value:0);
+    printf("Updated value: %d\n", value);
 }

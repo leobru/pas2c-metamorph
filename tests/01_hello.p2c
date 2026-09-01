@@ -1,5 +1,5 @@
 /*=k9,l0*/
 //
 void main() {
-    writeln("Hello from p2c!");
+    printf("Hello from p2c!\n");
 }

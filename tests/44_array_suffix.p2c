@@ -8,22 +8,21 @@ int idx;
 void main() {
     arr[2] = 33;
     idx = 2;
-    writeln("arr ", arr[idx]:0);
+    printf("arr %d\n", arr[idx]);
 
     chars[0] = 'H';
     chars[1] = 'I';
     idx = 1;
-    writeln("char ", chars[idx]);
+    printf("char %c\n", chars[idx]);
 
     packed[0] = 7;
     packed[13] = 123;
     if (packed[13] == 123)
-        writeln("packed ", sizeof(packed):0, " ok");
+        printf("packed %d ok\n", sizeof(packed));
     else
-        writeln("packed fail");
+        printf("packed fail\n");
 
     matrix[0][1] = 12;
     matrix[1][2] = 23;
-    writeln("matrix ", matrix[0][1]:0, ' ', matrix[1][2]:0,
-            " size ", sizeof(matrix):0);
+    printf("matrix %d %d size %d\n", matrix[0][1], matrix[1][2], sizeof(matrix));
 }

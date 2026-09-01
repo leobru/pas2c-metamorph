@@ -3,14 +3,14 @@
 int x;
 void main() {
     x = 1;
-    writeln("Outer: x = ", x:0);
+    printf("Outer: x = %d\n", x);
     {
         x = x + 10;
-        writeln("Inner: x = ", x:0);
+        printf("Inner: x = %d\n", x);
         {
             x = x + 100;
-            writeln("Inner-inner: x = ", x:0);
+            printf("Inner-inner: x = %d\n", x);
         }
     };
-    writeln("Outer again: x = ", x:0);
+    printf("Outer again: x = %d\n", x);
 }

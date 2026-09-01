@@ -24,5 +24,5 @@ void main() {
             same = 0;
     u.i = pck(&lib[0]);
     writeln(" UNPCK=", u.c:6);
-    writeln(" SAME =", same:0);
+    printf(" SAME =%d\n", same);
 }

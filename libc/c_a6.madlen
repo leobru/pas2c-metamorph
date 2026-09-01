@@ -5,7 +5,7 @@ C plain integer field width at [SP-1].  The old P/A6 tagged the
 C character count before subtracting the width; both are plain here.
 C===========================================================
  C/SP:,SUBP,
- P/6A:,SUBP,
+ C/6A:,SUBP,
  ,ITS,13                     . Push packed characters; ACC := M13
  ,ITS,10                     . Push return link; ACC := count
  15,ATX,                     . Push M10
@@ -16,5 +16,5 @@ C===========================================================
  ,STI,10                     . Restore M10; pop M13
  ,STI,13                     . Restore M13; pop packed characters
  15,UTM,-1                  . Drop the caller's width argument
- ,UJ,P/6A                    . Tail-call the unpadded writer
+ ,UJ,C/6A                    . Tail-call the unpadded writer
  ,END,

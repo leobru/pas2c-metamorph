@@ -71,12 +71,12 @@ int zeroed() {
 int after = 300;
 
 void main() {
-    writeln(" GLOBAL ", before:0, ' ', middle:0, ' ', after:0);
-    writeln(" COUNT  ", counter():0, ' ', counter():0);
-    writeln(" RECUR  ", recursive(3):0, ' ', recursive(1):0);
-    writeln(" NAMES  ", left():0, ' ', right():0, ' ', left():0, ' ', right():0);
-    writeln(" AGGR   ", aggregate(1):0, ' ', aggregate(2):0);
-    writeln(" NEST   ", outer(1):0, ' ', outer(2):0);
-    writeln(" ZERO   ", zeroed():0, ' ', zeroed():0);
-    writeln(" GLOBAL ", before:0, ' ', middle:0, ' ', after:0);
+    printf(" GLOBAL %d %d %d\n", before, middle, after);
+    printf(" COUNT  %d %d\n", counter(), counter());
+    printf(" RECUR  %d %d\n", recursive(3), recursive(1));
+    printf(" NAMES  %d %d %d %d\n", left(), right(), left(), right());
+    printf(" AGGR   %d %d\n", aggregate(1), aggregate(2));
+    printf(" NEST   %d %d\n", outer(1), outer(2));
+    printf(" ZERO   %d %d\n", zeroed(), zeroed());
+    printf(" GLOBAL %d %d %d\n", before, middle, after);
 }

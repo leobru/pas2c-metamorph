@@ -32,19 +32,20 @@ int i;
 // type is the one route to that which is not a plain literal.
 const __packed char BANNER[] = "A WIDE CONST STRING";
 //
+void putln() assembler;
 void main() {
-    writeln(" SIZE  ", sizeof(one):3, sizeof(many):3, sizeof(exact):3);
+    printf(" SIZE  %3d%3d%3d\n", sizeof(one), sizeof(many), sizeof(exact));
     writeln(" ONE   ", one);
     writeln(" MANY0 ", many[0]);
     writeln(" MANY1 ", many[1]);
     writeln(" MIXED ", mixed[1]);
     writeln(" EXACT ", exact);
     // The scalars around them keep their own values: no run overran.
-    writeln(" SCALAR", before:3, between:3, after:3, guard:3, last:3);
+    printf(" SCALAR%3d%3d%3d%3d%3d\n", before, between, after, guard, last);
     // A run is indexable like any other packed char array.
-    write(" INDEX ");
+    printf(" INDEX ");
     for (i = 0; i <= 7; i = i + 1)
-        write(many[1][i]);
-    writeln();
+        printf("%c", many[1][i]);
+    putln();
     writeln(" CONST ", BANNER, sizeof(BANNER):3);
 }

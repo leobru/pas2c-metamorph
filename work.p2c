@@ -1,6 +1,6 @@
 /*=l1,k8,l1*/
 //
-const __packed char boilerplate[] = " PASCAL 2 C METAMORPHOSIS (2026)";
+const __packed char boilerplate[] = " BESM-6 C THAT NEVER WAS (2026)\n";
 //
 const int fnABS = 0, fnSIZEOF = 1, fnOFFSETOF = 2, fnMALLOC = 3,
           fnCARD = 4, fnMINEL = 5, fnABSI = 6;
@@ -627,8 +627,8 @@ int helperNames[59] = { 0,
         t'C/WX    ',
         t'C/WO    ',
         t'P/CW    ',
-        t'P/6A    ',
-        t'P/7A    ',
+        t'C/6A    ',
+        t'C/7A    ',
 /*30*/  t'P/WL    ',
         t'P/WOLN  ',
         t'P/RR    ',
@@ -719,11 +719,18 @@ int pck(int *) assembler;
 void unpck(int, int *) assembler;
 void unpackt(void *, void *, int) assembler;
 int has(int, int) assembler;
+void putln() assembler;
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+//              printTextWord             %
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void printTextWord(int val) {
+    printf(" %t", val);
+} /* printTextWord */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              PrintErrMsg               %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void printTextWord(int val);
 void printErrMsg(int errno) { /* PrintErrMsg */
 typedef __packed textchar errtxt[101];
 typedef errtxt *perrtxt;
@@ -766,17 +773,6 @@ char c;
     if (errno != 86)
         writeln();
 } /* PrintErrMsg */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-//              printTextWord             %
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void printTextWord(int val) { /* printTextWord */
-//
-    void PASTPR(int val) extern;
-//
-    write(' ');
-    PASTPR(val);
-} /* printTextWord */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              addToHashTab              %
@@ -851,8 +847,8 @@ int err, errPos, prevPos, listMode,
     startPos, lastErr;
     listMode  =  pasinfor.listMode;
     if (listMode || errsInLine) {
-        write(' ', (lineStartOffset + PASINFOR.startOffset):5 oct,
-              lineCnt:5, lineNesting:3, commentModeCH);
+        printf(" %5o%5d%3d%c", lineStartOffset + PASINFOR.startOffset,
+              lineCnt, lineNesting, commentModeCH);
         startPos  =  13;
         do
             --linePos;
@@ -860,7 +856,7 @@ int err, errPos, prevPos, listMode,
         for (err = 0; err <= linePos; ++err) {
             write(linebuf[err]);
         }
-        writeln();
+        putln();
         if (errsInLine) {
             write("*****":startPos, ' ':errMap[0]+1, '0');
             lastErr  =  errsInLine - 1;
@@ -873,7 +869,7 @@ int err, errPos, prevPos, listMode,
                     write((char)(err + '0'));
                 }
             }
-            writeln();
+            putln();
             errsInLine  =  0;
             prevErrPos  =  0;
         }
@@ -1426,7 +1422,7 @@ L2175:     error(59); /* errEOLNInStringLiteral */
             return;
         } else if (CH == BACKSLASH) {
             nextCH();
-            /* A backslash immediately before the physical newline splices
+            /* A backslash immediately before the physical writeln splices
                the next source line into this literal.  It occupies no slot;
                the next iteration reads the first character of the new line. */
             if (CH == '\n') {
@@ -1819,7 +1815,7 @@ void error(int errno) {
         errMap[errsInLine]  =  linePos;
         ++errsInLine;
         prevErrPos  =  linePos;
-        write((alfa)'******', errno:0);
+        printf("******%d", errno);
         printErrMsg(errno);
         if (60 < totalErrors) {
             writeln();
@@ -2156,7 +2152,7 @@ int top;
     top = setup();
     if (top > maxHeap) {
         maxHeap = top;
-//        writeln(' maxHeap incr line ', lineCnt);
+//        printf(" maxHeap incr line %d\n", lineCnt);
     }
     rollup(addr);
 }
@@ -5773,21 +5769,15 @@ pair *curSlot;
         write(' ':16);
         if (curField->fpk.p.pckfield)
             write((alfa)'PACKED');
-        write(" FIELD ");
-        printTextWord(curField->id);
-        write(".OFFSET=", curField->pck.p.offset:5 oct, 'B');
+        printf(" FIELD  %t.OFFSET=%5oB", curField->id, curField->pck.p.offset);
         if (curField->fpk.p.pckfield) {
-/*
-            write(".<<=SHIFT=", curField->fpk.p.shift:2,
-                  ". WIDTH=", curField->fpk.p.width:2, " BITS");
-*/
             printf(".<<=SHIFT=%2d. WIDTH=%2d BITS",
                    curField->fpk.p.shift,
                    curField->fpk.p.width);
         } else {
-            write(".WORDS=", typeSize(curField->typ):0);
+            printf(".WORDS=%d", typeSize(curField->typ));
         }
-        writeLN();
+        writeln();
     }
 } /* packOneField */
 //
@@ -7732,7 +7722,7 @@ void writeProc() {
                 noWidth  =  false;
                 if (firstWidth == NULL &&
                     has([22,23,24], helperNo)) {  /* WC,A6,A7 */
-                    helperNo += 5;  /* CW,6A,7A */
+                    helperNo += 5;  /* CW,C/6A,7A */
                     noWidth  =  true;
                 } else {
                     if (firstWidth == NULL) {
@@ -7754,7 +7744,7 @@ void writeProc() {
                 }
                 curExpr  =  l4exp7z;
                 if (noWidth) {
-                    if (helperNo == 29)      /* P/7A */
+                    if (helperNo == 29)      /* C/7A */
                         opToForm  =  SETREG11;
                     else
                         opToForm  =  LOAD;
@@ -7766,7 +7756,7 @@ void writeProc() {
                         opToForm  =  FRACWIDTH;
                 }
                 formOperator(opToForm);
-                if (has([23,24,28,29], helperNo) || /* A6,A7,6A,7A */
+                if (has([23,24,28,29], helperNo) || /* A6,A7,C/6A,7A */
                     helperNo == 49)
                     form1Insn(KVTM+I10 + defWidth);
                 else {
@@ -9023,11 +9013,9 @@ void exitScope(int a) {
                     else
                         curIdRec->value  =  localSize;
                     if (PASINFOR.listMode == 3) {
-                        write("VARIABLE ":26);
-                        printTextWord(curDeclarator.name);
-                        writeln(" OFFSET (", curProcNesting:0, ") ",
-                                curIdRec->value:5 oct, "B. WORDS=",
-                                jj:5 oct, 'B');
+                        printf("%25s %t OFFSET (%d) %5oB. WORDS=%5oB\n",
+                               "VARIABLE ", curDeclarator.name,
+                               curProcNesting, curIdRec->value, jj);
                     }
                     if ((curProcNesting == 1) || staticDecl) {
                         moduleDataSize += jj;
@@ -9225,7 +9213,7 @@ L23301:     ;
             if (curExternFile->line == 0) {
                 error(80); /* errUndefinedExternFile */
                 printTextWord(curExternFile->id);
-                writeLN();
+                writeln();
             }
             curExternFile  =  curExternFile->next;
         }
@@ -9236,7 +9224,7 @@ L23301:     ;
             printTextWord(preDefHead->id);
             preDefHead  =  preDefHead->r2.preDefLink;
         }
-        writeLN();
+        writeln();
     }
     lookup2  =  lookupMode  =  lookUse;
     if (curProcNesting == 1)
@@ -9244,7 +9232,7 @@ L23301:     ;
     defineRoutine(bodyBlock);
     if ((curProcNesting > 1) && ! retSeen &&
             (procName->typ != voidType)) {
-        writeln(" above function must return a value");
+        printf(" Above function must return a value\n");
         error(200);
     }
     l2bool8z  =  true;
@@ -9425,11 +9413,12 @@ void initOptions() {
 } /* initOptions */
 //
 void main() {
+    void puts(char *) assembler;
     fopen(&PASINPUT, 010000100010, t'PASINPUT');
     fopen(&_CHILD_, 010000100000, t'*CHILD* ');
     if (PASINFOR.listMode)
-        writeln(boilerplate);
-    writeln(" INITHEAP = ", setup():5 oct);
+        puts(boilerplate);
+    printf(" INITHEAP = %5o\n", setup());
     if (setjmp(&jb9999)) goto L9999;
     initOptions();
     curInsnTemplate  =  0;
@@ -9438,11 +9427,10 @@ void main() {
     fopen(&INITBUF, 010000100000, 0);
     programme(&curInsnTemplate, hashTravPtr, false);
     if (errors) {
-L9999:  writeln(" IN ", (lineCnt-1):0, " LINES ",
-            totalErrors:0, " ERRORS");
+L9999:  printf(" IN %d LINES %d ERRORS\n", totalErrors, lineCnt-1);
     } else {
         finalize();
         *PASINFOR.errors  =  false;
-        writeln(" MAXHEAP = ", maxHeap:5 oct);
+        printf(" MAXHEAP = %5o\n", maxHeap);
     }
 }

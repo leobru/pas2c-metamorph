@@ -40,5 +40,5 @@ void main() {
     }
     for (i = 0; i < 24; i = i + 1) { src[i] = i; dst[i] = 0; }
     copy(dst, src, 13);
-    writeln(" S ", s:0);
+    printf(" S %d\n", s);
 }

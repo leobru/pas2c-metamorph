@@ -18,7 +18,7 @@ int tail(triple, int c) { return c; }
 
 void main() {
     cell = 5;
-    writeln(" SECOND=", second(1, 2, 3):0);
-    writeln(" TWO=", two(&cell):0);
-    writeln(" TAIL=", tail(arr, 7):0);
+    printf(" SECOND=%d\n", second(1, 2, 3));
+    printf(" TWO=%d\n", two(&cell));
+    printf(" TAIL=%d\n", tail(arr, 7));
 }

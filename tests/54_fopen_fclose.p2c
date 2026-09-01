@@ -14,28 +14,20 @@ fileblk f, a, b, c;
 //
 void main() {
     fopen(&f, 010000100010, 0);
-    writeln("open ",
-            f.w18:0, ' ',
-            f.w27:0, ' ',
-            f.w1 != 0:0, ' ',
-            f.w12 != 0:0, ' ',
-            f.w13 != 0:0);
+    printf("open %d %d %d %d %d\n", f.w18, f.w27, f.w1 != 0, f.w12 != 0, f.w13 != 0);
     fclose(&f);
-    writeln("close ",
-            f.w27:0, ' ',
-            f.w23:0, ' ',
-            f.w24:0);
+    printf("close %d %d %d\n", f.w27, f.w23, f.w24);
 
     fopen(&a, 010000100010, 0);
-    writeln("a ", a.w18:0, ' ', a.w27:0, ' ', a.w1 != 0:0);
+    printf("a %d %d %d\n", a.w18, a.w27, a.w1 != 0);
     fclose(&a);
     fopen(&b, 010000100010, 0);
-    writeln("b ", b.w18:0, ' ', b.w27:0, ' ', b.w1 != 0:0);
+    printf("b %d %d %d\n", b.w18, b.w27, b.w1 != 0);
     fclose(&b);
     fopen(&c, 010000100010, 0);
-    writeln("c ", c.w18:0, ' ', c.w27:0, ' ', c.w1 != 0:0);
+    printf("c %d %d %d\n", c.w18, c.w27, c.w1 != 0);
     fclose(&c);
     fopen(&a, 010000100010, 0);
-    writeln("a2 ", a.w18:0, ' ', a.w27:0, ' ', a.w1 != 0:0);
+    printf("a2 %d %d %d\n", a.w18, a.w27, a.w1 != 0);
     fclose(&a);
 }

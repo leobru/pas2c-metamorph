@@ -8540,7 +8540,7 @@ struct standProc {
                 noWidth = false;
                 if (firstWidth == NULL and
                     has(BitRange(22,24), helperNo)) {  /* WC,A6,A7 */
-                    helperNo = helperNo + 5;       /* CW,6A,7A */
+                    helperNo = helperNo + 5;       /* CW,C/6A,7A */
                     noWidth = true;
                 } else {
                     if (firstWidth == NULL) {
@@ -8562,7 +8562,7 @@ struct standProc {
                 }
                 curExpr = l4exp7z;
                 if (noWidth) {
-                    if (helperNo == 29)     /* P/7A */
+                    if (helperNo == 29)     /* C/7A */
                         opToForm = SETREG11;
                     else
                         opToForm = LOAD;
@@ -8574,7 +8574,7 @@ struct standProc {
                         opToForm = FRACWIDTH;
                 }
                 (void) formOperator(opToForm);
-                if (has(Bits(23,24,28,29), helperNo) or /* A6,A7,6A,7A */
+                if (has(Bits(23,24,28,29), helperNo) or /* A6,A7,C/6A,7A */
                     helperNo == 49)
                     form1Insn(KVTM+I10 + defWidth);
                 else {
@@ -10706,8 +10706,8 @@ int64_t helperNames[59] = { 0L,
         04317677000000000L      /*"C/WX    "*/,
         04317675700000000L      /*"C/WO    "*/,
         06017436700000000L      /*"P/CW    "*/,
-        06017264100000000L      /*"P/6A    "*/,
-        06017274100000000L      /*"P/7A    "*/,
+        04317264100000000L      /*"C/6A    "*/,
+        04317274100000000L      /*"C/7A    "*/,
 /*30*/  06017675400000000L      /*"P/WL    "*/,
         06017675754560000L      /*"P/WOLN  "*/,
         06017626200000000L      /*"P/RR    "*/,

@@ -31,5 +31,5 @@ char *tab[2] = { "AB", "CD" };
 //
 void f() { }
 void main() {
-    writeln(" UNREACHED ", *cp);
+    printf(" UNREACHED %c\n", *cp);
 }

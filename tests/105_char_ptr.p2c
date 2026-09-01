@@ -24,35 +24,35 @@ void main() {
         un[i]  =  (char)(97 + i);
     // Reading through a pointer, both spellings.
     cp  =  &c;
-    writeln(" DEREF ", (int)*cp:4, (int)cp[0]:4);
+    printf(" DEREF %4d%4d\n", (int)*cp, (int)cp[0]);
     // Writing through a pointer, both spellings.
     *cp  =  (char)70;
-    writeln(" STAR  ", (int)c:4);
+    printf(" STAR  %4d\n", (int)c);
     cp[0]  =  (char)71;
-    writeln(" IDX   ", (int)c:4);
+    printf(" IDX   %4d\n", (int)c);
     // Two pointers: a difference in bytes, ordering, equality.  Adjacent
     // one-word globals are six bytes apart.
     cp  =  &c;
     cq  =  &d;
-    writeln(" CMP   ", (cq - cp):4, (cp < cq):2, (cp == cq):2, (cp == cp):2);
+    printf(" CMP   %4d%2d%2d%2d\n", (cq - cp), (cp < cq), (cp == cq), (cp == cp));
     // Arithmetic, read back through the difference.  These pin the operand
     // order, which the subtraction and both op-assign forms depend on.
     cq  =  cp + 6;
-    writeln(" ADD   ", (cq - cp):4);
+    printf(" ADD   %4d\n", (cq - cp));
     cq  =  cq - 6;
-    writeln(" SUB   ", (cq - cp):4);
+    printf(" SUB   %4d\n", (cq - cp));
     cq++;
-    writeln(" INC   ", (cq - cp):4);
+    printf(" INC   %4d\n", (cq - cp));
     cq  +=  5;
-    writeln(" PLEQ  ", (cq - cp):4);
+    printf(" PLEQ  %4d\n", (cq - cp));
     cq  -=  2;
-    writeln(" MIEQ  ", (cq - cp):4);
+    printf(" MIEQ  %4d\n", (cq - cp));
     --cq;
-    writeln(" PRED  ", (cq - cp):4);
+    printf(" PRED  %4d\n", (cq - cp));
     // Passed to a routine, as a variable and as a fresh address.
-    writeln(" ARG   ", firstOf(&d):4, firstOf(cp):4);
+    printf(" ARG   %4d%4d\n", firstOf(&d), firstOf(cp));
     // An unpacked char array holds one char per word, so its elements sit
     // six bytes apart in the flat view and cp[1] reads an empty byte.
     cp  =  &un[0];
-    writeln(" UNPK  ", (int)*cp:4, (int)cp[6]:4, (int)cp[1]:4);
+    printf(" UNPK  %4d%4d%4d\n", (int)*cp, (int)cp[6], (int)cp[1]);
 }

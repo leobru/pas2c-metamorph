@@ -10,14 +10,14 @@ enum { RED, GREEN, BLUE } color;
 enum { LO = -2, MID, HI } ev;
 int val;
 void main() {
-    val = A; writeln(" A=", val:0);
-    val = B; writeln(" B=", val:0);
-    val = C; writeln(" C=", val:0);
-    val = D; writeln(" D=", val:0);
-    val = X; writeln(" X=", val:0);
-    val = Y; writeln(" Y=", val:0);
-    ev = MID; writeln(" MID=", ev:0);
-    ev = HI;  writeln(" HI=", ev:0);
+    val = A; printf(" A=%d\n", val);
+    val = B; printf(" B=%d\n", val);
+    val = C; printf(" C=%d\n", val);
+    val = D; printf(" D=%d\n", val);
+    val = X; printf(" X=%d\n", val);
+    val = Y; printf(" Y=%d\n", val);
+    ev = MID; printf(" MID=%d\n", ev);
+    ev = HI;  printf(" HI=%d\n", ev);
     // A plain (sequential) enum still prints its enumerator name:
     color = GREEN; writeln(" color=", color);
 }

@@ -25,7 +25,7 @@
  P/PAMPAM:  , SUBP,
  PASCONTR:  , SUBP,
  C/WI    :  , SUBP,
- P/RC    :  , SUBP,
+cLONGJMP :  , SUBP,
  PASOUT  :  , SUBP,
  P/FIRP  :  , PC  ,1024
  PASCOMPL:  , SUBP,

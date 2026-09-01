@@ -5,5 +5,5 @@ int f() {
 }
 //
 void main() {
-    writeln(f());
+    printf("%10d\n", f());
 }

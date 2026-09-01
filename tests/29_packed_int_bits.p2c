@@ -13,11 +13,10 @@ int wrdsExp(int bitW) {
 
 int chkWords(int tag, int got, int exp) {
     if (got != exp) {
-        writeln("FAIL size tag=", tag:0, " got=", got:0,
-                " exp=", exp:0);
+        printf("FAIL size tag=%d got=%d exp=%d\n", tag, got, exp);
         return 1;
     } else {
-        writeln("OK size tag=", tag:0, " words=", got:0);
+        printf("OK size tag=%d words=%d\n", tag, got);
         return 0;
     }
 }
@@ -67,34 +66,34 @@ int trw08() {
     }
     buf[lo] = v;
     if (buf[lo] != v) {
-        writeln("FAIL int:8 store read back");
+        printf("FAIL int:8 store read back\n");
         fail = 1;
     }
     for (i = 0; i < lo; i = i + 1) {
         g = grdval + i;
         if (buf[i] != g) {
-            writeln("FAIL int:8 low guard i=", i:0);
+            printf("FAIL int:8 low guard i=%d\n", i);
             fail = 1;
         }
     }
     for (i = lo + 1; i <= arspan + 1; i = i + 1) {
         g = grdval + i;
         if (buf[i] != g) {
-            writeln("FAIL int:8 high guard i=", i:0);
+            printf("FAIL int:8 high guard i=%d\n", i);
             fail = 1;
         }
     }
     buf[hi] = maxv;
     if (buf[hi] != maxv) {
-        writeln("FAIL int:8 max at hi");
+        printf("FAIL int:8 max at hi\n");
         fail = 1;
     }
     if (buf[lo] != v) {
-        writeln("FAIL int:8 neighbor after hi write");
+        printf("FAIL int:8 neighbor after hi write\n");
         fail = 1;
     }
     if (fail == 0) {
-        writeln("OK int:8 rw guards");
+        printf("OK int:8 rw guards\n");
     } else {
         return 1;
     }
@@ -119,27 +118,27 @@ int trw16() {
     }
     buf[lo] = v;
     if (buf[lo] != v) {
-        writeln("FAIL int:16 store read");
+        printf("FAIL int:16 store read\n");
         fail = 1;
     }
     buf[lo + 1] = maxv;
     if (buf[lo] != v) {
-        writeln("FAIL int:16 low corrupted");
+        printf("FAIL int:16 low corrupted\n");
         fail = 1;
     }
     if (buf[lo + 1] != maxv) {
-        writeln("FAIL int:16 hi read");
+        printf("FAIL int:16 hi read\n");
         fail = 1;
     }
     for (i = 0; i < lo; i = i + 1) {
         g = grdval + i;
         if (buf[i] != g) {
-            writeln("FAIL int:16 guard i=", i:0);
+            printf("FAIL int:16 guard i=%d\n", i);
             fail = 1;
         }
     }
     if (fail == 0) {
-        writeln("OK int:16 rw guards");
+        printf("OK int:16 rw guards\n");
     } else {
         return 1;
     }
@@ -162,21 +161,21 @@ int trw24() {
     }
     buf[lo] = v;
     if (buf[lo] != v) {
-        writeln("FAIL int:24 store read");
+        printf("FAIL int:24 store read\n");
         fail = 1;
     }
     g = grdval + lo - 1;
     if (buf[lo - 1] != g) {
-        writeln("FAIL int:24 guard below");
+        printf("FAIL int:24 guard below\n");
         fail = 1;
     }
     g = grdval + lo + 1;
     if (buf[lo + 1] != g) {
-        writeln("FAIL int:24 guard above");
+        printf("FAIL int:24 guard above\n");
         fail = 1;
     }
     if (fail == 0) {
-        writeln("OK int:24 rw guards");
+        printf("OK int:24 rw guards\n");
     } else {
         return 1;
     }
@@ -193,7 +192,7 @@ int tdense() {
     one = 1;
     zero = 0;
     if (sizeof(a) != 1) {
-        writeln("FAIL int:1 dense words got=", sizeof(a):0);
+        printf("FAIL int:1 dense words got=%d\n", sizeof(a));
         fail = 1;
     }
     for (i = 0; i < 48; i = i + 1) {
@@ -201,21 +200,21 @@ int tdense() {
     }
     for (i = 0; i < 48; i = i + 1) {
         if (a[i] != one) {
-            writeln("FAIL int:1 dense at i=", i:0);
+            printf("FAIL int:1 dense at i=%d\n", i);
             fail = 1;
         }
     }
     a[24] = zero;
     if (a[23] != one) {
-        writeln("FAIL int:1 dense neighbor");
+        printf("FAIL int:1 dense neighbor\n");
         fail = 1;
     }
     if (a[25] != one) {
-        writeln("FAIL int:1 dense neighbor hi");
+        printf("FAIL int:1 dense neighbor hi\n");
         fail = 1;
     }
     if (fail == 0) {
-        writeln("OK int:1 dense 48 x 1 bit");
+        printf("OK int:1 dense 48 x 1 bit\n");
     } else {
         return 1;
     }
@@ -226,33 +225,33 @@ int tdense() {
 void main() {
     grdval = 100;
     arspan = 12;
-    writeln("packed int:<bits> tests arspan=", arspan:0);
+    printf("packed int:<bits> tests arspan=%d\n", arspan);
     if (tsz08() != 0) {
-        writeln("abort sizes");
+        printf("abort sizes\n");
     }
     if (tsz16() != 0) {
-        writeln("abort sizes");
+        printf("abort sizes\n");
     }
     if (tsz24() != 0) {
-        writeln("abort sizes");
+        printf("abort sizes\n");
     }
     if (tsz32() != 0) {
-        writeln("abort sizes");
+        printf("abort sizes\n");
     }
     if (tsz40() != 0) {
-        writeln("abort sizes");
+        printf("abort sizes\n");
     }
     if (trw08() != 0) {
-        writeln("abort rw8");
+        printf("abort rw8\n");
     }
     if (trw16() != 0) {
-        writeln("abort rw16");
+        printf("abort rw16\n");
     }
     if (trw24() != 0) {
-        writeln("abort rw24");
+        printf("abort rw24\n");
     }
     if (tdense() != 0) {
-        writeln("abort dense");
+        printf("abort dense\n");
     }
-    writeln("done");
+    printf("done\n");
 }

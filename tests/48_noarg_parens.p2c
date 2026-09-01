@@ -3,7 +3,7 @@
 void later();
 //
 void ping() {
-    writeln("PING");
+    printf("PING\n");
 }
 //
 int answer() {
@@ -11,11 +11,11 @@ int answer() {
 }
 //
 void later() {
-    writeln("LATER");
+    printf("LATER\n");
 }
 //
 void main() {
     ping();
-    writeln("ANSWER=", answer():0);
+    printf("ANSWER=%d\n", answer());
     later();
 }

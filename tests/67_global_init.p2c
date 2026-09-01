@@ -12,11 +12,11 @@ int b[5] = { 7:5 };
 int c[6] = { 0:6, [2]=9, [4]=8 };
 int i;
 void main() {
-    writeln(" x=", x:0);
+    printf(" x=%d\n", x);
     for (i = 0; i <= 2; i = i + 1)
-        writeln(" a", i:0, '=', a[i]:0);
+        printf(" a%d=%d\n", i, a[i]);
     for (i = 0; i <= 4; i = i + 1)
-        writeln(" b", i:0, '=', b[i]:0);
+        printf(" b%d=%d\n", i, b[i]);
     for (i = 0; i <= 5; i = i + 1)
-        writeln(" c", i:0, '=', c[i]:0);
+        printf(" c%d=%d\n", i, c[i]);
 }

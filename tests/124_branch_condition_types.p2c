@@ -16,26 +16,26 @@ char c;
 int i, t, n;
 void main() {
     b.flag = 1; b.n = 5; r.v = 9; c = 'A'; i = 0; p = &r;
-    if (b.flag) writeln(" BITFIELD YES"); else writeln(" BITFIELD NO");
-    if (p) writeln(" POINTER YES"); else writeln(" POINTER NO");
-    if (c) writeln(" CHAR YES"); else writeln(" CHAR NO");
+    if (b.flag) printf(" BITFIELD YES\n"); else printf(" BITFIELD NO\n");
+    if (p) printf(" POINTER YES\n"); else printf(" POINTER NO\n");
+    if (c) printf(" CHAR YES\n"); else printf(" CHAR NO\n");
     p = NULL;
-    if (p) writeln(" NULLPTR YES"); else writeln(" NULLPTR NO");
+    if (p) printf(" NULLPTR YES\n"); else printf(" NULLPTR NO\n");
     // The ternary takes the same set, and always did.
     t = b.flag ? 11 : 22;
-    writeln(" TERNARY=", t:0);
+    printf(" TERNARY=%d\n", t);
     // while, too: ifWhileStatement handles both.
     while (b.n) { i = i + b.n; b.n = b.n - 1; }
-    writeln(" LOOP=", i:0);
+    printf(" LOOP=%d\n", i);
     // do...while takes the same set: its NOTOP wrapper only flips the
     // polarity of the list BRANCH reads.
     r.nxt = NULL; r2.v = 4; r2.nxt = NULL; r.v = 1; r.nxt = &r2;
     p = &r; n = 0;
     do { n = n + p->v; p = p->nxt; } while (p);
-    writeln(" DOPTR=", n:0);
+    printf(" DOPTR=%d\n", n);
     b.n = 3; i = 0;
     do { i = i + b.n; b.n = b.n - 1; } while (b.n);
-    writeln(" DOBITS=", i:0);
+    printf(" DOBITS=%d\n", i);
     b.flag = 0;
-    if (b.flag) writeln(" CLEARED YES"); else writeln(" CLEARED NO");
+    if (b.flag) printf(" CLEARED YES\n"); else printf(" CLEARED NO\n");
 }

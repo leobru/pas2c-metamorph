@@ -35,13 +35,13 @@ void readchild() {
     frewind(&_child_);
     for (i = 0; i < 1105; i = i + 1) {
         if (fgetc(&_child_) != valueat(i)) {
-            writeln(0 - i - 1:0);
+            printf("%d\n", 0 - i - 1);
             fclose(&_child_);
             return;
         }
     }
     fclose(&_child_);
-    writeln(i:0);
+    printf("%d\n", i);
 }
 //
 void main() {

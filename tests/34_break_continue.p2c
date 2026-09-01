@@ -8,18 +8,18 @@ void main() {
         if (i == 3) continue;
         if (i == 7) break;
         else
-        writeln("w ", i:0);
+        printf("w %d\n", i);
     }
-    writeln("after-w ", i:0);
+    printf("after-w %d\n", i);
 
     i = 0;
     do {
         i = i + 1;
         if (i == 2) continue;
         if (i == 5) break;
-        writeln("d ", i:0);
+        printf("d %d\n", i);
     } while (i < 10);
-    writeln("after-d ", i:0);
+    printf("after-d %d\n", i);
 
     i = 0;
     while (i < 3) {
@@ -29,7 +29,7 @@ void main() {
             j = j + 1;
             if (j == 2) continue;
             if (j == 4) break;
-            writeln("n ", i:0, ' ', j:0);
+            printf("n %d %d\n", i, j);
         }
     }
 }

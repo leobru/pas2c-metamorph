@@ -1,6 +1,6 @@
 D=-42 O= 0000000000000077 C=X A=ABCDEF S=STR F=    1.5000E+00 E=    1.5000E+00 %
 [   XY][   Q][  ABCDEF][     7][000010]
-F=[  1.50E+00] E=[   2.250E+00] T=[        ]
+F=[  1.50E+00] E=[   2.250E+00] T=[    ABCDEFGH]
 STAR D=[     7] F=[  1.50E+00]
 UNKNOWN=%Q D=9 %
 UNKNOWN-WIDTH=%5Q TRAILING=%

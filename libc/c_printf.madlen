@@ -18,12 +18,12 @@ C===========================================================
  C/WC:          ,SUBP,
  P/CW:          ,SUBP,
  C/A6:          ,SUBP,
- P/6A:          ,SUBP,
+ C/6A:          ,SUBP,
+ C/WXD:         ,SUBP,
  P/WOLN:        ,SUBP,
  C/SP:          ,SUBP,
  PUTS:          ,SUBP,
  STRLEN:        ,SUBP,
- PASTPR:        ,SUBP,
  P/HIDE:        ,SUBP,
  P/EDIH:        ,SUBP,
  P/08:          ,SUBP,
@@ -158,7 +158,7 @@ C The UTM chain leaves ACC untouched, so its failure restores M14 from ACC.
  ANOWID:        7,XTA,-1
                10,VTM,6
                12,VTM,*OUTPUT*
-               13,VJM,P/6A
+               13,VJM,C/6A
                  ,UJ,LOOP
  FMREAL:       13,VJM,GETARG
                  ,XTA,WIDTH
@@ -194,7 +194,10 @@ C explicit width is left padding only; precision is deliberately ignored.
                13,VJM,PUTS
                  ,UJ,LOOP
  FMT:          13,VJM,GETARG
-               13,VJM,PASTPR
+                 ,XTA,WIDTH
+                7,XTS,-1
+               12,VTM,*OUTPUT*
+               13,VJM,C/WXD
                  ,UJ,LOOP
 C Print the '%' of an unknown sequence, then let the main loop resume at the
 C character immediately following it.  No actual argument is consumed.

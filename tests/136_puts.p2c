@@ -20,25 +20,25 @@ void main() {
         for (i = 0; i < 7; i = i + 1)
             buf[start + i] = src[i];
         buf[start + 7] = 0;
-        write(" RUN", start:2, " ");
+        printf(" RUN%2d ", start);
         puts(buf + start);
-        writeln("|");
+        printf("|\n");
     }
     // A newline in the middle ends the line where it stands, and the rest of
     // the string opens the next one.
     buf[0] = 'A';  buf[1] = 'B';  buf[2] = '\n';
     buf[3] = 'C';  buf[4] = 'D';  buf[5] = 0;
-    write(" MID ");
+    printf(" MID ");
     puts(buf);
-    writeln("|");
+    printf("|\n");
     // A newline as the last byte ends the line and adds nothing to the next.
     buf[0] = 'E';  buf[1] = 'F';  buf[2] = '\n';  buf[3] = 0;
-    write(" END ");
+    printf(" END ");
     puts(buf);
-    writeln("|");
+    printf("|\n");
     // A string that is only a NUL writes nothing at all.
     buf[0] = 0;
-    write(" NIL ");
+    printf(" NIL ");
     puts(buf);
-    writeln("|");
+    printf("|\n");
 }

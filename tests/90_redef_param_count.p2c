@@ -2,4 +2,4 @@
 // Too few parameters in the definition of a previously declared routine.
 int g(int a, int b);
 int g(int a) { return a; }
-void main() { writeln(g(1,2):0); }
+void main() { printf("%d\n", g(1,2)); }

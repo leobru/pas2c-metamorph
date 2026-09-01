@@ -9,13 +9,10 @@ GH";
 
 void main() {
     writeln(" DOUBLE ", ascii);
-    writeln(" SINGLE ", ('A\
-\102CD' == 'ABCD'):0);
-    writeln(" TEXTW  ", (t'EF\
-GH' == t'EFGH'):0);
-    writeln(" TEXTS  ",
-            ((int)text[0] == (int)t'E'):0, ' ',
-            ((int)text[1] == (int)t'F'):0, ' ',
-            ((int)text[2] == (int)t'G'):0, ' ',
-            ((int)text[3] == (int)t'H'):0);
+    printf(" SINGLE %d\n", ('A\
+\102CD' == 'ABCD'));
+    printf(" TEXTW  %d\n", (t'EF\
+GH' == t'EFGH'));
+    printf(" TEXTS  %d %d %d %d\n", ((int)text[0] == (int)t'E'), ((int)text[1] == (int)t'F'),
+           ((int)text[2] == (int)t'G'), ((int)text[3] == (int)t'H'));
 }

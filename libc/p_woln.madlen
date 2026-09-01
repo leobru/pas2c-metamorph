@@ -3,6 +3,11 @@ C===========================================================
 C P/WOLN - "Write OUTPUT Line".  Wires M12 to the *OUTPUT*
 C  FILE record, then falls through into P/WL.
 C
+C PUTLN - the same address under the name the P2C runtime
+C  declaration `void putln() assembler' resolves to.  The
+C  spelling NEWLINE cannot serve: it is an entry of FTNPRT
+C  in library 21, which the loader searches ahead of libc.
+C
 C P/WL - terminate the current line on FILE @ M12.  Pushes
 C  the LF char (PASEOLSY) into the buffer, then funnels into
 C  P/PF to ship the data out.  Handles the page-eject case
@@ -26,6 +31,9 @@ C   M14 = secondary link (used inside packed-mode helpers)
  P/TF:,SUBP,                 . truncate / rewrite the file
  P/PK:,SUBP,                 . pack ACC into the buffer slot
  P/FL:,SUBP,                 . forward decl, defined below
+C===========================================
+ PUTLN:,ENTRY,
+C===========================================
  12,VTM,*OUTPUT*
 C===========================================
  P/WL:,ENTRY,

@@ -11,8 +11,8 @@ __packed char s2[6] = "HELLO ";
 char *cp;
 //
 void main() {
-    writeln(" SAME   ", (s1 == s1):2, (s1 != s2):2, (s1 == s2):2);
+    printf(" SAME   %2d%2d%2d\n", (s1 == s1), (s1 != s2), (s1 == s2));
     cp  =  s1;
-    writeln(" PTR    ", (cp == s1):2, (cp == s2):2);
-    writeln(" CONTENT", ((uword)s1 == (uword)s2):2);
+    printf(" PTR    %2d%2d\n", (cp == s1), (cp == s2));
+    printf(" CONTENT%2d\n", ((uword)s1 == (uword)s2));
 }

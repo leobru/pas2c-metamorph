@@ -15,5 +15,5 @@ void main() {
     tab[1].hi = 40;
     i = 1;
     p = tab[i];
-    writeln("lo=", p.lo:0, " hi=", p.hi:0);
+    printf("lo=%d hi=%d\n", p.lo, p.hi);
 }

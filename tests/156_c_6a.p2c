@@ -1,0 +1,16 @@
+/*=k9,l0*/
+typedef __packed char six[6];
+typedef __packed char three[3];
+typedef __packed char nine[9];
+
+six a = "ABCDEF";
+three b = "XYZ";
+nine c = "ABCDEFGHI";
+
+void main() {
+    writeln(a);
+    writeln(b);
+    writeln(a:9);
+    writeln(c);
+    writeln(c:12);
+}

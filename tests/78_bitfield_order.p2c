@@ -36,20 +36,19 @@ int lsb;                        // still a perfectly good identifier
 //
 void main() {
     lsb = 5;
-    writeln(" SIZES ", sizeof(msbrec):0, sizeof(lsbrec):0, sizeof(outerrec):0,
-            " IDENT ", lsb:0);
+    printf(" SIZES %d%d%d IDENT %d\n", sizeof(msbrec), sizeof(lsbrec), sizeof(outerrec), lsb);
     m.w = 0;
     m.r.a = 1;
-    writeln(" MSB A=1   ", m.w:17 oct);
+    printf(" MSB A=1   %17o\n", m.w);
     m.w = 0;
     m.r.c = 1;
-    writeln(" MSB C=1   ", m.w:17 oct);
+    printf(" MSB C=1   %17o\n", m.w);
     l.w = 0;
     l.r.a = 1;
-    writeln(" LSB A=1   ", l.w:17 oct);
+    printf(" LSB A=1   %17o\n", l.w);
     l.w = 0;
     l.r.c = 1;
-    writeln(" LSB C=1   ", l.w:17 oct);
+    printf(" LSB C=1   %17o\n", l.w);
     m.w = 0;
     m.r.a = 63;
     m.r.b = 9;
@@ -58,15 +57,14 @@ void main() {
     l.r.a = 63;
     l.r.b = 9;
     l.r.c = 7;
-    writeln(" READBACK  ", m.r.a:3, m.r.b:3, m.r.c:3,
-            " / ", l.r.a:3, l.r.b:3, l.r.c:3);
+    printf(" READBACK  %3o%3o%3o / %3o%3o%3o\n", m.r.a, m.r.b, m.r.c, l.r.a, l.r.b, l.r.c);
     o.w = 0;
     o.r.head = 1;
-    writeln(" OUT HEAD  ", o.w:17 oct);
+    printf(" OUT HEAD  %17o\n", o.w);
     o.w = 0;
     o.r.inner.x = 1;
-    writeln(" OUT INNX  ", o.w:17 oct);
+    printf(" OUT INNX  %17o\n", o.w);
     o.w = 0;
     o.r.tail = 1;
-    writeln(" OUT TAIL  ", o.w:17 oct);
+    printf(" OUT TAIL  %17o\n", o.w);
 }

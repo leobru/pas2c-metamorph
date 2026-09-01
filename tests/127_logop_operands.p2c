@@ -20,29 +20,29 @@ void main() {
     // RMWASSIGN operand: the value is in the accumulator, omega is additive
     i = 3; m = 1;
     if (--i && m) r = 1; else r = 0;
-    writeln(" A RMWAND  ", r:0, ' ', i:0);
+    printf(" A RMWAND  %d %d\n", r, i);
     // the operand's load repeats the store just before it
     m = 1; n = 3; n = n - 1;
     if (n && m) r = 1; else r = 0;
-    writeln(" B ELIDAND ", r:0);
+    printf(" B ELIDAND %d\n", r);
     n = 2; m = 1;
     if (n && m) r = 1; else r = 0;
-    writeln(" C PLAIN   ", r:0);
+    printf(" C PLAIN   %d\n", r);
     // two pointers
     r1.nxt = &r2; p = &r1; q = r1.nxt;
     if (p && q) r = 1; else r = 0;
-    writeln(" D PTRAND  ", r:0);
+    printf(" D PTRAND  %d\n", r);
     p = NULL; q = &r2;
     if (p || q) r = 1; else r = 0;
-    writeln(" E PTROR   ", r:0);
+    printf(" E PTROR   %d\n", r);
     // a packed field against an int -- the pair typeCheck would have refused
     b.f = 1; b.n = 0; m = 1;
     if (b.f && m) r = 1; else r = 0;
-    writeln(" F BITAND  ", r:0);
+    printf(" F BITAND  %d\n", r);
     if (b.n && m) r = 1; else r = 0;
-    writeln(" G BITZERO ", r:0);
+    printf(" G BITZERO %d\n", r);
     // short-circuit still short-circuits: n must stay 5
     n = 5; p = NULL;
     if (p && (n = 9)) r = 1; else r = 0;
-    writeln(" H SHORT   ", r:0, ' ', n:0);
+    printf(" H SHORT   %d %d\n", r, n);
 }

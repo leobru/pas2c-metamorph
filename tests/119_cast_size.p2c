@@ -12,5 +12,5 @@ int k;
 void main() {
     t.a  =  1;
     k  =  (int)t;
-    writeln(" NEVER ", k:0);
+    printf(" NEVER %d\n", k);
 }

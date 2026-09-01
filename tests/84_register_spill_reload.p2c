@@ -55,8 +55,8 @@ void main() {
         probe = probe + 100;
         p->b = p->b + 1;
     }
-    writeln(" A1=", arr[1].pt.a:0, " B1=", arr[1].pt.b:0);
-    writeln(" A2=", arr[2].pt.a:0, " B2=", arr[2].pt.b:0);
-    writeln(" A3=", arr[3].pt.a:0, " B3=", arr[3].pt.b:0);
-    writeln(" TAGS=", arr[1].tag:0, ' ', arr[3].tag:0, " PROBE=", probe:0);
+    printf(" A1=%d B1=%d\n", arr[1].pt.a, arr[1].pt.b);
+    printf(" A2=%d B2=%d\n", arr[2].pt.a, arr[2].pt.b);
+    printf(" A3=%d B3=%d\n", arr[3].pt.a, arr[3].pt.b);
+    printf(" TAGS=%d %d PROBE=%d\n", arr[1].tag, arr[3].tag, probe);
 }

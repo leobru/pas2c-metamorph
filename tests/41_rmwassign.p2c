@@ -31,15 +31,15 @@ void main() {
     /* simple array element via variable index */
     arr[0] = 10; arr[1] = 20; arr[2] = 30; arr[3] = 40;
     i = 1;
-    arr[i] += 5;        writeln(" a01 ", arr[1]:0);
-    arr[i] -= 3;        writeln(" a02 ", arr[1]:0);
-    arr[i] *= 2;        writeln(" a03 ", arr[1]:0);
-    ++arr[i];           writeln(" a04 ", arr[1]:0);
-    --arr[i];           writeln(" a05 ", arr[1]:0);
+    arr[i] += 5;        printf(" a01 %d\n", arr[1]);
+    arr[i] -= 3;        printf(" a02 %d\n", arr[1]);
+    arr[i] *= 2;        printf(" a03 %d\n", arr[1]);
+    ++arr[i];           printf(" a04 %d\n", arr[1]);
+    --arr[i];           printf(" a05 %d\n", arr[1]);
 
     /* computed-index access: arr[i+1] */
-    arr[i+1] += 100;    writeln(" a06 ", arr[2]:0);
-    ++arr[i+1];         writeln(" a07 ", arr[2]:0);
+    arr[i+1] += 100;    printf(" a06 %d\n", arr[2]);
+    ++arr[i+1];         printf(" a07 %d\n", arr[2]);
 
     /* multi-dim subscripting */
     i = 0; j = 0;
@@ -51,52 +51,52 @@ void main() {
         };
         ++i;
     };
-    mat[1][2] += 7;     writeln(" m01 ", mat[1][2]:0);
-    --mat[2][0];        writeln(" m02 ", mat[2][0]:0);
+    mat[1][2] += 7;     printf(" m01 %d\n", mat[1][2]);
+    --mat[2][0];        printf(" m02 %d\n", mat[2][0]);
 
     /* pointer deref */
     n = 50;
     p = &n;
-    *p += 4;            writeln(" p01 ", n:0);
-    *p -= 1;            writeln(" p02 ", n:0);
-    ++(*p);             writeln(" p03 ", n:0);
+    *p += 4;            printf(" p01 %d\n", n);
+    *p -= 1;            printf(" p02 %d\n", n);
+    ++(*p);             printf(" p03 %d\n", n);
 
     /* struct field via pointer */
     r.x = 100; r.y = 200;
     rp = &r;
-    rp->x += 11;        writeln(" r01 ", r.x:0);
-    rp->y -= 25;        writeln(" r02 ", r.y:0);
-    ++rp->x;            writeln(" r03 ", r.x:0);
-    --rp->y;            writeln(" r04 ", r.y:0);
+    rp->x += 11;        printf(" r01 %d\n", r.x);
+    rp->y -= 25;        printf(" r02 %d\n", r.y);
+    ++rp->x;            printf(" r03 %d\n", r.x);
+    --rp->y;            printf(" r04 %d\n", r.y);
 
     /* bit ops on indexed element */
     arr[0] = 12;
-    arr[0] |= 1;        writeln(" b01 ", arr[0]:0);
-    arr[0] &= 7;        writeln(" b02 ", arr[0]:0);
-    arr[0] ^= 2;        writeln(" b03 ", arr[0]:0);
-    arr[0] <<= 1;       writeln(" b04 ", arr[0]:0);
-    arr[0] >>= 2;       writeln(" b05 ", arr[0]:0);
+    arr[0] |= 1;        printf(" b01 %d\n", arr[0]);
+    arr[0] &= 7;        printf(" b02 %d\n", arr[0]);
+    arr[0] ^= 2;        printf(" b03 %d\n", arr[0]);
+    arr[0] <<= 1;       printf(" b04 %d\n", arr[0]);
+    arr[0] >>= 2;       printf(" b05 %d\n", arr[0]);
 
     /* field of a field: no code beyond a displacement, so walked twice */
     o.sub.v = 7; o.t = 1;
-    o.sub.v += 3;       writeln(" n01 ", o.sub.v:0);
-    ++o.sub.v;          writeln(" n02 ", o.sub.v:0);
+    o.sub.v += 3;       printf(" n01 %d\n", o.sub.v);
+    ++o.sub.v;          printf(" n02 %d\n", o.sub.v);
 
     /* field of an element at a variable index: likewise */
     ra[0].x = 1; ra[1].x = 2; ra[2].x = 3;
     i = 2;
-    ra[i].x += 6;       writeln(" e01 ", ra[2].x:0);
-    --ra[i].x;          writeln(" e02 ", ra[2].x:0);
+    ra[i].x += 6;       printf(" e01 %d\n", ra[2].x);
+    --ra[i].x;          printf(" e02 %d\n", ra[2].x);
 
     /* deref of a deref: the inner one needs ACC, so the address is spilled */
     n = 60;
     p = &n;
     pp = &p;
-    **pp += 5;          writeln(" d01 ", n:0);
-    ++(**pp);           writeln(" d02 ", n:0);
+    **pp += 5;          printf(" d01 %d\n", n);
+    ++(**pp);           printf(" d02 %d\n", n);
 
     /* address arithmetic under the deref: spilled for the same reason */
     arr[0] = 3; arr[1] = 4;
     p = &arr[0];
-    *(p+1) += 9;        writeln(" d03 ", arr[1]:0);
+    *(p+1) += 9;        printf(" d03 %d\n", arr[1]);
 }

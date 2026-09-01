@@ -6,19 +6,13 @@ int t;
 
 void main() {
     t = 7;
-    writeln(" ID     ", t:0);
-    writeln(" CHAR   ", (int)t'A':0, ' ', (int)T'B':0,
-            ' ', (int)t'\n':0);
-    writeln(" WORD   ",
-            (t'ABCDEFGH' == 04142434445464750U):0, ' ',
-            (T'ASSEMBLE' == t'ASSEMBLE'):0);
+    printf(" ID     %d\n", t);
+    printf(" CHAR   %d %d %d\n", (int)t'A', (int)T'B', (int)t'\n');
+    printf(" WORD   %d %d\n", (t'ABCDEFGH' == 04142434445464750U), (T'ASSEMBLE' == t'ASSEMBLE'));
     // Any length up to a word packs the same way, right-aligned: two
     // characters are the first times 64 plus the second, and the ones below
     // eight simply leave the top of the word empty.
-    writeln(" SHORT  ",
-            (t'AB' == 04142U):0, ' ', (t'ABC' == 0414243U):0, ' ',
-            (t'ABCDEFG' == 041424344454647U):0, ' ',
-            ((t'AB' >> 6) == (int)t'A'):0);
-    writeln(" STRING ", (int)s[0]:0, ' ', (int)s[1]:0,
-            ' ', sizeof(t"AB"):0);
+    printf(" SHORT  %d %d %d %d\n", (t'AB' == 04142U), (t'ABC' == 0414243U),
+           (t'ABCDEFG' == 041424344454647U), ((t'AB' >> 6) == (int)t'A'));
+    printf(" STRING %d %d %d\n", (int)s[0], (int)s[1], sizeof(t"AB"));
 }

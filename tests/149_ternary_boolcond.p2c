@@ -13,66 +13,67 @@
 //
 int a, b, i, r, q, n;
 //
+void putln() assembler;
 // Counts its calls, so a skipped operand can be seen to have been skipped.
 int side(int v) { n = n + 1;  return v; }
 //
 void main() {
-    write(" AND  ");
+    printf(" AND  ");
     for (i = 0; i <= 3; i = i + 1) {
         a = i / 2;  b = i % 2;
         r = a && b ? 1 : 0;
         if (a && b) q = 1; else q = 0;
-        write((r == q ? r : 9):2);
+        printf("%2d", (r == q ? r : 9));
     }
-    write("   OR  ");
+    printf("   OR  ");
     for (i = 0; i <= 3; i = i + 1) {
         a = i / 2;  b = i % 2;
         r = a || b ? 1 : 0;
         if (a || b) q = 1; else q = 0;
-        write((r == q ? r : 9):2);
+        printf("%2d", (r == q ? r : 9));
     }
-    writeln();
-    write(" NOT  ");
+    putln();
+    printf(" NOT  ");
     for (i = 0; i <= 3; i = i + 1) {
         a = i / 2;  b = i % 2;
         r = !(a && b) ? 1 : 0;
         if (!(a && b)) q = 1; else q = 0;
-        write((r == q ? r : 9):2);
+        printf("%2d", (r == q ? r : 9));
     }
-    write("   CMP ");
+    printf("   CMP ");
     // The right operand as a comparison, both polarities.
     for (i = 0; i <= 3; i = i + 1) {
         a = i / 2;  b = i % 2;
         r = a && b == 1 ? 1 : 0;
         if (a && b == 1) q = 1; else q = 0;
-        write((r == q ? r : 9):2);
+        printf("%2d", (r == q ? r : 9));
     }
-    writeln();
-    write(" CHAIN");
+    putln();
+    printf(" CHAIN");
     // Three operands, and a mixed chain.
     for (i = 0; i <= 3; i = i + 1) {
         a = i / 2;  b = i % 2;
         r = a && b && i != 0 ? 1 : 0;
         if (a && b && i != 0) q = 1; else q = 0;
-        write((r == q ? r : 9):2);
+        printf("%2d", (r == q ? r : 9));
     }
-    write("   MIX ");
+    printf("   MIX ");
     for (i = 0; i <= 3; i = i + 1) {
         a = i / 2;  b = i % 2;
         r = a || b && i > 1 ? 1 : 0;
         if (a || b && i > 1) q = 1; else q = 0;
-        write((r == q ? r : 9):2);
+        printf("%2d", (r == q ? r : 9));
     }
-    writeln();
+    putln();
     // A ternary in an arm of a ternary, the condition compound throughout.
     a = 1;  b = 1;
     r = a && b ? (a || b ? 7 : 8) : 9;
-    writeln(" NEST ", r:3);
+    printf(" NEST %3d\n", r);
     // Short-circuit: the right operand is not evaluated when the left decides.
     n = 0;  a = 0;
     r = a && side(1) ? 1 : 0;
-    writeln(" SHORT", r:3, n:3, "   want   0  0");
+    printf(" SHORT%3d%3d   want   0  0\n", r, n);
     n = 0;  a = 1;
     r = a || side(1) ? 1 : 0;
-    writeln(" SHORT", r:3, n:3, "   want   1  0");
+    printf(" SHORT%3d%3d   want   1  0\n", r, n);
 }

@@ -149,28 +149,28 @@ int fewNeg(int n) {
 }
 //
 void main() {
-    writeln(" ODDMIN");
+    printf(" ODDMIN\n");
     for (i = -7; i <= 6; i = i + 1)
-        writeln("   N ", i:6, " R ", oddMin(i):5);
-    writeln(" EVENMIN");
+        printf("   N %6d R %5d\n", i, oddMin(i));
+    printf(" EVENMIN\n");
     for (i = -8; i <= 5; i = i + 1)
-        writeln("   N ", i:6, " R ", evenMin(i):5);
-    writeln(" ALLNEG");
+        printf("   N %6d R %5d\n", i, evenMin(i));
+    printf(" ALLNEG\n");
     for (i = -14; i <= -1; i = i + 1)
-        writeln("   N ", i:6, " R ", allNeg(i):5);
-    writeln(" FARNEG");
+        printf("   N %6d R %5d\n", i, allNeg(i));
+    printf(" FARNEG\n");
     for (i = -1002; i <= -989; i = i + 1)
-        writeln("   N ", i:6, " R ", farNeg(i):5);
-    writeln(" ODDWIDE");
+        printf("   N %6d R %5d\n", i, farNeg(i));
+    printf(" ODDWIDE\n");
     for (i = -1001; i <= -987; i = i + 1)
-        writeln("   N ", i:6, " R ", oddWide(i):5);
-    writeln(" GAPWIDE");
+        printf("   N %6d R %5d\n", i, oddWide(i));
+    printf(" GAPWIDE\n");
     for (i = -11; i <= 1; i = i + 1)
-        writeln("   N ", i:6, " R ", gapWide(i):5);
-    writeln(" GAPFEW");
+        printf("   N %6d R %5d\n", i, gapWide(i));
+    printf(" GAPFEW\n");
     for (i = -9; i <= 1; i = i + 1)
-        writeln("   N ", i:6, " R ", gapFew(i):5);
-    writeln(" FEWNEG");
+        printf("   N %6d R %5d\n", i, gapFew(i));
+    printf(" FEWNEG\n");
     for (i = -5; i <= 1; i = i + 1)
-        writeln("   N ", i:6, " R ", fewNeg(i):5);
+        printf("   N %6d R %5d\n", i, fewNeg(i));
 }

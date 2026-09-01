@@ -1,4 +1,4 @@
 /*=k9,l0*/
 void main() {
-    writeln("SIZES=", sizeof(_input_):0, ' ', sizeof(_output_):0);
+    printf("SIZES=%d %d\n", sizeof(_input_), sizeof(_output_));
 }

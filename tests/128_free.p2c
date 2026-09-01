@@ -17,5 +17,5 @@ void main() {
     free(r, 1);
     again = malloc(6);
 
-    writeln("free reuse ", again == p:0);
+    printf("free reuse %d\n", again == p);
 }

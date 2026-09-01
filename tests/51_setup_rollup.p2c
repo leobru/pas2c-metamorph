@@ -12,5 +12,5 @@ void main() {
     rollup(mark);
     q = malloc(1);
     *q = 222;
-    writeln(" after rollup p=", *p:0);
+    printf(" after rollup p=%d\n", *p);
 }

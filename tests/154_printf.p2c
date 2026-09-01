@@ -7,7 +7,8 @@ void main() {
     printf(fmt, -42, 63, 'X', 'ABCDEF', "str", 1.5, 1.5);
     printf("[%5.1S][%4C][%8A][%6D][%6O]\n",
            "xy", 'Q', 'ABCDEF', 7, 8);
-    printf("F=[%10.2F] E=[%12.3E] T=[%T]\n", 1.5, 2.25, 0);
+    printf("F=[%10.2F] E=[%12.3E] T=[%12T]\n",
+           1.5, 2.25, t'ABCDEFGH');
     printf("STAR D=[%*D] F=[%*.*F]\n", 6, 7, 10, 2, 1.5);
     /* An unknown conversion is literal and consumes no actual. */
     printf("unknown=%Q D=%D %%\n", 9);

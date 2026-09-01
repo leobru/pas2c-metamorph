@@ -33,142 +33,142 @@
 int a, b, q, r, n;
 void main() {
     /* ---------- A. constant folding (path 1) ---------- */
-    q = 100 / 7;          writeln(" A01 ", q:0);
-    r = 100 % 7;          writeln(" A02 ", r:0);
-    q = 1024 / 32;        writeln(" A03 ", q:0);
-    r = 1024 % 32;        writeln(" A04 ", r:0);
-    q = 1 / 1;            writeln(" A05 ", q:0);
-    r = 1 % 1;            writeln(" A06 ", r:0);
-    q = 0 / 7;            writeln(" A07 ", q:0);
-    r = 0 % 7;            writeln(" A08 ", r:0);
-    q = 999999 / 1000;    writeln(" A09 ", q:0);
-    r = 999999 % 1000;    writeln(" A10 ", r:0);
+    q = 100 / 7;          printf(" A01 %d\n", q);
+    r = 100 % 7;          printf(" A02 %d\n", r);
+    q = 1024 / 32;        printf(" A03 %d\n", q);
+    r = 1024 % 32;        printf(" A04 %d\n", r);
+    q = 1 / 1;            printf(" A05 %d\n", q);
+    r = 1 % 1;            printf(" A06 %d\n", r);
+    q = 0 / 7;            printf(" A07 %d\n", q);
+    r = 0 % 7;            printf(" A08 %d\n", r);
+    q = 999999 / 1000;    printf(" A09 %d\n", q);
+    r = 999999 % 1000;    printf(" A10 %d\n", r);
     /* a folded quotient truncates toward zero and the remainder follows the
        dividend */
-    q = -100 / 7;         writeln(" A11 ", q:0);
-    r = -100 % 7;         writeln(" A12 ", r:0);
-    q = -100 / 4;         writeln(" A13 ", q:0);
-    r = -100 % 4;         writeln(" A14 ", r:0);
+    q = -100 / 7;         printf(" A11 %d\n", q);
+    r = -100 % 7;         printf(" A12 %d\n", r);
+    q = -100 / 4;         printf(" A13 %d\n", q);
+    r = -100 % 4;         printf(" A14 %d\n", r);
 
     /* ---------- B. variable / power-of-two constant ---------------- */
     a = 1024;
-    q = a / 1;            writeln(" B01 ", q:0);
-    q = a / 2;            writeln(" B02 ", q:0);
-    q = a / 4;            writeln(" B03 ", q:0);
-    q = a / 8;            writeln(" B04 ", q:0);
-    q = a / 16;           writeln(" B05 ", q:0);
-    q = a / 32;           writeln(" B06 ", q:0);
-    q = a / 64;           writeln(" B07 ", q:0);
-    q = a / 128;          writeln(" B08 ", q:0);
-    q = a / 256;          writeln(" B09 ", q:0);
-    q = a / 1024;         writeln(" B10 ", q:0);
+    q = a / 1;            printf(" B01 %d\n", q);
+    q = a / 2;            printf(" B02 %d\n", q);
+    q = a / 4;            printf(" B03 %d\n", q);
+    q = a / 8;            printf(" B04 %d\n", q);
+    q = a / 16;           printf(" B05 %d\n", q);
+    q = a / 32;           printf(" B06 %d\n", q);
+    q = a / 64;           printf(" B07 %d\n", q);
+    q = a / 128;          printf(" B08 %d\n", q);
+    q = a / 256;          printf(" B09 %d\n", q);
+    q = a / 1024;         printf(" B10 %d\n", q);
     a = 1023;
-    q = a / 4;            writeln(" B11 ", q:0);
-    q = a / 1024;         writeln(" B12 ", q:0);
+    q = a / 4;            printf(" B11 %d\n", q);
+    q = a / 1024;         printf(" B12 %d\n", q);
 
     /* ---------- C. variable / non-power-of-two constant ------------- */
     a = 100;
-    q = a / 3;            writeln(" C01 ", q:0);
-    q = a / 5;            writeln(" C02 ", q:0);
-    q = a / 6;            writeln(" C03 ", q:0);
-    q = a / 7;            writeln(" C04 ", q:0);
-    q = a / 9;            writeln(" C05 ", q:0);
-    q = a / 10;           writeln(" C06 ", q:0);
-    q = a / 11;           writeln(" C07 ", q:0);
-    q = a / 13;           writeln(" C08 ", q:0);
-    q = a / 25;           writeln(" C09 ", q:0);
-    q = a / 33;           writeln(" C10 ", q:0);
-    q = a / 99;           writeln(" C11 ", q:0);
-    q = a / 100;          writeln(" C12 ", q:0);
-    q = a / 101;          writeln(" C13 ", q:0);
+    q = a / 3;            printf(" C01 %d\n", q);
+    q = a / 5;            printf(" C02 %d\n", q);
+    q = a / 6;            printf(" C03 %d\n", q);
+    q = a / 7;            printf(" C04 %d\n", q);
+    q = a / 9;            printf(" C05 %d\n", q);
+    q = a / 10;           printf(" C06 %d\n", q);
+    q = a / 11;           printf(" C07 %d\n", q);
+    q = a / 13;           printf(" C08 %d\n", q);
+    q = a / 25;           printf(" C09 %d\n", q);
+    q = a / 33;           printf(" C10 %d\n", q);
+    q = a / 99;           printf(" C11 %d\n", q);
+    q = a / 100;          printf(" C12 %d\n", q);
+    q = a / 101;          printf(" C13 %d\n", q);
     a = 1000000;
-    q = a / 7;            writeln(" C14 ", q:0);
-    q = a / 13;           writeln(" C15 ", q:0);
-    q = a / 999;          writeln(" C16 ", q:0);
+    q = a / 7;            printf(" C14 %d\n", q);
+    q = a / 13;           printf(" C15 %d\n", q);
+    q = a / 999;          printf(" C16 %d\n", q);
 
     /* ---------- D. variable % power-of-two constant ----------------- */
     a = 1023;
-    r = a % 1;            writeln(" D01 ", r:0);   /* mask = empty   */
-    r = a % 2;            writeln(" D02 ", r:0);
-    r = a % 4;            writeln(" D03 ", r:0);
-    r = a % 8;            writeln(" D04 ", r:0);
-    r = a % 16;           writeln(" D05 ", r:0);
-    r = a % 32;           writeln(" D06 ", r:0);
-    r = a % 64;           writeln(" D07 ", r:0);
-    r = a % 128;          writeln(" D08 ", r:0);
-    r = a % 256;          writeln(" D09 ", r:0);
-    r = a % 512;          writeln(" D10 ", r:0);
-    r = a % 1024;         writeln(" D11 ", r:0);
+    r = a % 1;            printf(" D01 %d\n", r);   /* mask = empty   */
+    r = a % 2;            printf(" D02 %d\n", r);
+    r = a % 4;            printf(" D03 %d\n", r);
+    r = a % 8;            printf(" D04 %d\n", r);
+    r = a % 16;           printf(" D05 %d\n", r);
+    r = a % 32;           printf(" D06 %d\n", r);
+    r = a % 64;           printf(" D07 %d\n", r);
+    r = a % 128;          printf(" D08 %d\n", r);
+    r = a % 256;          printf(" D09 %d\n", r);
+    r = a % 512;          printf(" D10 %d\n", r);
+    r = a % 1024;         printf(" D11 %d\n", r);
     a = 1024;
-    r = a % 1024;         writeln(" D12 ", r:0);
+    r = a % 1024;         printf(" D12 %d\n", r);
     a = 65;
-    r = a % 64;           writeln(" D13 ", r:0);
+    r = a % 64;           printf(" D13 %d\n", r);
 
     /* ---------- E. variable % non-power-of-two constant ------------- */
     a = 100;
-    r = a % 3;            writeln(" E01 ", r:0);
-    r = a % 5;            writeln(" E02 ", r:0);
-    r = a % 6;            writeln(" E03 ", r:0);
-    r = a % 7;            writeln(" E04 ", r:0);
-    r = a % 9;            writeln(" E05 ", r:0);
-    r = a % 10;           writeln(" E06 ", r:0);
-    r = a % 11;           writeln(" E07 ", r:0);
-    r = a % 13;           writeln(" E08 ", r:0);
-    r = a % 25;           writeln(" E09 ", r:0);
-    r = a % 33;           writeln(" E10 ", r:0);
-    r = a % 99;           writeln(" E11 ", r:0);
-    r = a % 100;          writeln(" E12 ", r:0);
-    r = a % 101;          writeln(" E13 ", r:0);
+    r = a % 3;            printf(" E01 %d\n", r);
+    r = a % 5;            printf(" E02 %d\n", r);
+    r = a % 6;            printf(" E03 %d\n", r);
+    r = a % 7;            printf(" E04 %d\n", r);
+    r = a % 9;            printf(" E05 %d\n", r);
+    r = a % 10;           printf(" E06 %d\n", r);
+    r = a % 11;           printf(" E07 %d\n", r);
+    r = a % 13;           printf(" E08 %d\n", r);
+    r = a % 25;           printf(" E09 %d\n", r);
+    r = a % 33;           printf(" E10 %d\n", r);
+    r = a % 99;           printf(" E11 %d\n", r);
+    r = a % 100;          printf(" E12 %d\n", r);
+    r = a % 101;          printf(" E13 %d\n", r);
     a = 1000000;
-    r = a % 7;            writeln(" E14 ", r:0);
-    r = a % 13;           writeln(" E15 ", r:0);
-    r = a % 999;          writeln(" E16 ", r:0);
+    r = a % 7;            printf(" E14 %d\n", r);
+    r = a % 13;           printf(" E15 %d\n", r);
+    r = a % 999;          printf(" E16 %d\n", r);
 
     /* ---------- F. positive edge cases ---------- */
     a = 0;
-    q = a / 7;            writeln(" F01 ", q:0);
-    r = a % 7;            writeln(" F02 ", r:0);
-    q = a / 8;            writeln(" F03 ", q:0);
-    r = a % 8;            writeln(" F04 ", r:0);
+    q = a / 7;            printf(" F01 %d\n", q);
+    r = a % 7;            printf(" F02 %d\n", r);
+    q = a / 8;            printf(" F03 %d\n", q);
+    r = a % 8;            printf(" F04 %d\n", r);
     /* dividend smaller than divisor */
     a = 5;
-    q = a / 7;            writeln(" F05 ", q:0);
-    r = a % 7;            writeln(" F06 ", r:0);
-    q = a / 8;            writeln(" F07 ", q:0);
-    r = a % 8;            writeln(" F08 ", r:0);
+    q = a / 7;            printf(" F05 %d\n", q);
+    r = a % 7;            printf(" F06 %d\n", r);
+    q = a / 8;            printf(" F07 %d\n", q);
+    r = a % 8;            printf(" F08 %d\n", r);
     /* exact multiple */
     a = 56;
-    q = a / 7;            writeln(" F09 ", q:0);
-    r = a % 7;            writeln(" F10 ", r:0);
-    q = a / 8;            writeln(" F11 ", q:0);
-    r = a % 8;            writeln(" F12 ", r:0);
+    q = a / 7;            printf(" F09 %d\n", q);
+    r = a % 7;            printf(" F10 %d\n", r);
+    q = a / 8;            printf(" F11 %d\n", q);
+    r = a % 8;            printf(" F12 %d\n", r);
     /* combined / and %: q*n+r should rebuild the dividend */
     a = 12345;
     q = a / 100;
     r = a % 100;
-    n = q * 100 + r;      writeln(" F13 ", n:0);
+    n = q * 100 + r;      printf(" F13 %d\n", n);
     a = 12345;
     q = a / 128;
     r = a % 128;
-    n = q * 128 + r;      writeln(" F14 ", n:0);
+    n = q * 128 + r;      printf(" F14 %d\n", n);
     /* chained division collapses across the magic-number path */
     a = 100000;
-    q = a / 2 / 5;        writeln(" F15 ", q:0);
-    q = a / 5 / 2;        writeln(" F16 ", q:0);
-    q = (a / 7) % 11;     writeln(" F17 ", q:0);
+    q = a / 2 / 5;        printf(" F15 %d\n", q);
+    q = a / 5 / 2;        printf(" F16 %d\n", q);
+    q = (a / 7) % 11;     printf(" F17 %d\n", q);
 
     /* ---------- G. op-assign forms ---------- */
     a = 1000;
-    a /= 4;               writeln(" G01 ", a:0);
-    a /= 5;               writeln(" G02 ", a:0);
+    a /= 4;               printf(" G01 %d\n", a);
+    a /= 5;               printf(" G02 %d\n", a);
     a = 1000;
-    a /= 7;               writeln(" G03 ", a:0);
+    a /= 7;               printf(" G03 %d\n", a);
     a = 1000;
-    a %= 6;               writeln(" G04 ", a:0);
+    a %= 6;               printf(" G04 %d\n", a);
     a = 1000;
-    a %= 8;               writeln(" G05 ", a:0);
+    a %= 8;               printf(" G05 %d\n", a);
     a = 1001;
-    a %= 8;               writeln(" G06 ", a:0);
+    a %= 8;               printf(" G06 %d\n", a);
 
     /* ---------- H. variable / variable (path 5: runtime helper) -----
      * C/DI truncates: q = trunc(a/b), the sign coming back only after the
@@ -177,20 +177,20 @@ void main() {
      * same, which is what the B..G sections above check against these.
      */
     a = 100;  b = 7;
-    q = a / b;            writeln(" H01 ", q:0);
-    r = a % b;            writeln(" H02 ", r:0);
+    q = a / b;            printf(" H01 %d\n", q);
+    r = a % b;            printf(" H02 %d\n", r);
     a = 1024; b = 8;
-    q = a / b;            writeln(" H03 ", q:0);
-    r = a % b;            writeln(" H04 ", r:0);
+    q = a / b;            printf(" H03 %d\n", q);
+    r = a % b;            printf(" H04 %d\n", r);
     a = 1024; b = 1;
-    q = a / b;            writeln(" H05 ", q:0);   /* exact via helper */
+    q = a / b;            printf(" H05 %d\n", q);   /* exact via helper */
     a = -100; b = 7;
-    q = a / b;            writeln(" H06 ", q:0);
-    r = a % b;            writeln(" H07 ", r:0);
+    q = a / b;            printf(" H06 %d\n", q);
+    r = a % b;            printf(" H07 %d\n", r);
     a = -100; b = 4;
-    q = a / b;            writeln(" H08 ", q:0);
-    r = a % b;            writeln(" H09 ", r:0);
+    q = a / b;            printf(" H08 %d\n", q);
+    r = a % b;            printf(" H09 %d\n", r);
     a = -7;   b = 4;
-    q = a / b;            writeln(" H10 ", q:0);
-    r = a % b;            writeln(" H11 ", r:0);
+    q = a / b;            printf(" H10 %d\n", q);
+    r = a % b;            printf(" H11 %d\n", r);
 }

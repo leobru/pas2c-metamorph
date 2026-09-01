@@ -65,19 +65,17 @@ plain vp;
     vp  =  mkplain(5);
     // (int)... only to print in decimal: a sub-word field's own type is a
     // narrow scalar, which writeln renders in octal.
-    writeln(" LSB VAR    ", (int)vl.f.a:5, (int)vl.f.b:6, (int)vl.f.c:5);
-    writeln(" LSB CALL   ", (int)mklsb(37).f.a:5, (int)mklsb(37).f.b:6,
-                            (int)mklsb(37).f.c:5);
-    writeln(" MSB VAR    ", (int)vm.f.p:5, (int)vm.f.q:6, (int)vm.f.r:5);
-    writeln(" MSB CALL   ", (int)mkmsb(37).f.p:5, (int)mkmsb(37).f.q:6,
-                            (int)mkmsb(37).f.r:5);
-    writeln(" PLAIN      ", vp.only:5, mkplain(5).only:5);
+    printf(" LSB VAR    %5d%6d%5d\n", (int)vl.f.a, (int)vl.f.b, (int)vl.f.c);
+    printf(" LSB CALL   %5d%6d%5d\n", (int)mklsb(37).f.a, (int)mklsb(37).f.b, (int)mklsb(37).f.c);
+    printf(" MSB VAR    %5d%6d%5d\n", (int)vm.f.p, (int)vm.f.q, (int)vm.f.r);
+    printf(" MSB CALL   %5d%6d%5d\n", (int)mkmsb(37).f.p, (int)mkmsb(37).f.q, (int)mkmsb(37).f.r);
+    printf(" PLAIN      %5d%5d\n", vp.only, mkplain(5).only);
     // Through a returned pointer: genDeref's business, not prepLoad's.
-    writeln(" ARROW      ", pick(1)->v:5, pick(0)->v:5);
+    printf(" ARROW      %5d%5d\n", pick(1)->v, pick(0)->v);
     // The extraction has to work outside a plain assignment too.
     if (mklsb(9).f.a == 9)
-        write(" COND OK   ");
+        printf(" COND OK   ");
     else
-        write(" COND BAD  ");
-    writeln(twice(mklsb(21).f.a):5, (int)(mklsb(4).f.a + mklsb(6).f.a):5);
+        printf(" COND BAD  ");
+    printf("%5d%5d\n", twice(mklsb(21).f.a), (int)(mklsb(4).f.a + mklsb(6).f.a));
 }

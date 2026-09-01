@@ -15,5 +15,5 @@ void main() {
         fputw(i + 1, &_child_);
     }
     fclose(&_child_);
-    writeln(i:0);
+    printf("%d\n", i);
 }

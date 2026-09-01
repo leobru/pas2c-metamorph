@@ -22,35 +22,35 @@ void main() {
     // do-while, raw int  -- expect 3 iterations, i = 3+2+1 = 6
     n = 3; i = 0;
     do { i = i + n; n = n - 1; } while (n);
-    writeln(" A DOINT   ", i:0, ' ', n:0);
+    printf(" A DOINT   %d %d\n", i, n);
     // do-while, comparison form -- expect the same
     n = 3; i = 0;
     do { i = i + n; n = n - 1; } while (n != 0);
-    writeln(" B DOCMP   ", i:0, ' ', n:0);
+    printf(" B DOCMP   %d %d\n", i, n);
     // if after a store -- 2 is nonzero, expect YES
     n = 3; n = n - 1;
-    if (n) writeln(" C IFINT   YES"); else writeln(" C IFINT   NO");
+    if (n) printf(" C IFINT   YES\n"); else printf(" C IFINT   NO\n");
     // if after a store landing on zero -- expect NO
     n = 1; n = n - 1;
-    if (n) writeln(" D IFZERO  YES"); else writeln(" D IFZERO  NO");
+    if (n) printf(" D IFZERO  YES\n"); else printf(" D IFZERO  NO\n");
     // pre-test while after a store -- expect i = 2+1 = 3
     n = 3; n = n - 1; i = 0;
     while (n) { i = i + n; n = n - 1; }
-    writeln(" E WHINT   ", i:0);
+    printf(" E WHINT   %d\n", i);
     // do-while on a char -- 'C' is 3 codes above '@'; expect 3 iterations
     c = '\3'; i = 0;
     do { i = i + 1; c = c - '\1'; } while (c);
-    writeln(" F DOCHAR  ", i:0);
+    printf(" F DOCHAR  %d\n", i);
     // do-while on a packed field -- expect 3+2+1 = 6
     b.n = 3; i = 0;
     do { i = i + b.n; b.n = b.n - 1; } while (b.n);
-    writeln(" G DOBITS  ", i:0);
+    printf(" G DOBITS  %d\n", i);
     // do-while walking a list -- expect 1+2+4 = 7
     r1.v = 1; r1.nxt = &r2; r2.v = 2; r2.nxt = &r3; r3.v = 4; r3.nxt = NULL;
     p = &r1; i = 0;
     do { i = i + p->v; p = p->nxt; } while (p);
-    writeln(" H DOPTR   ", i:0);
+    printf(" H DOPTR   %d\n", i);
     // if on a pointer after a store -- expect NO
     p = &r1; p = p->nxt; p = p->nxt; p = p->nxt;
-    if (p) writeln(" I IFPTR   YES"); else writeln(" I IFPTR   NO");
+    if (p) printf(" I IFPTR   YES\n"); else printf(" I IFPTR   NO\n");
 }

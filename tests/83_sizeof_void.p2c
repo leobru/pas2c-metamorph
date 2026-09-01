@@ -36,19 +36,17 @@ int twice(int n) {
 }
 //
 void main() {
-    writeln(" PLAIN ", sizeof(void):0, ' ', sizeof(int):0, ' ', sizeof(char):0);
-    writeln(" PTR   ", sizeof(anyptr):0, ' ', sizeof(char *):0,
-            ' ', sizeof(int **):0, ' ', sizeof(int (*)(int)):0);
-    writeln(" ARRAY ", sizeof(trip):0, ' ', sizeof(int[4]):0,
-            ' ', sizeof(three):0);
-    writeln(" EXPR  ", sizeof(r):0, ' ', sizeof(i):0);
-    writeln(" ROUT  ", sizeof(twice):0, ' ', sizeof(fp):0, ' ', sizeof(twice(1)):0);
-    writeln(" OFF   ", offsetof(three, a):0, ' ', offsetof(three, b):0,
-            ' ', offsetof(three, c):0);
+    printf(" PLAIN %d %d %d\n", sizeof(void), sizeof(int), sizeof(char));
+    printf(" PTR   %d %d %d %d\n", sizeof(anyptr), sizeof(char *), sizeof(int **),
+           sizeof(int (*)(int)));
+    printf(" ARRAY %d %d %d\n", sizeof(trip), sizeof(int[4]), sizeof(three));
+    printf(" EXPR  %d %d\n", sizeof(r), sizeof(i));
+    printf(" ROUT  %d %d %d\n", sizeof(twice), sizeof(fp), sizeof(twice(1)));
+    printf(" OFF   %d %d %d\n", offsetof(three, a), offsetof(three, b), offsetof(three, c));
     o.x[3]  =  9;
     o.y[3]  =  4;
     a[sizeof(outer) - 1]  =  5;
-    writeln(" CONST ", N:0, ' ', (int)p:0, ' ', (int)q:0);
-    writeln(" FIELD ", sizeof(outer):0, ' ', o.x[3]:0, ' ', o.y[3]:0);
-    writeln(" BOUND ", sizeof(a):0, ' ', a[sizeof(outer) - 1]:0);
+    printf(" CONST %d %d %d\n", N, (int)p, (int)q);
+    printf(" FIELD %d %d %d\n", sizeof(outer), o.x[3], o.y[3]);
+    printf(" BOUND %d %d\n", sizeof(a), a[sizeof(outer) - 1]);
 }

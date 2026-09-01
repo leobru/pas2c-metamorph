@@ -39,56 +39,56 @@ void main() {
     int (*g)(int);
     float (*fr)(float);
     f = add2;
-    writeln(" ADD=", f(3, 4):0);
+    printf(" ADD=%d\n", f(3, 4));
     f = &mul2;
-    writeln(" MUL=", f(3, 4):0);
+    printf(" MUL=%d\n", f(3, 4));
     // '*' on a pointer to a routine is the identity.
-    writeln(" STAR=", (*f)(5, 6):0);
+    printf(" STAR=%d\n", (*f)(5, 6));
     g = negate;
-    writeln(" ONE=", g(9):0);
+    printf(" ONE=%d\n", g(9));
     gfn = add2;
-    writeln(" GLOB=", gfn(1, 2):0);
-    writeln(" ARG=", apply(mul2, 3, 5):0);
+    printf(" GLOB=%d\n", gfn(1, 2));
+    printf(" ARG=%d\n", apply(mul2, 3, 5));
     f = pick(0);
-    writeln(" RET0=", f(7, 8):0);
+    printf(" RET0=%d\n", f(7, 8));
     f = pick(1);
-    writeln(" RET1=", f(7, 8):0);
+    printf(" RET1=%d\n", f(7, 8));
     counter = 0;
     gproc = bump;
     gproc();
     gproc();
-    writeln(" PROC=", counter:0);
+    printf(" PROC=%d\n", counter);
     fr = scale;
-    writeln(" REAL=", fr(2.5):6:2);
+    printf(" REAL=%6.2f\n", fr(2.5));
     // An actual is converted the way an assignment would convert it.
-    writeln(" CONV=", fr(2):6:2);
+    printf(" CONV=%6.2f\n", fr(2));
     tbl[0] = add2;
     tbl[1] = mul2;
-    writeln(" TBL=", tbl[0](2, 3):0, ' ', tbl[1](2, 3):0);
+    printf(" TBL=%d %d\n", tbl[0](2, 3), tbl[1](2, 3));
     gfn = NULL;
     if (gfn == NULL)
-        writeln(" NULL=YES");
+        printf(" NULL=YES\n");
     else
-        writeln(" NULL=NO");
+        printf(" NULL=NO\n");
     gfn = mul2;
     if (gfn == NULL)
-        writeln(" NULL2=YES");
+        printf(" NULL2=YES\n");
     else
-        writeln(" NULL2=NO");
+        printf(" NULL2=NO\n");
     // A callee that is not directly addressable is marshalled like one more
     // argument: the push takes argument 1 out of the accumulator, STI takes
     // the entry address and pops the argument back.  A variable index, a
     // call's result, a conditional and a dereference all reach it.
-    i = 0;  writeln(" VARIDX=", tbl[i](2, 3):0);
-    i = 1;  writeln(" VARIDX=", tbl[i](2, 3):0);
-    writeln(" CALLRES=", pick(1)(7, 8):0);
-    i = 0;  writeln(" TERN=", (i == 0 ? add2 : mul2)(3, 4):0);
-    i = 1;  writeln(" TERN=", (i == 0 ? add2 : mul2)(3, 4):0);
+    i = 0;  printf(" VARIDX=%d\n", tbl[i](2, 3));
+    i = 1;  printf(" VARIDX=%d\n", tbl[i](2, 3));
+    printf(" CALLRES=%d\n", pick(1)(7, 8));
+    i = 0;  printf(" TERN=%d\n", (i == 0 ? add2 : mul2)(3, 4));
+    i = 1;  printf(" TERN=%d\n", (i == 0 ? add2 : mul2)(3, 4));
     pp = &gfn;
-    writeln(" DEREF=", (*pp)(6, 7):0);
+    printf(" DEREF=%d\n", (*pp)(6, 7));
     // With no argument there is nothing to pop, and ATI serves instead.
     counter = 0;
     ptbl[0] = bump;  ptbl[1] = bump;
     i = 1;  ptbl[i]();  ptbl[i]();
-    writeln(" NOARG=", counter:0);
+    printf(" NOARG=%d\n", counter);
 }

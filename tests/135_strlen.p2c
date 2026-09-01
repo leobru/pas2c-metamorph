@@ -30,5 +30,5 @@ void main() {
                 ok = 0;
         }
     }
-    writeln("strlen ", ok:0);
+    printf("strlen %d\n", ok);
 }

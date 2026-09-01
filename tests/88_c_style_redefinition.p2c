@@ -13,11 +13,11 @@ int add(int a, int b) { return a + b; }
 // Names of the definition's own choosing.
 int scaled(int v, int by) { return v * by; }
 
-void greet() { writeln(" GREET"); }
+void greet() { printf(" GREET\n"); }
 
 void main() {
     total = add(3, 4);
-    writeln(" ADD=", total:0);
-    writeln(" SCALED=", scaled(6, 7):0);
+    printf(" ADD=%d\n", total);
+    printf(" SCALED=%d\n", scaled(6, 7));
     greet();
 }

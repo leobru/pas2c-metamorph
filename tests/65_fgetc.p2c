@@ -27,6 +27,6 @@ void main() {
     a = fgetc(&f);
     b = fgetc(&f);
     c = fgetc(&f);
-    writeln(a:0, ' ', b:0, ' ', c:0);
+    printf("%d %d %d\n", a, b, c);
     fclose(&f);
 }

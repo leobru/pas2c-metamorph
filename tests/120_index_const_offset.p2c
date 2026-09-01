@@ -24,26 +24,25 @@ void main() {
     nested[i+3-4] += 4;
     rev[5-i] = 50;
     rev[5-i] += 5;
-    writeln("plain ", neg[2]:0, ' ', pos[5]:0, ' ', leftc[5]:0,
-            ' ', nested[2]:0, ' ', rev[2]:0);
+    printf("plain %d %d %d %d %d\n", neg[2], pos[5], leftc[5], nested[2], rev[2]);
 
     packed[i-1] = 7;
     packed[i-1] += 5;
     j = packed[2];
-    writeln("packed ", j:0);
+    printf("packed %d\n", j);
 
     wide[i-1].x = 60;
     wide[i-1].y = 6;
     wide[i-1].x += wide[i-1].y;
-    writeln("wide ", wide[2].x:0, ' ', wide[2].y:0);
+    printf("wide %d %d\n", wide[2].x, wide[2].y);
 
     j = 1;
     matrix[i-1][j+2] = 70;
     matrix[i-1][j+2] += 7;
-    writeln("multi ", matrix[2][3]:0);
+    printf("multi %d\n", matrix[2][3]);
 
     ptr = &backing[0];
     ptr[i-1] = 80;
     ptr[i-1] += 8;
-    writeln("pointer ", backing[2]:0);
+    printf("pointer %d\n", backing[2]);
 }

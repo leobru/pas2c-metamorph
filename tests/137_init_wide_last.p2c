@@ -19,14 +19,14 @@ __packed char tail[7] = "ABCDEFG";
 int i;
 //
 void main() {
-    write("OK");
-    writeln("|");
+    printf("OK");
+    printf("|\n");
     writeln(tail);
-    write("[");  write("ABC\0");        writeln("]");
-    write("[");  write("ABC\0DEF");     writeln("]");
-    write("[");  write("ABC\0":6);      writeln("]");
-    write(" BYTES");
+    printf("[");  write("ABC\0");        printf("]\n");
+    printf("[");  write("ABC\0DEF");     printf("]\n");
+    printf("[");  write("ABC\0":6);      printf("]\n");
+    printf(" BYTES");
     for (i = 0; i < 7; i = i + 1)
-        write((int)tail[i]:4);
-    writeln("  SIZEOF", sizeof(tail):3);
+        printf("%4d", (int)tail[i]);
+    printf("  SIZEOF%3d\n", sizeof(tail));
 }

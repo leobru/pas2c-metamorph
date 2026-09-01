@@ -8,10 +8,10 @@ const __packed char S[] = "HELLO ";
 int x;
 void main() {
     x = B;
-    writeln(" A=", A:0);
-    writeln(" B=", B:0);
-    writeln(" C=", C:0);
-    writeln(" D=", D:0);
-    writeln(" X=", x:0);
+    printf(" A=%d\n", A);
+    printf(" B=%d\n", B);
+    printf(" C=%d\n", C);
+    printf(" D=%d\n", D);
+    printf(" X=%d\n", x);
     writeln(" S=", S);
 }

@@ -41,5 +41,5 @@ void main() {
     p3  =  NULL + 1;
     fp  =  fp + 1;
     fp++;
-    writeln(" UNREACHED ", k:0);
+    printf(" UNREACHED %d\n", k);
 }

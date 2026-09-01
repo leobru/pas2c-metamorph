@@ -19,8 +19,8 @@ void main() {
     for (i = 0; i <= 15; ++i)
         plain[i] = i + 1;
     packt(&plain, &u, 16);
-    writeln(" W0   =", u.w[0]:16 oct);
-    writeln(" W1   =", u.w[1]:16 oct);
+    printf(" W0   =%16o\n", u.w[0]);
+    printf(" W1   =%16o\n", u.w[1]);
     for (i = 0; i <= 15; ++i)
         back[i] = 0;
     unpackt(&u, &back, 16);
@@ -28,13 +28,13 @@ void main() {
     for (i = 0; i <= 15; ++i)
         if (back[i] != plain[i])
             same = 0;
-    writeln(" SAME =", same:0);
+    printf(" SAME =%d\n", same);
     //
     // packing from the middle of the unpacked array, and out into an unpacked
     // char array, which is the shape the compiler's own calls have
     //
     packt(&plain[8], &u, 8);
-    writeln(" HALF =", u.w[0]:16 oct);
+    printf(" HALF =%16o\n", u.w[0]);
     unpackt(&u, &cback, 8);
     same = 1;
     for (i = 0; i <= 7; ++i) {
@@ -42,5 +42,5 @@ void main() {
         if (j != i + 9)
             same = 0;
     }
-    writeln(" CHARS=", same:0);
+    printf(" CHARS=%d\n", same);
 }

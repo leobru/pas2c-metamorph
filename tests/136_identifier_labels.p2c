@@ -52,5 +52,5 @@ A:
     value = 1000;
 abcdefghOne:
     value += 1;
-    writeln(" LABELS ", value:0);
+    printf(" LABELS %d\n", value);
 }

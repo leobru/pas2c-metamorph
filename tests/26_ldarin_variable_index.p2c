@@ -11,9 +11,9 @@ void main() {
     
     idx = 1;
     value = arr[idx];          // Variable index forces st2 → P/LDARIN
-    writeln("Value at index 2: ", value:0);
+    printf("Value at index 2: %d\n", value);
     
     idx = 4;
     value = arr[idx];
-    writeln("Value at index 5: ", value:0);
+    printf("Value at index 5: %d\n", value);
 }

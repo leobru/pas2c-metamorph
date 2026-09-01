@@ -4,7 +4,7 @@ C C/WI - write a plain integer value in a field whose width is
 C also a plain integer.  The routine adds the BESM integer tag
 C only to its private arithmetic copy of the value.
 C===========================================================
- P/7A    :,SUBP,
+ C/7A    :,SUBP,
  PASZERO*:,LC,1
  PASMINS*:,LC,1
  SPACE*  :,LC,1
@@ -18,7 +18,7 @@ C===========================================================
         11,VTM,NOINT . *NO INTEGER*
         10,VTM,12
         13,VTM,EXIT
-          ,UJ,P/7A   . FIELD WIDTH IS IGNORED HERE, AS IN THE ORIGINAL
+          ,UJ,C/7A   . FIELD WIDTH IS IGNORED HERE, AS IN THE ORIGINAL
  GOOD:    ,BSS,
         15,XTA,-3
          1,AEX,11B   . =I0 ENFORCE INTEGER EXPONENT ON VALUE

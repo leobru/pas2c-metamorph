@@ -35,45 +35,45 @@ void main() {
     // A character and an integer are one word each, so either names the
     // other's value.
     c  =  (char)65;
-    writeln(" CHAR   ", (int)c:4, (int)'B':4);
+    printf(" CHAR   %4d%4d\n", (int)c, (int)'B');
     // A pointer casts to a void pointer and back.
     i  =  7;
     ip  =  &i;
     ap  =  (anyptr)ip;
-    writeln(" PTR    ", (*(int *)ap):4, ((int *)ap == ip):3, (ap == NULL):3);
+    printf(" PTR    %4d%3d%3d\n", (*(int *)ap), ((int *)ap == ip), (ap == NULL));
     // Two stars in the type name are two levels of pointer.
     ipp  =  &ip;
-    writeln(" PTRPTR ", (**(int **)(anyptr)ipp):4);
+    printf(" PTRPTR %4d\n", (**(int **)(anyptr)ipp));
     // A parenthesized declarator names a pointer to a routine.
     fp  =  (int (*)(int))twice;
-    writeln(" FNPTR  ", fp(21):4);
+    printf(" FNPTR  %4d\n", fp(21));
     // Ordering follows the type: a pointer type compares its bits.
     i  =  -1;
     j  =  1;
-    writeln(" ORDER  ", (i < j):3, ((uword)i < (uword)j):3);
+    printf(" ORDER  %3d%3d\n", (i < j), ((uword)i < (uword)j));
     // int and float convert in both directions, and a constant folds.
     i  =  7;
     f  =  (float)i;
-    writeln(" WIDEN  ", f:9:2, (float)3:9:2);
+    printf(" WIDEN  %9.2f%9.2f\n", f, (float)3);
     f  =  6.75;
-    writeln(" TRUNC  ", (int)f:4, (int)-f:4, (int)6.75:4);
+    printf(" TRUNC  %4d%4d%4d\n", (int)f, (int)-f, (int)6.75);
     // The cast binds tighter than a binary operator and looser than a
     // postfix one, so the parentheses below say two different things.
-    writeln(" PREC   ", ((int)f * 2):4, ((int)(f * 2)):4);
-    writeln(" PRECF  ", ((float)i / 2):9:2, ((float)(i / 2)):9:2);
+    printf(" PREC   %4d%4d\n", ((int)f * 2), ((int)(f * 2)));
+    printf(" PRECF  %9.2f%9.2f\n", ((float)i / 2), ((float)(i / 2)));
     // A cast is not limited to one word, and an array type names one: the
     // bound is a constant expression, spelled out here and behind a typedef.
     // An array is not assignable, so the four-word copy lands in the struct.
-    writeln(" MULTI  ", sizeof((int[4])s):4, sizeof((quad)s):4);
+    printf(" MULTI  %4d%4d\n", sizeof((int[4])s), sizeof((quad)s));
     q[0]  =  10;
     q[1]  =  20;
     q[2]  =  30;
     q[3]  =  40;
     r  =  (four)q;
-    writeln(" TYPEDEF", r.a:4, r.b:4, r.c:4, r.d:4);
+    printf(" TYPEDEF%4d%4d%4d%4d\n", r.a, r.b, r.c, r.d);
     // Its operand is a unary expression, so a sign, a dereference and an
     // address-of all belong to the operand.
     k  =  3;
     ip  =  &k;
-    writeln(" UNARY  ", (int)*ip:4, (int)-c:6, (int)*&i:4);
+    printf(" UNARY  %4d%6d%4d\n", (int)*ip, (int)-c, (int)*&i);
 }

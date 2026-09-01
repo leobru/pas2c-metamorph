@@ -12,9 +12,9 @@ void main() {
     
     idx = 1;
     ch = chars[idx];           // Variable index, char type → P/LDAR
-    writeln("Character at index 2: ", ch);
+    printf("Character at index 2: %c\n", ch);
     
     idx = 3;
     ch = chars[idx];
-    writeln("Character at index 4: ", ch);
+    printf("Character at index 4: %c\n", ch);
 }

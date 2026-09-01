@@ -5,17 +5,17 @@ void main() {
     a = 5;
     b = 10;
     x = (a < b) ? a : b;
-    writeln(" min(5,10) = ", x:0);
+    printf(" min(5,10) = %d\n", x);
     y = (a > b) ? a : b;
-    writeln(" max(5,10) = ", y:0);
+    printf(" max(5,10) = %d\n", y);
     z = (a == 5) ? 100 : 200;
-    writeln(" z = ", z:0);
+    printf(" z = %d\n", z);
     z = ((a < b) ? a : b) + ((a > b) ? a : b);
-    writeln(" sum = ", z:0);
+    printf(" sum = %d\n", z);
     z = (a < b) ? ((a == 5) ? 1 : 2) : 3;
-    writeln(" nested z = ", z:0);
+    printf(" nested z = %d\n", z);
     z = 100 - ((a < b) ? a : b);
-    writeln(" rsub = ", z:0);
+    printf(" rsub = %d\n", z);
     z = ((a == 5) ? 7 : 8) * ((b == 10) ? 3 : 4);
-    writeln(" mul = ", z:0);
+    printf(" mul = %d\n", z);
 }

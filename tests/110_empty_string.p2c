@@ -7,7 +7,7 @@
 //
 char c;
 void main() {
-    write("");
+    printf("");
     c  =  'A';
-    writeln(" UNREACHED ", c);
+    printf(" UNREACHED %c\n", c);
 }

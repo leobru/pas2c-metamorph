@@ -23,27 +23,25 @@ void main() {
     w[1]  =  '      ';
     w[2]  =  'AAAAAA';
     w[3]  =  'ZZZZZZ';
-    writeln(" ASC   ", ((uword)w[0] < (uword)w[1]):2,
-            ((uword)w[1] < (uword)w[2]):2, ((uword)w[2] < (uword)w[3]):2);
-    writeln(" DESC  ", ((uword)w[1] < (uword)w[0]):2,
-            ((uword)w[2] < (uword)w[1]):2, ((uword)w[3] < (uword)w[2]):2);
+    printf(" ASC   %2d%2d%2d\n", ((uword)w[0] < (uword)w[1]), ((uword)w[1] < (uword)w[2]),
+           ((uword)w[2] < (uword)w[3]));
+    printf(" DESC  %2d%2d%2d\n", ((uword)w[1] < (uword)w[0]), ((uword)w[2] < (uword)w[1]),
+           ((uword)w[3] < (uword)w[2]));
     // The other orderings, on one pair.
-    writeln(" REL   ", ((uword)w[1] <= (uword)w[2]):2,
-            ((uword)w[2] > (uword)w[1]):2, ((uword)w[1] >= (uword)w[1]):2);
+    printf(" REL   %2d%2d%2d\n", ((uword)w[1] <= (uword)w[2]), ((uword)w[2] > (uword)w[1]),
+           ((uword)w[1] >= (uword)w[1]));
     // The two orderings differ where the sign bit is set: -1 is below 1 as
     // a number and above it as a bit pattern.
     i  =  -1;
     j  =  1;
-    writeln(" SIGN  ", (i < j):2, ((uword)i < (uword)j):2);
+    printf(" SIGN  %2d%2d\n", (i < j), ((uword)i < (uword)j));
     // A packed char array is an address in a value context, so ordering
     // its contents takes the same cast a word does.
-    writeln(" ALFA  ", ((uword)a < (uword)b):2, ((uword)b < (uword)a):2,
-            ((uword)a <= (uword)b):2, ((uword)a == (uword)b):2);
+    printf(" ALFA  %2d%2d%2d%2d\n", ((uword)a < (uword)b), ((uword)b < (uword)a),
+           ((uword)a <= (uword)b), ((uword)a == (uword)b));
     // Equality reads the same whatever the spelling.
     i  =  'AAAAAA';
-    writeln(" EQ    ", (i == w[2]):2, ((uword)i == (uword)w[2]):2,
-            (i != w[3]):2);
+    printf(" EQ    %2d%2d%2d\n", (i == w[2]), ((uword)i == (uword)w[2]), (i != w[3]));
     // Each of them is one word.
-    writeln(" SIZE  ", sizeof(int):2, sizeof(uword):2, sizeof(alfa):2,
-            sizeof(a):2);
+    printf(" SIZE  %2d%2d%2d%2d\n", sizeof(int), sizeof(uword), sizeof(alfa), sizeof(a));
 }

@@ -12,5 +12,5 @@ void later() {
 //
 void main() {
     later();
-    writeln("FORWARD=", forward:0);
+    printf("FORWARD=%d\n", forward);
 }

@@ -12,5 +12,5 @@ int k;
 //
 void main() {
     k  =  offsetof(int, a);
-    writeln(" NEVER ", k:0);
+    printf(" NEVER %d\n", k);
 }

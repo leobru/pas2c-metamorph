@@ -20,46 +20,46 @@ void main() {
     // pre-decrement as a condition: 3 -> 2,1,0, so 2 passes, i ends 0
     i = 3; n = 0;
     while (--i) { n = n + i; }
-    writeln(" A WHPRE   ", n:0, ' ', i:0);
+    printf(" A WHPRE   %d %d\n", n, i);
     // pre-increment: -3 -> -2,-1,0, so 2 passes
     i = 0 - 3; n = 0;
     while (++i) { n = n + i; }
-    writeln(" B WHPRE+  ", n:0, ' ', i:0);
+    printf(" B WHPRE+  %d %d\n", n, i);
     // if on a pre-decrement, landing nonzero
     i = 3;
-    if (--i) writeln(" C IFPRE   YES"); else writeln(" C IFPRE   NO");
+    if (--i) printf(" C IFPRE   YES\n"); else printf(" C IFPRE   NO\n");
     // if on a pre-decrement, landing zero
     i = 1;
-    if (--i) writeln(" D IFPRE0  YES"); else writeln(" D IFPRE0  NO");
+    if (--i) printf(" D IFPRE0  YES\n"); else printf(" D IFPRE0  NO\n");
     // do-while on a pre-decrement
     i = 3; n = 0;
     do { n = n + 1; } while (--i);
-    writeln(" E DOPRE   ", n:0);
+    printf(" E DOPRE   %d\n", n);
     // op-assign as a condition: 6,4,2,0 -> 3 passes
     i = 8; n = 0;
     while (i -= 2) { n = n + 1; }
-    writeln(" F WHOPAS  ", n:0);
+    printf(" F WHOPAS  %d\n", n);
     // post-decrement: outside the range, wraps in INTPLUS -- 3,2,1 -> 3 passes
     i = 3; n = 0;
     while (i--) { n = n + 1; }
-    writeln(" G WHPOST  ", n:0, ' ', i:0);
+    printf(" G WHPOST  %d %d\n", n, i);
     // plain assignment as a condition: ASSIGNOP sits below GETELT
     k = 2; n = 0;
     while (i = k) { n = n + 1; k = k - 1; }
-    writeln(" H WHASGN  ", n:0);
+    printf(" H WHASGN  %d\n", n);
     // pre-decrement of a packed field: 3 -> 2,1,0
     b.n = 3; n = 0;
     while (--b.n) { n = n + 1; }
-    writeln(" I WHBITS  ", n:0);
+    printf(" I WHBITS  %d\n", n);
     // pre-decrement of a pointer-valued walk is not a thing; use ++ on an int
     // held in a struct field instead
     r1.v = 3; n = 0;
     while (--r1.v) { n = n + 1; }
-    writeln(" J WHFIELD ", n:0);
+    printf(" J WHFIELD %d\n", n);
     // A do-while wraps its condition in NOTOP with a Boolean type, which hid
     // the operator underneath from the same test: k goes 3,2,1 and the
     // condition k-1 goes 2,1,0, so three passes.
     k = 4; n = 0;
     do { n = n + 1; k = k - 1; } while (k - 1);
-    writeln(" K DOARITH ", n:0);
+    printf(" K DOARITH %d\n", n);
 }

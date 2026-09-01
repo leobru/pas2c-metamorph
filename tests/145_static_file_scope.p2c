@@ -9,5 +9,5 @@ int helper() {
 void main() {
     explicit += 1;
     implicit += 2;
-    writeln(" STATIC ", explicit:0, ' ', implicit:0, ' ', helper():0);
+    printf(" STATIC %d %d %d\n", explicit, implicit, helper());
 }

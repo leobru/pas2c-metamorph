@@ -27,6 +27,6 @@ void main() {
     d[2] = 'B';
     m[0][2] = 13;
     n[1][0] = 21;
-    writeln("cache ", a[1]:0, ' ', b[1]:0, ' ', c[2], ' ', d[2]);
-    writeln("nest ", m[0][2]:0, ' ', n[1][0]:0);
+    printf("cache %d %d %c %c\n", a[1], b[1], c[2], d[2]);
+    printf("nest %d %d\n", m[0][2], n[1][0]);
 }

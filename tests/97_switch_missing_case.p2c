@@ -19,5 +19,5 @@ void main() {
         1: k = 1;
         default: k = 2;
     }
-    writeln(" UNREACHED");
+    printf(" UNREACHED\n");
 }

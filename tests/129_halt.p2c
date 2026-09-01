@@ -3,7 +3,7 @@
 void halt() assembler;
 
 void main() {
-    writeln("before halt");
+    printf("before halt\n");
     halt();
-    writeln("after halt");
+    printf("after halt\n");
 }

@@ -13,13 +13,12 @@ void main() {
     s[0] = 'A';
     s[5] = 'F';
 
-    writeln(" ALFA ", a[0], ' ', a[5],
-            " SIZE ", sizeof(a):0, ' ', sizeof("ABCDEF"):0);
+    printf(" ALFA %c %c SIZE %d %d\n", a[0], a[5], sizeof(a), sizeof("ABCDEF"));
 
     i = 0;
-    write(" VAR ", a[i]);
+    printf(" VAR %c", a[i]);
     i = 5;
-    writeln(' ', a[i]);
+    printf(" %c\n", a[i]);
 
-    writeln(" CHAR ", s[0], ' ', s[5], " SIZE ", sizeof(s):0);
+    printf(" CHAR %c %c SIZE %d\n", s[0], s[5], sizeof(s));
 }

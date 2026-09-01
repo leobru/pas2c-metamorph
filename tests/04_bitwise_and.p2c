@@ -5,5 +5,5 @@ void main() {
     a = 12;  // 1100 in binary
     b = 10;  // 1010 in binary
     c = a & b;  // 1000 in binary = 8
-    writeln(" 12 and 10 = ", c:0);
+    printf(" 12 and 10 = %d\n", c);
 }

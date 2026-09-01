@@ -13,5 +13,5 @@ void main() {
     besm(0100000 : source, 0000000 : copied);
     besm(0100000 : 77, 0000000 : literal);
     besm(0040000 : source + 1, 0000000 : calculated);
-    writeln("BESM MULTI ", copied:0, ' ', literal:0, ' ', calculated:0);
+    printf("BESM MULTI %d %d %d\n", copied, literal, calculated);
 }

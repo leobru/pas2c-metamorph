@@ -6,25 +6,25 @@ int jb;
 int n;
 //
 void inner() {
-    writeln(" inner: about to longjmp");
+    printf(" inner: about to longjmp\n");
     longjmp(jb, 1);
-    writeln(" inner: unreachable");
+    printf(" inner: unreachable\n");
 }
 //
 void middle() {
-    writeln(" middle: calling inner");
+    printf(" middle: calling inner\n");
     inner();
-    writeln(" middle: unreachable");
+    printf(" middle: unreachable\n");
 }
 //
 void main() {
     n = setjmp(&jb);
-    writeln(" setjmp returned ", n:0);
+    printf(" setjmp returned %d\n", n);
     if (n == 0) {
         middle();
-        writeln(" main: unreachable");
+        printf(" main: unreachable\n");
     } else {
-        writeln(" main: resumed via longjmp");
+        printf(" main: resumed via longjmp\n");
     }
-    writeln(" done");
+    printf(" done\n");
 }

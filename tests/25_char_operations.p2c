@@ -3,7 +3,7 @@
 char c;
 void main() {
     c = 'A';
-    writeln("Character: ", c);
+    printf("Character: %c\n", c);
     c = c + 1;
-    writeln("Next character: ", c);
+    printf("Next character: %c\n", c);
 }

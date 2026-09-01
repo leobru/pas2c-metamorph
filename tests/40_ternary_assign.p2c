@@ -6,11 +6,11 @@ void main() {
     b = 0;
     c = 0;
     r = a ? (b = 5) : (c = 5);
-    writeln(" true r=", r:0, " b=", b:0, " c=", c:0);
+    printf(" true r=%d b=%d c=%d\n", r, b, c);
 
     a = 0;
     b = 0;
     c = 0;
     r = a ? (b = 5) : (c = 5);
-    writeln(" false r=", r:0, " b=", b:0, " c=", c:0);
+    printf(" false r=%d b=%d c=%d\n", r, b, c);
 }

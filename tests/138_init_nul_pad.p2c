@@ -31,31 +31,32 @@ __packed char snug[6]  = "ABCDEF";
 int guard = 4242;
 int i;
 //
+void putln() assembler;
 void main() {
     // The padding is NUL, and it is inside the array.
-    write(" PART ");
-    for (i = 0; i < 6; i = i + 1)  write((int)part[i]:4);
-    writeln("  SIZEOF", sizeof(part):3);
-    write(" HOLE ");
-    for (i = 0; i < 14; i = i + 1) write((int)hole[i]:4);
-    writeln();
-    write(" FULL ");
-    for (i = 0; i < 12; i = i + 1) write((int)full[i]:4);
-    writeln("  SIZEOF", sizeof(full):3);
+    printf(" PART ");
+    for (i = 0; i < 6; i = i + 1)  printf("%4d", (int)part[i]);
+    printf("  SIZEOF%3d\n", sizeof(part));
+    printf(" HOLE ");
+    for (i = 0; i < 14; i = i + 1) printf("%4d", (int)hole[i]);
+    putln();
+    printf(" FULL ");
+    for (i = 0; i < 12; i = i + 1) printf("%4d", (int)full[i]);
+    printf("  SIZEOF%3d\n", sizeof(full));
     // The padding goes out with the rest and takes no column.
-    write(" W ");
-    write("[");  write(part);  write("]");
-    write("[");  write(hole);  write("]");
-    write("[");  write(full);  writeln("]");
+    printf(" W ");
+    printf("[");  write(part);  printf("]");
+    printf("[");  write(hole);  printf("]");
+    printf("[");  write(full);  printf("]\n");
     // strlen and puts stop at the first NUL, wherever it came from.
-    writeln(" STRLEN", strlen(part):3, strlen(hole):3, strlen(hole + 7):3);
+    printf(" STRLEN%3d%3d%3d\n", strlen(part), strlen(hole), strlen(hole + 7));
     writeln(" SNUG [", snug, "]  GUARD", guard:6);
     // A literal's own length counts the terminator; only a string that fills
     // its last word exactly pays a word for it.
-    writeln(" SZ", sizeof("ABC"):3, sizeof("ABCDE"):3, sizeof("ABCDEF"):3,
-                   sizeof("ABCDEFG"):3, sizeof("ABCDEFGHIJKL"):3);
-    write(" P ");
-    write("[");  puts(part);      write("]");
-    write("[");  puts(hole);      write("]");
-    write("[");  puts(hole + 7);  writeln("]");
+    printf(" SZ%3d%3d%3d%3d%3d\n", sizeof("ABC"), sizeof("ABCDE"), sizeof("ABCDEF"),
+           sizeof("ABCDEFG"), sizeof("ABCDEFGHIJKL"));
+    printf(" P ");
+    printf("[");  puts(part);      printf("]");
+    printf("[");  puts(hole);      printf("]");
+    printf("[");  puts(hole + 7);  printf("]\n");
 }

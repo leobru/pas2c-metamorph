@@ -30,22 +30,23 @@ char un[6];
 char *cp;
 int i;
 //
+void putln() assembler;
 void main() {
     // A scalar's address, read and written through.
     x  =  41;
     p  =  &x;
     *p  =  *p + 1;
-    writeln(" SCALAR", x:4, (*p):4);
+    printf(" SCALAR%4d%4d\n", x, (*p));
     // An element's address steps by the element.
     for (i = 0; i <= 4; i = i + 1)
         arr[i]  =  10 * i;
     p  =  &arr[1];
     q  =  &arr[4];
-    writeln(" ELT   ", (*p):4, (*(p + 1)):4, (*(q - 1)):4, (q - p):3);
+    printf(" ELT   %4d%4d%4d%3d\n", (*p), (*(p + 1)), (*(q - 1)), (q - p));
     // The same with a variable index, and a difference of two addresses.
     i  =  2;
     p  =  &arr[i] + 1;
-    writeln(" VARIDX", (*p):4, (&arr[3] - &arr[0]):3);
+    printf(" VARIDX%4d%3d\n", (*p), (&arr[3] - &arr[0]));
     // A field's address, and arithmetic on a structure's address.
     for (i = 0; i <= 3; i = i + 1) {
         t3[i].a  =  100 + i;
@@ -53,34 +54,34 @@ void main() {
     }
     p  =  &t3[1].a;
     p3  =  &t3[0];
-    writeln(" STRUCT", (*p):5, (p3 + 2)->c:5, (&t3[2] - &t3[0]):3);
+    printf(" STRUCT%5d%5d%3d\n", (*p), (p3 + 2)->c, (&t3[2] - &t3[0]));
     // '&' on a pointer adds a level.
     ptab[0]  =  &t3[0];  ptab[1]  =  &t3[1];  ptab[2]  =  &t3[2];
     pp  =  &ptab[0];
-    writeln(" PP    ", (*pp)->a:5, (*(pp + 2))->a:5, pp[1]->a:5);
+    printf(" PP    %5d%5d%5d\n", (*pp)->a, (*(pp + 2))->a, pp[1]->a);
     // '&' on a whole array is a pointer to the array.
     pa  =  &arr;
-    writeln(" ARRPTR", (*pa)[2]:4, sizeof(*pa):3, sizeof(pa):3);
+    printf(" ARRPTR%4d%3d%3d\n", (*pa)[2], sizeof(*pa), sizeof(pa));
     // An element of a packed char array, read and stored through.
     cp  =  &al[2];
-    writeln(" ALFA  ", *cp, cp[1], *(cp - 2));
+    printf(" ALFA  %c%c%c\n", *cp, cp[1], *(cp - 2));
     *cp  =  'Z';
-    write(" STORE ");
+    printf(" STORE ");
     write(al);
-    writeln();
+    putln();
     // A packed array wider than a word: index 7 lies in the second word.
     for (i = 0; i <= 11; i = i + 1)
         s[i]  =  (char)(65 + i);
     cp  =  &s[7];
-    writeln(" WIDE  ", *cp, *(cp - 1), *(cp + 4));
+    printf(" WIDE  %c%c%c\n", *cp, *(cp - 1), *(cp + 4));
     // The same address calculation on another packed array.
     for (i = 0; i < 6; i = i + 1)
         t[i]  =  (char)(65 + i);
     cp  =  &t[2];
-    writeln(" LOWB  ", *cp, *(cp + 2), *(cp - 2));
+    printf(" LOWB  %c%c%c\n", *cp, *(cp + 2), *(cp - 2));
     // An unpacked char array still has its elements six bytes apart.
     for (i = 0; i <= 5; i = i + 1)
         un[i]  =  (char)(80 + i);
     cp  =  &un[2];
-    writeln(" UNPK  ", *cp, cp[6], (int)cp[1]:4);
+    printf(" UNPK  %c%c%4d\n", *cp, cp[6], (int)cp[1]);
 }

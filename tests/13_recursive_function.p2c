@@ -9,5 +9,5 @@ int fact(int n) {
 }
 //
 void main() {
-    writeln(" 5! = ", fact(5):0);
+    printf(" 5! = %d\n", fact(5));
 }

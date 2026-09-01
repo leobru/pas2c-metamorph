@@ -35,7 +35,7 @@ int mixed(pair m, int k, five f) {
 }
 //
 // A procedure, whose frame starts one word below a function's.
-void show(pair m) { writeln(" SHOW ", m.a:0, " ", m.b:0); }
+void show(pair m) { printf(" SHOW %d %d\n", m.a, m.b); }
 //
 // A value parameter is the callee's own copy: writing it must not reach the
 // caller's variable.
@@ -84,21 +84,21 @@ void main() {
     gw.a1 = 1;  gw.a2 = 2;  gw.a3 = 3;  gw.a4 = 4;
     gw.a5 = 5;  gw.a6 = 6;  gw.a7 = 7;  gw.a8 = 8;
     gw.a9 = 9;  gw.a10 = 10;  gw.a11 = 11;  gw.a12 = 12;
-    writeln(" ONLY ", only(g2):0, " LAST ", last(7, g2):0);
-    writeln(" FIRST ", first(g2, 7):0, " TWO ", two(g2, h2):0);
-    writeln(" BIG ", big(g5):0, " MIXED ", mixed(g2, 7, g5):0);
+    printf(" ONLY %d LAST %d\n", only(g2), last(7, g2));
+    printf(" FIRST %d TWO %d\n", first(g2, 7), two(g2, h2));
+    printf(" BIG %d MIXED %d\n", big(g5), mixed(g2, 7, g5));
     show(g2);
-    writeln(" BUMP ", bump(g2):0, " KEPT ", g2.a:0);
-    writeln(" PASSON ", passon(g2):0, " DEEP ", deep(g2, 3):0);
+    printf(" BUMP %d KEPT %d\n", bump(g2), g2.a);
+    printf(" PASSON %d DEEP %d\n", passon(g2), deep(g2, 3));
     // The words come from an address that is not a variable's own.
-    writeln(" ELT ", only(arr[1]):0, " MEMB ", only(o.inner):0);
+    printf(" ELT %d MEMB %d\n", only(arr[1]), only(o.inner));
     // Two calls in one expression, the inner one marshalling as well.
-    writeln(" NEST ", (two(g2, h2) + only(arr[0])):0);
+    printf(" NEST %d\n", (two(g2, h2) + only(arr[0])));
     // And one through a pointer, whose slots come from the routine type.
     fp = only;
-    writeln(" PTR ", fp(h2):0, " Z ", o.z:0);
+    printf(" PTR %d Z %d\n", fp(h2), o.z);
     // Past the threshold: the same positions, streamed by C/LNGPAR.
-    writeln(" WSUM ", wsum(gw):0, " WFIRST ", wfirst(gw, 7):0);
-    writeln(" WLAST ", wlast(7, gw):0, " WMID ", wmid(2, gw, 7):0);
-    writeln(" WTWO ", wtwo(gw, gw):0);
+    printf(" WSUM %d WFIRST %d\n", wsum(gw), wfirst(gw, 7));
+    printf(" WLAST %d WMID %d\n", wlast(7, gw), wmid(2, gw, 7));
+    printf(" WTWO %d\n", wtwo(gw, gw));
 }

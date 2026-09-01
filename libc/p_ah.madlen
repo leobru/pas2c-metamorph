@@ -25,10 +25,6 @@ C===========================================================
  P/WXD:,SUBP,                . write a 48-bit word as 6-bit chars
  P/WL:,SUBP,                 . terminate the current line
  STOP*:,SUBP,                . runtime STOP / fatal exit
- P/DA:,SUBP,                 . print "OVERANGE IN" diagnostic
- P/HT:,SUBP,                 . HALT - terminate the program
-C  P/DA and P/HT are declared but never called: the declaration
-C  is what pulls those error-path modules into the load.
  ,UTC,ZEROCHR.=60            . C := address of ASCII '0' constant
  ,XTA,
  ,UTC,PASZERO*               . C := address of PASZERO* destination

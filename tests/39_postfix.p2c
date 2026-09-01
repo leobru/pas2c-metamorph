@@ -20,8 +20,8 @@ void main() {
     arr[2] = 30;
 
     /* postfix on parenthesised expression: (p)->x */
-    writeln("(p)->x   = ", (p)->x:0);
+    printf("(p)->x   = %d\n", (p)->x);
 
     /* postfix on the result of a function call: getp()->y */
-    writeln("getp()->y= ", getp()->y:0);
+    printf("getp()->y= %d\n", getp()->y);
 }

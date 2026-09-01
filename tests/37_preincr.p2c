@@ -4,15 +4,15 @@ int i, j, k, n;
 void main() {
     i = 10;
     ++i;
-    writeln("inc ", i:0);
+    printf("inc %d\n", i);
     j = 5;
     --j;
-    writeln("dec ", j:0);
+    printf("dec %d\n", j);
     k = 0;
     n = 3;
     while (n > 0) {
         ++k;
         --n;
     };
-    writeln("loop ", k:0, ' ', n:0);
+    printf("loop %d %d\n", k, n);
 }

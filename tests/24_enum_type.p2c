@@ -5,6 +5,6 @@ color c;
 void main() {
     c = GREEN;
     if (c == GREEN) {
-        writeln("Color is GREEN");
+        printf("Color is GREEN\n");
     }
 }

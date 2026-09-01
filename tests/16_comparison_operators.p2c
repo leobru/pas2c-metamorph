@@ -6,26 +6,26 @@ void main() {
     b = 20;
     
     if (a < b) {
-        writeln(" 10 < 20: true");
+        printf(" 10 < 20: true\n");
     };
     
     if (a <= b) {
-        writeln(" 10 <= 20: true");
+        printf(" 10 <= 20: true\n");
     };
     
     if (b > a) {
-        writeln(" 20 > 10: true");
+        printf(" 20 > 10: true\n");
     };
     
     if (b >= a) {
-        writeln(" 20 >= 10: true");
+        printf(" 20 >= 10: true\n");
     };
     
     if (a == a) {
-        writeln(" 10 == 10: true");
+        printf(" 10 == 10: true\n");
     };
     
     if (a != b) {
-        writeln(" 10 != 20: true");
+        printf(" 10 != 20: true\n");
     }
 }

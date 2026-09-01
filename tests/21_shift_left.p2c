@@ -4,5 +4,5 @@ int a, b;
 void main() {
     a = 5;
     b = a << 2;  // 5 * 4 = 20
-    writeln(" 5 << 2 = ", b oct);
+    printf(" 5 << 2 = %o\n", b);
 }

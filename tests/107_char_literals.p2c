@@ -18,38 +18,39 @@ alfa a = "ALFA!!";
 int i, k;
 char c;
 //
+void putln() assembler;
 void main() {
     i  =  'AB';
-    writeln(" ASSIGN", (i == 'AB'):2, (i != 'BA'):2);
-    writeln(" SHIFT ", ('AB' >> 8):4, 'AB':7);
-    writeln(" SIZEOF", sizeof('AB'):3, sizeof("AB"):3, sizeof('A'):3,
-            sizeof("ABCDEFG"):3, sizeof("ABCDEFGH"):3);
+    printf(" ASSIGN%2d%2d\n", (i == 'AB'), (i != 'BA'));
+    printf(" SHIFT %4d%7d\n", ('AB' >> 8), 'AB');
+    printf(" SIZEOF%3d%3d%3d%3d%3d\n", sizeof('AB'), sizeof("AB"), sizeof('A'), sizeof("ABCDEFG"),
+           sizeof("ABCDEFGH"));
     // A string of one word and one of more than a word.
-    write(" TEXT   ");
-    write("AB");
-    write("ABCDEFG");
-    writeln();
+    printf(" TEXT   ");
+    printf("AB");
+    printf("ABCDEFG");
+    putln();
     // Six characters in double quotes fill a one-word packed char array.
-    write(" ALFA   ");
+    printf(" ALFA   ");
     write(a);
-    writeln();
+    putln();
     // One character is still a char, and an escape is one character.
     c  =  'A';
-    writeln(" CHAR  ", (int)c:4, (int)'A':4, (int)'\052':4, (int)'\'':4);
+    printf(" CHAR  %4d%4d%4d%4d\n", (int)c, (int)'A', (int)'\052', (int)'\'');
     // A one-word constant labels a case.
     switch (i) {
     case 'AB':
-        writeln(" CASE   MATCH");
+        printf(" CASE   MATCH\n");
         break;
     default:
-        writeln(" CASE   MISS");
+        printf(" CASE   MISS\n");
     }
     k  =  0;
     switch (k) {
     case 'AB':
-        writeln(" CASE2  MATCH");
+        printf(" CASE2  MATCH\n");
         break;
     default:
-        writeln(" CASE2  MISS");
+        printf(" CASE2  MISS\n");
     }
 }

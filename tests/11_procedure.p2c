@@ -1,7 +1,7 @@
 /*=k9,l0*/
 //
 void greet(int x) {
-    writeln("Hello, number ", x:0);
+    printf("Hello, number %d\n", x);
 }
 //
 void main() {

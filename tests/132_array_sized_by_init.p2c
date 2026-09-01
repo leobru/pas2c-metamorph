@@ -15,23 +15,23 @@ int c[4];
 int i, s;
 //
 void main() {
-    writeln(" SIZE  ", sizeof(a):3, sizeof(b):3, sizeof(p):3, sizeof(c):3);
+    printf(" SIZE  %3d%3d%3d%3d\n", sizeof(a), sizeof(b), sizeof(p), sizeof(c));
     s  =  0;
     for (i = 0; i <= 2; i = i + 1)
         s  =  s + a[i];
-    writeln(" SUMA  ", s:4);
+    printf(" SUMA  %4d\n", s);
     s  =  0;
     for (i = 0; i <= 4; i = i + 1)
         s  =  s + b[i];
-    writeln(" SUMB  ", s:4);
+    printf(" SUMB  %4d\n", s);
     // Six 8-bit elements to a word, so two words hold twelve.
     s  =  0;
     for (i = 0; i <= 11; i = i + 1) {
         p[i]  =  i;
         s  =  s + p[i];
     }
-    writeln(" SUMP  ", s:4);
+    printf(" SUMP  %4d\n", s);
     // The array that follows is untouched by any of it.
     c[3]  =  5;
-    writeln(" GUARD ", c[3]:3, a[2]:4, b[4]:3);
+    printf(" GUARD %3d%4d%3d\n", c[3], a[2], b[4]);
 }

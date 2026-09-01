@@ -1,46 +1,46 @@
  C/7A:,NAME,
 C===========================================================
-C C/7A - write the characters at M11 to the file at M12,
-C stopping at the first NUL rather than at a count.
+C C/7A - write exactly M10 packed characters starting at M11
+C to the file at M12.  This is the annotated Madlen port of
+C P/7A; embedded NULs are data and do not terminate the output.
 C
+C   M10 = character count
 C   M11 = word address of the packed characters
 C   M12 = the FILE record
 C   M13 = return link
 C
-C P/7A is handed a count in M10 and writes exactly that many.
-C This takes none: the string says where it ends, every string
-C constant carrying a NUL that its type counts.  Six eight-bit
-C characters to the word, most significant first, which is how
-C pck packs them and how a string constant is laid down.
+C Six eight-bit characters occupy each word, most significant
+C first.  The word being shifted lives in runtime scratch M1+5
+C because YTA replaces ACC with each extracted character.
 C
-C The word being taken apart cannot stay in the accumulator:
-C YTA replaces it with the character just shifted out of it, so
-C between characters it lives in the runtime scratch word at
-C M1+5, which is where P/7A keeps it too.
-C
-C P/HIDE stacks M6, M7, M8 and the link in M13, and P/EDIH puts
-C them back.  That is what lets the loop hold its state in
-C registers across P/PF, which returns none of them.
+C P/HIDE saves M6..M8 and M13.  C/7AD is the shared entry used
+C after a caller has already saved them and copied the address
+C and count to M8 and M7 respectively.
 C===========================================================
- P/PF:          ,SUBP,        . put f^ and advance the file
- P/HIDE:        ,SUBP,        . stack M6, M7, M8 and M13
- P/EDIH:        ,SUBP,        . and put them back
+ P/PF:          ,SUBP,        . Put f^ and advance the file
+ P/HIDE:        ,SUBP,        . Save M6, M7, M8 and M13
+ P/EDIH:        ,SUBP,        . Restore them
               14,VJM,P/HIDE
-              11,MTJ,8        . M8 := the word address
- NEXTWRD:      6,VTM,-5       . six characters to the word
-               8,XTA,         . ACC := the packed word
-               1,ATX,5        . the scratch holds what is left of it
+              11,MTJ,8        . M8 := packed-character word address
+              10,MTJ,7        . M7 := remaining character count
+C===========================================================
+ C/7AD:         ,ENTRY,
+C===========================================================
+ NEXTWRD:      6,VTM,-5       . Six characters in this word
+               8,XTA,         . ACC := next packed word
+               1,ATX,5        . Save the shifting copy
  NEXTCH:       1,XTA,5
-                ,ASN,64-8     . the top character falls out into Y
-               1,ATX,5        . keep the rest of the word
-                ,YTA,         . ACC := that character
-                ,UZA,ENDSTR   . NUL ends the string
-              12,WTC,         . address f^ through FILE[0]
-                ,ATX,         . f^ := the character
-              13,VJM,P/PF     . put it
-               6,VLM,NEXTCH   . the other five characters
-               8,UTM,1
-                ,UJ,NEXTWRD   . and on into the next word
- ENDSTR:      14,VJM,P/EDIH   . M13 comes back with the rest
+                ,ASN,64-8     . Shift the high character into Y
+               1,ATX,5        . Save the remaining packed characters
+                ,YTA,         . ACC := extracted character
+              12,WTC,         . Address f^ through FILE[0]
+                ,ATX,         . f^ := character
+              13,VJM,P/PF     . Put it
+               7,UTM,-1       . One fewer character remains
+               7,VZM,DONE
+               6,VLM,NEXTCH   . Continue within this word
+               8,UTM,1        . Advance to the next packed word
+                ,UJ,NEXTWRD
+ DONE:        14,VJM,P/EDIH
               13,UJ,
                 ,END,

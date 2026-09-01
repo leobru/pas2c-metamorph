@@ -33,27 +33,27 @@ void main() {
     // Read and write through a register pointer.
     { register rec *p = &r1;
       p->a = p->b + p->c;
-      writeln(" ONE=", p->a:0, ',', p->b:0, ',', p->c:0);
+      printf(" ONE=%d,%d,%d\n", p->a, p->b, p->c);
     }
-    writeln(" AFTER=", r1.a:0);
+    printf(" AFTER=%d\n", r1.a);
     // Two of them, in nested blocks, live at the same time.
     { register rec *p = &r1;
       { register rec *q = &nest.inner;
         q->a = q->a + p->b;
-        writeln(" TWO=", p->b:0, ',', q->a:0);
+        printf(" TWO=%d,%d\n", p->b, q->a);
       }
-      writeln(" OUTER=", p->b:0, " TAG=", nest.tag:0);
+      printf(" OUTER=%d TAG=%d\n", p->b, nest.tag);
     }
     // A call in the middle: the register must survive it.
     { register rec *p = &r1;
       probe = p->b;
       clobber();
       clobber();
-      writeln(" ACROSS=", p->b:0, ',', probe:0, " R2=", r2.a:0, ',', r2.b:0);
+      printf(" ACROSS=%d,%d R2=%d,%d\n", p->b, probe, r2.a, r2.b);
     }
     // The pointer used on its own, passed by value.
     { register rec *p = &r1;
-      writeln(" BARE=", sum3(p):0);
+      printf(" BARE=%d\n", sum3(p));
     }
     // Read-modify-write through a register pointer: the pinned base is the
     // cheapest lvalue there is, so genRMWAssign shares it between the read
@@ -64,13 +64,13 @@ void main() {
       p->a += 5;
       ++p->b;
       p->c--;
-      writeln(" RMW=", p->a:0, ',', p->b:0, ',', p->c:0);
+      printf(" RMW=%d,%d,%d\n", p->a, p->b, p->c);
       clobber();
       p->a += 100;
-      writeln(" RMWX=", p->a:0, " R2=", r2.a:0);
+      printf(" RMWX=%d R2=%d\n", p->a, r2.a);
     }
     // 'register' is recognized by spelling, so it stays an ordinary
     // identifier everywhere else.
     register = 42;
-    writeln(" NAME=", register:0);
+    printf(" NAME=%d\n", register);
 }

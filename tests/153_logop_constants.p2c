@@ -11,20 +11,20 @@ int side(int value) {
 
 void main() {
     calls = 0;
-    writeln("LOR1 ", (1 || side(0)):0, ' ', calls:0);
+    printf("LOR1 %d %d\n", (1 || side(0)), calls);
     calls = 0;
-    writeln("LOR0 ", (0 || side(7)):0, ' ', calls:0);
+    printf("LOR0 %d %d\n", (0 || side(7)), calls);
     calls = 0;
-    writeln("LAND0 ", (0 && side(7)):0, ' ', calls:0);
+    printf("LAND0 %d %d\n", (0 && side(7)), calls);
     calls = 0;
-    writeln("LAND1 ", (1 && side(7)):0, ' ', calls:0);
+    printf("LAND1 %d %d\n", (1 && side(7)), calls);
 
     calls = 0;
-    writeln("ROR1 ", (side(0) || 1):0, ' ', calls:0);
+    printf("ROR1 %d %d\n", (side(0) || 1), calls);
     calls = 0;
-    writeln("ROR0 ", (side(7) || 0):0, ' ', calls:0);
+    printf("ROR0 %d %d\n", (side(7) || 0), calls);
     calls = 0;
-    writeln("RAND1 ", (side(0) && 1):0, ' ', calls:0);
+    printf("RAND1 %d %d\n", (side(0) && 1), calls);
     calls = 0;
-    writeln("RAND0 ", (side(7) && 0):0, ' ', calls:0);
+    printf("RAND0 %d %d\n", (side(7) && 0), calls);
 }

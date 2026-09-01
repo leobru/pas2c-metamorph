@@ -4,10 +4,10 @@ int i, j;
 void main() {
     for (j = 2; j < 10000; j = j * 2) {
     i  = minel(j & (~0));
-    write(' ', i:0);
+    printf(" %d", i);
     i = (~0U) >> (i+1);
-    write(' ', i oct);
+    printf(" %o", i);
     i  = 0|i;
-    writeln(' ', i:0);
+    printf(" %d\n", i);
 }
 }

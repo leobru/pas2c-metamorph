@@ -15,22 +15,23 @@ rec r1, r2;
 int b, i1, i2, k, t;
 recp p1, p2, p3, callee;
 //
+void putln() assembler;
 void probe() {
     // Arms that are comparisons, both spellings.
-    if (b ? (p1 != p2) : (p1 != p3)) write('1'); else write('0');
-    if (b ? (p1 == p2) : (p1 == p3)) write('1'); else write('0');
-    if (b ? (i1 != i2) : (i1 == i2)) write('1'); else write('0');
+    if (b ? (p1 != p2) : (p1 != p3)) printf("1"); else printf("0");
+    if (b ? (p1 == p2) : (p1 == p3)) printf("1"); else printf("0");
+    if (b ? (i1 != i2) : (i1 == i2)) printf("1"); else printf("0");
     // A pointer comparison as the condition, the shape parseCallArgs used.
-    if (callee == NULL ? (p1 != p2) : (p1 == p3)) write('1'); else write('0');
+    if (callee == NULL ? (p1 != p2) : (p1 == p3)) printf("1"); else printf("0");
     // The same, under && and ||, where the polarity bit also reaches BRANCH.
     if (b && (callee == NULL ? (p1 != p2) : (p1 == p3)))
-        write('1'); else write('0');
+        printf("1"); else printf("0");
     if ((k > 99) || b && (callee == NULL ? (p1 != p2) : (p1 == p3)))
-        write('1'); else write('0');
+        printf("1"); else printf("0");
     // And once materialized into a variable rather than branched on.
     t  =  (b ? (p1 == p2) : (p1 == p3));
-    write(t:1);
-    write(' ');
+    printf("%1d", t);
+    printf(" ");
 }
 //
 void main() {
@@ -44,6 +45,6 @@ void main() {
         callee  =  (k & 1) ? (recp)NULL : &r2;
         probe();
     }
-    writeln();
-    writeln(" DONE");
+    putln();
+    printf(" DONE\n");
 }

@@ -2,9 +2,9 @@
 char fgetc(int fcb[30]) assembler;
 
 void main() {
-    writeln(fgetc(_input_));
-    writeln(fgetc(_input_));
-    writeln(fgetc(_input_));
-    writeln(fgetc(_input_));
-    writeln(fgetc(_input_));
+    printf("%c\n", fgetc(_input_));
+    printf("%c\n", fgetc(_input_));
+    printf("%c\n", fgetc(_input_));
+    printf("%c\n", fgetc(_input_));
+    printf("%c\n", fgetc(_input_));
 }

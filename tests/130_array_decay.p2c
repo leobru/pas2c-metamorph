@@ -27,29 +27,29 @@ void main() {
         un[i] = (char)(80 + i);
     // Assigned to a pointer.
     p  =  a;
-    writeln(" ASSIGN", (*p):4, p[3]:4);
+    printf(" ASSIGN%4d%4d\n", (*p), p[3]);
     // In pointer arithmetic, either way round, and a difference.
     q  =  a + 2;
-    writeln(" ARITH ", (*q):4, (*(2 + a)):4, (q - a):3);
+    printf(" ARITH %4d%4d%3d\n", (*q), (*(2 + a)), (q - a));
     // Compared against a pointer, either way round.
-    writeln(" CMP   ", (p == a):2, (a == p):2, (p < a + 1):2);
+    printf(" CMP   %2d%2d%2d\n", (p == a), (a == p), (p < a + 1));
     // Behind unary '*'.
-    writeln(" DEREF ", (*a):4);
+    printf(" DEREF %4d\n", (*a));
     // As an actual for a pointer formal, and as a result.
     g(a);
-    writeln(" ARG   ", i:4);
-    writeln(" RET   ", (*retarr()):4);
+    printf(" ARG   %4d\n", i);
+    printf(" RET   %4d\n", (*retarr()));
     // A row of a two-dimensional array decays to a pointer to its element;
     // the whole array decays to a pointer to a row.
     p  =  m[0];
     pr  =  m;
-    writeln(" ROW   ", (*p):3, p[1]:3, (*pr)[1]:3, (*(pr + 1))[0]:3);
+    printf(" ROW   %3d%3d%3d%3d\n", (*p), p[1], (*pr)[1], (*(pr + 1))[0]);
     // A packed char array: elements one byte apart.
     cp  =  ps;
-    writeln(" PCK   ", *cp, cp[2]);
+    printf(" PCK   %c%c\n", *cp, cp[2]);
     // An unpacked one: six.
     cp  =  un;
-    writeln(" UNPK  ", *cp, cp[6]);
+    printf(" UNPK  %c%c\n", *cp, cp[6]);
     // sizeof keeps the array: it is not a value context.
-    writeln(" SIZE  ", sizeof(a):3, sizeof(ps):3, sizeof(m):3);
+    printf(" SIZE  %3d%3d%3d\n", sizeof(a), sizeof(ps), sizeof(m));
 }
