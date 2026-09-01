@@ -6,6 +6,7 @@
 // consecutive words and their address is what the routine wants.
 //
 int pck(int *) assembler;
+void putln() assembler;
 //
 typedef union { int i; __packed char c[6]; } wordu;
 int buf[6];
@@ -14,5 +15,5 @@ void main() {
     buf[0] = 'A'; buf[1] = 'B'; buf[2] = 'C';
     buf[3] = 'D'; buf[4] = 'E'; buf[5] = 'F';
     u.i = pck(&buf[0]);
-    writeln(" PCK  =", u.c:6);
+    write(" PCK  =", u.c:6);  putln();
 }

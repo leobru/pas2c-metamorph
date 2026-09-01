@@ -64,7 +64,7 @@ plain vp;
     vm  =  mkmsb(37);
     vp  =  mkplain(5);
     // (int)... only to print in decimal: a sub-word field's own type is a
-    // narrow scalar, which writeln renders in octal.
+    // narrow scalar, which write renders in octal.
     printf(" LSB VAR    %5d%6d%5d\n", (int)vl.f.a, (int)vl.f.b, (int)vl.f.c);
     printf(" LSB CALL   %5d%6d%5d\n", (int)mklsb(37).f.a, (int)mklsb(37).f.b, (int)mklsb(37).f.c);
     printf(" MSB VAR    %5d%6d%5d\n", (int)vm.f.p, (int)vm.f.q, (int)vm.f.r);

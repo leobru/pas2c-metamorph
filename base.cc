@@ -8584,10 +8584,6 @@ struct standProc {
                 callHelperWithArg();
             }
         } while (SY == COMMA);
-        if (procNo == 4) {
-            helperNo = 30;                 /* P/WL */
-            callHelperWithArg();
-        }
         usedRegs = usedRegs | Bits(12);
         if (oldOffset == moduleOffset)
             error(36); /*errTooFewArguments */
@@ -8597,28 +8593,38 @@ struct standProc {
         int64_t argCount;
         bool isFormat;
 
+        workExpr = NULL;
         argCount = 0;
         isFormat = true;
         do {
-            expression();
-            if (curExpr->vt.typ.p.pk == kindArray)
-                curExpr = decayArray(curExpr);
-            if (isFormat and not isCharPtr(curExpr->vt.typ)) {
-                error(40); /* errIncompatibleArgumentTypes */
-                curExpr = uVarPtr;
-            } else if (typeSize(curExpr->vt.typ) != 1) {
-                error(40); /* errIncompatibleArgumentTypes */
-                curExpr = uVarPtr;
-            }
-            (void) formOperator(LOAD);
-            form1Insn(KXTS);   /* C/PRINTF owns and removes every argument */
-            if (isFormat)
+            /* startWrite takes the same optional leading file argument write
+               takes; the destination reaches C/PRINTF in M12, not on the
+               stack. */
+            startWrite();
+            if (l4exp7z != workExpr) {
+                curExpr = l4exp7z;
+                if (curExpr->vt.typ.p.pk == kindArray)
+                    curExpr = decayArray(curExpr);
+                if (isFormat and not isCharPtr(curExpr->vt.typ)) {
+                    error(40); /* errIncompatibleArgumentTypes */
+                    curExpr = uVarPtr;
+                } else if (typeSize(curExpr->vt.typ) != 1) {
+                    error(40); /* errIncompatibleArgumentTypes */
+                    curExpr = uVarPtr;
+                }
+                (void) formOperator(LOAD);
+                form1Insn(KXTS);  /* C/PRINTF owns and removes every argument */
                 isFormat = false;
-            else
                 argCount = argCount + 1;
+            }
         } while (SY == COMMA);
-        form1Insn(KVTM+I10 + getValueOrAllocSymtab(-(argCount + 1)));
+        if (argCount == 0)
+            error(36); /* errTooFewArguments */
+        form1Insn(KVTM+I10 + getValueOrAllocSymtab(-argCount));
+        curExpr = workExpr;
+        (void) formOperator(SETREG12);
         formAndAlign(getHelperProc(58)); /* "C/PRINTF" */
+        usedRegs = usedRegs | Bits(12);
     } /* printfProc */
 
     standProc() { /* standProc */
@@ -8634,15 +8640,6 @@ struct standProc {
         switch (procNo) {
         case 3: { /* write */
             writeProc();
-        } break;
-        case 4: { /* writeln */
-            inSymbol();
-            if (SY == RPAREN)
-                formAndAlign(getHelperProc(31)); /*"P/WOLN"*/
-            else {
-                readNext = false;
-                writeProc();
-            }
         } break;
         case 2: { /* besm */
             do {
@@ -8683,7 +8680,7 @@ struct standProc {
             padToLeft();
             prevOpcode = 1;
         } break;
-        case 5: { /* printf */
+        case 4: { /* printf */
             inSymbol();
             if (SY == RPAREN)
                 error(36); /* errTooFewArguments */
@@ -8693,7 +8690,7 @@ struct standProc {
             }
         } break;
         }
-        if (has(BitRange(3,5), procNo))
+        if (has(BitRange(3,4), procNo))
             arithMode = 1;
         checkSymAndRead(RPAREN);
     }
@@ -9184,12 +9181,12 @@ struct initScalars {
 initScalars::initScalars() :
     curIdRec(programme::super.back()->curIdRec)
 {
-    // Keep the historical procNo values 2..4 and append PRINTF as 5. FREE and
-    // HALT are ordinary ASSEMBLER routines supplied by libc.
-    static int64_t systemProcNames[4] = {
+    // Procedure numbers run from 2, the historical value of BESM, and WRITE
+    // keeps its historical 3. FREE and HALT are ordinary ASSEMBLER routines
+    // supplied by libc, and a line is terminated by PRINTF or by libc's PUTLN.
+    static int64_t systemProcNames[3] = {
     /*2*/   042456355L              /*"    BESM"*/,
             06762516445L            /*"   WRITE"*/,
-            067625164455456L        /*" WRITELN"*/,
             0606251566446L          /*"  PRINTF"*/};
     IdentRecPtr programObj;
     BooleanType.setRep(
@@ -9306,7 +9303,7 @@ initScalars::initScalars() :
 
     temptype.setRep(NULL);
     sysProcNum = 2;
-    for (l3var5z = 0; l3var5z <= 3; ++l3var5z) {
+    for (l3var5z = 0; l3var5z <= 2; ++l3var5z) {
         regSysProc(systemProcNames[l3var5z]);
     }
     sysProcNum = 0;

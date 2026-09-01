@@ -6,6 +6,7 @@ const int A = 1 + 2 * 3,
           D = (1 << 4) | 3;
 const __packed char S[] = "HELLO ";
 int x;
+void putln() assembler;
 void main() {
     x = B;
     printf(" A=%d\n", A);
@@ -13,5 +14,5 @@ void main() {
     printf(" C=%d\n", C);
     printf(" D=%d\n", D);
     printf(" X=%d\n", x);
-    writeln(" S=", S);
+    write(" S=", S);  putln();
 }

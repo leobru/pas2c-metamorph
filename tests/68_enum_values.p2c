@@ -9,6 +9,7 @@ enum { X = 5, Y = X + 3 } e2;
 enum { RED, GREEN, BLUE } color;
 enum { LO = -2, MID, HI } ev;
 int val;
+void putln() assembler;
 void main() {
     val = A; printf(" A=%d\n", val);
     val = B; printf(" B=%d\n", val);
@@ -19,5 +20,5 @@ void main() {
     ev = MID; printf(" MID=%d\n", ev);
     ev = HI;  printf(" HI=%d\n", ev);
     // A plain (sequential) enum still prints its enumerator name:
-    color = GREEN; writeln(" color=", color);
+    color = GREEN; write(" color=", color);  putln();
 }

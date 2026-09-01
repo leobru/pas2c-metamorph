@@ -9,7 +9,7 @@
 //
 // A following initializer hides that, setting the flag afresh for its own
 // value, so the wide string has to be the last one for the leak to reach the
-// body.  Here the next expression() after it is write's first argument.
+// body.  Here the next expression() after it is the first printf's format.
 //
 // An explicit NUL is an ordinary character of the array, counted by the type
 // and stored like any other; it ends nothing.  It reaches the output as no
@@ -18,10 +18,11 @@
 __packed char tail[7] = "ABCDEFG";
 int i;
 //
+void putln() assembler;
 void main() {
     printf("OK");
     printf("|\n");
-    writeln(tail);
+    write(tail);  putln();
     printf("[");  write("ABC\0");        printf("]\n");
     printf("[");  write("ABC\0DEF");     printf("]\n");
     printf("[");  write("ABC\0":6);      printf("]\n");

@@ -8,6 +8,7 @@
 //
 int pck(int *) assembler;
 void unpck(int, int *) assembler;
+void putln() assembler;
 //
 typedef union { int i; __packed char c[6]; } wordu;
 int buf[6], lib[6];
@@ -23,6 +24,6 @@ void main() {
         if (lib[i] != buf[i])
             same = 0;
     u.i = pck(&lib[0]);
-    writeln(" UNPCK=", u.c:6);
+    write(" UNPCK=", u.c:6);  putln();
     printf(" SAME =%d\n", same);
 }

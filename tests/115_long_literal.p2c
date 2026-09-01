@@ -5,5 +5,5 @@
 // double quotes.
 //
 void main() {
-    writeln('SEVENCH');
+    write('SEVENCH');
 }

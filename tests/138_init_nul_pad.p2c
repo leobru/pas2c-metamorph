@@ -50,7 +50,7 @@ void main() {
     printf("[");  write(full);  printf("]\n");
     // strlen and puts stop at the first NUL, wherever it came from.
     printf(" STRLEN%3d%3d%3d\n", strlen(part), strlen(hole), strlen(hole + 7));
-    writeln(" SNUG [", snug, "]  GUARD", guard:6);
+    write(" SNUG [", snug, "]  GUARD", guard:6);  putln();
     // A literal's own length counts the terminator; only a string that fills
     // its last word exactly pays a word for it.
     printf(" SZ%3d%3d%3d%3d%3d\n", sizeof("ABC"), sizeof("ABCDE"), sizeof("ABCDEF"),

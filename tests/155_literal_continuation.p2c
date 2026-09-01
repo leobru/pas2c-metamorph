@@ -7,8 +7,9 @@ CD";
 chars text = t"EF\
 GH";
 
+void putln() assembler;
 void main() {
-    writeln(" DOUBLE ", ascii);
+    write(" DOUBLE ", ascii);  putln();
     printf(" SINGLE %d\n", ('A\
 \102CD' == 'ABCD'));
     printf(" TEXTW  %d\n", (t'EF\

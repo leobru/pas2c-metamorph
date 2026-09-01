@@ -7,6 +7,11 @@ C and every actual, all as one-word C-like values, then leaves in M10 the
 C negative total word count (format included).  Thus SP+M10 is the format
 C slot and the following words are the actuals in source order.
 C
+C The destination is the FILE record addressed by M12, which the caller wires
+C up exactly as it does for write - PRINTF takes the same optional leading file
+C argument.  Every routine reached from here leaves M12 alone, so it is set
+C once, by the caller, and never reloaded.
+C
 C Dubna uppercases the format; only uppercase conversion letters are checked.
 C A decimal width is accepted for all conversions; .precision is used by F/E
 C and otherwise ignored.  Unknown percent sequences are copied literally and
@@ -20,15 +25,14 @@ C===========================================================
  C/A6:          ,SUBP,
  C/6A:          ,SUBP,
  C/WXD:         ,SUBP,
- P/WOLN:        ,SUBP,
+ P/WL:          ,SUBP,
  C/SP:          ,SUBP,
- PUTS:          ,SUBP,
+ C/PUTS:        ,SUBP,
  STRLEN:        ,SUBP,
  P/HIDE:        ,SUBP,
  P/EDIH:        ,SUBP,
  P/08:          ,SUBP,
  P/LDAR:        ,SUBP,
- *OUTPUT*:      ,LC,30
 C P/HIDE saves M13 and the three scratch registers M6..M8.  M6 then bases the
 C constants and static scratch storage below; only P/HIDE's four words use SP.
                  ,NTR,3
@@ -118,7 +122,6 @@ C The UTM chain leaves ACC untouched, so its failure restores M14 from ACC.
  DWIDTH:         ,XTA,WIDTH
                  ,XTS,
                 7,XTA,-1
-               12,VTM,*OUTPUT*
                13,VJM,C/WI
                  ,UJ,LOOP
  FMO:          13,VJM,GETARG
@@ -129,7 +132,6 @@ C The UTM chain leaves ACC untouched, so its failure restores M14 from ACC.
  OWIDTH:         ,XTA,WIDTH
                  ,XTS,
                 7,XTA,-1
-               12,VTM,*OUTPUT*
                13,VJM,C/WO
                  ,UJ,LOOP
  FMC:          13,VJM,GETARG
@@ -138,11 +140,9 @@ C The UTM chain leaves ACC untouched, so its failure restores M14 from ACC.
                  ,XTA,WIDTH
                  ,XTS,
                 7,XTA,-1
-               12,VTM,*OUTPUT*
                13,VJM,C/WC
                  ,UJ,LOOP
  CNOWID:        7,XTA,-1
-               12,VTM,*OUTPUT*
                13,VJM,P/CW
                  ,UJ,LOOP
  FMA:          13,VJM,GETARG
@@ -152,12 +152,10 @@ C The UTM chain leaves ACC untouched, so its failure restores M14 from ACC.
                  ,XTS,
                 7,XTA,-1
                10,VTM,6
-               12,VTM,*OUTPUT*
                13,VJM,C/A6
                  ,UJ,LOOP
  ANOWID:        7,XTA,-1
                10,VTM,6
-               12,VTM,*OUTPUT*
                13,VJM,C/6A
                  ,UJ,LOOP
  FMREAL:       13,VJM,GETARG
@@ -174,10 +172,9 @@ C The UTM chain leaves ACC untouched, so its failure restores M14 from ACC.
                  ,XTA,PREC
                  ,XTS,
                 7,XTA,-1
-               12,VTM,*OUTPUT*
                13,VJM,C/WR
                  ,UJ,LOOP
-C PUTS already understands arbitrary byte alignment, NUL and LF.  An
+C C/PUTS already understands arbitrary byte alignment, NUL and LF.  An
 C explicit width is left padding only; precision is deliberately ignored.
  FMS:          13,VJM,GETARG
                  ,XTA,WIDTH
@@ -188,15 +185,13 @@ C explicit width is left padding only; precision is deliberately ignored.
                13,VJM,STRLEN
                  ,NTR,7
                  ,A-X,PREC
-               12,VTM,*OUTPUT*
                  ,CALL,C/SP
  SOUT:          7,XTA,-1
-               13,VJM,PUTS
+               13,VJM,C/PUTS
                  ,UJ,LOOP
  FMT:          13,VJM,GETARG
                  ,XTA,WIDTH
                 7,XTS,-1
-               12,VTM,*OUTPUT*
                13,VJM,C/WXD
                  ,UJ,LOOP
 C Print the '%' of an unknown sequence, then let the main loop resume at the
@@ -227,17 +222,16 @@ C byte pointer by one.
                  ,ATI,14
                15,WTC,
                  ,UJ,
-C One literal format byte.  LF terminates OUTPUT exactly as PUTS does.
+C One literal format byte.  LF terminates the line exactly as C/PUTS does.
  OUTCH:        15,ATX,1
                  ,ITA,13
                15,XTS,
                  ,AEX,NEWLINE
                  ,UZA,OUTNL
                  ,AEX,NEWLINE
-               12,VTM,*OUTPUT*
                13,VJM,P/CW
                  ,UJ,OUTRET
- OUTNL:        13,VJM,P/WOLN
+ OUTNL:        13,VJM,P/WL
  OUTRET:       15,WTC,
                  ,UJ,
 C Let P/EDIH restore M6..M8 and M13, then discard the caller's contiguous

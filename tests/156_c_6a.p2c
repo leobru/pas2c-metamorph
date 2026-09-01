@@ -7,10 +7,11 @@ six a = "ABCDEF";
 three b = "XYZ";
 nine c = "ABCDEFGHI";
 
+void putln() assembler;
 void main() {
-    writeln(a);
-    writeln(b);
-    writeln(a:9);
-    writeln(c);
-    writeln(c:12);
+    write(a);     putln();
+    write(b);     putln();
+    write(a:9);   putln();
+    write(c);     putln();
+    write(c:12);  putln();
 }
