@@ -1,0 +1,9 @@
+/*=k9,l0*/
+// Postfix widths retain the existing integer-field and 1..40 restrictions.
+typedef struct { float wrong:6; } badtype;
+typedef struct { int *pointer:15; } badpointer;
+typedef struct { int missing:; } badmissing;
+typedef struct { int zero:0; } badzero;
+typedef struct { int wide:41; } badwide;
+
+void main() {}

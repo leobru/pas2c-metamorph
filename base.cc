@@ -6054,7 +6054,8 @@ SigPtr parseSignature()
 // supplies `reg` to register each resulting declarator (as a variable,
 // a typedef name, or a field).
 void parseGroupedDecls(int64_t skipTarget,
-                       std::function<void(Declarator&)> reg)
+                       std::function<void(Declarator&)> reg,
+                       bool fieldWidths = false)
 {
     TPtr baseTy{};
     // Named (not a temporary) so isPacked is still readable after the
@@ -6080,6 +6081,24 @@ void parseGroupedDecls(int64_t skipTarget,
     bool more;
     do {
         Declarator d = parseOneDeclarator(baseTy, packedFlag, forwardRef);
+        // C spelling: a record bit width follows this declarator, so each
+        // member in a comma group may choose its own.  The field keeps the
+        // narrow integer type used by the existing prefix spelling.
+        if (fieldWidths and SY == COLON) {
+            parseTypeRef::super.back()->isPacked = true;
+            bool fieldIsInt = isIntTyp(d.type);
+            if (not fieldIsInt)
+                error(62); /* errIntegerNeeded */
+            inSymbol();
+            if (SY != INTCONST) {
+                error(errNumberTooLarge);
+            } else {
+                int64_t fieldWidth = curToken.ii;
+                inSymbol();
+                if (fieldIsInt)
+                    d.type = mkIntScl(fieldWidth);
+            }
+        }
         if (d.name)
             reg(d);
         more = (SY == COMMA);
@@ -6264,7 +6283,7 @@ parseRecordDecl::parseRecordDecl(TPtr & rectype, bool isOuterDecl_, bool isUnion
                     packOneField(curEnum, d.type);
                     if (isUnion and unionMemberBigger(cases2, cases, isPacked))
                         cases2 = cases;
-                });
+                }, true);
         }
         lookupMode = lookField;
     }
@@ -8490,7 +8509,7 @@ struct standProc {
             return;
         }
         switch (procNo) {
-        case 2: { /* besm */
+        case 0: { /* besm */
             do {
                 expression();
                 takeConstFromExpr();
@@ -8529,7 +8548,7 @@ struct standProc {
             padToLeft();
             prevOpcode = 1;
         } break;
-        case 3: { /* printf */
+        case 1: { /* printf */
             inSymbol();
             if (SY == RPAREN)
                 error(36); /* errTooFewArguments */
@@ -8539,7 +8558,7 @@ struct standProc {
             }
         } break;
         }
-        if (procNo == 3)
+        if (procNo == 1)
             arithMode = 1;
         checkSymAndRead(RPAREN);
     }
@@ -9030,12 +9049,8 @@ struct initScalars {
 initScalars::initScalars() :
     curIdRec(programme::super.back()->curIdRec)
 {
-    // Procedure numbers run from 2, the historical value of BESM. FREE and
-    // HALT are ordinary ASSEMBLER routines supplied by libc, and everything a
-    // program writes goes through PRINTF, a line terminated by libc's PUTLN or
-    // by the format itself.
     static int64_t systemProcNames[2] = {
-    /*2*/   042456355L              /*"    BESM"*/,
+    /*0*/   042456355L              /*"    BESM"*/,
             0606251566446L          /*"  PRINTF"*/};
     IdentRecPtr programObj;
     BooleanType.setRep(
@@ -9151,7 +9166,7 @@ initScalars::initScalars() :
     uProcPtr->r1.pos = 0;
 
     temptype.setRep(NULL);
-    sysProcNum = 2;
+    sysProcNum = 0;
     for (l3var5z = 0; l3var5z <= 1; ++l3var5z) {
         regSysProc(systemProcNames[l3var5z]);
     }

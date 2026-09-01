@@ -1,0 +1,93 @@
+/*=k9,l0*/
+//
+// A width after a field name is the C spelling of a bit field.  The first
+// such field makes an otherwise unmarked record packed; widths in a comma
+// group belong to their individual declarators.
+//
+typedef struct {
+    unsigned a:6, b:18, c:16;
+    char tail;
+} msbrec;
+typedef union { msbrec r; int w; } msbview;
+
+// Structs and unions share the record-member grammar and packing machinery.
+typedef union { int bits:6; int w; } bitunion;
+
+// Explicit low-bit-first order applies to the postfix spelling too.
+typedef __packed __lsb struct {
+    int a:6, b:18, c:24;
+} lsbrec;
+typedef union { lsbrec r; int w; } lsbview;
+
+// A field preceding the first bit field has already taken a whole word.
+// Once packing is triggered, a following ordinary narrow field joins the
+// bit field in packed storage.
+typedef struct {
+    char before;
+    int bits:6;
+    char after;
+} mixed;
+
+// Anonymous members promote their fields and their packing state.
+typedef struct {
+    struct { int inner:6; };
+    char next;
+} promoted;
+
+// The existing prefix spelling remains usable beside the C spelling.
+typedef __packed struct {
+    int:6 old;
+    int fresh:18;
+    int:24 last;
+} compatible;
+
+msbview m;
+lsbview l;
+mixed x;
+promoted p;
+compatible q;
+bitunion u;
+
+void main() {
+    printf(" SIZES %d %d %d %d %d %d\n", sizeof(msbrec), sizeof(lsbrec),
+           sizeof(mixed), sizeof(promoted), sizeof(compatible), sizeof(bitunion));
+
+    m.w = 0;
+    m.r.a = 1;
+    printf(" MSB A=1 %17o\n", m.w);
+    m.w = 0;
+    m.r.tail = 'A';
+    printf(" MSB T=A %17o\n", m.w);
+
+    l.w = 0;
+    l.r.a = 1;
+    printf(" LSB A=1 %17o\n", l.w);
+    l.w = 0;
+    l.r.c = 1;
+    printf(" LSB C=1 %17o\n", l.w);
+
+    u.w = 0;
+    u.bits = 1;
+    printf(" UNION   %17o\n", u.w);
+
+    m.w = 0;
+    m.r.a = 63;
+    m.r.b = 9;
+    m.r.c = 7;
+    m.r.tail = 'Z';
+    printf(" READ %d %d %d %c\n", m.r.a, m.r.b, m.r.c, m.r.tail);
+
+    x.before = 'A';
+    x.bits = 63;
+    x.after = 'B';
+    printf(" MIX %c %d %c\n", x.before, x.bits, x.after);
+
+    p.inner = 17;
+    p.next = 'C';
+    printf(" PROMOTE %d %c\n", p.inner, p.next);
+
+    q.old = 3;
+    q.fresh = 5;
+    q.last = 7;
+    printf(" COMPAT %d %d %d\n", q.old, q.fresh, q.last);
+}

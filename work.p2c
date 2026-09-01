@@ -226,9 +226,9 @@ typedef expr *eptr;
 typedef types *typptr;
 typedef __packed __lsb struct {
     typptr rep;
-    int:6 bits;
-    int:15 psize;
-    int:8 pad;             /* packed-array element width, or pointer metadata */
+    int bits:6;
+    int psize:15;
+    int pad:8;             /* packed-array element width, or pointer metadata */
     kind pk;
 } pckrep;
 typedef union {
@@ -248,7 +248,7 @@ typedef sigrec *sigptr;
    three. */
 typedef __packed __lsb struct {
     idclass pclass;
-    int:24  poffset;
+    int poffset:24;
 } sigpckp;
 typedef union {
     int     w;
@@ -261,10 +261,10 @@ typedef struct {
 } sigrec;
 //
 typedef __packed __lsb struct {
-        int:6 k;
-        int:18 hhh;
+        int k:6;
+        int hhh:18;
         types *ppp;
-        int:6 pad;
+        int pad:6;
 } strhash;
 
 typedef int:6 textchar;
@@ -371,7 +371,7 @@ typedef struct {
 /*=l3*/
 typedef __packed __lsb struct {
     irptr   next;
-    int:24  offset;
+    int offset:24;
     idclass cl;
 } idpckp;
 typedef union {
@@ -390,9 +390,9 @@ typedef union {
    record is zero, which is what a 48-bit packed member (whose shift is never
    assigned) relies on. */
 typedef __packed __lsb struct {
-    int:1   pckfield;
-    int:6   shift;
-    int:6   width;
+    int pckfield:1;
+    int shift:6;
+    int width:6;
 } fldpckp;
 typedef union {
     int     w;
@@ -405,11 +405,11 @@ typedef union {
    9 -- and both are dead space at full width. */
 typedef __packed __lsb struct {
     sigptr  sig;
-    int:24  pos;
+    int pos:24;
 } rtnpck1;
 typedef __packed __lsb struct {
     irptr   preDefLink;
-    int:9   level;
+    int level:9;
 } rtnpck2;
 typedef struct {
     idpck pck;
@@ -500,6 +500,9 @@ int strBuf[21];
 int strWords;
 int heapCallsCnt;
 int heapSize;
+/* Known accumulator normalization state: 0 is unknown, 1 is normalization
+   disabled (NTR 7, integer arithmetic), and 2 is normalization enabled
+   (bare NTR, real arithmetic). */
 int arithMode;
 /* The construct an error is reported against, as the one word its six
    characters occupy: an array is not assignable, so it is held as a word,
@@ -5677,7 +5680,7 @@ caserec cases1, cases2;
 // recIsPacked saves/restores it around each field's parseTypeRef call;
 // fieldPackedFlag carries the field's own packedness through to
 // parseOneDeclarator (for its array-suffix packing), separately.
-int recIsPacked, recIsLsb, fieldPackedFlag;
+int recIsPacked, recIsLsb, fieldPackedFlag, fieldIsInt, declWidth;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Assigns curField's offset (and, in a __packed struct, its bit
@@ -5799,6 +5802,10 @@ pair *curSlot;
             lookupMode  =  lookField;
             inSymbol();
             parseRecordDecl(&curType, false, nestedIsUnion);
+            /* Anonymous members promote their fields into this record and
+               share its layout state.  A C-style bit field seen inside one
+               therefore makes the containing record packed too. */
+            recIsPacked  =  isPacked;
             if (isUnion && ((cases2.size < cases.size) ||
                 isPacked && (cases.size == 1) && (cases2.size == 1) &&
                 (cases.count == 1) && (cases2.count == 1) &&
@@ -5820,6 +5827,26 @@ pair *curSlot;
             prevField  =  NULL;
             do {
                 parseOneDeclarator(&curDeclarator, selType, fieldPackedFlag, isForwardRef);
+                /* C spelling: the width belongs to this declarator, not to
+                   the shared type-spec, so comma-separated fields may each
+                   choose their own.  Seeing one switches the enclosing
+                   record to packed layout before this field is installed. */
+                if (SY == COLON) {
+                    recIsPacked  =
+                    isPacked  =  true;
+                    fieldIsInt  =  isIntTyp(curDeclarator.typ);
+                    if (! fieldIsInt)
+                        error(62); /* errIntNeeded */
+                    inSymbol();
+                    if (SY != INTCONST)
+                        error(errNumberTooLarge);
+                    else {
+                        declWidth  =  curToken.i;
+                        inSymbol();
+                        if (fieldIsInt)
+                            curDeclarator.typ  =  mkIntScl(declWidth);
+                    }
+                }
                 if (curDeclarator.name) {
                     if (curDeclarator.foundRec)
                         error(errIdentAlreadyDefined);
@@ -7652,7 +7679,7 @@ int argCount, isFormat;
         return;
     }
     switch (procNo) {
-    case 2: /* besm */
+    case 0: /* besm */
         do {
             expression();
             takeConstFromExpr();
@@ -7688,7 +7715,7 @@ int argCount, isFormat;
         padToLeft();
         prevOpcode  =  1;
         break;
-    case 3: /* printf */
+    case 1: /* printf */
         inSymbol();
         if (SY == RPAREN)
             error(36); /* errTooFewArguments */
@@ -7698,7 +7725,7 @@ int argCount, isFormat;
         }
         break;
     }
-    if (procNo == 3)
+    if (procNo == 1)
         arithMode  =  1;
     checkSymAndRead(RPAREN);
 } /* standProc */
@@ -7800,6 +7827,12 @@ L8888:      skip(skipToSet | statEndSys);
             inSymbol();
             statement();
             fixup(0, elseJump);
+            /* curOffset is the mode left by the then arm; arithMode is the
+               mode left by the else arm.  A single static mode cannot
+               describe a join where they differ, so put NTR 7 at the join
+               and make both paths continue in known integer mode.  Seed
+               arithMode with 2 so disableNorm emits it even when the else
+               arm itself already ended in mode 1. */
             if (curOffset != arithMode) {
                 arithMode  =  2;
                 disableNorm();
@@ -8084,12 +8117,8 @@ irptr l3var7z, programObj;
 int l3var8z, sysProcNum;
 tptr temptype;
 int l3var11z;
-// Procedure numbers run from 2, the historical value of BESM.  FREE and HALT
-// are ordinary ASSEMBLER routines supplied by libc, and everything a program
-// writes goes through PRINTF, a line terminated by libc's PUTLN or by the
-// format itself.
 static int systemProcNames[2] = {
-/*2*/   t'    BESM',
+/*0*/   t'    BESM',
         t'  PRINTF' };
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -8104,7 +8133,7 @@ void regSysProc(int l4arg1z) {
     curIdRec->pck.p.cl  =  ROUTINEID;
     addToHashTab(curIdRec);
     ++sysProcNum;
-} /* registerSysProc */
+} /* regSysProc */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     boolType.rep = malloc(offsetof(types, szScalar));
@@ -8214,7 +8243,7 @@ void regSysProc(int l4arg1z) {
         ir->r1.pos  =  0;
     }
     temptype.rep = NULL;
-    sysProcNum  =  2;
+    sysProcNum  =  0;
     for (l3var5z = 0; l3var5z <= 1; ++l3var5z) {
         regSysProc(systemProcNames[l3var5z]);
     }

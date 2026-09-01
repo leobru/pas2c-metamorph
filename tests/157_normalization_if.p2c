@@ -1,0 +1,33 @@
+/*=k9,l0*/
+//
+// Each if has an integer arm and a real arm, so its two incoming paths reach
+// the join with different normalization modes.  The first join is followed
+// by integer arithmetic and the second by real arithmetic.  Calling it with
+// both values exercises both run-time paths through the same generated code.
+//
+int i, n;
+float f;
+
+int mixedIf(int path) {
+    i = 10;
+    f = 1.5;
+    if (path)
+        f = f * 2.0;
+    else
+        i = i + 7;
+    i = i + 3;
+
+    if (path)
+        i = i * 2;
+    else
+        f = f + 0.5;
+    f = f + 1.0;
+
+    n = f * 2;
+    return i + n;
+}
+
+void main() {
+    n = mixedIf(0) + mixedIf(1);
+    printf(" NORM IF %d\n", n);
+}

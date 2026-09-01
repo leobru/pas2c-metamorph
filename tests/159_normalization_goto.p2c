@@ -1,0 +1,34 @@
+/*=k9,l0*/
+//
+// Labels and gotos are normalization barriers.  A forward join is reached
+// from an integer fall-through or a real-valued arm, and the backward edge
+// follows real arithmetic.  Both selector values traverse the shared join.
+//
+int i, n;
+float f;
+
+int gotoPath(int path) {
+    i = 2;
+    f = 1.0;
+    if (path) {
+        f = f * 2.0;
+        goto joined;
+    }
+    i = i + 5;
+joined:
+    i = i + 1;
+
+again:
+    f = f + 0.5;
+    i = i + 1;
+    if (i < 10)
+        goto again;
+
+    n = f * 2;
+    return i + n;
+}
+
+void main() {
+    n = gotoPath(0) + gotoPath(1);
+    printf(" NORM GOTO %d\n", n);
+}

@@ -1,0 +1,27 @@
+/*=k9,l0*/
+//
+// Integer arithmetic needs normalization disabled; real arithmetic needs it
+// enabled.  Runs of one kind should share a mode, while each change of kind
+// must switch exactly once.  Keep every operand variable so the arithmetic is
+// emitted rather than folded at compile time.
+//
+int i, j, n;
+float f, g;
+
+void main() {
+    i = 7;
+    j = 3;
+    f = 1.5;
+    g = 0.25;
+
+    i = i + j;
+    i = i * 3;
+    f = f + g;
+    f = f * 2.0;
+    j = i - 4;
+    g = f - 0.5;
+
+    n = g * 4;
+    i = j + n;
+    printf(" NORM STRAIGHT %d %d\n", i, n);
+}

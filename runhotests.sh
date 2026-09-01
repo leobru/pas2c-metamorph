@@ -78,6 +78,16 @@ run_test() {
     fi
 
     if [ $rc -eq 0 ]; then
+        # A .ntr sidecar pins only the normalization-mode transitions in the
+        # generated object.  runhotest.sh leaves that object's host form in
+        # tmpbin.o, so no second compilation is needed here.
+        if [ -f "${test_file%.p2c}.ntr" ]; then
+            if ! ./check-ntr.sh host "$test_file" tmpbin.o; then
+                echo -e "${RED}FAIL${NC} (unexpected NTR sequence)"
+                FAILED=$((FAILED + 1))
+                return
+            fi
+        fi
         if grep -q '\*EXECUTE' "$result_file"; then
             sed -n '/\*EXECUTE/,/^----/ p' "$result_file" | tail -n +2 | head -n -1 > "${result_file}.output"
 

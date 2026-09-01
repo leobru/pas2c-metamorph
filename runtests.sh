@@ -93,6 +93,16 @@ run_test() {
     fi
 
     if [ $rc -eq 0 ]; then
+        # A .ntr sidecar pins only the normalization-mode transitions.  The
+        # work runner compiles and executes in one DUBNA job without retaining
+        # the object, so the checker performs an extraction-only compilation.
+        if [ -f "${test_file%.p2c}.ntr" ]; then
+            if ! ./check-ntr.sh work "$test_file"; then
+                echo -e "${RED}FAIL${NC} (unexpected NTR sequence)"
+                FAILED=$((FAILED + 1))
+                return
+            fi
+        fi
         # Extract output after *EXECUTE line
         if grep -q '\*EXECUTE' "$result_file"; then
             # Get everything after *EXECUTE until the separator line
