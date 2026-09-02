@@ -4,6 +4,7 @@ cat << EOF > tmp$$
 *disc:1/local
 *file:libc,67,w
 *     NO LIST
+*call setftn:one,long
 *assem
 EOF
 if [ "$1" = "-d" ]; then ln -f tmp$$ libc.dub ; shift; fi

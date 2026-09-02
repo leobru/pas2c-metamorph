@@ -1,0 +1,111 @@
+/*=k9,l0*/
+//
+// A case label binds to the switch being parsed wherever it is written, so it
+// may sit inside a block, inside an arm of an if, or inside a loop body, and
+// several may stand in front of one statement.  Each shape here is entered
+// twice: once by falling into it from the label above, and once by the
+// dispatch jumping straight to it, which skips whatever the fall-through path
+// would have run first.  The two answers differ, so a label bound to the
+// wrong place shows up as a wrong value rather than as a missing arm.
+//
+int t;
+//
+void putln() assembler;
+//
+// A label inside a plain block.  Entering at 4 skips the t = 10 above it.
+int inBlock(int n) {
+    switch (n) {
+    case 0: {
+        t  =  10;
+    case 4:
+        t  =  t + 4;
+        return t;
+    }
+    case 5: return 50;
+    }
+    return 99;
+}
+//
+// A label inside the then-arm of an if.  Entering at 2 skips both the test
+// and the assignment, and then leaves the if the way the then-arm does.
+int inIf(int n, int c) {
+    switch (n) {
+    case 1:
+        if (c) {
+            t  =  100;
+    case 2:
+            t  =  t + 2;
+        } else {
+            t  =  200;
+        }
+        return t;
+    }
+    return 99;
+}
+//
+// A label inside a while body.  Entering at 3 lands past the increment, so
+// the loop's own test is the next thing that runs.
+int inWhile(int n) {
+    int k;
+    k  =  0;
+    switch (n) {
+    case 1:
+        while (k < 3) {
+            k  =  k + 1;
+    case 3:
+            k  =  k + 10;
+        }
+        return k;
+    }
+    return 99;
+}
+//
+// Several labels in front of one statement.
+int multi(int n) {
+    switch (n) {
+    case 1: case 2: case 3: return 7;
+    default: return 8;
+    }
+}
+//
+// A default written at depth still belongs to the switch.
+int deepDef(int n) {
+    switch (n) {
+    case 1:
+        t  =  1;
+        {
+    default:
+            t  =  t + 5;
+        }
+        return t;
+    }
+    return 99;
+}
+//
+int call1(int n) {
+    t  =  0;
+    return inBlock(n);
+}
+//
+int call2(int n, int c) {
+    t  =  0;
+    return inIf(n, c);
+}
+//
+int call3(int n) {
+    t  =  0;
+    return deepDef(n);
+}
+//
+void main() {
+    printf(" BLOCK ");
+    printf("%4d%4d%4d%4d\n", call1(0), call1(4), call1(5), call1(9));
+    printf(" IF    ");
+    printf("%4d%4d%4d%4d\n", call2(1, 1), call2(1, 0), call2(2, 0), call2(9, 0));
+    printf(" WHILE ");
+    printf("%4d%4d%4d\n", inWhile(1), inWhile(3), inWhile(9));
+    printf(" MULTI ");
+    printf("%4d%4d%4d%4d\n", multi(1), multi(2), multi(3), multi(4));
+    printf(" DEEPD ");
+    printf("%4d%4d\n", call3(1), call3(7));
+}

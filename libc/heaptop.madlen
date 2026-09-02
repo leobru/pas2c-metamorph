@@ -1,0 +1,9 @@
+ heaptop:       , name,
+C heaptop() - return the top of the Pascal heap.
+C Out: ACC := ~[M1+30B], the complement of the runtime HEAPLIM cell, i.e.
+C      the address just above the last word P/NW is allowed to hand out.
+                , ntr , 7
+             1  , xta , 30b
+             1  , aex , 24b
+            13  , uj  ,
+                , end ,

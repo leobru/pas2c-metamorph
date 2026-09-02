@@ -1,0 +1,99 @@
+/*=k9,l0*/
+//
+// A switch nested inside an arm of another switch.  Each switch carries its
+// own labels, its own label type, its own default and its own dispatch shape,
+// and the inner one must leave all of that as it found it: the outer switch's
+// remaining arms, its default and the type its labels were checked against
+// are all still to come when the inner switch closes.
+//
+// The two levels deliberately collide wherever they can.  Both use the label
+// value 1, both carry a default, and the inner switch takes the indexed shape
+// while the outer takes the compared one, so an inner label that leaked into
+// the outer switch's list would change which arm the outer dispatch selects
+// rather than merely adding an unreachable one.
+//
+int i, j;
+//
+void putln() assembler;
+//
+// Outer: three labels with a gap, compared.  Inner: ten consecutive labels,
+// indexed.  Both have a default and both use the label 1.
+int two(int n, int m) {
+    switch (n) {
+    case 1:
+        switch (m) {
+        case 1: return 11;
+        case 2: return 12;
+        case 3: return 13;
+        case 4: return 14;
+        case 5: return 15;
+        case 6: return 16;
+        case 7: return 17;
+        case 8: return 18;
+        case 9: return 19;
+        case 10: return 110;
+        default: return 199;
+        }
+    case 3: return 30;
+    case 7: return 70;
+    default: return 999;
+    }
+}
+//
+// The inner switch sits in the middle arm, so the outer arms on either side
+// of it have to survive it.  The inner one has no default: falling out of it
+// continues in the outer arm, which is what the 42 answers.
+int middle(int n, int m) {
+    switch (n) {
+    case 0: return 500;
+    case 1:
+        switch (m) {
+        case 4: return 504;
+        case 5: return 505;
+        }
+        return 542;
+    case 2: return 502;
+    }
+    return 599;
+}
+//
+// Three deep, each level defaulting.  The label types differ per level -- a
+// char at the middle level -- so a leaked label would also be a type error.
+int deep(int a, char b, int c) {
+    switch (a) {
+    case 1:
+        switch (b) {
+        case 'X':
+            switch (c) {
+            case 1: return 711;
+            case 2: return 712;
+            default: return 719;
+            }
+        case 'Y': return 720;
+        default: return 729;
+        }
+    default: return 799;
+    }
+}
+//
+void main() {
+    printf(" TWO   ");
+    for (i = 1; i <= 10; i = i + 1)
+        printf("%4d", two(1, i));
+    putln();
+    printf(" TWOD  ");
+    printf("%4d%4d%4d%4d\n", two(1, 0), two(1, 11), two(3, 1), two(7, 1));
+    printf(" TWOX  ");
+    printf("%4d%4d\n", two(2, 1), two(0, 5));
+    printf(" MIDDLE");
+    for (i = 0; i <= 3; i = i + 1)
+        printf("%4d", middle(i, 4));
+    putln();
+    printf(" MIDIN ");
+    printf("%4d%4d%4d\n", middle(1, 4), middle(1, 5), middle(1, 9));
+    printf(" DEEP  ");
+    printf("%4d%4d%4d", deep(1, 'X', 1), deep(1, 'X', 2), deep(1, 'X', 3));
+    printf("%4d%4d\n", deep(1, 'Y', 1), deep(1, 'Z', 1));
+    printf(" DEEPD ");
+    printf("%4d\n", deep(2, 'X', 1));
+}

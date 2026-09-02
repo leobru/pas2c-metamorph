@@ -1,44 +1,18 @@
 /*=k9,l0*/
 //
-// A switch label is recognised only at the top of a switch's own body, so one
-// written any deeper -- Duff's device interleaves them with a do-while -- is a
-// bad symbol, and so is one with no switch around it at all.  Each has to be
-// reported and consumed whole, colon included: a label left half-eaten used to
-// spin the enclosing 'while (SY != ENDSY) statement()' loop forever.
+// A switch label with no switch around it is a bad symbol.  It has to be
+// reported and consumed whole, colon included: a label left half-eaten spins
+// the enclosing 'while (SY != ENDSY) statement()' loop forever, turning a
+// diagnostic into a hang.  A label written inside a switch is an ordinary
+// label of it however deep it sits -- tests 70 and 72 cover those.
 //
-int src[24], dst[24];
-int i, s, n;
-//
-// Duff's device proper: seven labels inside the loop, seven bad symbols.
-void copy(int *to, int *from, int cnt) {
-    n = (cnt + 7) / 8;
-    switch (cnt % 8) {
-    case 0: do { *to++ = *from++;
-    case 7:      *to++ = *from++;
-    case 6:      *to++ = *from++;
-    case 5:      *to++ = *from++;
-    case 4:      *to++ = *from++;
-    case 3:      *to++ = *from++;
-    case 2:      *to++ = *from++;
-    case 1:      *to++ = *from++;
-            } while (--n > 0);
-    }
-}
+int s;
 //
 void main() {
-    s = 0;
+    s  =  0;
     // A label with no switch anywhere.
-    case 1: s = 1;
-    // A label inside a plain block.
-    { case 2: s = 2; }
-    // A label one block below the switch that owns it, and a default too.
-    switch (s) {
-    case 0: { s = 3;
-    case 4:   s = 4;
-    default:  s = 5;
-            }
-    }
-    for (i = 0; i < 24; i = i + 1) { src[i] = i; dst[i] = 0; }
-    copy(dst, src, 13);
+    case 1: s  =  1;
+    // A label inside a plain block, still with no switch anywhere.
+    { case 2: s  =  2; }
     printf(" S %d\n", s);
 }

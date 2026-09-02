@@ -145,6 +145,7 @@ const int64_t
     ALLONES =   04000024,
     MSB =       04000025,
     HEAPPTR =   04000027,
+    HEAPLIM =   04000030,      // complement of the heap's top address
 
     KATX =      0000000,
     KXTS =      0030000,
@@ -358,6 +359,9 @@ std::string Real::print() const
 int64_t heap[32768];
 int64_t heapBase = 100, heapLimit = 074000;
 int64_t avail = 100, maxHeap;
+/* The top of the heap, moved down to reserve a region whose lifetime is a
+   statement's, not an arena mark's.  settop() publishes it to the allocator,
+   so besm6_alloc_words' own limit test keeps allocation out of those words. */
 
 void * besm6_alloc_words(size_t words)
 {
@@ -407,6 +411,34 @@ template<class T> void setup(T * &p)
 template<typename T> void succ(T & v)
 {
     v = (T)(int(v)+1);
+}
+
+/* The runtime keeps the complement of the LAST USABLE word, while heapLimit
+   here is one past it, so the two conversions carry the difference and both
+   compilers can speak of the top as the last word malloc may return. */
+int64_t heaptop()
+{
+    return heapLimit - 1;
+}
+
+void settop(int64_t top)
+{
+    heapLimit = top + 1;
+}
+
+/* talloc(n) - n words off the top of the heap, the mirror of libc/talloc.madlen.
+   The block is [top-n+1, top] and the limit drops below it, so the arena's own
+   test keeps allocation out of it.  Meeting the arena means the heap is full,
+   which is P/NW's diagnostic and its wording. */
+int64_t talloc(int64_t words)
+{
+    int64_t newtop = heaptop() - words;
+    if (newtop <= avail) {
+        printf(" NO GLOBAL MEMORY\n");
+        exit(1);
+    }
+    settop(newtop);
+    return newtop + 1;
 }
 
 void rollup(void * p)
@@ -714,6 +746,28 @@ struct StrLabel : public BESM6Obj {
     StrLabel * next;
     Word ident;
     int64_t target;
+};
+
+/* One label of a switch: the value it matches and the code offset it enters
+   at.  The labels of one switch hang off curSwitch.allClauses in value order. */
+struct CaseChain : public BESM6Obj {
+    CaseChain * next;
+    Word value;
+    int64_t offset;
+};
+typedef CaseChain * CaseChainPtr;
+
+/* The switch being parsed: its labels in value order, the type they all have
+   to share, whether a default has been seen and the offset it enters at, and
+   whether every arm so far left the arithmetic mode alone.  One assignment
+   saves the lot, which is what lets a switch nested in an arm of another keep
+   its own. */
+struct SwState {
+    CaseChainPtr allClauses;
+    TPtr firstType;
+    bool otherSeen;
+    int64_t otherOffset;
+    bool goodMode;
 };
 
 struct NumLabel : public BESM6Obj {
@@ -1182,6 +1236,16 @@ struct programme {
     Word ceVal;
     SetOfSYs bodyStatSys;
     StrLabel * strLabList;
+    /* The switch being parsed.  A label reaches it from wherever it is
+       written. */
+    SwState curSwitch;
+    /* Non-zero while a switch body is being parsed, so a label knows it has
+       one to bind to.  caseStatement counts it up and down, which nests by
+       itself. */
+    int64_t switchDepth;
+    CaseChainPtr curClause, clause, prev;
+    TPtr itemtype;
+    Word itemvalue;
 
     int64_t l2int18z, ii, localSize, sizeCount, jj;
     int64_t toAlloc;
@@ -7939,28 +8003,25 @@ void structBranch()
 void caseStatement()
 {
     const int64_t caseTabMin = 9; // clause count from which a switch indexes
-    typedef struct CaseChain : public BESM6Obj {
-        CaseChain * next;
-        Word value;
-        int64_t offset;
-    } * CaseChainPtr;
-
-    CaseChainPtr allClauses, curClause, clause, prev = NULL;
+    SwState &curSwitch = programme::super.back()->curSwitch;
+    CaseChainPtr &curClause = programme::super.back()->curClause;
+    SwState savSwitch;
+    int64_t savTop;
     bool isIntCase;
-    bool otherSeen;
-    int64_t otherOffset = -1;
-    bool itemsEnded, goodMode;
-    TPtr firstType, itemtype, exprtype;
-    Word itemvalue;
+    bool itemsEnded;
+    TPtr exprtype;
     int64_t itemSpan;
     int64_t nClauses;
     Word expected;
     int64_t decoder, endOfStmt;
     Word minValue, maxValue;
 
+    savSwitch = curSwitch;
+    savTop = heaptop();
+    ++programme::super.back()->switchDepth;
     parentExpression();
     exprtype = curExpr->vt.typ;
-    otherSeen = false;
+    curSwitch.otherSeen = false;
     if (exprtype.p.pk == kindScalar)
         (void) formOperator(LOAD);
     else
@@ -7968,92 +8029,34 @@ void caseStatement()
     disableNorm();
     decoder = 0;
     endOfStmt = 0;
-    allClauses = NULL;
+    curSwitch.allClauses = NULL;
     formJump(decoder);
     checkSymAndRead(BEGINSY);
-    firstType.setRep(NULL);
-    goodMode = true;
-    do {
-        if (not (SY == SEMICOLON || SY == ENDSY)) {
-            padToLeft();
-            arithMode = 1;
-            if (SY == DEFAULTSY) {
-                if (otherSeen)
-                    error(73); /* errCaseLabelsIdentical */
-                inSymbol();
-                otherSeen = true;
-                otherOffset = moduleOffset;
-            } else {
-                if (SY != CASESY) {
-                    requiredSymErr(CASESY);
-                    // No CASESY was consumed, so the label's own first token
-                    // is the current SY.  readNext := false keeps it for
-                    // expression(); skipping it instead derails the arm and
-                    // spills the following labels into statement context,
-                    // where each costs an error of its own.
-                    readNext = false;
-                }
-                expression();
-                takeConstFromExpr();
-                itemvalue = curVal;
-                itemtype = curExpr->vt.typ;
-                if (itemtype.rep()) {
-                    if (firstType.rep() == NULL) {
-                        firstType = itemtype;
-                    } else {
-                        if (not typeCheck(itemtype, firstType))
-                            error(errConstOfOtherTypeNeeded);
-                    }
-                    clause = new CaseChain;
-                    clause->value = itemvalue;
-                    clause->offset = moduleOffset;
-                    curClause = allClauses;
-                    while (curClause) {
-                        if (itemvalue == curClause->value) {
-                            error(73); /* errCaseLabelsIdentical */
-                            break;
-                        } else if (itemvalue.ii < curClause->value.ii) {
-                            break;
-                        } else {
-                            prev = curClause;
-                            curClause = curClause->next;
-                        }
-                    }
-                    if (curClause == allClauses) {
-                        clause->next = allClauses;
-                        allClauses = clause;
-                    } else {
-                        clause->next = curClause;
-                        prev->next = clause;
-                    }
-                }
-            }
-            checkSymAndRead(COLON);
-            while (not (SY == CASESY || SY == DEFAULTSY || SY == ENDSY))
-                Statement();
-            goodMode = goodMode and (arithMode == 1);
-        }
-        itemsEnded = (SY == ENDSY);
-        if (SY == SEMICOLON)
-            inSymbol();
-    } while (not itemsEnded);
+    curSwitch.firstType.setRep(NULL);
+    curSwitch.goodMode = true;
+    /* The body is statements, and a label anywhere in one of them binds to
+       this switch -- Statement() collects it.  CH != 0 stops an unterminated
+       body at end of file instead of spinning on it. */
+    while (SY != ENDSY and CH != 0)
+        Statement();
+    curSwitch.goodMode = curSwitch.goodMode and (arithMode == 1);
     if (SY != ENDSY) {
         requiredSymErr(ENDSY);
         stmtName = "CASE  ";
         reportStmtType();
     } else
         inSymbol();
-    if (not typeCheck(firstType, exprtype)) {
+    if (not typeCheck(curSwitch.firstType, exprtype)) {
         error(74); /* errDifferentTypesOfLabelsAndExpr */
-        return;
+        goto L16220;
     }
     formJump(endOfStmt);
     padToLeft();
     isIntCase = typeCheck(exprtype, IntegerType);
-    if (allClauses) {
-        expected = allClauses->value;
+    if (curSwitch.allClauses) {
+        expected = curSwitch.allClauses->value;
         minValue = expected;
-        curClause = allClauses;
+        curClause = curSwitch.allClauses;
         nClauses = 0;
         while (curClause) {
             if (expected != curClause->value or
@@ -8074,13 +8077,13 @@ void caseStatement()
            range check. */
         if (nClauses < caseTabMin)
             goto L16140;
-        if (not otherSeen) {
-            otherOffset = moduleOffset;
+        if (not curSwitch.otherSeen) {
+            curSwitch.otherOffset = moduleOffset;
             formJump(endOfStmt);
         }
         fixup(0, decoder);
         curVal = minValue;
-        fixup(-(InsnTemp[U1A]+otherOffset), maxValue.ii);
+        fixup(-(InsnTemp[U1A]+curSwitch.otherOffset), maxValue.ii);
         curVal.ii = minValue.ii;
         curVal.ii = curVal.ii / 2;
         form3Insn(ASN64+1, KATI+14, KYTA);
@@ -8096,17 +8099,17 @@ void caseStatement()
             decoder = (int64_t)UJ;
         } else
             decoder = (int64_t)UZA;
-        while (allClauses) {
-            form1Insn(InsnTemp[decoder] + allClauses->offset);
-            allClauses = allClauses->next;
+        while (curSwitch.allClauses) {
+            form1Insn(InsnTemp[decoder] + curSwitch.allClauses->offset);
+            curSwitch.allClauses = curSwitch.allClauses->next;
             decoder = (int64_t)UZA + (int64_t)UJ - decoder;
         }
         goto L16211;
 L16140:
         itemSpan = 34000;
         fixup(0, decoder);
-        if (firstType.p.pk == kindScalar)
-            itemSpan = firstType.rep()->numen;
+        if (curSwitch.firstType.p.pk == kindScalar)
+            itemSpan = curSwitch.firstType.rep()->numen;
         itemsEnded = itemSpan < 32000;
         if (itemsEnded)
             form1Insn(KATI+14);
@@ -8116,9 +8119,9 @@ L16140:
            holds the subject XOR-ed with the label reached so far, AEX being
            its own inverse. */
         minValue.ii = (minValue.ii - minValue.ii); /* WTF? */
-        while (allClauses) {
+        while (curSwitch.allClauses) {
             if (itemsEnded) {
-                curVal.ii = (minValue.ii - allClauses->value.ii);
+                curVal.ii = (minValue.ii - curSwitch.allClauses->value.ii);
                 /* KVZM reads the index register, so a step of zero -- a
                    first label of zero -- needs no instruction of its own.
                    The accumulator chain below keeps its KAEX even then: it
@@ -8127,22 +8130,27 @@ L16140:
                 if (curVal.ii)
                     form1Insn(getValueOrAllocSymtab(curVal.ii) +
                               (KUTM+I14));
-                form1Insn(KVZM+I14 + allClauses->offset);
+                form1Insn(KVZM+I14 + curSwitch.allClauses->offset);
             } else {
-                curVal.ii = (minValue.ii ^ allClauses->value.ii);
+                curVal.ii = (minValue.ii ^ curSwitch.allClauses->value.ii);
                 form2Insn(KAEX + I8 + getFCSToffset(),
-                          InsnTemp[UZA] + allClauses->offset);
+                          InsnTemp[UZA] + curSwitch.allClauses->offset);
             }
-            minValue = allClauses->value;
-            allClauses = allClauses->next;
+            minValue = curSwitch.allClauses->value;
+            curSwitch.allClauses = curSwitch.allClauses->next;
         }
-        if (otherSeen)
-            form1Insn(InsnTemp[UJ] + otherOffset);
+        if (curSwitch.otherSeen)
+            form1Insn(InsnTemp[UJ] + curSwitch.otherOffset);
 L16211:
         fixup(0, endOfStmt);
-        if (not goodMode)
+        if (not curSwitch.goodMode)
             disableNorm();
     }
+    /* Put back the switch this one is nested in. */
+L16220:
+    --programme::super.back()->switchDepth;
+    settop(savTop);
+    curSwitch = savSwitch;
 } /* caseStatement */
 
 void ifWhileStatement()
@@ -8598,6 +8606,82 @@ Statement::Statement()
     startLine = lineCnt;
     {
         try {
+            /* A switch label binds to the switch being parsed, wherever it
+               is written: the label list belongs to programme, not to
+               caseStatement, so a label in a nested block, in an arm of an
+               if, or in a loop body -- which is how Duff's device interleaves
+               them with a do-while -- reaches it from here.  Several may
+               stand in front of one statement, and the statement they label
+               is then the one this same call goes on to parse. */
+            while (programme::super.back()->switchDepth
+                   and (SY == CASESY or SY == DEFAULTSY)) {
+                SwState &curSwitch = programme::super.back()->curSwitch;
+                CaseChainPtr &curClause = programme::super.back()->curClause;
+                CaseChainPtr &clause = programme::super.back()->clause;
+                CaseChainPtr &prev = programme::super.back()->prev;
+                TPtr &itemtype = programme::super.back()->itemtype;
+                Word &itemvalue = programme::super.back()->itemvalue;
+                const int64_t caseWords = sizeof(CaseChain) / sizeof(int64_t);
+
+                curSwitch.goodMode = curSwitch.goodMode and (arithMode == 1);
+                padToLeft();
+                arithMode = 1;
+                if (SY == DEFAULTSY) {
+                    if (curSwitch.otherSeen)
+                        error(73); /* errCaseLabelsIdentical */
+                    inSymbol();
+                    curSwitch.otherSeen = true;
+                    curSwitch.otherOffset = moduleOffset;
+                } else {
+                    /* expression() reads a token first, so it consumes the
+                       CASESY itself, the way the arm loop that used to stand
+                       here did. */
+                    expression();
+                    takeConstFromExpr();
+                    itemvalue = curVal;
+                    itemtype = curExpr->vt.typ;
+                    if (itemtype.rep()) {
+                        if (curSwitch.firstType.rep() == NULL) {
+                            curSwitch.firstType = itemtype;
+                        } else {
+                            if (not typeCheck(itemtype, curSwitch.firstType))
+                                error(errConstOfOtherTypeNeeded);
+                        }
+                        /* Clause records outlive the statement the label sits
+                           in, so they cannot come from the arena: every
+                           statement rolls that back on the way out.  talloc
+                           takes them from the top of the heap, where nothing
+                           rolls back, and caseStatement gives the whole
+                           switch's worth back at once. */
+                        {
+                            clause = reinterpret_cast<CaseChainPtr>(
+                                heap + talloc(caseWords));
+                            clause->value = itemvalue;
+                            clause->offset = moduleOffset;
+                            curClause = curSwitch.allClauses;
+                            while (curClause) {
+                                if (itemvalue == curClause->value) {
+                                    error(73); /* errCaseLabelsIdentical */
+                                    break;
+                                } else if (itemvalue.ii < curClause->value.ii) {
+                                    break;
+                                } else {
+                                    prev = curClause;
+                                    curClause = curClause->next;
+                                }
+                            }
+                            if (curClause == curSwitch.allClauses) {
+                                clause->next = curSwitch.allClauses;
+                                curSwitch.allClauses = clause;
+                            } else {
+                                clause->next = curClause;
+                                prev->next = clause;
+                            }
+                        }
+                    }
+                }
+                checkSymAndRead(COLON);
+            }
             if (SY == IDENT) {
                 /* CH is already the first character after the identifier.
                    Advance over blanks directly, leaving the identifier token
@@ -8789,12 +8873,10 @@ Statement::Statement()
                 caseStatement();
                 brContTarget(); /* removing break */
             } else if (SY == CASESY or SY == DEFAULTSY) {
-                /* A switch label where a statement was expected.  parseCase
-                   takes labels only at the top of its own body, so one written
-                   any deeper -- Duff's device interleaves them with a do-while
-                   -- arrives here, as does one with no switch around it at
-                   all.  The whole label has to go, colon included: dropping
-                   the keyword alone would leave the constant and the colon for
+                /* A switch label with no switch around it -- one inside a
+                   switch is taken by the loop above, before this dispatch.
+                   The whole label has to go, colon included: dropping the
+                   keyword alone would leave the constant and the colon for
                    the enclosing loop to spin on instead.  The statement the
                    label was attached to still parses. */
                 errAndSkip(errBadSymbol, Bits(COLON, SEMICOLON, ENDSY, NOSY));
@@ -9507,6 +9589,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
     retSeen = false;
     bodyStatSys = statBegSys;
     strLabList = NULL;
+    switchDepth = 0;
     lineNesting = lineNesting + 1;
     labFence = numLabTop;
     // Not just TYPESY -- a type-spec can also open with
