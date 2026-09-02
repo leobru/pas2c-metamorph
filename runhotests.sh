@@ -38,16 +38,15 @@ run_test() {
     fi
 
     local rc=0
-    timeout 10 ./$RUNNER "$test_file" > "$result_file" 2>&1 || rc=$?
+    ( ulimit -t 10; exec ./$RUNNER "$test_file" ) > "$result_file" 2>&1 || rc=$?
 
-    # A timeout is never an "expected failure".  .should_fail asserts that the
+    # A cap hit is never an "expected failure".  .should_fail asserts that the
     # compiler *rejects* the program, not that it may spin: a hang there used
     # to be reported as a pass, which is how the switch-without-case spin
-    # (tests/97) stayed invisible.  124 is timeout(1)'s SIGTERM kill, 137 a
-    # SIGKILL that outlived it.  timeout signals the whole process group, so
-    # ./base or dubna go down with the runner.
-    if [ $rc -eq 124 ] || [ $rc -eq 137 ]; then
-        echo -e "${RED}FAIL${NC} (timeout -- infinite loop?)"
+    # (tests/97) stayed invisible.  The cap is CPU time (ulimit -t), which a
+    # loaded machine cannot trip, and the kernel ends it with SIGKILL: 137.
+    if [ $rc -eq 137 ]; then
+        echo -e "${RED}FAIL${NC} (CPU cap -- infinite loop?)"
         FAILED=$((FAILED + 1))
         return
     fi

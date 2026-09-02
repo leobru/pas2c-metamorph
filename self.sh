@@ -50,7 +50,7 @@ cat << EOF > tmp$$
 EOF
 if [ "$1" = "-d" ]; then ln -f tmp$$ self.dub ; fi
 rm -f self.o
-length=`timeout 3 dubna tmp$$ | tee self.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
+length=`( ulimit -t 3; exec dubna tmp$$ ) | tee self.lst | grep 'HA LIBRARY' | cut -d ' ' -f 5`
 length=$(($length-2))
 grep -q 'LINES STRUCTURE 1' self.lst
 if [ $? -ne 0 ]; then

@@ -578,7 +578,7 @@ int funcInsn[7] = {
     [fnMALLOC] = macro + mcMALLOC,
     [fnABSI]   = KAMX };
 int frameRegTemplate = 04000000;
-int jb9999;
+int jb9999[6];
 char lineBuf[130];
 int errMap[10];
 operator chrClass['\200'] = {
@@ -702,7 +702,10 @@ extern int paseofcd;
 // %%%%%%%%%%%% Libc functions %%%%%%%%%%%
 //
 int mapai(int) assembler;
-void longjmp(int jmpbuf, int val) assembler;
+/* A jmp_buf is six words: the caller's frame and the setjmp return address
+   packed into one, then M2-M6.  A longjmp does not pass through C/E, so the
+   display registers come back from there. */
+void longjmp(int *jmpbuf, int val) assembler;
 int setjmp(int *jmpbuf) assembler;
 int setup() assembler;
 void rollup(int addr) assembler;
@@ -1399,7 +1402,7 @@ word numstr[17];
 int expLiteral, expMagnitude;
 int charBits, charMask;
 int val;
-int jb1473;
+int jb1473[6];
 int literalEncoding;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1789,7 +1792,7 @@ L2290:
 } /* lexer */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        if(setjmp(&jb1473));
+        if(setjmp(jb1473));
 L1473:  while(skipsp());
         hashTravPtr  =  NULL;
         SY  =  charSym[CH];
@@ -7045,7 +7048,7 @@ int startLine;
 int ifWhlTarget, elseJump;
 eptr whileExpr;
 irptr l3idr12z;
-int jb8888;
+int jb8888[6];
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //
@@ -7766,7 +7769,7 @@ int argCount, isFormat;
     nest  =  has([BEGINSY,SWITCHSY], SY);
     if (nest)
         ++lineNesting;
-    if (setjmp(&jb8888))
+    if (setjmp(jb8888))
         goto L8888;
     switch (SY) {
     case IDENT:
@@ -9279,7 +9282,7 @@ void main() {
     if (PASINFOR.listMode)
         puts(boilerplate);
     printf(" INITHEAP = %05o\n", setup());
-    if (setjmp(&jb9999)) goto L9999;
+    if (setjmp(jb9999)) goto L9999;
     initOptions();
     curInsnTemplate  =  0;
     initTables();

@@ -1,20 +1,37 @@
  setjmp:        , name,
 C===========================================================
-C setjmp(&env) - record the current frame & return address.
-C   In:  ACC  = &env (pointer to a one-word jmp_buf cell).
-C   env will be packed (caller frame << 15) | setjmp-return-addr,
+C setjmp(env) - record the current frame, return address and
+C   display registers.
+C   In:  ACC  = env (pointer to a six-word jmp_buf).
+C   env[0] will be packed (caller frame << 15) | setjmp-return-addr,
 C   matching what longjmp.madlen expects: low 15 bits = address
 C   to jump back to, high part = caller's frame pointer (M7).
+C   env[1] through env[5] hold M2 through M6, the display
+C   registers C/2..C/6 save in every frame and C/E restores; a
+C   longjmp does not pass through C/E, so it restores them from
+C   here instead.  They are written by pointing the stack at
+C   env[1] and pushing, the caller's M15 parked in M14 meanwhile.
 C   Out: ACC := 0   (the "first" return value of setjmp).
 C===========================================================
                 , ntr , 7      . ABI requirement
-                , ati , 14     . M14 := &env (consume the arg pointer)
+            15  , mtj , 14     . M14 := M15, the caller's stack pointer
+                , ati , 15     . M15 := env (consume the arg pointer)
                 , ita , 13     . ACC := M13 (return address)
-            14  , atx ,        . *env := return address (low 15 bits)
+            15  , atx ,        . env[0] := return address (low 15 bits)
+C   Addressed through M15 at offset zero, a read pops and a write
+C   pushes, so the AOX below takes env[0] back and the ITS that
+C   stores it again leaves M15 addressing env[1], which is where
+C   the display run continues.
                 , ita , 7      . ACC := M7 (caller's frame pointer)
                 , asn , 64-15  . left-shift 15 (frame -> high part)
-            14  , aox ,        . ACC := (frame << 15) | *env
-            14  , atx ,        . *env := packed value
+            15  , aox ,        . ACC := (frame << 15) | env[0]
+                , its , 2      . env[0] := packed value; ACC := M2
+                , its , 3      . env[1] := M2; ACC := M3
+                , its , 4      . env[2] := M3; ACC := M4
+                , its , 5      . env[3] := M4; ACC := M5
+                , its , 6      . env[4] := M5; ACC := M6
+            15  , atx ,        . env[5] := M6
+            14  , mtj , 15     . M15 := the caller's stack pointer again
                 , xta ,        . ACC := 0 (setjmp's first-time return)
             13  , uj  ,        . return via M13
                 , end ,

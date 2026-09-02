@@ -53,7 +53,7 @@ cat << EOF >> tmp$$
 *end file
 EOF
 cat "$1" | sed 's/{/<:/g;s/}/:>/g' | ./preprocess.py > lexinp.utxt
-timeout 5 dubna tmp$$ | tee lexerp2c.lst
+( ulimit -t 5; exec dubna tmp$$ ) | tee lexerp2c.lst
 status=$?
 rm -f tmp$$
 exit $status

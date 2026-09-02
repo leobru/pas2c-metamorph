@@ -1,8 +1,8 @@
 /*=k9,l0*/
-void longjmp(int jmpbuf, int val) assembler;
+void longjmp(int *jmpbuf, int val) assembler;
 int setjmp(int *jmpbuf) assembler;
 //
-int jb;
+int jb[6];       // (frame << 15) | return address, then M2-M6
 int n;
 //
 void inner() {
@@ -18,7 +18,7 @@ void middle() {
 }
 //
 void main() {
-    n = setjmp(&jb);
+    n = setjmp(jb);
     printf(" setjmp returned %d\n", n);
     if (n == 0) {
         middle();

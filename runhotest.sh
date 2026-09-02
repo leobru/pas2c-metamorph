@@ -48,13 +48,13 @@ if [ "$debug" = 1 ]; then ln -f tmp$$ runhotest.dub ; fi
 # Run through a file rather than a pipe: /bin/sh has no PIPESTATUS, so with
 # `dubna | tee` the status inspected below is tee's and dubna's is lost --
 # which is how a timed-out emulator used to look like a clean run.
-timeout 3 dubna tmp$$ > runhotest.lst
+( ulimit -t 3; exec dubna tmp$$ ) > runhotest.lst
 status=$?
 cat runhotest.lst
-if [ $status -eq 124 ]; then
-echo '[1;31mTIMEOUT[22;39m'
+if [ $status -eq 137 ]; then
+echo '[1;31mCPU CAP[22;39m'
 rm -f tmp$$
-exit 124                # runhotests.sh reports 124 as an infinite loop
+exit 137                # runhotests.sh reports 137 as an infinite loop
 fi
 if [ $status -ne 0 ]; then
 echo '[1;31mFAILURE[22;39m'

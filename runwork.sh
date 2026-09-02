@@ -27,7 +27,7 @@ cat << EOF >> tmp$$
 *execute
 *end file
 EOF
-timeout 3 dubna tmp$$ | sed 1,/METAMORPH/d | tee runwork.lst
+( ulimit -t 3; exec dubna tmp$$ ) | sed 1,/METAMORPH/d | tee runwork.lst
 if [ $? -ne 0 ]; then
 echo '[1;31mFAILURE[22;39m'
 exit 1

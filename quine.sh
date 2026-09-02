@@ -28,7 +28,7 @@ sed 's/[[:space:]]*$//' $src > $plain
 
 if [ ! -s $norm ]; then
     printf 'quine: \033[1;31mFAIL\033[22;39m (it printed nothing)\n'
-    grep -E '^Error|OШИБ|TIMEOUT' $out | head -3
+    grep -E '^Error|OШИБ|CPU CAP' $out | head -3
     rm -f $norm $plain
     exit 1
 fi
