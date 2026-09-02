@@ -598,66 +598,38 @@ symbol charSym[128] = {
     [';']=SEMICOLON, ['[']=LBRACK, [']']=RBRACK, ['=']=BECOMES,
     [':']=COLON, ['!']=EXPROP, ['~']=EXPROP, ['?']=EXPROP };
 hashArray symHash = NULL:128, fieldHash = NULL:128;
-int helperMap[59] = 0:59;
-int helperNames[59] = { 0,
+int helperMap[31] = 0:31;
+int helperNames[31] = { 0,
         t'P/1     ',
         t'C/2     ',
         t'C/3     ',
         t'C/4     ',
         t'C/5     ',
-        t'C/6     ',
         t'C/MD    ',
         t'P/MI    ',
-        t'P/PA    ',
-/*10*/  t'P/UN    ',
         t'C/DI    ',
-        t'P/EA    ',
         t'P/1D    ',
-        t'P/GD    ',
+/*10*/  t'P/GD    ',
         t'C/E     ',
         t'C/EF    ',
         t'P/NW    ',
-        t'P/DS    ',
-        t'P/HT    ',
-/*20*/  t'C/WI    ',
-        t'C/WR    ',
-        t'C/WC    ',
-        t'C/A6    ',
-        t'C/A7    ',
-        t'C/WX    ',
-        t'C/WO    ',
-        t'P/CW    ',
-        t'C/6A    ',
-        t'C/7A    ',
-/*30*/  t'P/WL    ',
-        t'P/WOLN  ',
         t'P/RR    ',
         t'C/TR    ',
-        t'P/LV    ',
         t'FOPEN   ',
         t'FCLOSE  ',
-        t'P/BP    ',
-        t'P/B6    ',
-        t'P/PB    ',
-/*40*/  t'P/B7    ',
-        0U,           // helper 41 unused
         t'P/IT    ',
-        t'P/CK    ',
-        t'P/KC    ',
         t'C/LNGPAR',
-        t'P/LDAR  ',
+/*20*/  t'P/LDAR  ',
         t'P/00C   ',
         t'P/STAR  ',
-        t'P/WA    ',
-/*50*/  t'P/EQ    ',
-        t'P/RA    ',  // placeholder: keeps the compare family contiguous
+        t'P/EQ    ',
         t'P/GE    ',
         t'P/MF    ',
         t'P/FM    ',
         t'P/NN    ',
         t'C/SHL   ',
         t'C/SHR   ',
-        t'C/PRINTF' };
+/*30*/  t'C/PRINTF' };
 int opPrec[ALTERN+1] = {
     precNone:24,
     [CONDOP]=precCond,
@@ -2471,7 +2443,7 @@ void fcloseFile(irptr fileSym) {
     }
     form1Insn(KVTM+I14 + fileAddr);
     form1Insn(KITS+14);
-    formAndAlign(getHelperProc(36)); /*"FCLOSE   "*/
+    formAndAlign(getHelperProc(17)); /*"FCLOSE   "*/
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2482,7 +2454,7 @@ void fcloseFile(irptr fileSym) {
     }
     if (outputFile)
         fcloseFile(outputFile);
-    form1Insn(getHelperProc(42)/*"P/IT"*/ + (KUJ-KVJM-I13));
+    form1Insn(getHelperProc(18)/*"P/IT"*/ + (KUJ-KVJM-I13));
     padToLeft();
 } /* formFileInit */
 //
@@ -2552,7 +2524,7 @@ int fileAddr;
             curVal.i  =  extFileP->offset;
         form1Insn(KXTS+I8 + getFCSToffset());
     }
-    formAndAlign(getHelperProc(35)); /*"FOPEN   "*/
+    formAndAlign(getHelperProc(16)); /*"FOPEN   "*/
 }
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3019,7 +2991,7 @@ void processInsn() {
                 add2InsnsToBuf(KSTI+14, KUTC+I14);
                 break;
             case mcMULTI:
-                addInsnToBuf(getHelperProc(8));        /* P/MI */
+                addInsnToBuf(getHelperProc(7));        /* P/MI */
                 break;
             case mcADDSTK2REG:
                 add2InsnsToBuf(KWTC+SP, KUTM+
@@ -3049,10 +3021,10 @@ void processInsn() {
             case mcMALLOC:
                 /* MALLOC(N): N is in ACC (placed there by prepLoad).
                    Move N to register 14 and invoke the heap-allocator
-                   helper #33, which returns the newly
+                   helper #13, which returns the newly
                    allocated pointer in ACC.  Same calling convention as
                    the NEW system procedure. */
-                add2InsnsToBuf(KATI+14, getHelperProc(17));
+                add2InsnsToBuf(KATI+14, getHelperProc(13));
                 break;
             } /* switch */
         } else {
@@ -3246,7 +3218,7 @@ int isSimple;
                     isSimple  =  false;
                 }
                 addToInsnList(getHelperProc(isSimple
-                    ? 46 /* "P/LDAR" */ : 32 /* "P/RR" */));
+                    ? 20 /* "P/LDAR" */ : 14 /* "P/RR" */));
                 il->tail->mode  =  1;
             }
             // FALLTHRU
@@ -3430,7 +3402,7 @@ kind l4var7z;
                 prependToInsnList(KYTA);
                 prependToInsnList(ASN64 - l4int1z);
             }
-            addToInsnList(getHelperProc(48)); /* "P/STAR" */
+            addToInsnList(getHelperProc(22)); /* "P/STAR" */
             insnList->tail->mode  =  1;
         }
     }
@@ -3769,11 +3741,11 @@ int recip;
    the ones that differ. */
 static int opToInsn[STKLVAL+1] = {
     0:34,
-    [SHLEFT]=56, [SHRIGHT]=57,
+    [SHLEFT]=28, [SHRIGHT]=29,
     [SETAND]=KAAX, [SETXOR]=KAEX, [SETOR]=KAOX,
     [MUL]=KMUL, [RDIVOP]=KDIV,
-    [IDIVOP]=11, /* C/DI */
-    [IMODOP]=7,  /* C/MD */
+    [IDIVOP]=8, /* C/DI */
+    [IMODOP]=6,  /* C/MD */
     [PLUSOP]=KADD, [MINUSOP]=KSUB,
     [IMULOP]=KMUL, [INTPLUS]=KADD, [INTMINUS]=KSUB };
 static opflg opFlags[STKLVAL+1] = {
@@ -4142,7 +4114,7 @@ int idxOffsets[10];
                         curVal.i  =  7;
                     curVal.i <<= 24;
                     addToInsnList(allocSymtab(  /* P/00C */
-                        helperNames[47] | curVal.i)+(KVTM+I11));
+                        helperNames[21] | curVal.i)+(KVTM+I11));
                     insnCopy.addrmd  =  16;
                     insnCopy.shift  =  0;
                     saved->tail->next  =  insnCopy.head;
@@ -4219,7 +4191,7 @@ sigptr curSig;
     if (isFortrn) {
         needPush  =  isProc;
         if (checkFortran) {
-            addToInsnList(getHelperProc(53)); /* "P/MF" */
+            addToInsnList(getHelperProc(25)); /* "P/MF" */
         }
     } else {
         /* The first argument travels in the accumulator and the ones after it
@@ -4277,7 +4249,7 @@ sigptr curSig;
                 needPush  =  false;
             }
             addToInsnList(KVTM+I12 + getValueOrAllocSymtab(-slot));
-            addToInsnList(getHelperProc(45)); /* "C/LNGPAR" */
+            addToInsnList(getHelperProc(19)); /* "C/LNGPAR" */
             insnList->regsused |= (E48 >> 12) | (E48 >> 13);
         }
         if (curSig)
@@ -4357,7 +4329,7 @@ sigptr curSig;
     }
     usedRegs  =  (usedRegs | (calleeFl & ~calleeSaved)) & [1:15];
     if (isFortrn) {
-        addToInsnList(checkFortran ? getHelperProc(54) /* "P/FM" */
+        addToInsnList(checkFortran ? getHelperProc(26) /* "P/FM" */
                                    : KNTR+7);
         insnList->tail->mode  =  2;
     }
@@ -4439,7 +4411,8 @@ int mode, size;
     if (size != 1) {
         prepMultiWord();
         addInsnAndOffset(KVTM+I11, 1 - size);
-        addToInsnList(getHelperProc(50 + scratch3)); /* P/EQ */
+        work = scratch3 == 4 ? 26 : 23 + (scratch3 >> 1);
+        addToInsnList(getHelperProc(work)); /* P/EQ */
         insnList->ilm  =  ilRVAL;
         negate  =  ! negate;
     } else if (scratch3 == 0) {
@@ -5068,7 +5041,7 @@ L10122:         insnList->tail->mode  =  scratch3;
                 /* Real to integer truncates toward zero, in C/TR (libc);
                    the helper returns with the machine in integer mode. */
                 scratch3  =  2;
-                addToInsnList(getHelperProc(33)); /* "C/TR" */
+                addToInsnList(getHelperProc(15)); /* "C/TR" */
                 goto L10122;
             } else if (curOP == BITNEGOP) {
                 addToInsnList(KAEX+ALLONES);
@@ -5099,7 +5072,7 @@ L10122:         insnList->tail->mode  =  scratch3;
             case fnABSI:  arg1Val.i  =  abs(arg1Val.i); break;
             case fnMALLOC:
                 addToInsnList(KVTM+I14 + getValueOrAllocSymtab(arg1Val.i));
-                addToInsnList(getHelperProc(17)); /*"P/NW"*/
+                addToInsnList(getHelperProc(13)); /*"P/NW"*/
                 { register insnltyp *il = insnList;
                     il->ilm  =  ilRVAL;
                     il->regsused |= E48;
@@ -6183,7 +6156,7 @@ int l3int1z, frame, l3var3z;
         }
         if (l3var3z)
             form2Insn((KVTM+I14) + l3arg1z + ((frame - 8) << 9),
-                      getHelperProc(55 /*"P/NN"*/) - 010000000); // Use I11 instead of I13
+                      getHelperProc(27 /*"P/NN"*/) - 010000000); // Use I11 instead of I13
         if (1 < l3arg1z) {
             frame  =  getValueOrAllocSymtab(-(frame+l3arg1z));
         }
@@ -6216,7 +6189,7 @@ int l3int1z, frame, l3var3z;
                 heapSize  =  4;
             if (! l3var3z) {
                 form2Insn(KVTM+I14+getValueOrAllocSymtab(heapSize*02000),
-                          getHelperProc(14 /*"P/GD"*/));
+                          getHelperProc(10 /*"P/GD"*/));
                 padToLeft();
             }
         }
@@ -7604,7 +7577,7 @@ void returnOp() {
         }
     } else if (procName->typ != voidType)
         error(errNeedOtherTypesOfOperands);
-    form1Insn(getHelperProc(15) + (KUJ-KVJM-I13));
+    form1Insn(getHelperProc(11) + (KUJ-KVJM-I13));
 } /* returnOp */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -7673,7 +7646,7 @@ int argCount, isFormat;
     form1Insn(KVTM+I10 + getValueOrAllocSymtab(-argCount));
     curExpr  =  workExpr;
     formOperator(SETREG12);
-    formAndAlign(getHelperProc(58)); /* "C/PRINTF" */
+    formAndAlign(getHelperProc(30)); /* "C/PRINTF" */
     usedRegs |= [12];
 } /* printfProc */
 //
@@ -8095,7 +8068,7 @@ int hasMain;
         procName->flags |= [25];
         putLeft  =  true;
     } else if ((curProcNesting != 1) || hasMain) {
-        jj = curProcNesting == 1 ? 16 /* C/EF */ : 15; /* C/E */
+        jj = curProcNesting == 1 ? 12 /* C/EF */ : 11; /* C/E */
         form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
         if (curProcNesting == 1) {
             parseDecls(2);
@@ -8314,7 +8287,7 @@ void regSysProc(int l4arg1z) {
     statement();
     readToPos80();
     curVal.i  =  l3var6z;
-    symTab[3]  =  (helperNames[13] | [24,27,28,29]) |
+    symTab[3]  =  (helperNames[9] | [24,27,28,29]) |
                         (curVal.i & halfWord);
 } /* mainProgram */
 //

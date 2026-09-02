@@ -1040,8 +1040,8 @@ KeyWord * KeyWordHashTabBase[128]; // array [0..127] of @KeyWord;
 Symbol charSymTabBase[256]; // array ['_000'..'_177'] of Symbol;
 IdentRecPtr symHash[128]; // array [0..127] of IdentRecPtr;
 IdentRecPtr fieldHash[128]; //array [0..127] of IdentRecPtr;
-int64_t helperMap[59];
-extern int64_t helperNames[59]; // array [1..58] of int64_t;
+int64_t helperMap[31];
+extern int64_t helperNames[31]; // array [1..30] of int64_t;
 
 // Zero-based backing storage; symTabPos and stored references remain BESM
 // symbol-table addresses starting at 074000.
@@ -3472,7 +3472,7 @@ L3556:
                     add2InsnsToBuf(KSTI+14, KUTC+I14);
                     break;
                 case mcMULTI: {
-                    addInsnToBuf(getHelperProc(8));        /* P/MI */
+                    addInsnToBuf(getHelperProc(7));        /* P/MI */
                 } break;
                 case mcADDSTK2REG:
                     add2InsnsToBuf(KWTC+SP, KUTM+indexreg[curInsn.ii]);
@@ -3500,10 +3500,10 @@ L3556:
                 case mcMALLOC:
                 /* MALLOC(N): N is in ACC (placed there by prepLoad).
                    Move N to register 14 and invoke the heap-allocator
-                   helper #33, which returns the newly
+                   helper #13, which returns the newly
                    allocated pointer in ACC.  Same calling convention as
                    the NEW system procedure. */
-                    add2InsnsToBuf(KATI+14, getHelperProc(17));
+                    add2InsnsToBuf(KATI+14, getHelperProc(13));
                     break;
                 }; /* case */
             } else { /* 4003 */
@@ -3775,7 +3775,7 @@ void prepLoad()
                     isSimple = false;
                 }
                 addToInsnList(getHelperProc(isSimple
-                    ? 46 /* "P/LDAR" */ : 32 /* "P/RR" */));
+                    ? 20 /* "P/LDAR" */ : 14 /* "P/RR" */));
                 insnList->tail->mode = 1;
             }
         } // FALLTHRU
@@ -3929,7 +3929,7 @@ void prepStore()
                 prependToInsnList(InsnTemp[YTA]);
                 prependToInsnList(ASN64 - l4int1z);
             }
-            addToInsnList(getHelperProc(48)); /* "P/STAR" */
+            addToInsnList(getHelperProc(22)); /* "P/STAR" */
             insnList->tail->mode = 1;
         }
     }
@@ -4579,7 +4579,7 @@ void genGetElt()
                         curVal.ii = 7;
                     curVal.ii = shl48(curVal.ii, 24);
                     addToInsnList(allocSymtab(  /* P/00C */
-                        helperNames[47] | curVal.ii)+(KVTM+I11));
+                        helperNames[21] | curVal.ii)+(KVTM+I11));
                     insnCopy.addrmd = 16;
                     insnCopy.shift = 0;
                     saved->tail->next = insnCopy.head;
@@ -4677,7 +4677,7 @@ genEntry::genEntry()
     if (isFortrn) {
         needPush = isProc;
         if (checkFortran) {
-            addToInsnList(getHelperProc(53)); /* "P/MF" */
+            addToInsnList(getHelperProc(25)); /* "P/MF" */
         }
     } else {
         // The first argument travels in the accumulator and the ones after it
@@ -4736,7 +4736,7 @@ genEntry::genEntry()
                 needPush = false;
             }
             addToInsnList(KVTM+I12 + getValueOrAllocSymtab(-slot));
-            addToInsnList(getHelperProc(45)); /* "C/LNGPAR" */
+            addToInsnList(getHelperProc(19)); /* "C/LNGPAR" */
             insnList->regsused = insnList->regsused | Bits(12, 13);
         } /* 7027 */
         if (curSig)
@@ -4821,7 +4821,7 @@ genEntry::genEntry()
         if (not checkFortran)
             addToInsnList(KNTR+7);
         else
-            addToInsnList(getHelperProc(54));    /* "P/FM" */
+            addToInsnList(getHelperProc(26));    /* "P/FM" */
         insnList->tail->mode = 2;
     } /* 7226 */
     // NB: no `else` here -- a non-Fortran function returns
@@ -4918,7 +4918,8 @@ void genComparison()
     if (size != 1) {
         genFullExpr::super.back()->prepMultiWord();
         addInsnAndOffset(KVTM+I11, 1 - size);
-        addToInsnList(getHelperProc(50 + scratch3)); /* P/EQ */
+        work = scratch3 == 4 ? 26 : 23 + (scratch3 >> 1);
+        addToInsnList(getHelperProc(work)); /* P/EQ */
         insnList->ilm = ilRVAL;
         negate = not negate;
     } else if (scratch3 == 0) {
@@ -4973,11 +4974,11 @@ genFullExpr::genFullExpr(ExprPtr exprToGen_)
        entries run in Operator order from SHLEFT, and everything past
        ASSIGNOP is the quiet default. */
     static int64_t opToInsn[47] = {
-        /*SHLEFT*/ 56,   /*SHRIGHT*/  57,
+        /*SHLEFT*/ 28,   /*SHRIGHT*/  29,
         /*SETAND*/ KAAX, /*SETXOR*/   KAEX, /*SETOR*/ KAOX,
         /*MUL*/    KMUL, /*IMULOP*/   KMUL,
-        /*RDIVOP*/ KDIV, /*IDIVOP*/   11,          /* P/DI */
-        /*IMODOP*/ 7,                              /* P/MD */
+        /*RDIVOP*/ KDIV, /*IDIVOP*/   8,           /* P/DI */
+        /*IMODOP*/ 6,                              /* P/MD */
         /*PLUSOP*/ KADD, /*INTPLUS*/  KADD,
         /*MINUSOP*/ KSUB, /*INTMINUS*/ KSUB };
     static OpFlg opFlags[47] = {
@@ -5370,7 +5371,7 @@ L10122:
                        (libc); the helper returns with the machine in
                        integer mode. */
                     scratch3 = 2;
-                    addToInsnList(getHelperProc(33)); /* "C/TR" */
+                    addToInsnList(getHelperProc(15)); /* "C/TR" */
                     goto L10122;
                 } else if (curOP == BITNEGOP) {
                     addToInsnList(KAEX+ALLONES);
@@ -5409,7 +5410,7 @@ L10122:
                     break;
                 case fnMALLOC:
                     addToInsnList(KVTM+I14+getValueOrAllocSymtab(arg1Val.ii));
-                    addToInsnList(getHelperProc(17)); /*"P/NW"*/
+                    addToInsnList(getHelperProc(13)); /*"P/NW"*/
                     insnList->ilm = ilRVAL;
                     insnList->regsused = insnList->regsused | Bits(0);
                     insnList->typ = exprToGen->vt.typ;
@@ -5486,7 +5487,7 @@ void formFileInit()
         }
         form1Insn(KVTM+I14 + fileAddr);
         form1Insn(KITS+14);
-        formAndAlign(getHelperProc(36)); /*"FCLOSE"*/
+        formAndAlign(getHelperProc(17)); /*"FCLOSE"*/
     };
 
     form2Insn(KITS+13, KATX+SP);
@@ -5496,7 +5497,7 @@ void formFileInit()
     }
     if (outputFile)
         fcloseFile(outputFile);
-    form1Insn(getHelperProc(42)/*"P/IT"*/ + (KUJ-KVJM-I13));
+    form1Insn(getHelperProc(18)/*"P/IT"*/ + (KUJ-KVJM-I13));
     padToLeft();
 } /* formFileInit */
 
@@ -6594,7 +6595,7 @@ void fopenFile(IdentRecPtr fileSym, ExtFileRec * extFileP)
             curVal.ii = extFileP->offset;
         form1Insn(KXTS+I8 + getFCSToffset());
     }
-    formAndAlign(getHelperProc(35)); /*"FOPEN"*/
+    formAndAlign(getHelperProc(16)); /*"FOPEN"*/
 } /* fopenFile */
 
 void parseDecls(int64_t l3arg1z)
@@ -6646,7 +6647,7 @@ void parseDecls(int64_t l3arg1z)
         }
         if (l3var3z)
             form2Insn((KVTM+I14) + l3arg1z + (frame.ii - 8) * 01000,
-                      getHelperProc(55 /*"P/NN"*/) - 010000000);
+                      getHelperProc(27 /*"P/NN"*/) - 010000000);
         if (1 < l3arg1z) {
             frame.ii = getValueOrAllocSymtab(-(frame.ii+l3arg1z));
         }
@@ -6680,7 +6681,7 @@ void parseDecls(int64_t l3arg1z)
                 heapSize = 4;
             if (not l3var3z) {
                 form2Insn(KVTM+I14+getValueOrAllocSymtab(heapSize*02000),
-                          getHelperProc(14 /*"P/GD"*/));
+                          getHelperProc(10 /*"P/GD"*/));
                 padToLeft();
             }
         }
@@ -8443,7 +8444,7 @@ void returnOp() {
         }
     } else if (procName->typ != voidType)
         error(errNeedOtherTypesOfOperands);
-    form1Insn(getHelperProc(15) + (KUJ-KVJM-I13));
+    form1Insn(getHelperProc(11) + (KUJ-KVJM-I13));
 } /* returnOp */
 
 struct standProc {
@@ -8514,7 +8515,7 @@ struct standProc {
         form1Insn(KVTM+I10 + getValueOrAllocSymtab(-argCount));
         curExpr = workExpr;
         (void) formOperator(SETREG12);
-        formAndAlign(getHelperProc(58)); /* "C/PRINTF" */
+        formAndAlign(getHelperProc(30)); /* "C/PRINTF" */
         usedRegs = usedRegs | Bits(12);
     } /* printfProc */
 
@@ -9022,7 +9023,7 @@ void defineRoutine(bool bodyBlock = false)
         procName->flags() = procName->flags() | Bits(25);
         putLeft = true;
     } else if (curProcNesting != 1 or hasMain) {
-        jj = curProcNesting == 1 ? 16 /* C/EF */ : 15; /* C/E */
+        jj = curProcNesting == 1 ? 12 /* C/EF */ : 11; /* C/E */
         form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
         if (curProcNesting == 1) {
             parseDecls(2);
@@ -9257,7 +9258,7 @@ initScalars::initScalars() :
     flushInitializers();
     readToPos80();
     curVal.ii = l3var6z;
-    symTab[3] = (helperNames[13] | Bits(24,27,28,29)) |
+    symTab[3] = (helperNames[9] | Bits(24,27,28,29)) |
                      (curVal.ii & halfWord);
 } /* initScalars */
 
@@ -10128,7 +10129,7 @@ struct initTables {
     void initArrays() {
         FcstCnt = 0;
         FcstTotal = 0;
-        for (idx=1; idx <= 58; ++idx)
+        for (idx=1; idx <= 30; ++idx)
             helperMap[idx] = 0;
     } /* initArrays */
 
@@ -10556,62 +10557,34 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
     }
 }
 
-int64_t helperNames[59] = { 0L,
+int64_t helperNames[31] = { 0L,
         toText("P/1     "),
         toText("C/2     "),
         toText("C/3     "),
         toText("C/4     "),
         toText("C/5     "),
-        toText("C/6     "),
         toText("C/MD    "),
         toText("P/MI    "),
-        toText("P/PA    "),
-/*10*/  toText("P/UN    "),
         toText("C/DI    "),
-        toText("P/EA    "),
         toText("P/1D    "),
-        toText("P/GD    "),
+/*10*/  toText("P/GD    "),
         toText("C/E     "),
         toText("C/EF    "),
         toText("P/NW    "),
-        toText("P/DS    "),
-        toText("P/HT    "),
-/*20*/  toText("C/WI    "),
-        toText("C/WR    "),
-        toText("C/WC    "),
-        toText("C/A6    "),
-        toText("C/A7    "),
-        toText("C/WX    "),
-        toText("C/WO    "),
-        toText("P/CW    "),
-        toText("C/6A    "),
-        toText("C/7A    "),
-/*30*/  toText("P/WL    "),
-        toText("P/WOLN  "),
         toText("P/RR    "),
         toText("C/TR    "),
-        toText("P/LV    "),
         toText("FOPEN   "),
         toText("FCLOSE  "),
-        toText("P/BP    "),
-        toText("P/B6    "),
-        toText("P/PB    "),
-/*40*/  toText("P/B7    "),
-        0,                      /* helper 41 unused */
         toText("P/IT    "),
-        toText("P/CK    "),
-        toText("P/KC    "),
         toText("C/LNGPAR"),
-        toText("P/LDAR  "),
+/*20*/  toText("P/LDAR  "),
         toText("P/00C   "),
         toText("P/STAR  "),
-        toText("P/WA    "),
-/*50*/  toText("P/EQ    "),
-        toText("P/RA    "),  // placeholder: keeps the compare family contiguous
+        toText("P/EQ    "),
         toText("P/GE    "),
         toText("P/MF    "),
         toText("P/FM    "),
         toText("P/NN    "),
         toText("C/SHL   "),
         toText("C/SHR   "),
-        toText("C/PRINTF")};
+/*30*/  toText("C/PRINTF")};
