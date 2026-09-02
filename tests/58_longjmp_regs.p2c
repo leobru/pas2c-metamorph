@@ -41,8 +41,6 @@ void inner() {
 
 void middle() { inner(); }          // two frames for longjmp to unwind
 
-// A bare newline has to come from printf: putchar('\n') ends the line but
-// costs the line that follows it.
 void report(int reg, int got, int want) {
     if (got == want)
         printf(" M%d KEPT\n", reg);

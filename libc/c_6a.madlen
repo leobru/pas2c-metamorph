@@ -1,0 +1,20 @@
+ C/6A:,NAME,
+C===========================================================
+C C/6A - write the M10 characters packed in ACC to the file at
+C M12.  C/7A takes its packed characters by address, so keep the
+C word in the runtime scratch location M1+5 and point M11 there.
+C
+C   ACC = packed characters
+C   M10 = character count (at most six)
+C   M12 = the FILE record
+C   M13 = return link
+C
+C C/7A consumes exactly M10 characters; embedded NULs do not end
+C this counted form.
+C===========================================================
+ C/7A:          ,SUBP,
+                1,ATX,5        . Save the packed word in runtime scratch
+                1,UTC,5        . C := address of that scratch word
+               11,VTM,         . M11 := packed-character address
+                 ,UJ,C/7A      . Tail-call the counted array writer
+                 ,END,

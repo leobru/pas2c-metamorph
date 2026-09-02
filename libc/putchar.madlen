@@ -1,0 +1,37 @@
+ PUTCHAR:,NAME,
+C===========================================================
+C putchar(c) - write one character to *OUTPUT*.
+C
+C Calling convention for a one-argument ASSEMBLER routine:
+C   ACC = c, the character
+C   M13 = return link
+C
+C   void putchar(char) assembler;
+C
+C P/CW writes the character in ACC to the FILE addressed by
+C M12 and returns through M13, so an ordinary character costs
+C no more than the instruction that names *OUTPUT* and a tail
+C call into it.
+C A newline is not a character to put: PASEOLSY holds the one
+C that ends a line, and a c equal to it goes to P/WOLN, which
+C terminates the *OUTPUT* line the way puts does through P/WL.
+C The character comes back by XORing a second time: the RMR the
+C AEX left it in does not survive the branch, which writes the
+C accumulator there itself.
+C Both return through M13, so either way the tail call carries
+C the caller's link.
+C It is what a program uses where a whole printf, format and
+C all, would cost more than the character it prints.
+C===========================================================
+ P/CW:,SUBP,                  . write one character, no width
+ P/WOLN:,SUBP,                . terminate the line on *OUTPUT*
+ *OUTPUT*:,LC,30              . 30-word FILE record of OUTPUT
+ PASEOLSY:,LC,1               . end-of-line char (ASCII LF)
+ ,UTC,PASEOLSY                . C := address of the LF character
+ ,AEX,                        . zero exactly when c is the LF
+ ,UZA,P/WOLN                  . it is: end the line, P/WOLN names *OUTPUT*
+ ,UTC,PASEOLSY
+ ,AEX,                        . the character back again
+ 12,VTM,*OUTPUT*
+ ,UJ,P/CW
+ ,END,
