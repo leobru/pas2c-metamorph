@@ -1,8 +1,8 @@
 /*=l0*/
-// PRINTF takes an optional leading file argument: an object of the 30-word
-// size of a file is the destination, and the format follows it.
-// C/PRINTF writes to the FILE in M12, so every conversion follows the
-// argument, the %s and \n paths included.
+// fprintf takes the destination as the argument before the format: an
+// ordinary variadic assembler routine, declared here the way fopen is.  It
+// writes to the FILE in M12, so every conversion follows the argument, the
+// %s and \n paths included.
 //
 typedef struct {
     int *data;
@@ -11,6 +11,7 @@ typedef struct {
     w21, w22, w23, w24, w25, w26, w27, w28, w29;
 } fileblk;
 //
+void fprintf(void *fcb, char *fmt, ...) assembler;
 void fopen(fileblk *fcb, int sizes, int name) assembler;
 void fclose(fileblk *fcb) assembler;
 void ftruncate(fileblk *fcb) assembler;
@@ -22,14 +23,14 @@ fileblk f;
 int c;
 //
 void main() {
-    printf(_output_, "%s %d\n", "TO OUTPUT", 42);
+    fprintf(&_output_, "%s %d\n", "TO OUTPUT", 42);
 
     fopen(&f, 010000100010, 0);
     ftruncate(&f);
-    printf(f, "%s%3d %c\n", "ABC", -7, 'Z');
+    fprintf(&f, "%s%3d %c\n", "ABC", -7, 'Z');
     // A padded %s reaches the file through STRLEN and C/SP, which leave the
     // destination in M12 alone.
-    printf(f, "%5s%02o\n", "XY", 9);
+    fprintf(&f, "%5s%02o\n", "XY", 9);
     frewind(&f);
     c = fgetc(&f);
     while (c != 0) {

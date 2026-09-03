@@ -9,7 +9,7 @@ C
 C   void puts(char *) assembler;
 C
 C C/PUTS - the same, to the FILE addressed by M12.  puts is the one-word
-C  wrapper that names *OUTPUT*; C/PRINTF enters here for %S, so that a
+C  wrapper that names *OUTPUT*; PRINTF enters here for %S, so that a
 C  destination file reaches the string conversions too.
 C
 C Flat memory contains six bytes per word, most significant byte

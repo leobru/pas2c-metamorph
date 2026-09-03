@@ -1,12 +1,13 @@
- VPRINTF:,NAME,
+ PRINTF:,NAME,
 C===========================================================
-C vprintf(fmt, ...) - formatted output taking a vararg list.
+C printf(fmt, ...) - formatted output reading the vararg convention.
 C
-C   void vprintf(char *, ...) assembler;
+C   void printf(char *, ...) assembler;      predeclared by the compiler
+C   void fprintf(void *, char *, ...) assembler;
 C
 C The compiler pushes the tail actuals first, in source order, then the
-C format, and leaves a pointer to the first tail word in the accumulator.
-C An ASSEMBLER routine gets no frame, so on entry:
+C mandatory ones, and leaves a pointer to the first tail word in the
+C accumulator.  An ASSEMBLER routine gets no frame, so on entry:
 C
 C   ACC    = the first tail word's address
 C   [SP-1] = the format pointer
@@ -15,13 +16,23 @@ C
 C The format's slot is therefore the exclusive end of the tail, and no
 C count is passed or needed: the two boundaries bound the walk.  The
 C caller drops the tail with its own UTM after the call, so this routine
-C pops the format only, leaving SP at that slot.
+C pops what was pushed for it and nothing else -- one word here.
 C
-C VPRINTF names *OUTPUT* 
+C PRINTF names *OUTPUT*; FPRINTF takes the destination FILE as the
+C argument before the format, and pops the two.  Rather than carry the
+C difference through, FPRINTF writes the format over the destination's
+C slot and drops one word, arriving at PRINTF's own frame; the epilogue
+C then puts back a stack pointer that is right for both.
 C
-C The format parser below is C/PRINTF's, copied.  Only the argument
-C plumbing differs -- the prologue, and the SP the epilogue returns.
-C Fixes to either belong in both.
+C Dubna uppercases the format; only uppercase conversion letters are
+C checked.  A decimal width is accepted for all conversions; .precision is
+C used by F/E and otherwise ignored.  A leading zero in the width is the
+C fill flag, which only %O reads.  L and H are length modifiers: every
+C actual is one word, so they are accepted and ignored, and a format
+C written for a host C compiler reads the same here.  Unknown percent
+C sequences are copied literally and consume no actual.  A format asking
+C for more actuals than were passed stops at the format's own slot rather
+C than reading past the block.
 C===========================================================
  C/WI:          ,SUBP,
  C/WO:          ,SUBP,
@@ -44,7 +55,7 @@ C P/HIDE saves M13 and the three scratch registers M6..M8.  M6 then bases the
 C constants and static scratch storage below; only P/HIDE's four words use SP.
                12,VTM,*OUTPUT*
                  ,ATI,10
-                 ,NTR,3
+ COMMON:          ,NTR,3
                14,VJM,P/HIDE
                 6,BASE,NEWLINE
                15,MTJ,8
@@ -277,6 +288,18 @@ C the format is this routine's to pop, the tail is the caller's.
                  ,UJ,P/EDIH
  RET:          10,MTJ,15
                13,UJ,
+C fprintf(f, fmt, ...): one more mandatory word, the destination, pushed
+C ahead of the format.  Take it into M12, move the format down onto its
+C slot and drop the word, and what is left is exactly what PRINTF gets --
+C so its epilogue, returning to the format's slot, pops both.
+ FPRINTF:,ENTRY,
+                 ,ATI,10
+               15,XTA,-2
+                 ,ATI,12
+               15,XTA,-1
+               15,ATX,-2
+               15,UTM,-1
+                 ,UJ,COMMON
  NEWLINE:        ,LOG,0000 0000 0000 0012
  PERCENT:        ,LOG,0000 0000 0000 0045
  NINE:           ,LOG,11

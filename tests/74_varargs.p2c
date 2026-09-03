@@ -1,25 +1,25 @@
 /*=l0*/
 //
-// vprintf, the first runtime routine to read the vararg calling convention
-// from the callee's side.  The compiler pushes the tail first, then the
-// format, and leaves a pointer to the first tail word in the accumulator;
-// libc/vprintf.madlen walks from there up to the format's own slot, which
-// is why no count is passed.
+// The vararg calling convention, read from the callee's side.  The compiler
+// pushes the tail actuals first, then the mandatory ones, and leaves a
+// pointer to the first tail word in the accumulator; libc/printf.madlen walks
+// from there up to the format's own slot, which is why no count is passed.
 //
-// Every line is written twice, once through vprintf and once through printf,
-// so the two must agree character for character: printf marshals its own way
-// entirely (every actual pushed, negated count in M10), and the whole point
-// is that the two arrive at the same output.
+// printf is predeclared, so nothing is written for it here.  fprintf is the
+// same routine entered one word deeper -- the destination is a mandatory
+// argument ahead of the format -- and is declared the way any other variadic
+// assembler routine is.
 //
-void vprintf(char *, ...) assembler;
+void fprintf(void *, char *, ...) assembler;
 //
 int i;
 //
 // The stack check.  A local of a called routine lives in the frame the call
 // opens at the stack pointer of the moment, so the address of one is that
-// stack pointer.  The callee pops the format and the caller drops the tail;
-// get either count wrong and this number drifts a few words per variadic
-// call, which correct output alone would never reveal.
+// stack pointer.  The callee pops what was pushed for it -- one word for
+// printf, two for fprintf -- and the caller drops the tail; get any of those
+// counts wrong and this number drifts a few words per call, which correct
+// output alone would never reveal.
 void mark(char *tag) {
     int here;
     printf(" STACK %s %d\n", tag, &here);
@@ -31,35 +31,37 @@ void mark(char *tag) {
 // deeper stack pointer than main's, and the same one on both sides.
 void report(int a, int b) {
     mark("ENTER ");
-    vprintf(" IN ROUTINE %d %d\n", a, b);
+    printf(" IN ROUTINE %d %d\n", a, b);
     mark("LEAVE ");
 }
 //
 void main() {
     mark("START ");
-    vprintf(" ZERO\n");
+    // Every line is written twice, once through each entry, so the two must
+    // agree character for character.
      printf(" ZERO\n");
-    vprintf(" ONE %d\n", 42);
+    fprintf(&_output_, " ZERO\n");
      printf(" ONE %d\n", 42);
-    vprintf(" THREE %d %d %d\n", 1, 2, 3);
+    fprintf(&_output_, " ONE %d\n", 42);
      printf(" THREE %d %d %d\n", 1, 2, 3);
-    vprintf(" MIXED %d %c %o\n", 7, 'A', 64);
+    fprintf(&_output_, " THREE %d %d %d\n", 1, 2, 3);
      printf(" MIXED %d %c %o\n", 7, 'A', 64);
-    vprintf(" STR %s|\n", "ABC");
+    fprintf(&_output_, " MIXED %d %c %o\n", 7, 'A', 64);
      printf(" STR %s|\n", "ABC");
+    fprintf(&_output_, " STR %s|\n", "ABC");
     report(11, 22);
     mark("CALLS ");
     // Twenty calls of three tail words each: a one-word error per call is
     // sixty words of drift by the time the next mark prints.
     printf(" LOOP ");
     for (i = 0; i < 20; i = i + 1)
-        vprintf(".", 1, 2, 3);
+        fprintf(&_output_, ".", 1, 2, 3);
     printf("\n");
     mark("LOOP  ");
     // A format asking for more than was passed stops when the walk reaches
     // the format's slot, rather than reading past the block.  The line is
     // left open, so the next write continues it.
-    vprintf(" SHORT %d %d\n", 5);
+    printf(" SHORT %d %d\n", 5);
     printf("|\n");
     mark("SHORT ");
 }

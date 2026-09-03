@@ -4,6 +4,9 @@
 // auto-increment from the last value. Values may reference earlier
 // enumerators (const-expressions). For explicit-value enums, name
 // printing is suppressed -- the value is written as an integer.
+// A word of eight six-bit characters: the shape an identifier is stored in,
+// and what %t writes.
+typedef __packed int:6 name8[8];
 enum { A = 1, B, C = 10, D } e1;
 enum { X = 5, Y = X + 3 } e2;
 enum { RED, GREEN, BLUE } color;
@@ -18,11 +21,13 @@ void main() {
     val = Y; printf(" Y=%d\n", val);
     ev = MID; printf(" MID=%d\n", ev);
     ev = HI;  printf(" HI=%d\n", ev);
-    // A plain (sequential) enum still prints its enumerator name, which %t
-    // writes from the name table the argument now selects in.  Each ordinal
-    // picks its own entry -- the name right-aligned in its eight-character
-    // word -- and a width pads that word on the left.
-    color = GREEN; printf(" color=%t\n", color);
-    color = RED;   printf(" first=%t\n", color);
-    color = BLUE;  printf(" last =%12t|\n", color);
+    // A plain (sequential) enum keeps a table of its enumerators' names, and
+    // a cast to a text word answers the name of the value rather than its
+    // ordinal.  Each ordinal picks its own entry -- the name right-aligned in
+    // its eight-character word -- and a width pads that word on the left.
+    color = GREEN; printf(" color=%t\n", (name8)color);
+    color = RED;   printf(" first=%t\n", (name8)color);
+    color = BLUE;  printf(" last =%12t|\n", (name8)color);
+    // An explicit-value enum has no name table, so a cast is a plain retype.
+    ev = HI;       printf(" ORD  =%d\n", (int)ev);
 }

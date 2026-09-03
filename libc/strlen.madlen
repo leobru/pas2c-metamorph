@@ -10,7 +10,7 @@ C Flat memory contains six bytes per word, most significant byte first.
 C M14 holds the current word address.
 C M10 supplies the initial variable shift.
 C M11 bases the constant table; M12 is left alone, so a caller may keep the
-C  destination FILE there across the call, as C/PRINTF does.  Two stack words
+C  destination FILE there across the call, as PRINTF does.  Two stack words
 C  hold p, the first-word prefix mask/current word.
 C===========================================================
               ,NTR,3            . suppress normalization and rounding

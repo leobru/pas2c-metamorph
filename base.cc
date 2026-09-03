@@ -259,8 +259,8 @@ enum Operator {
     INCROP,     DECROP,     ASSIGNOP,   RMWASSIGN,
     GETELT,     GETVAR,     GETENUM,    GETFIELD,   DEREF,
     STKLVAL,    INDCALL,    PROCADDR,   ALNUM,
-    TOREAL,     TOINT,      NOTOP,      INEGOP,     RNEGOP,
-    BITNEGOP,   STANDPROC,  ADDROF,     NOOP
+    TOREAL,     TOINT,      TONAME,     NOTOP,      INEGOP,
+    RNEGOP,     BITNEGOP,   STANDPROC,  ADDROF,     NOOP
 };
 
 static_assert(IMULOP == MUL + 1 and IDIVOP == RDIVOP + 1 and
@@ -1095,8 +1095,8 @@ KeyWord * KeyWordHashTabBase[128]; // array [0..127] of @KeyWord;
 Symbol charSymTabBase[256]; // array ['_000'..'_177'] of Symbol;
 IdentRecPtr symHash[128]; // array [0..127] of IdentRecPtr;
 IdentRecPtr fieldHash[128]; //array [0..127] of IdentRecPtr;
-int64_t helperMap[31];
-extern int64_t helperNames[31]; // array [1..30] of int64_t;
+int64_t helperMap[30];
+extern int64_t helperNames[30]; // array [1..29] of int64_t;
 
 // Zero-based backing storage; symTabPos and stored references remain BESM
 // symbol-table addresses starting at 074000.
@@ -1130,7 +1130,8 @@ std::string Expr::p()
         "OROP","NEOP","EQOP","LTOP","GEOP","GTOP","LEOP","CONDOP",
         "ALTERN","INCROP","DECROP","ASSIGNOP","RMWASSIGN","GETELT","GETVAR",
         "GETENUM","GETFIELD","DEREF","STKLVAL","INDCALL","PROCADDR","ALNUM",
-        "TOREAL","TOINT","NOTOP","INEGOP","RNEGOP","BITNEGOP","STANDPROC",
+        "TOREAL","TOINT","TONAME","NOTOP","INEGOP","RNEGOP","BITNEGOP",
+        "STANDPROC",
         "ADDROF","NOOP"
     };
     char buf[256];
@@ -4138,6 +4139,8 @@ void prepBoolArg(ExprPtr e)
         addToInsnList(KAEX);
 } /* prepBoolArg */
 
+void dumpEnumNames(TPtr l3arg1z);
+
 struct genFullExpr {
     static std::vector<genFullExpr*> super;
     genFullExpr(ExprPtr exprToGen_);
@@ -5507,6 +5510,16 @@ L10122:
                     scratch3 = 2;
                     addToInsnList(getHelperProc(15)); /* "C/TR" */
                     goto L10122;
+                } else if (curOP == TONAME) {
+                    /* The ordinal indexes the name table, which is laid
+                       into the constant pool here, on its first use. */
+                    dumpEnumNames(exprToGen->expr1->vt.typ);
+                    addToInsnList(KATI+14);
+                    addToInsnList(KUTC+I14);
+                    addToInsnList(KXTA+I8 +
+                                  exprToGen->expr1->vt.typ.rep()->start);
+                    scratch3 = 1;
+                    goto L10122;
                 } else if (curOP == BITNEGOP) {
                     addToInsnList(KAEX+ALLONES);
                     scratch3 = 1;
@@ -6691,6 +6704,10 @@ L12366:             error(errNotAType);
     newtype = curType;
 } /* parseTypeRef */
 
+/* Lay an enumeration's names into the constant pool, once, and remember
+   where: 'start' is the offset the ordinal indexes from, and is what a cast
+   to a text word reads.  Only a type that kept a dense name table gets one
+   -- explicit enumerator values leave start at -1. */
 void dumpEnumNames(TPtr l3arg1z)
 {
     IdentRecPtr l3var1z;
@@ -6704,6 +6721,16 @@ void dumpEnumNames(TPtr l3arg1z)
         }
     }
 } /* dumpEnumNames */
+
+/* A word of eight six-bit characters, which is what an identifier is stored
+   as and what %t writes.  Named by its shape rather than by a type of its
+   own, so any spelling of it -- a typedef, or the type written out in the
+   cast -- is the same type here. */
+bool isTextWord(TPtr arg)
+{
+    return arg.p.pk == kindArray and typeSize(arg) == 1 and
+           arg.rep()->asize == 8 and arg.rep()->perword == 8;
+} /* isTextWord */
 
 void fopenFile(IdentRecPtr fileSym, ExtFileRec * extFileP)
 {
@@ -7557,6 +7584,16 @@ Factor::Factor()
                 l4typ11z = readTypeName();
                 checkSymAndRead(RPAREN);
                 parseUnaryExpression();
+                /* An enumeration whose enumerators were left to run in
+                   sequence carries a table of their names; a cast of one to
+                   a text word answers the name rather than the ordinal,
+                   which is what %t writes.  Not folded even for a constant
+                   enumerator: the name lives in the constant pool, so it is
+                   read there. */
+                if (isTextWord(l4typ11z) and
+                    curExpr->vt.typ.p.pk == kindScalar and
+                    curExpr->vt.typ.rep()->start != -1)
+                    curExpr = mkExpr(TONAME, l4typ11z, curExpr, NULL);
                 castArith(l4typ11z, curExpr);
                 if (typeSize(curExpr->vt.typ) != typeSize(l4typ11z))
                     error(errNeedOtherTypesOfOperands);
@@ -8543,75 +8580,8 @@ void returnOp() {
 
 struct standProc {
 
-    TPtr l4typ3z;
-    ExprPtr l4exp7z, workExpr;
     int64_t procNo;
     int64_t besmOpcode;
-
-    void startWrite() {
-        expression();
-        l4typ3z = curExpr->vt.typ;
-        l4exp7z = curExpr;
-        if (workExpr == NULL) {
-            if (typeSize(l4typ3z) == 30) {
-                workExpr = curExpr;
-            } else {
-                workExpr = new Expr;
-                workExpr->vt.typ = outputFile->typ;
-                workExpr->op = GETVAR;
-                workExpr->id1 = outputFile;
-            }
-        }
-    } /* startWrite */
-
-    void printfProc() {
-        int64_t argCount;
-        bool isFormat;
-
-        workExpr = NULL;
-        argCount = 0;
-        isFormat = true;
-        do {
-            /* startWrite takes the same optional leading file argument write
-               takes; the destination reaches C/PRINTF in M12, not on the
-               stack. */
-            startWrite();
-            if (l4exp7z != workExpr) {
-                curExpr = l4exp7z;
-                if (curExpr->vt.typ.p.pk == kindArray)
-                    curExpr = decayArray(curExpr);
-                if (isFormat and not isCharPtr(curExpr->vt.typ)) {
-                    error(40); /* errIncompatibleArgumentTypes */
-                    curExpr = uVarPtr;
-                } else if (typeSize(curExpr->vt.typ) != 1) {
-                    error(40); /* errIncompatibleArgumentTypes */
-                    curExpr = uVarPtr;
-                }
-                (void) formOperator(LOAD);
-                /* An enum printed by name has no conversion of its own, so
-                   the actual is the name itself: the entry the ordinal
-                   selects in the table C/WX would have indexed, for %t to
-                   write. */
-                l4typ3z = curExpr->vt.typ;
-                if (l4typ3z.p.pk == kindScalar and l4typ3z.rep()->start != -1) {
-                    dumpEnumNames(l4typ3z);
-                    form1Insn(KATI+14);
-                    form1Insn(KUTC+I14);
-                    form1Insn(KXTA+I8 + l4typ3z.rep()->start);
-                }
-                form1Insn(KXTS);  /* C/PRINTF owns and removes every argument */
-                isFormat = false;
-                argCount = argCount + 1;
-            }
-        } while (SY == COMMA);
-        if (argCount == 0)
-            error(36); /* errTooFewArguments */
-        form1Insn(KVTM+I10 + getValueOrAllocSymtab(-argCount));
-        curExpr = workExpr;
-        (void) formOperator(SETREG12);
-        formAndAlign(getHelperProc(30)); /* "C/PRINTF" */
-        usedRegs = usedRegs | Bits(12);
-    } /* printfProc */
 
     standProc() { /* standProc */
         IdentRecPtr &l3idr12z = Statement::super.back()->l3idr12z;
@@ -8662,18 +8632,7 @@ struct standProc {
             padToLeft();
             prevOpcode = 1;
         } break;
-        case 1: { /* printf */
-            inSymbol();
-            if (SY == RPAREN)
-                error(36); /* errTooFewArguments */
-            else {
-                readNext = false;
-                printfProc();
-            }
-        } break;
         }
-        if (procNo == 1)
-            arithMode = 1;
         checkSymAndRead(RPAREN);
     }
 }; /* standProc */
@@ -8794,8 +8753,8 @@ Statement::Statement()
                     if (l3var6z == ROUTINEID) {
                         l3idr12z = hashTravPtr;
                         if (l3idr12z->pck.offset == 0) {
-                            /* System procedure (BESM, PRINTF): special
-                               syntax, handled directly. */
+                            /* System procedure (BESM): special syntax,
+                               handled directly. */
                             inSymbol();
                             standProc();
                             checkSymAndRead(SEMICOLON);
@@ -9237,10 +9196,8 @@ struct initScalars {
 initScalars::initScalars() :
     curIdRec(programme::super.back()->curIdRec)
 {
-    static constexpr int64_t systemProcNames[2] = {
-    /*0*/   toText("BESM"),
-            toText("PRINTF")};
     IdentRecPtr programObj;
+    SigPtr fmtSig, tailSig;
     BooleanType.setRep(
         besm6_alloc_record<Types>(offsetof(Types, szScalar)));
     BooleanType.rep()->numen = 2;
@@ -9355,9 +9312,7 @@ initScalars::initScalars() :
 
     temptype.setRep(NULL);
     sysProcNum = 0;
-    for (l3var5z = 0; l3var5z <= 1; ++l3var5z) {
-        regSysProc(systemProcNames[l3var5z]);
-    }
+    regSysProc(toText("BESM"));
     sysProcNum = 0;
     temptype = RealType;
     regSysProc(toText("ABS"));
@@ -9369,6 +9324,43 @@ initScalars::initScalars() :
     temptype = IntegerType;
     regSysProc(toText("CARD"));
     regSysProc(toText("MINEL"));
+    /* printf is not a standard procedure: it is an ordinary variadic
+       assembler routine, predeclared only so that every source is spared a
+       line it would always write.  What is built here is exactly what
+       'void printf(char *, ...) assembler;' would leave behind -- a format
+       parameter on the first argument slot and, on the next, the pointer to
+       the tail that the ellipsis claims -- so the call site, the frame
+       arithmetic and the type checking are the ordinary ones.  The
+       declaration line for a variadic assembler routine of any other name,
+       fprintf included, is still written by hand. */
+    tailSig = new SigRec;
+    tailSig->s1.pclass = VARID;
+    tailSig->s1.poffset = 9;
+    tailSig->ptyp = voidPtr;
+    tailSig->next = NULL;
+    fmtSig = new SigRec;
+    fmtSig->s1.pclass = VARID;
+    fmtSig->s1.poffset = 8;
+    fmtSig->ptyp = charPtrType;
+    fmtSig->next = tailSig;
+    curIdRec = besm6_alloc_record<IdentRec>(
+        offsetof(IdentRec, szRoutine));
+    curIdRec->id = toText("PRINTF");
+    /* Nonzero, and the value a routine declared at file scope gets: zero is
+       what marks a standard procedure, and matching the level lets a source
+       redeclaring printf be caught as one already defined. */
+    curIdRec->pck.offset = curFrameRegTemplate;
+    curIdRec->typ = voidType;
+    curIdRec->pck.cl = ROUTINEID;
+    curIdRec->list() = NULL;
+    curIdRec->value() = 0;
+    curIdRec->setSig(fmtSig);
+    curIdRec->setPreDef(NULL);
+    /* [0:15] every register clobbered, as any external is assumed to;
+       20 extern, 23 variadic, 26 assembler. */
+    curIdRec->flags() = BitRange(0,15) | Bits(20,23,26);
+    curIdRec->r1.pos = 0;
+    addToHashTab(curIdRec);
 
     // The first token of the source is read here, not by the caller: sources
     // usually open with a type keyword (int, void), so the predefined type
@@ -10334,7 +10326,7 @@ struct initTables {
     void initArrays() {
         FcstCnt = 0;
         FcstTotal = 0;
-        for (idx=1; idx <= 30; ++idx)
+        for (idx=1; idx <= 29; ++idx)
             helperMap[idx] = 0;
     } /* initArrays */
 
@@ -10762,7 +10754,7 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
     }
 }
 
-int64_t helperNames[31] = { 0L,
+int64_t helperNames[30] = { 0L,
         toText("P/1     "),
         toText("C/2     "),
         toText("C/3     "),
@@ -10791,5 +10783,4 @@ int64_t helperNames[31] = { 0L,
         toText("P/FM    "),
         toText("P/NN    "),
         toText("C/SHL   "),
-        toText("C/SHR   "),
-/*30*/  toText("C/PRINTF")};
+        toText("C/SHR   ")};

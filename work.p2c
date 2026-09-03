@@ -203,7 +203,7 @@ typedef enum {
     INCROP,     DECROP,     ASSIGNOP,   RMWASSIGN,  GETELT,
     GETVAR,     GETENUM,    GETFIELD,   DEREF,      STKLVAL,
     INDCALL,    PROCADDR,   ALNUM,      TOREAL,     TOINT,
-    NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,   STANDPROC,
+    TONAME,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,   STANDPROC,
     ADDROF,     NOOP
 } operator;
 //
@@ -619,8 +619,8 @@ symbol charSym[128] = {
     [';']=SEMICOLON, ['[']=LBRACK, [']']=RBRACK, ['=']=BECOMES,
     [':']=COLON, ['!']=EXPROP, ['~']=EXPROP, ['?']=EXPROP };
 hashArray symHash = NULL:128, fieldHash = NULL:128;
-int helperMap[31] = 0:31;
-int helperNames[31] = { 0,
+int helperMap[30] = 0:30;
+int helperNames[30] = { 0,
         t'P/1     ',
         t'C/2     ',
         t'C/3     ',
@@ -649,8 +649,7 @@ int helperNames[31] = { 0,
         t'P/FM    ',
         t'P/NN    ',
         t'C/SHL   ',
-        t'C/SHR   ',
-/*30*/  t'C/PRINTF' };
+        t'C/SHR   ' };
 int opPrec[ALTERN+1] = {
     precNone:24,
     [CONDOP]=precCond,
@@ -2519,6 +2518,10 @@ void markTypeSym() {
 } /* markTypeSym */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* Lay an enumeration's names into the constant pool, once, and remember
+   where: 'start' is the offset the ordinal indexes from, and is what a cast
+   to a text word reads.  Only a type that kept a dense name table gets one
+   -- explicit enumerator values leave start at -1. */
 void dumpEnumNames(tptr l3arg1z) {
 irptr l3var1z;
     if (l3arg1z.rep->start == 0) {
@@ -2531,6 +2534,16 @@ irptr l3var1z;
         }
     }
 } /* dumpEnumNames */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* A word of eight six-bit characters, which is what an identifier is stored
+   as and what %t writes.  Named by its shape rather than by a type of its
+   own, so any spelling of it -- a typedef, or the type written out in the
+   cast -- is the same type here. */
+int isTextWord(tptr arg) {
+    return arg.p.pk == kindArray && typeSize(arg) == 1 &&
+           arg.rep->asize == 8 && arg.rep->perword == 8;
+} /* isTextWord */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void fopenFile(irptr fileSym, extfilerec *extFileP) {
@@ -5142,6 +5155,15 @@ L10122:         insnList->tail->mode  =  scratch3;
                 scratch3  =  2;
                 addToInsnList(getHelperProc(15)); /* "C/TR" */
                 goto L10122;
+            } else if (curOP == TONAME) {
+                /* The ordinal indexes the name table, which is laid into
+                   the constant pool here, on its first use. */
+                dumpEnumNames(exprToGen->expr1->typ);
+                addToInsnList(KATI+14);
+                addToInsnList(KUTC+I14);
+                addToInsnList(KXTA+I8 + exprToGen->expr1->typ.rep->start);
+                scratch3 = 1;
+                goto L10122;
             } else if (curOP == BITNEGOP) {
                 addToInsnList(KAEX+ALLONES);
                 scratch3 = 1;
@@ -6744,6 +6766,15 @@ int hasFields;
             l4typ11z  =  readTypeName();
             checkSymAndRead(RPAREN);
             parseUnaryExpression();
+            /* An enumeration whose enumerators were left to run in sequence
+               carries a table of their names; a cast of one to a text word
+               answers the name rather than the ordinal, which is what %t
+               writes.  Not folded even for a constant enumerator: the name
+               lives in the constant pool, so it is read there. */
+            if (isTextWord(l4typ11z) &&
+                curExpr->typ.p.pk == kindScalar &&
+                curExpr->typ.rep->start != -1)
+                curExpr = mkExpr(TONAME, l4typ11z, curExpr, NULL);
             castArith(l4typ11z, &curExpr);
             if (typeSize(curExpr->typ) != typeSize(l4typ11z))
                 error(errNeedOtherTypesOfOperands);
@@ -7640,75 +7671,8 @@ void returnOp() {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void standProc() { /* standProc */
-tptr l4typ3z;
-eptr l4exp7z, workExpr;
 int procNo;
 int besmOpcode;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void startWrite() {
-    expression();
-    l4typ3z  =  curExpr->typ;
-    l4exp7z  =  curExpr;
-    if (workExpr == NULL) {
-        if (typeSize(l4typ3z) == 30) {
-            workExpr  =  curExpr;
-        } else {
-            workExpr = malloc(sizeof(expr));
-            workExpr->typ  =  outputFile->typ;
-            workExpr->op  =  GETVAR;
-            workExpr->id1  =  outputFile;
-        }
-    }
-} /* startWrite */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void printfProc() {
-int argCount, isFormat;
-    workExpr  =  NULL;
-    argCount  =  0;
-    isFormat  =  true;
-    do {
-        /* startWrite takes the same optional leading file argument write
-           takes; the destination reaches C/PRINTF in M12, not on the stack. */
-        startWrite();
-        if (l4exp7z != workExpr) {
-            curExpr  =  l4exp7z;
-            if (curExpr->typ.p.pk == kindArray)
-                curExpr  =  decayArray(curExpr);
-            if (isFormat && ! isCharPtr(curExpr->typ)) {
-                error(40); /* errIncompatibleArgumentTypes */
-                curExpr  =  uVarPtr;
-            } else if (typeSize(curExpr->typ) != 1) {
-                error(40); /* errIncompatibleArgumentTypes */
-                curExpr  =  uVarPtr;
-            }
-            formOperator(LOAD);
-            /* An enum printed by name has no conversion of its own, so the
-               actual is the name itself: the entry the ordinal selects in the
-               table C/WX would have indexed, for %t to write. */
-            l4typ3z  =  curExpr->typ;
-            if (l4typ3z.p.pk == kindScalar && l4typ3z.rep->start != -1) {
-                dumpEnumNames(l4typ3z);
-                form1Insn(KATI+14);
-                form1Insn(KUTC+I14);
-                form1Insn(KXTA+I8 + l4typ3z.rep->start);
-            }
-            form1Insn(KXTS);   /* C/PRINTF owns and removes every argument */
-            isFormat  =  false;
-            ++argCount;
-        }
-    } while (SY == COMMA);
-    if (argCount == 0)
-        error(36); /* errTooFewArguments */
-    form1Insn(KVTM+I10 + getValueOrAllocSymtab(-argCount));
-    curExpr  =  workExpr;
-    formOperator(SETREG12);
-    formAndAlign(getHelperProc(30)); /* "C/PRINTF" */
-    usedRegs |= [12];
-} /* printfProc */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     curVal.i  =  l3idr12z->low;
     procNo  =  curVal.i;
     if (SY != LPAREN) {
@@ -7752,18 +7716,7 @@ int argCount, isFormat;
         padToLeft();
         prevOpcode  =  1;
         break;
-    case 1: /* printf */
-        inSymbol();
-        if (SY == RPAREN)
-            error(36); /* errTooFewArguments */
-        else {
-            readNext  =  false;
-            printfProc();
-        }
-        break;
     }
-    if (procNo == 1)
-        arithMode  =  1;
     checkSymAndRead(RPAREN);
 } /* standProc */
 //
@@ -7877,8 +7830,8 @@ L8888:      skip(skipToSet | statEndSys);
         if (l3var6z == ROUTINEID) {
             l3idr12z  =  hashTravPtr;
             if (l3idr12z->pck.p.offset == 0) {
-                /* System procedure (BESM, PRINTF): special syntax,
-                   handled directly. */
+                /* System procedure (BESM): special syntax, handled
+                   directly. */
                 inSymbol();
                 standProc();
                 checkSymAndRead(SEMICOLON);
@@ -8215,9 +8168,7 @@ irptr l3var7z, programObj;
 int l3var8z, sysProcNum;
 tptr temptype;
 int l3var11z;
-static int systemProcNames[2] = {
-/*0*/   t'    BESM',
-        t'  PRINTF' };
+sigptr fmtSig, tailSig;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysProc(int l4arg1z) {
@@ -8342,9 +8293,7 @@ void regSysProc(int l4arg1z) {
     }
     temptype.rep = NULL;
     sysProcNum  =  0;
-    for (l3var5z = 0; l3var5z <= 1; ++l3var5z) {
-        regSysProc(systemProcNames[l3var5z]);
-    }
+    regSysProc(t'    BESM');
     sysProcNum  =  0;
     temptype  =  realType;
     regSysProc(t'     ABS');
@@ -8356,6 +8305,49 @@ void regSysProc(int l4arg1z) {
     temptype  =  intType;
     regSysProc(t'    CARD');
     regSysProc(t'   MINEL');
+    /* printf is not a standard procedure: it is an ordinary variadic
+       assembler routine, predeclared only so that every source is spared a
+       line it would always write.  What is built here is exactly what
+       'void printf(char *, ...) assembler;' would leave behind -- a format
+       parameter on the first argument slot and, on the next, the pointer to
+       the tail that the ellipsis claims -- so the call site, the frame
+       arithmetic and the type checking are the ordinary ones.  The
+       declaration line for a variadic assembler routine of any other name,
+       fprintf included, is still written by hand. */
+    tailSig = malloc(sizeof(sigrec));
+    { register sigrec *sg = tailSig;
+        sg->s1.p.pclass  =  VARID;
+        sg->s1.p.poffset  =  9;
+        sg->ptyp  =  voidPtr;
+        sg->next  =  NULL;
+    }
+    fmtSig = malloc(sizeof(sigrec));
+    { register sigrec *sg = fmtSig;
+        sg->s1.p.pclass  =  VARID;
+        sg->s1.p.poffset  =  8;
+        sg->ptyp  =  charPtrType;
+        sg->next  =  tailSig;
+    }
+    curIdRec = malloc(offsetof(identrec, szRoutine));
+    { register identrec *ir = curIdRec;
+        ir->id  =  t'  PRINTF';
+        /* Nonzero, and the value a routine declared at file scope gets:
+           zero is what marks a standard procedure, and matching the level
+           lets a source redeclaring printf be caught as one already
+           defined. */
+        ir->pck.p.offset  =  curFrameRegTemplate;
+        ir->typ  =  voidType;
+        ir->pck.p.cl  =  ROUTINEID;
+        ir->list  =  NULL;
+        ir->value  =  0;
+        ir->r1.sig  =  fmtSig;
+        ir->r2.preDefLink  =  NULL;
+        /* [0:15] every register clobbered, as any external is assumed to;
+           20 extern, 23 variadic, 26 assembler. */
+        ir->flags  =  [0:15,20,23,26];
+        ir->r1.pos  =  0;
+    }
+    addToHashTab(curIdRec);
     /* The first token of the source is read here, not by the caller: sources
        usually open with a type keyword (int, void), so the predefined type
        names must already be registered.  lookupMode is still lookUse. */
