@@ -22,7 +22,7 @@ C
 C C/RE2 - second half of the reset (rewind) sequence.  Splits
 C  on FILE[4] to choose between the packed and text branches,
 C  programs FILE[2]/FILE[8] for a pending read and forks into
-C  PASINBUF.
+C  C/INBUF.
 C===========================================================
 C Register convention (see FILE.md):
 C   M12 = base of the FILE record being acted on
@@ -41,7 +41,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  C/ZI:,SUBP,                 . read/write a disk zone via *70
  C/OB:,SUBP,                 . flush the output buffer to disk
  C/RACPAK:,SUBP,             . unpack one element from the buffer
- PASINBUF:,SUBP,             . allocate / refill the input buffer
+ C/INBUF:,SUBP,             . allocate / refill the input buffer
  C/GL:,SUBP,                 . refill the input line from stdin
  C/TF:,SUBP,                 . truncate / rewrite the file
  C/AH:,SUBP,                 . fatal-error abort handler
@@ -86,7 +86,7 @@ C===========================================
  12,ATX,13B                  . FILE[11] := computed window upper
  13,VJM,C/OB                 . sub-helper
  13,VTM,ADVTAIL              . link back to ADVTAIL
- ,UJ,C/ZI                    . jump into PASCTRP tail
+ ,UJ,C/ZI                    . jump into C/CTRP tail
  PACKCALC:12,XTA,16B         . ACC := FILE[14]
  12,ATX,23B                  . FILE[19] := packed flag
  12,XTA,11B                  . ACC := FILE[9]
@@ -277,7 +277,7 @@ C===========================================
  1,XTA,10B
  12,ATX,10B                  . FILE[8]  := 1U (f^ valid)
  13,VTM,RE2EXIT              . link return through RE2EXIT
- ,UJ,PASINBUF                . jump to PASINBUF
+ ,UJ,C/INBUF                . jump to C/INBUF
  TXTFTCH:13,VJM,C/GL         . text-mode fetch + EOF check
  ,UTC,LIT120.=120            . C := address of constant 0o120
  ,XTA,
@@ -317,7 +317,7 @@ C   CONTAB+0 = 64  (shift base; 64 - elSize -> bit step)
 C   CONTAB+1 = 48  (BESM-6 word width in bits; divisor)
 C   IOBIT    =  2  (= CONTAB+2; bit-1 mask that tests FILE[23]
 C                   for "is *INPUT* / *OUTPUT*".  The same value
-C                   is the PASIOBIT common that C/GF and C/PF use)
+C                   is the C*IOBIT common that C/GF and C/PF use)
 C   CONTAB+3 = 50  (only the dtran lists it; never loaded)
 C   CONTAB+4 = 51  (likewise)
 C   TESTB3   =  3  (= CONTAB+5; test bit pattern 0o3, read

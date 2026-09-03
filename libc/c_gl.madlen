@@ -6,7 +6,7 @@ C  the stdin path only: it runs PASEOF (the MONCARD eof test)
 C  then, if data is real, calls READ* to pull one console/card
 C  line (<=80 chars) into the file's 14-word buffer at FILE[12].
 C  (Disk files refill from the *70 syscall path instead, in
-C  PASINBUF, not from here.)
+C  C/INBUF, not from here.)
 C
 C  Labelled READLINE in p_sys.asm.
 C===========================================================

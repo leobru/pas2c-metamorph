@@ -1,0 +1,298 @@
+ VPRINTF:,NAME,
+C===========================================================
+C vprintf(fmt, ...) - formatted output taking a vararg list.
+C
+C   void vprintf(char *, ...) assembler;
+C
+C The compiler pushes the tail actuals first, in source order, then the
+C format, and leaves a pointer to the first tail word in the accumulator.
+C An ASSEMBLER routine gets no frame, so on entry:
+C
+C   ACC    = the first tail word's address
+C   [SP-1] = the format pointer
+C   M13    = return link
+C
+C The format's slot is therefore the exclusive end of the tail, and no
+C count is passed or needed: the two boundaries bound the walk.  The
+C caller drops the tail with its own UTM after the call, so this routine
+C pops the format only, leaving SP at that slot.
+C
+C VPRINTF names *OUTPUT* 
+C
+C The format parser below is C/PRINTF's, copied.  Only the argument
+C plumbing differs -- the prologue, and the SP the epilogue returns.
+C Fixes to either belong in both.
+C===========================================================
+ C/WI:          ,SUBP,
+ C/WO:          ,SUBP,
+ C/WR:          ,SUBP,
+ C/WC:          ,SUBP,
+ C/CW:          ,SUBP,
+ C/A6:          ,SUBP,
+ C/6A:          ,SUBP,
+ C/WXD:         ,SUBP,
+ C/WL:          ,SUBP,
+ C/SP:          ,SUBP,
+ C/PUTS:        ,SUBP,
+ STRLEN:        ,SUBP,
+ P/HIDE:        ,SUBP,
+ P/EDIH:        ,SUBP,
+ P/08:          ,SUBP,
+ P/LDAR:        ,SUBP,
+ *OUTPUT*:,LC,30
+C P/HIDE saves M13 and the three scratch registers M6..M8.  M6 then bases the
+C constants and static scratch storage below; only P/HIDE's four words use SP.
+               12,VTM,*OUTPUT*
+                 ,ATI,10
+                 ,NTR,3
+               14,VJM,P/HIDE
+                6,BASE,NEWLINE
+               15,MTJ,8
+                8,UTM,-5
+                 ,ITA,8
+                 ,ATX,ENTRYSP
+                8,XTA,
+                 ,ATX,FMTPTR
+               10,MTJ,7
+ LOOP:         13,VJM,NEXTCH
+                 ,UZA,DONE
+               14,UTM,-45B
+               14,VZM,PCT
+               13,VJM,OUTCH
+                 ,UJ,LOOP
+C Begin one conversion.  Save the address after '%' for literal recovery and
+C collect an optional decimal width and precision without consuming an arg.
+ PCT:            ,XTA,FMTPTR
+                 ,ATX,PCTPTR
+                 ,XTA,
+                 ,ATX,WIDTH
+                 ,ATX,PREC
+                 ,ATX,HASPREC
+                 ,ATX,ZEROFIL
+                8,VTM,WIDTH              . Parsed digits initially target width
+ DIGCHK:       13,VJM,NEXTCH
+C Try a conversion before treating the same character as format syntax.
+C The UTM chain leaves ACC untouched, so its failure restores M14 from ACC.
+ DISPATCH:     14,VZM,UNKNOWN
+               14,UTM,-45B
+               14,VZM,FMPCT
+               14,UTM,45B-101B
+               14,VZM,FMA
+               14,UTM,101B-103B
+               14,VZM,FMC
+               14,UTM,103B-104B
+               14,VZM,FMD
+               14,UTM,104B-105B
+               14,VZM,FMREAL
+               14,UTM,105B-106B
+               14,VZM,FMREAL
+               14,UTM,106B-117B
+               14,VZM,FMO
+               14,UTM,117B-123B
+               14,VZM,FMS
+               14,UTM,123B-124B
+               14,VZM,FMT
+               14,UTM,124B-114B
+               14,VZM,DIGCHK            . 'L': a length modifier, ignored
+               14,UTM,114B-110B
+               14,VZM,DIGCHK            . 'H': likewise
+                 ,ATI,14
+ CHECKDIG:     14,UTM,-52B              . '*' takes the next argument
+               14,VZM,STARARG
+               14,UTM,52B
+                 ,A-X,ASCII0
+                 ,U1A,NODIG
+                 ,X-A,NINE
+                 ,U1A,NODIG
+                 ,X-A,NINE
+                 ,ATX,DIGIT
+C The zero that opens a width is the fill flag rather than a digit: the three
+C are all non-negative, so one OR says the digit is zero, no width digit has
+C arrived and no '.' has either.  Anywhere else a zero is a digit like any
+C other, and the OR is the accumulator the digit path reloads anyway.
+                 ,AOX,WIDTH
+                 ,AOX,HASPREC
+                 ,UZA,ZFLAG
+                8,XTA,
+                 ,A*X,E48TEN
+                 ,YTA,64
+                 ,ARX,DIGIT
+                8,ATX,
+                 ,UJ,DIGCHK
+ ZFLAG:         1,XTA,8                  . [M1+8] is the runtime's 1U
+                 ,ATX,ZEROFIL
+                 ,UJ,DIGCHK
+ NODIG:        14,UTM,-56B
+               14,V1M,UNKNOWN
+                1,XTA,8
+                 ,ATX,HASPREC
+                8,VTM,PREC               . Digits after '.' target precision
+                 ,UJ,DIGCHK
+ STARARG:      13,VJM,GETARG
+                8,ATX,                   . Save argument to current M8 target
+                 ,UJ,DIGCHK
+ FMPCT:         ,XTA,PERCENT
+               13,VJM,OUTCH
+                 ,UJ,LOOP
+ FMD:          13,VJM,GETARG
+                 ,XTA,WIDTH
+                 ,U1A,DWIDTH
+                 ,XTA,                   . No extra spaces by default
+                 ,ATX,WIDTH
+ DWIDTH:         ,XTA,WIDTH
+                7,XTS,-1
+               13,VJM,C/WI
+                 ,UJ,LOOP
+C An octal field is C's: the value's own digits, the width a minimum, and the
+C padding blanks unless a leading zero in the format asked for zeros, which
+C C/WO lays down itself.  Either way the digits the value needs are what is
+C written, so a width below them widens the field rather than truncating it.
+ FMO:          13,VJM,GETARG
+                1,AOX,8                  . a zero has a digit too, and a set
+                 ,ANX,                   .  bit 1 moves no higher one
+                 ,X-A,FIFTYONE           . n: 1 for bit 48 ... 48 for bit 1
+                 ,A*X,INV3               . (51 - n) bits, three to a digit
+                 ,ATX,OCTDIG
+                 ,XTA,ZEROFIL
+                 ,U1A,OFILL
+                 ,XTA,OCTDIG             . blanks up to the width, if any
+                 ,A-X,WIDTH
+                 ,CALL,C/SP
+                 ,XTA,OCTDIG
+                 ,UJ,OWRITE
+ OFILL:          ,XTA,WIDTH              . C/WO zero-fills a field wider than
+                 ,A-X,OCTDIG             . the digits; a narrower one is the
+                 ,U1A,ODIGITS            . digits
+                 ,XTA,WIDTH
+                 ,UJ,OWRITE
+ ODIGITS:        ,XTA,OCTDIG
+ OWRITE:        7,XTS,-1
+               13,VJM,C/WO
+                 ,UJ,LOOP
+ FMC:          13,VJM,GETARG
+                 ,XTA,WIDTH
+                 ,UZA,CNOWID
+                 ,XTA,WIDTH
+                7,XTS,-1
+               13,VJM,C/WC
+                 ,UJ,LOOP
+ CNOWID:        7,XTA,-1
+               13,VJM,C/CW
+                 ,UJ,LOOP
+ FMA:          13,VJM,GETARG
+                 ,XTA,WIDTH
+                 ,UZA,ANOWID
+                 ,XTA,WIDTH
+                7,XTS,-1
+               10,VTM,6
+               13,VJM,C/A6
+                 ,UJ,LOOP
+ ANOWID:        7,XTA,-1
+               10,VTM,6
+               13,VJM,C/6A
+                 ,UJ,LOOP
+ FMREAL:       13,VJM,GETARG
+                 ,XTA,WIDTH
+                 ,U1A,RWIDTH
+                 ,XTA,W14
+                 ,ATX,WIDTH
+ RWIDTH:         ,XTA,HASPREC
+                 ,U1A,RPREC
+                 ,XTA,W4
+                 ,ATX,PREC
+ RPREC:          ,XTA,WIDTH
+                 ,XTS,PREC
+                7,XTS,-1
+               13,VJM,C/WR
+                 ,UJ,LOOP
+C C/PUTS already understands arbitrary byte alignment, NUL and LF.  An
+C explicit width is left padding only; precision is deliberately ignored.
+ FMS:          13,VJM,GETARG
+                 ,XTA,WIDTH
+                 ,UZA,SOUT
+                 ,XTA,WIDTH
+                 ,ATX,PREC
+                7,XTA,-1
+               13,VJM,STRLEN
+                 ,NTR,7
+                 ,A-X,PREC
+                 ,CALL,C/SP
+ SOUT:          7,XTA,-1
+               13,VJM,C/PUTS
+                 ,UJ,LOOP
+ FMT:          13,VJM,GETARG
+                 ,XTA,WIDTH
+                7,XTS,-1
+               13,VJM,C/WXD
+                 ,UJ,LOOP
+C Print the '%' of an unknown sequence, then let the main loop resume at the
+C character immediately following it.  No actual argument is consumed.
+ UNKNOWN:        ,XTA,PERCENT
+               13,VJM,OUTCH
+                 ,XTA,PCTPTR
+                 ,ATX,FMTPTR
+                 ,UJ,LOOP
+C Return the next actual through M7.  The entry-SP word is the exclusive end;
+C a missing actual terminates formatting without looking beyond the frame.
+ GETARG:         ,ITA,7
+                 ,AEX,ENTRYSP
+                ,UZA,DONE
+               7,XTA,
+                7,UTM,1
+               13,UJ,
+C Load through the runtime's packed-char descriptor, then advance the format
+C byte pointer by one.
+ NEXTCH:         ,ITA,13
+                 ,XTS,FMTPTR
+                 ,XTS,FMTPTR
+                1,ARX,8
+                 ,STX,FMTPTR
+               14,VTM,
+               11,VTM,P/08
+               13,VJM,P/LDAR
+                 ,ATI,14
+               15,WTC,
+                 ,UJ,
+C One literal format byte.  LF terminates the line exactly as C/PUTS does.
+ OUTCH:        15,ATX,1
+                 ,ITA,13
+               15,XTS,
+                 ,AEX,NEWLINE
+                 ,UZA,OUTNL
+                 ,AEX,NEWLINE
+               13,VJM,C/CW
+                 ,UJ,OUTRET
+ OUTNL:        13,VJM,C/WL
+ OUTRET:       15,WTC,
+                 ,UJ,
+C Let P/EDIH restore M6..M8 and M13, then leave SP at the format's slot:
+C the format is this routine's to pop, the tail is the caller's.
+ DONE:           ,XTA,ENTRYSP
+                 ,ATI,10
+                 ,XTA,ENTRYSP
+                 ,ATI,8
+                8,MTJ,15
+               15,UTM,5
+               14,VTM,RET
+                 ,UJ,P/EDIH
+ RET:          10,MTJ,15
+               13,UJ,
+ NEWLINE:        ,LOG,0000 0000 0000 0012
+ PERCENT:        ,LOG,0000 0000 0000 0045
+ NINE:           ,LOG,11
+ ASCII0:         ,LOG,60
+ E48TEN:         ,LOG,4000000000000012
+ W4:             ,LOG,4
+ W14:            ,LOG,16
+ FIFTYONE:       ,LOG,63
+ INV3:           ,LOG,4005252525252526    . E48 | ceil(2**40 / 3)
+ ENTRYSP:        ,BSS,1
+ FMTPTR:         ,BSS,1
+ PCTPTR:         ,BSS,1
+ WIDTH:          ,BSS,1
+ PREC:           ,BSS,1
+ HASPREC:        ,BSS,1
+ DIGIT:          ,BSS,1
+ ZEROFIL:        ,BSS,1
+ OCTDIG:         ,BSS,1
+                 ,END,

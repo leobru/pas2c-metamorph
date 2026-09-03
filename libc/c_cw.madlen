@@ -1,0 +1,21 @@
+ C/CW:,NAME,
+C===========================================================
+C C/CW - write one character to the file whose FCB is in M12.
+C
+C   ACC = the character to write
+C   M12 = the FILE record
+C   M13 = return link
+C
+C The character is stored into the current element slot, f^,
+C which FILE[0] addresses through the working tag, and C/PF
+C then puts it and advances the file.  C/PF is entered by a
+C jump, not a call, so it returns through M13 straight to our
+C own caller.  C/7A open-codes this same three-instruction
+C sequence in its inner loop rather than calling here.
+C===========================================================
+ C/PF:          ,SUBP,        . Put f^ and advance the file
+                ,ntr , 3
+            12  ,wtc ,        . Address f^ through FILE[0]
+                ,atx ,        . f^ := the character
+                ,uj  , C/PF   . Tail-call the writer
+                ,end ,

@@ -19,12 +19,12 @@ same 883 instructions.
 | `p_mod.asm` | `P/MOD` | `P/DIV` | integer modulo / divide ABI glue |
 | `p_it.asm` | `P/IT` | — | indirect-tail return |
 | `p_co.asm` | `P/CO` | `P/RE1`, `P/RE2` | create / open / reset a file |
-| `pasctrp.asm` | `PASCTRP` | `P/GT`, `P/CT`, `P/ZI` | track allocation and zone I/O |
+| `C/CTRP.asm` | `C/CTRP` | `P/GT`, `P/CT`, `P/ZI` | track allocation and zone I/O |
 | `p_gf.asm` | `P/GF` | `P/RACPAK`, `P/UP` | get an element; unpack the window |
 | `p_ad.asm` | `P/AD` | — | advance the buffer iterator |
 | `p_gl.asm` | `P/GL` | — | refill the input line from stdin |
-| `pasinbuf.asm` | `PASINBUF` | — | allocate / refill the input buffer |
-| `pasgivep.asm` | `PASGIVEP` | — | flush a partial packed-output word |
+| `C/INBUF.asm` | `C/INBUF` | — | allocate / refill the input buffer |
+| `C/GIVEP.asm` | `C/GIVEP` | — | flush a partial packed-output word |
 | `p_pk.asm` | `P/PK` | — | pack ACC into the buffer slot |
 | `p_pf.asm` | `P/PF` | `P/OB`, `P/RS` | put an element; flush the buffer to disk |
 | `p_woln.asm` | `P/WOLN` | `P/WL`, `P/FL` | end an output line; print a record |
@@ -44,12 +44,12 @@ internal labels are entry points here:
 | `READLINE` | `P/GL` | | `*0667B` | `P/UP` |
 | `*0632B` | `P/RS` | | `*0600B` | `P/FL` |
 
-`FLUSHBUF`, `FLUSHLIN` and `OUTFIN` were second labels on `PASGIVEP`, `P/WL`
+`FLUSHBUF`, `FLUSHLIN` and `OUTFIN` were second labels on `C/GIVEP`, `P/WL`
 and `P/TF`; those entry names are used throughout instead.
 
 Two `,LC,` commons carry the constants that cross a module boundary, both
-seeded by the `,DATA,` image in `pasctrp.asm`: `PASLANE*` (the `0o76000`
-buffer/lane mask) and `PASIOBIT` (the `FILE[23]` stdin/stdout tag bit).
+seeded by the `,DATA,` image in `C/CTRP.asm`: `C*LANE*` (the `0o76000`
+buffer/lane mask) and `C*IOBIT` (the `FILE[23]` stdin/stdout tag bit).
 
 | Off | Oct | Use                                       | Set by / Used by |
 |----:|----:|-------------------------------------------|------------------|
@@ -57,9 +57,9 @@ buffer/lane mask) and `PASIOBIT` (the `FILE[23]` stdin/stdout tag bit).
 |  1  |  1  | End-of-window sentinel (limit for [0])    | P/CO init from buffer layout; compared via `12, AEX ,1` to detect buffer exhaustion |
 |  2  |  2  | EOF / pending flag                        | P/CO clears; P/GF returns without advancing if non-zero; P/PF aborts "PUT(F) NOT AT EOF" if zero (`UZA` at *0537B*); `P/EO`/`feof` return this field unchanged (0 = not EOF, non-zero = EOF) |
 |  3  |  3  | Mode/state byte; in the disk subsystem also the file's track-table descriptor / current track id | `1, ATX ,3` early in P/CO; set to a track id by GETTRACK / CLOSEWIN / OPENIN; conditionally zeroed at *0141B |
-|  4  |  4  | Open mode: input(0)/output(non-0)         | Checked by P/RE1, PASCTRP, P/GF, P/PF, P/RF, P/TF |
+|  4  |  4  | Open mode: input(0)/output(non-0)         | Checked by P/RE1, C/CTRP, P/GF, P/PF, P/RF, P/TF |
 |  5  |  5  | Buffered I/O: within-window bit-shift / step counter. Disk subsystem: current zone / track-entry cursor | Buffered: `12, XTA ,5` … `AEX ,17B` (compare with FILE[15]), reset to FILE[15] on wrap. Disk: holds the track id / zone, used as an address via `12, WTC ,5` in GETTRACK / ZONEIO / CLOSEWIN |
-|  6  |  6  | Working buffer descriptor / lane mask     | Set to `7 6000` (constant *0760B) by P/RF/P/TF; stacked by PASINBUF and P/PF |
+|  6  |  6  | Working buffer descriptor / lane mask     | Set to `7 6000` (constant *0760B) by P/RF/P/TF; stacked by C/INBUF and P/PF |
 |  7  |  7  | Buffer slot index for `WTC`               | `12, WTC ,7` sets the working tag for the next memory access at the current element slot; updated by `ADVANCE` in the text path |
 |  8  | 10  | `f^` staging / last value                 | Holds the caller's `f^` word during stdin `READLINE`; XOR'd with [9] in P/GF text path; also written `1U` at open/reset to mark `f^` valid |
 |  9  | 11  | Packed-element bit counter                | OR'd with caller's bit pattern in P/PF; copied with [10] in P/RE2 |
@@ -69,7 +69,7 @@ buffer/lane mask) and `PASIOBIT` (the `FILE[23]` stdin/stdout tag bit).
 | 13  | 15  | Buffer end pointer (for window/limit)     | P/CO init = SP; updated by P/GF/P/PF as window advances |
 | 14  | 16  | Packed-mode flag from open                | `12, XTA ,16B`+`U1A` selects packed branches in P/GF (*0336B*) and P/PF; cleared on some reset paths. Text dispatch in get/put also keys off [18] = 0 |
 | 15  | 17  | Wrap value for [5] (max bit shift)        | `XTA 17B` + `ATX 5` to reload [5] when packed slot crosses word |
-| 16  | 20  | Initial value of [6] (saved descriptor)   | Restored via `XTA 20B; ATX 6` in P/GF (*0336B*) and PASINBUF |
+| 16  | 20  | Initial value of [6] (saved descriptor)   | Restored via `XTA 20B; ATX 6` in P/GF (*0336B*) and C/INBUF |
 | 17  | 21  | Element stride in **words**               | Set in P/CO from M11 (`base.size`); consumed by `12, ARX ,21B` / `12, A+X ,21B` to advance [0] and (on put) [19]. Despite the `p_sys.asm` comment "bit-step", the instructions add whole words, not bits |
 | 18  | 22  | Element width in bits (= M9 = `elSize`)   | Set in P/CO via `ITA 9; 12, ATX ,22B`; `UZA` on [18] selects the text/unpacked path in P/GF/P/PF/P/RF (see below) |
 | 19  | 23  | Current buffer write cursor               | P/CO init = SP; advanced by [17] on P/PF; on P/GF packed wrap bumped by 1 word only (*0317B*); compared to [13]/[15] to detect end |

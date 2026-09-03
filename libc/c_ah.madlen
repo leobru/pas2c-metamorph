@@ -12,7 +12,7 @@ C   - a CRLF (C/WOLN -> C/WL).
 C  If a post-mortem-dump entry was installed at PASPMDAD it is
 C  called with M13 := STOP*; otherwise we jump straight to STOP*.
 C
-C  Callers: C/CO (NO BIND EXT FILE), PASCTRP (NO EXTFILE TRAKCS,
+C  Callers: C/CO (NO BIND EXT FILE), C/CTRP (NO EXTFILE TRAKCS,
 C  NO LOCFILE TRAKCS), C/PF (PUT(F) NOT AT EOF).  M12 must
 C  address the FILE record being reported.
 C

@@ -249,8 +249,8 @@ C===========================================
  ,UTC,ERR124
  ,UTC,ERR125
  ,UTC,ERR126
+ ,UTC,ERR127
 C Some padding just in case
- ,UTC,ERR/LAST
  ,UTC,ERR/LAST
  ,UTC,ERR/LAST
  ,UTC,ERR/LAST
@@ -362,6 +362,7 @@ C Some padding just in case
  ERR124:,TEXT,8HUNION*
  ERR125:,TEXT,8HRETURN*
  ERR126:,TEXT,8HSTATIC*
+ ERR127:,TEXT,16HELLIPSIS*
  ERR/LAST:,TEXT,8HUNKNOWN*
  ,END,
  C/WR:,NAME,

@@ -169,7 +169,8 @@ typedef enum {
 /*30B*/ IFSY,       SWITCHSY,   WHILESY,    FORSY,
         GOTOSY,     ELSESY,     DOSY,       EXTERNSY,
 /*40B*/ BREAKSY,    CONTSY,     CASESY,     DEFAULTSY,
-        UNIONSY,    RETURNSY,   STATICSY,   NOSY
+        UNIONSY,    RETURNSY,   STATICSY,   ELLIPSIS,
+        NOSY
 } symbol;
 //
 typedef enum {
@@ -1778,7 +1779,13 @@ L2290:
         case (tok)'&&': charClass = ANDOP; break;
         case (tok)'/*': parseComment(); longjmp(jb1473, 1);
         case (tok)'//': while (!atEOL) nextCH(); longjmp(jb1473, 1);
-        case (tok)'..': SY = COLON; break;
+        case (tok)'..':
+            /* Two dots are the range colon; a third makes the parameter
+               list's ellipsis, the way a third character turns '<<' into
+               '<<='. */
+            SY = COLON; nextCH();
+            if (CH == '.') { SY = ELLIPSIS; nextCH(); }
+            return;
         default:
             return;
         } /* switch prevCH, CH */
@@ -2166,11 +2173,11 @@ int typeCheck(tptr type1, tptr type2);
 int sameRoutineType(tptr type1, tptr type2) {
 sigptr p1, p2;
     /* Only the flags that shape a call are part of the type: 21 fortran,
-       24 all-by-reference, 26 assembler.  Bit 20 (extern) is linkage, and
-       including it would keep every declared function pointer type (flags 0)
-       from ever accepting an extern routine. */
-    if ((type1.rep->rflags & [21,24,26]) !=
-        (type2.rep->rflags & [21,24,26])) {
+       23 variadic, 24 all-by-reference, 26 assembler.  Bit 20 (extern) is
+       linkage, and including it would keep every declared function pointer
+       type (flags 0) from ever accepting an extern routine. */
+    if ((type1.rep->rflags & [21,23,24,26]) !=
+        (type2.rep->rflags & [21,23,24,26])) {
         return false;
     }
     if (type1.rep->rresult != type2.rep->rresult &&
@@ -4179,12 +4186,16 @@ irptr l5idr5z;
    on the stack" for the indirect call's tail macro. */
 int isProc, needPush, isIndir, isFortrn, isAssembler, allByRef;
 int calleeFl, frameSiz, manyArgs, tailMacro, slot;
+int isVarArg, tailWords, tailDisp;
 insnltyp *l5inl20z;
+eptr tailExp, l5exp3z;
 tptr routTyp, resTyp;
-sigptr curSig;
+sigptr curSig, l5sig19z;
 //
     l5exp1z  =  exprToGen->expr1;
     isIndir  =  exprToGen->op == INDCALL;
+    tailExp  =  NULL;
+    tailWords  =  0;
     if (isIndir) {
         /* Everything about the callee comes from the type it is reached
            through: the result, the parameter list, and the flags that shape
@@ -4205,6 +4216,7 @@ sigptr curSig;
     }
     isProc  =  resTyp == voidType;
     frameSiz  =  isProc ? 8 : 9;
+    isVarArg  =  (calleeFl >> (47-23)) & 1;
     isFortrn  =  (calleeFl >> (47-21)) & 1;
     isAssembler  =  (calleeFl >> (47-26)) & 1;
     allByRef  =  (calleeFl >> (47-24)) & 1;
@@ -4229,11 +4241,41 @@ sigptr curSig;
            are pushed.  An assembler routine reads those off the stack top and
            has no frame of its own, so nothing is skipped for it. */
         needPush  =  false;
-        if (! isAssembler && manyArgs) {
+        if (isVarArg) {
+            /* The tail goes down first, so it sits below the frame and the
+               mandatory actuals still land on the slots the declaration
+               fixed.  Each is one word and each is pushed where it stands --
+               none of them is the argument left in the accumulator, which is
+               the pointer built at the end. */
+            tailDisp  =  argWords(curSig) - 1;   /* the marker is one word */
+            tailExp  =  l5exp1z;
+            l5sig19z  =  curSig;
+            while (tailExp && l5sig19z && l5sig19z->next) {
+                tailExp  =  tailExp->expr1;
+                l5sig19z  =  l5sig19z->next;
+            }
+            l5exp3z  =  tailExp;
+            while (l5exp3z) {
+                l5inl20z  =  insnList;
+                genFullExpr(l5exp3z->expr2);
+                prepLoad();
+                addToInsnList(macro + mcPUSH);
+                if (l5inl20z->tail) {
+                    l5inl20z->tail->next  =  insnList->head;
+                    insnList->head  =  l5inl20z->head;
+                }
+                insnList->regsused  =  insnList->regsused | l5inl20z->regsused;
+                ++tailWords;
+                l5exp3z  =  l5exp3z->expr1;
+            }
+        }
+        /* A variadic call always skips the frame: the tail is already down,
+           so the mandatory actuals must not land on the header. */
+        if (! isAssembler && (manyArgs || isVarArg)) {
             addToInsnList(KUTM+SP + frameSiz);
         }
     }
-    while (l5exp1z) {
+    while (l5exp1z && l5exp1z != tailExp) {
         l5exp2z  =  l5exp1z->expr2;
         l5exp1z  =  l5exp1z->expr1;
         l5inl20z  =  insnList;
@@ -4294,6 +4336,25 @@ sigptr curSig;
         }
         insnList->regsused  =  insnList->regsused | l5inl20z->regsused;
     }
+    if (isVarArg) {
+        /* The last argument is the pointer to the tail.  Everything between
+           it and the tail's first word is known here -- the tail itself, the
+           frame the bump skipped, and the mandatory words already pushed --
+           so the address is that much below where the stack now stands. */
+        /* The last mandatory actual is still in the accumulator; push it
+           where it stands, since the pointer is about to load over it.
+           Appended, not prepended: the deferred push belongs in front of the
+           next actual's own code, and there is no next actual. */
+        if (needPush)
+            addToInsnList(macro + mcPUSH);
+        needPush  =  true;
+        tailDisp += tailWords;
+        if (! isAssembler)
+            tailDisp += frameSiz;
+        addToInsnList(KMTJ + SP + 14);
+        addToInsnList(KUTM + I14 + getValueOrAllocSymtab(-tailDisp));
+        addToInsnList(KITA + 14);
+    }
     if (isFortrn) {
         addToInsnList(KNTR+2);
         insnList->tail->mode  =  4;
@@ -4335,6 +4396,13 @@ sigptr curSig;
         addToInsnList(allocGlobalObject(l5idr5z) + (KVJM+I13));
     }
     insnList->tail->mode  =  2;
+    if (tailWords) {
+        /* The callee's exit puts the stack back to its own frame, which
+           begins above the tail, so the tail is still there.  Drop it here:
+           a call that leaks would be invisible at statement level and would
+           corrupt the argument block of any call it sits inside. */
+        addToInsnList(KUTM + SP + getValueOrAllocSymtab(-tailWords));
+    }
     /* Nothing follows the call: the display registers a callee disturbs are
        the ones its own entry helper saved in its frame, and C/E puts them
        back.  A frameless routine has no helper to do that, which is why one
@@ -6398,7 +6466,7 @@ void parseLval() {
    pointer-to-routine type) from the type, which carries the whole calling
    convention. */
 void parseCallArgs(irptr subroutine, eptr callee) {
-int noArgs, tooMany;
+int noArgs, tooMany, isVarArg;
 eptr curActual, callExpr, argList;
 sigptr curSig;
 tptr routTyp, formType;
@@ -6408,10 +6476,12 @@ tptr routTyp, formType;
             if (ir->typ != voidType)
                 liveRegs &= ~(ir->flags & ~calleeSaved);
             noArgs  =  1 ^ ((ir->flags >> (47-24)) & 1);
+            isVarArg  =  (ir->flags >> (47-23)) & 1;
         }
     } else {
         routTyp  =  ptrBase(callee->typ);
         noArgs  =  1 ^ ((routTyp.rep->rflags >> (47-24)) & 1);
+        isVarArg  =  (routTyp.rep->rflags >> (47-23)) & 1;
     }
     callExpr = malloc(sizeof(expr));
     argList  =  callExpr;
@@ -6448,8 +6518,13 @@ tptr routTyp, formType;
         }
         do {
             if (noArgs) {
-                tooMany  =  curSig == NULL;
-                if (! tooMany)
+                /* The last node of a variadic signature is the marker: the
+                   caller fills that slot with the pointer, not with an
+                   actual, so reaching it means the rest is the tail. */
+                if (isVarArg && curSig && curSig->next == NULL)
+                    curSig  =  NULL;
+                tooMany  =  curSig == NULL && ! isVarArg;
+                if (curSig)
                     formType  =  curSig->ptyp;
                 if (tooMany) {
                     error(errTooManyArguments);
@@ -6458,7 +6533,14 @@ tptr routTyp, formType;
                 }
             }
             expression();
-            if (noArgs) {
+            if (noArgs && curSig == NULL) {
+                /* A tail actual answers to no formal, so all that is asked
+                   of it is that it be one word, as printf asks. */
+                if (curExpr->typ.p.pk == kindArray)
+                    curExpr = decayArray(curExpr);
+                if (typeSize(curExpr->typ) != 1)
+                    error(40); /*errIncompatibleArgumentTypes*/
+            } else if (noArgs) {
                 /* A pointer formal takes an array actual by decay, as in C. */
                 if (formType.p.pk == kindPtr)
                     curExpr = decayArray(curExpr);
@@ -6479,9 +6561,11 @@ tptr routTyp, formType;
             }
             argList->expr1  =  curActual;
             argList  =  curActual;
-            if (noArgs)
+            if (noArgs && curSig)
                 curSig  =  curSig->next;
         } while (SY == COMMA);
+        if (isVarArg && curSig && curSig->next == NULL)
+            curSig  =  NULL;      /* every mandatory formal was supplied */
         if (SY != RPAREN || noArgs && curSig)
             error(errNoCommaOrParenOrTooFewArgs);
         else
@@ -8347,9 +8431,10 @@ void parseParameters(sigptr matchTo) {
 sigptr newSig, lastSig;
 tptr paramType;
 int packedFlag;
-int noComma, matching, ii;
+int noComma, matching, ii, sawEllips;
     formalCnt  =  0;
     lastSig  =  NULL;
+    sawEllips  =  false;
     matching  =  matchTo != NULL;
     lookup2  =  lookupMode  =  lookDef;
     inSymbol();
@@ -8361,6 +8446,39 @@ int noComma, matching, ii;
         return;
     }
     do {
+        if (SY == ELLIPSIS) {
+            /* The tail marker.  It claims one argument slot -- the pointer
+               the caller leaves there, which the body reaches as
+               *(&lastparam + 1) -- so it needs a parameter in front of it,
+               and it takes no name: makeFormals pairs names with the first
+               formalCnt signature nodes and so never reaches this one.
+               Breaking out leaves checkSymAndRead(RPAREN) to insist it was
+               written last. */
+            if (formalCnt == 0)
+                error(errBadSymbol);
+            sawEllips  =  true;
+            if (matching) {
+                if (! has(curIdRec->flags, 23))
+                    error(40); /* errIncompatibleArgumentTypes */
+                matchTo  =  matchTo == NULL ? NULL : matchTo->next;
+            } else {
+                newSig = malloc(sizeof(sigrec));
+                { register sigrec *sg = newSig;
+                    sg->s1.p.pclass  =  VARID;
+                    sg->s1.p.poffset  =  l2int18z;
+                    sg->ptyp  =  voidPtr;
+                    sg->next  =  NULL;
+                }
+                if (lastSig == NULL)
+                    curIdRec->r1.sig  =  newSig;
+                else
+                    lastSig->next  =  newSig;
+                l2int18z += typeSize(voidPtr);
+                curIdRec->flags  =  curIdRec->flags | [23];
+            }
+            inSymbol();
+            break;
+        }
         paramType = parseTypeRef(skipToSet | [IDENT,RPAREN,COMMA]);
         packedFlag  =  isPacked;
         /* Set only here, and only once parseTypeRef is done, so that a
@@ -8431,9 +8549,13 @@ int noComma, matching, ii;
     } while (! noComma);
     if (matching) {
         /* The declaration settled the frame layout and recorded it in the
-           signature, so nothing here may move it. */
+           signature, so nothing here may move it.  The ellipsis is part of
+           that: a definition may neither drop the one its declaration
+           carried nor add one it did not. */
         if (matchTo)
             error(errNoCommaOrParenOrTooFewArgs);
+        if (has(curIdRec->flags, 23) != sawEllips)
+            error(40); /* errIncompatibleArgumentTypes */
     }
     checkSymAndRead (RPAREN);
     lookup2  =  lookupMode  =  lookUse;

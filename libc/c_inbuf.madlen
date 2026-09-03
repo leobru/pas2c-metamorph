@@ -1,10 +1,10 @@
- PASINBUF:,NAME,DTRAN  /01.06.84/    . Allocate / refill the input buffer
+ C/INBUF:,NAME,DTRAN  /01.06.84/    . Allocate / refill the input buffer
 C===========================================================
-C PASINBUF - allocate/refill the input buffer.  Called from
+C C/INBUF - allocate/refill the input buffer.  Called from
 C  C/CO once the file is opened, from C/GF when the window
 C  runs dry, and from C/RF.  Pushes M13 then snapshots
 C  FILE[5]/FILE[6] into FILE[15]/FILE[16] and FILE[13] into
-C  FILE[19] so that PASGIVEP can restore them later, then runs
+C  FILE[19] so that C/GIVEP can restore them later, then runs
 C  a VLM-driven copy loop to scoop disk records into the inline
 C  buffer.  If we run out we tail-call C/GT to claim more
 C  tracks, and finish through C/UP.
@@ -16,7 +16,7 @@ C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
 C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
 C   M13 = link register set by the calling VJM
 C   M14 = secondary link (used inside packed-mode helpers)
- PASGIVEP:,SUBP,             . flush a partial packed-output word
+ C/GIVEP:,SUBP,             . flush a partial packed-output word
  C/GT:,SUBP,                 . claim/allocate disk tracks
  C/UP:,SUBP,                 . unpack the refilled buffer, then return
  ,ITA,13
@@ -24,7 +24,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  ,ATI,10                     . M10 := FILE[6]
  12,XTA,7
  ,U1A,HAVEBUF                . FILE[7]!=0 -> already initialised
- 13,VJM,PASGIVEP             . call PASGIVEP to release old buf
+ 13,VJM,C/GIVEP             . call C/GIVEP to release old buf
  10,VZM,HAVEBUF
  13,VJM,C/GT                 . allocate fresh tracks
  HAVEBUF:12,WTC,7

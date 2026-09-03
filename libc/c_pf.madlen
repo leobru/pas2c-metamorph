@@ -24,11 +24,11 @@ C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
 C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
 C   M13 = link register set by the calling VJM
 C   M14 = secondary link (used inside packed-mode helpers)
- PASIOBIT:,LC,1              . FILE[23] stdin/stdout tag bit
+ C*IOBIT:,LC,1              . FILE[23] stdin/stdout tag bit
  C/AH:,SUBP,                 . fatal-error abort handler
  C/PK:,SUBP,                 . pack ACC into the buffer slot
- PASGIVEP:,SUBP,             . flush a partial packed-output word
- PASCTRP:,SUBP,              . pre-allocate disk tracks
+ C/GIVEP:,SUBP,             . flush a partial packed-output word
+ C/CTRP:,SUBP,              . pre-allocate disk tracks
  C/ZI:,SUBP,                 . read/write a disk zone via *70
  C/CT:,SUBP,                 . validate the track table
  C/CB:,SUBP,                 . close the current buffer window
@@ -53,7 +53,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  12,AEX,15B                  . compare with FILE[13]
  13,U1A,
  TXTPUT:12,XTA,27B           . ACC := FILE[23]
- ,UTC,PASIOBIT
+ ,UTC,C*IOBIT
  ,AAX,
  ,U1A,C/FL                   . stdin/out -> the printer path
  ,ITA,13
@@ -67,8 +67,8 @@ C   M14 = secondary link (used inside packed-mode helpers)
  12,ATX,23B                  . FILE[19] := FILE[0]
  HAVETRKS:12,XTA,7
  ,U1A,SETUPWR
- 13,VJM,PASGIVEP             . flush partial via PASGIVEP
- 13,VJM,PASCTRP              . request more tracks (PASCTRP)
+ 13,VJM,C/GIVEP             . flush partial via C/GIVEP
+ 13,VJM,C/CTRP              . request more tracks (C/CTRP)
  SETUPWR:12,WTC,7
  ,XTA,1
  ,ATI,9

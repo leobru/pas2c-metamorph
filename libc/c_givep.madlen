@@ -1,6 +1,6 @@
- PASGIVEP:,NAME,DTRAN  /01.06.84/    . Flush a partial packed word
+ C/GIVEP:,NAME,DTRAN  /01.06.84/    . Flush a partial packed word
 C===========================================================
-C PASGIVEP - "PASCAL GIVE Partial".  Flushes any partially
+C C/GIVEP - "PASCAL GIVE Partial".  Flushes any partially
 C  filled packed-output word back to its rightful place in
 C  the buffer using [M1+35B] (saved cursor) and [M1+36B]
 C  (working pointer) to walk the touched range.  The final

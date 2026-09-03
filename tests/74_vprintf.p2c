@@ -1,0 +1,65 @@
+/*=l0*/
+//
+// vprintf, the first runtime routine to read the vararg calling convention
+// from the callee's side.  The compiler pushes the tail first, then the
+// format, and leaves a pointer to the first tail word in the accumulator;
+// libc/vprintf.madlen walks from there up to the format's own slot, which
+// is why no count is passed.
+//
+// Every line is written twice, once through vprintf and once through printf,
+// so the two must agree character for character: printf marshals its own way
+// entirely (every actual pushed, negated count in M10), and the whole point
+// is that the two arrive at the same output.
+//
+void vprintf(char *, ...) assembler;
+//
+int i;
+//
+// The stack check.  A local of a called routine lives in the frame the call
+// opens at the stack pointer of the moment, so the address of one is that
+// stack pointer.  The callee pops the format and the caller drops the tail;
+// get either count wrong and this number drifts a few words per variadic
+// call, which correct output alone would never reveal.
+void mark(char *tag) {
+    int here;
+    printf(" STACK %s %d\n", tag, &here);
+}
+//
+// A variadic call from inside another routine's frame, so the tail lands
+// below a frame that is not the outermost.  The two marks straddling it are
+// also what proves the probe is live rather than a constant: they print a
+// deeper stack pointer than main's, and the same one on both sides.
+void report(int a, int b) {
+    mark("ENTER ");
+    vprintf(" IN ROUTINE %d %d\n", a, b);
+    mark("LEAVE ");
+}
+//
+void main() {
+    mark("START ");
+    vprintf(" ZERO\n");
+     printf(" ZERO\n");
+    vprintf(" ONE %d\n", 42);
+     printf(" ONE %d\n", 42);
+    vprintf(" THREE %d %d %d\n", 1, 2, 3);
+     printf(" THREE %d %d %d\n", 1, 2, 3);
+    vprintf(" MIXED %d %c %o\n", 7, 'A', 64);
+     printf(" MIXED %d %c %o\n", 7, 'A', 64);
+    vprintf(" STR %s|\n", "ABC");
+     printf(" STR %s|\n", "ABC");
+    report(11, 22);
+    mark("CALLS ");
+    // Twenty calls of three tail words each: a one-word error per call is
+    // sixty words of drift by the time the next mark prints.
+    printf(" LOOP ");
+    for (i = 0; i < 20; i = i + 1)
+        vprintf(".", 1, 2, 3);
+    printf("\n");
+    mark("LOOP  ");
+    // A format asking for more than was passed stops when the walk reaches
+    // the format's slot, rather than reading past the block.  The line is
+    // left open, so the next write continues it.
+    vprintf(" SHORT %d %d\n", 5);
+    printf("|\n");
+    mark("SHORT ");
+}

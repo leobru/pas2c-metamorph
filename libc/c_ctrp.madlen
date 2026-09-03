@@ -1,6 +1,6 @@
- PASCTRP:,NAME,DTRAN  /01.06.84/    . Disk track allocation and zone I/O
+ C/CTRP:,NAME,DTRAN  /01.06.84/    . Disk track allocation and zone I/O
 C===========================================================
-C PASCTRP - "PASCAL CONTROL/TRACKS Pre-allocate".  Reserves
+C C/CTRP - "PASCAL CONTROL/TRACKS Pre-allocate".  Reserves
 C  packed-file disk tracks before the first physical write,
 C  using the runtime track table at [M1+37B].  Falls through
 C  into C/GT.
@@ -14,7 +14,7 @@ C   FILE[3]/FILE[4] hold the file's track-table descriptor.
 C   FILE[5]         running track-window cursor = current zone
 C                   number (the ZZZZ field fed to the *70 syscall;
 C                   see the disk-I/O note below).
-C   FILE[6]         is the lane mask (PASLANE* = 0o76000).
+C   FILE[6]         is the lane mask (C*LANE* = 0o76000).
 C   [M1+37B]        scratches the FCST literal that the
 C                   `1,WTC,37B' instruction in the loop reads
 C                   to obtain the next track header to clear.
@@ -55,8 +55,8 @@ C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
 C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
 C   M13 = link register set by the calling VJM
 C   M14 = secondary link (used inside packed-mode helpers)
- PASLANE*:,LC,1              . 0o76000 buffer/lane mask (seeded below)
- PASIOBIT:,LC,1              . FILE[23] stdin/stdout tag bit (seeded below)
+ C*LANE*:,LC,1              . 0o76000 buffer/lane mask (seeded below)
+ C*IOBIT:,LC,1              . FILE[23] stdin/stdout tag bit (seeded below)
  C/AH:,SUBP,                 . fatal-error abort handler
  C/CT:,SUBP,                 . forward decl, defined below
  12,XTA,4                    . ACC := FILE[4]
@@ -64,7 +64,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  12,XTA,3                    . check FILE[3]
  ,UZA,C/CT
  LANETEST:12,XTA,6           . ACC := FILE[6] (lane mask)
- ,UTC,PASLANE*               . C := address of constant 0o76000
+ ,UTC,C*LANE*               . C := address of constant 0o76000
  ,AEX,                       . sentinel test
  C/GT:,ENTRY,
  13,UZA,                     . if no work, return via M13
@@ -133,7 +133,7 @@ C copy is a pair: `wordcount,SET,source' then `copies,,dest'.
  /LANEVAL:,LOG,7 6000        . the lane mask value
  /IOBITVL:,LOG,2             . the stdin/stdout tag bit
  1,SET,/LANEVAL
- 1,,PASLANE*
+ 1,,C*LANE*
  1,SET,/IOBITVL
- 1,,PASIOBIT
+ 1,,C*IOBIT
  ,END,

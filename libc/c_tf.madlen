@@ -23,18 +23,18 @@ C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
 C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
 C   M13 = link register set by the calling VJM
 C   M14 = secondary link (used inside packed-mode helpers)
- PASLANE*:,LC,1              . 0o76000 buffer/lane mask
+ C*LANE*:,LC,1              . 0o76000 buffer/lane mask
  C/AD:,SUBP,                 . advance the file buffer iterator
  C/CB:,SUBP,                 . forward decl, defined below
  C/OI:,SUBP,                 . forward decl, defined below
- C/ZI:,SUBP,                 . declared to pull PASCTRP into the load:
-C  it owns the load-time seed for PASLANE*, and this is the only
+ C/ZI:,SUBP,                 . declared to pull C/CTRP into the load:
+C  it owns the load-time seed for C*LANE*, and this is the only
 C  user that does not otherwise call into that module.
  14,VJM,C/CB                 . close any open window first
  ,XTA,
  12,ATX,11B                  . FILE[9]  := 0
  12,ATX,12B                  . FILE[10] := 0
- ,UTC,PASLANE*               . C := address of lane mask
+ ,UTC,C*LANE*               . C := address of lane mask
  ,XTA,
  12,ATX,6                    . FILE[6]  := lane mask
  14,VJM,C/AD

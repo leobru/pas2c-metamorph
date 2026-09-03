@@ -15,8 +15,8 @@ C===========================================================
  SPACE*:,LC,1
  PASZERO*:,LC,1
  PASMINS*:,LC,1
- PASPERID:,LC,1
- PASPLUS*:,LC,1
+ C*PERID:,LC,1
+ C*PLUS*:,LC,1
  C/CW:,SUBP,
  C/TR:,SUBP,
  C/A7:,SUBP,
@@ -160,7 +160,7 @@ C C/WI takes both its value and field width as plain integers.
  15,XTS,-3
  13,VJM,C/WI
 C Decimal point, fraction, and optional scientific exponent.
- PUTFRAC:,UTC,PASPERID
+ PUTFRAC:,UTC,C*PERID
  ,XTA,
  13,VJM,C/CW
  13,VTM,SPACE*
@@ -177,7 +177,7 @@ C Decimal point, fraction, and optional scientific exponent.
  14,VTM,TEN
  ,XTA,EMARK
  13,VJM,C/CW
- 14,VTM,PASPLUS*
+ 14,VTM,C*PLUS*
  15,XTA,-8
  ,NTR,23B
  ,UZA,POSEXP
@@ -264,7 +264,7 @@ C===========================================================
  /0212B:,ISO,6H′′′′′′′′′′.
  /0213B:,ISO,6H′′′′′′′′′′+
  1,SET,/0212B
- 1,,PASPERID
+ 1,,C*PERID
  1,SET,/0213B
- 1,,PASPLUS*
+ 1,,C*PLUS*
  ,END,
