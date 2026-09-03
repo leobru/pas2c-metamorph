@@ -1,0 +1,38 @@
+/*=l0*/
+//
+// The rules '...' is held to.  It needs a named parameter in front of it --
+// the body reaches the tail pointer as the slot past the last named one, so
+// with nothing named there is nowhere to start -- and it must be written
+// last.  A declaration and its definition must agree about it, and a call
+// must still supply every mandatory actual.
+//
+// A tail actual, by contrast, is checked for nothing but being one word: it
+// answers to no formal, so there is no such thing as too many of them.
+//
+// The out-of-place marker comes last in the file because recovering from it
+// costs the rest of the parse: the list is abandoned at the ')' that never
+// arrives, and nothing after that line is read.  The .diagnostics fragments
+// are the wording the two compilers share: base.cc prints its own English,
+// the self-hosted one prints PASMITXT's.
+//
+int noname(...);
+//
+int added(int a, int b);
+int added(int a, ...) {
+    return a;
+}
+//
+int dropped(int a, ...);
+int dropped(int a, int b) {
+    return a;
+}
+//
+int sum(int n, ...) {
+    return n;
+}
+//
+void main() {
+    sum();
+}
+//
+int notlast(int a, ..., int b);

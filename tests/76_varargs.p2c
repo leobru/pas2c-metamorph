@@ -1,0 +1,80 @@
+/*=l0*/
+//
+// A routine of one's own taking '...'.  The marker claims one argument slot,
+// holding a pointer to the first tail word, and the body reaches it as the
+// slot past the last named parameter.  No count is passed, so a routine that
+// needs one takes it as a named parameter, the way these do.
+//
+int sum(int n, ...) {
+    int *ap;
+    int i, t;
+    ap = *(int **)(&n + 1);
+    t = 0;
+    for (i = 0; i < n; i = i + 1)
+        t = t + ap[i];
+    return t;
+}
+//
+// The walk answers the actuals in the order they were written: index 0 is the
+// one pushed first, which is the one written first.  Addition would not show
+// that, so this one builds a decimal number instead.
+int digits(int n, ...) {
+    int *ap;
+    int i, t;
+    ap = *(int **)(&n + 1);
+    t = 0;
+    for (i = 0; i < n; i = i + 1)
+        t = t * 10 + ap[i];
+    return t;
+}
+//
+// A tail actual is a word, whatever its type: these alternate a string and a
+// number, and each is cast back on the way out.
+void pairs(int n, ...) {
+    int *ap;
+    int i;
+    ap = *(int **)(&n + 1);
+    // The tag is what makes the empty case visible: a newline closes the
+    // current line, and with none open it writes nothing at all.
+    printf(" PAIRS%d", n);
+    for (i = 0; i < n; i = i + 1)
+        printf(" %s=%d", (char *)ap[i+i], ap[i+i+1]);
+    printf("\n");
+}
+//
+// The stack check.  A local of a called routine lives in the frame the call
+// opens at the stack pointer of the moment, so the address of one is that
+// stack pointer.  The callee's exit restores the stack to its own frame,
+// which sits above the tail, so the caller has to drop the tail itself; if it
+// did not, this number would walk a few words per call.
+void mark(char *tag) {
+    int here;
+    printf(" STACK %s %d\n", tag, &here);
+}
+//
+// A variadic call from inside another routine's frame, so the tail lands
+// below a frame that is not the outermost.
+int inner(int k) {
+    return digits(3, k, k + k, k + k + k);
+}
+//
+int i, t;
+void main() {
+    mark("START ");
+    printf(" SUM0 =%d\n", sum(0));
+    printf(" SUM1 =%d\n", sum(1, 10));
+    printf(" SUM2 =%d\n", sum(2, 10, 20));
+    printf(" SUM3 =%d\n", sum(3, 10, 20, 30));
+    printf(" ORDER=%d\n", digits(4, 1, 2, 3, 4));
+    pairs(0);
+    pairs(2, "A", 1, "BB", 22);
+    printf(" NEST =%d\n", inner(2));
+    mark("CALLS ");
+    // Fifty calls of three tail words each: a leak of one word per call is a
+    // hundred and fifty by the time the next mark prints.
+    t = 0;
+    for (i = 0; i < 50; i = i + 1)
+        t = t + sum(3, 1, 2, 3);
+    printf(" LOOP =%d\n", t);
+    mark("LOOP  ");
+}

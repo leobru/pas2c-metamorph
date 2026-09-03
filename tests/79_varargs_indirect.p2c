@@ -1,0 +1,45 @@
+/*=l0*/
+//
+// A variadic routine reached other than by naming it.  Bit 23 rides on the
+// routine's type, so a function designator carries it: an indirect call reads
+// the convention from the pointer's type and marshals the tail the same way a
+// direct call does.  A type spelled out with '...' of its own carries it too,
+// which is what makes the pointer's type match the routine's.
+//
+// The forward declaration below is matched against the definition further
+// down, ellipsis included: a declaration that ended in an ordinary pointer
+// parameter must not be completed by a variadic definition, nor the reverse.
+//
+int sum(int n, ...);
+//
+typedef int (*vfn)(int, ...);
+vfn fp;
+int (*fp2)(int, ...);
+//
+int sum(int n, ...) {
+    int *ap;
+    int i, t;
+    ap = *(int **)(&n + 1);
+    t = 0;
+    for (i = 0; i < n; i = i + 1)
+        t = t * 10 + ap[i];
+    return t;
+}
+//
+// A pointer passed as a parameter, and called from inside another frame.
+int apply(vfn f) {
+    return f(3, 7, 8, 9);
+}
+//
+void main() {
+    printf(" DIRECT   %d\n", sum(3, 1, 2, 3));
+    fp = &sum;
+    printf(" TYPEDEF  %d\n", fp(3, 4, 5, 6));
+    // A routine named without an argument list is its own address; the '&'
+    // is optional, as in C.
+    fp2 = sum;
+    printf(" SPELLED  %d\n", fp2(2, 8, 9));
+    printf(" PARAM    %d\n", apply(fp));
+    // No tail at all, through the pointer.
+    printf(" NOTAIL   %d\n", fp(0));
+}

@@ -2093,6 +2093,25 @@ tptr makeRoutineType(irptr routine) {
 } /* makeRoutineType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* The signature node '...' contributes: the argument slot the caller leaves
+   the tail pointer in.  A routine's own parameter list and a routine type
+   that spells one out both take it from here, because sameRoutineType
+   compares the two chains node by node and a difference in this one would
+   make a pointer stop matching the routine it points at.  A type has no
+   frame, so its offset is 0 and nothing reads it. */
+sigptr mkEllipsisSig(int offset) {
+sigptr res;
+    res = malloc(sizeof(sigrec));
+    { register sigrec *sg = res;
+        sg->s1.p.pclass  =  VARID;
+        sg->s1.p.poffset  =  offset;
+        sg->ptyp  =  voidPtr;
+        sg->next  =  NULL;
+    }
+    return res;
+} /* mkEllipsisSig */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 int leftAlign(int val) {
     while ((val & [0..5]) == 0U) {
         val <<= 6;
@@ -5529,6 +5548,11 @@ const int opPtr = 0, opArray = 1, opFun = 2;
 typedef struct {
             int opKind;
             sigptr sig;
+            /* The routine-type flags the parameter list implies: [23] when it
+               ended with '...', none otherwise.  Held per operator because
+               one declarator can nest several opFun operators, each with a
+               list of its own. */
+            int sigFlags;
             rangeRec range;
 } dclOp;
 typedef dclOp dclOpList[24];
@@ -5549,6 +5573,11 @@ int moreDecls;
 // name at all.  A global, so parseOneDeclarator's other call sites, none of
 // which can accept an abstract declarator, stay as they are.
 int nameOptional;
+// parseSignature's second result, a P2C routine having only one: the flags
+// its list implies, for the caller to store in the operator it is filling.
+// Written last thing before the return, so a nested signature's value cannot
+// outlive the one that encloses it.
+int sigVarFlag;
 // Scratch for the unified TYPESY/PACKEDSY/STRUCTSY/ENUMSY declaration-
 // dispatch loop in programme's own body: same reasoning as above.
 int declIsRoutine;
@@ -5613,6 +5642,7 @@ int wasGroup;
                entry's slot is claimed before the call rather than after. */
             ++declOpCount;
             declOps[declOpCount-1].sig  =  parseSignature();
+            declOps[declOpCount-1].sigFlags  =  sigVarFlag;
         } else {
             parseArrSz(&r.asize);
             checkSymAndRead(RBRACK);
@@ -5666,7 +5696,8 @@ int i;
                 d->typ  =  getPtrType(d->typ);
             break;
         case opFun:
-            d->typ  =  mkRoutineTyp(d->typ, declOps[i].sig, 0);
+            d->typ  =  mkRoutineTyp(d->typ, declOps[i].sig,
+                                   declOps[i].sigFlags);
             d->ptrOnly  =  false;
             break;
         default:
@@ -5720,12 +5751,28 @@ sigptr parseSignature() {
 declarator sigDecl;
 sigptr head, last, cur;
 tptr paramType;
-int packedFlag, noComma;
+int packedFlag, noComma, flags;
     head  =  NULL;
     last  =  NULL;
+    flags  =  0;
     inSymbol();
     if (SY != RPAREN) {
         do {
+            if (SY == ELLIPSIS) {
+                /* The tail marker, under the same rules as in a parameter
+                   list: written last, and never the only item.  Breaking out
+                   leaves checkSymAndRead(RPAREN) to insist it was last. */
+                if (head == NULL)
+                    error(errBadSymbol);
+                cur  =  mkEllipsisSig(0);
+                if (last == NULL)
+                    head  =  cur;
+                else
+                    last->next  =  cur;
+                flags  =  [23];
+                inSymbol();
+                break;
+            }
             paramType = parseTypeRef(skipToSet | [IDENT,RPAREN,COMMA]);
             packedFlag  =  isPacked;
             nameOptional  =  true;
@@ -5752,6 +5799,7 @@ int packedFlag, noComma;
         } while (! noComma);
     }
     checkSymAndRead(RPAREN);
+    sigVarFlag  =  flags;
     return head;
 } /* parseSignature */
 //
@@ -8438,13 +8486,7 @@ int noComma, matching, ii, sawEllips;
                     error(40); /* errIncompatibleArgumentTypes */
                 matchTo  =  matchTo == NULL ? NULL : matchTo->next;
             } else {
-                newSig = malloc(sizeof(sigrec));
-                { register sigrec *sg = newSig;
-                    sg->s1.p.pclass  =  VARID;
-                    sg->s1.p.poffset  =  l2int18z;
-                    sg->ptyp  =  voidPtr;
-                    sg->next  =  NULL;
-                }
+                newSig  =  mkEllipsisSig(l2int18z);
                 if (lastSig == NULL)
                     curIdRec->r1.sig  =  newSig;
                 else

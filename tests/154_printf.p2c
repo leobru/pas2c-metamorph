@@ -2,7 +2,7 @@
 void main() {
     char *fmt;
 
-    /* The format reaches C/PRINTF as an ordinary runtime value. */
+    /* The format reaches PRINTF as an ordinary runtime value. */
     fmt = "D=%d O=%017o C=%c A=%a S=%s F=%f E=%e %%\n";
     printf(fmt, -42, 63, 'X', 'ABCDEF', "str", 1.5, 1.5);
     printf("[%5.1S][%4C][%8A][%6D][%06O]\n",

@@ -3388,6 +3388,22 @@ TPtr makeRoutineType(IdentRecPtr routine)
     return mkRoutineTyp(routine->typ, routine->sig(), routine->flags());
 }
 
+/* The signature node '...' contributes: the argument slot the caller leaves
+   the tail pointer in.  A routine's own parameter list and a routine type
+   that spells one out both take it from here, because sameRoutineType
+   compares the two chains node by node and a difference in this one would
+   make a pointer stop matching the routine it points at.  A type has no
+   frame, so its offset is 0 and nothing reads it. */
+SigPtr mkEllipsisSig(int64_t offset)
+{
+    SigPtr res = new SigRec;
+    res->s1.pclass = VARID;
+    res->s1.poffset = offset;
+    res->ptyp = voidPtr;
+    res->next = NULL;
+    return res;
+} /* mkEllipsisSig */
+
 struct formOperator {
     static std::vector<formOperator*> super;
     formOperator(OpGen l3arg1z);
@@ -6052,6 +6068,10 @@ enum DclOpKind { opPtr, opArray, opFun };
 struct DclOp {
     DclOpKind opKind;
     SigPtr sig;
+    /* The routine-type flags the parameter list implies: [23] when it ended
+       with '...', none otherwise.  Held per operator because one declarator
+       can nest several opFun operators, each with a list of its own. */
+    int64_t sigFlags;
     rangeRec range;
 };
 
@@ -6060,6 +6080,12 @@ struct DclOp {
 // name at all.  A global, so parseOneDeclarator's other call sites, none of
 // which can accept an abstract declarator, stay as they are.
 bool nameOptional = false;
+
+// parseSignature's second result, mirroring work.p2c, where a routine has
+// only one: the flags its list implies, for the caller to store in the
+// operator it is filling.  Written last thing before the return, so a nested
+// signature's value cannot outlive the one that encloses it.
+int64_t sigVarFlag = 0;
 
 // Set by a parameter list around its declarator, and there alone, where
 // 'int q[]' is legal because the extent is discarded when the parameter
@@ -6125,12 +6151,13 @@ void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
     }
     while (SY == LBRACK or (wasGroup and SY == LPAREN)) {
         if (SY == LPAREN) {
-            ops.push_back({opFun, parseSignature(), {}});
+            SigPtr sig = parseSignature();
+            ops.push_back({opFun, sig, sigVarFlag, {}});
         } else {
             rangeRec r{};
             parseArrSz(r.asize);
             checkSymAndRead(RBRACK);
-            ops.push_back({opArray, NULL, r});
+            ops.push_back({opArray, NULL, 0, r});
         }
     }
 }
@@ -6165,7 +6192,7 @@ Declarator parseOneDeclarator(TPtr baseType, bool packedFlag = false,
                 d.type = getPtrType(d.type);
             break;
         case opFun:
-            d.type = mkRoutineTyp(d.type, it->sig, 0);
+            d.type = mkRoutineTyp(d.type, it->sig, it->sigFlags);
             d.ptrOnly = false;
             break;
         default:
@@ -6206,10 +6233,26 @@ TPtr readTypeName()
 SigPtr parseSignature()
 {
     SigPtr head = NULL, last = NULL, cur;
+    int64_t flags = 0;
     inSymbol();
     if (SY != RPAREN) {
         bool noComma;
         do {
+            if (SY == ELLIPSIS) {
+                /* The tail marker, under the same rules as in a parameter
+                   list: written last, and never the only item.  Breaking out
+                   leaves checkSymAndRead(RPAREN) to insist it was last. */
+                if (head == NULL)
+                    error(errBadSymbol);
+                cur = mkEllipsisSig(0);
+                if (last == NULL)
+                    head = cur;
+                else
+                    last->next = cur;
+                flags = Bits(23);
+                inSymbol();
+                break;
+            }
             TPtr paramType{};
             // Scoped exactly as parseGroupedDecls's typeParser is.
             bool packedFlag;
@@ -6240,6 +6283,7 @@ SigPtr parseSignature()
         } while (not noComma);
     }
     checkSymAndRead(RPAREN);
+    sigVarFlag = flags;
     return head;
 }
 
@@ -9473,11 +9517,7 @@ void parseParameters(SigPtr matchTo)
                     error(40); /* errIncompatibleArgumentTypes */
                 matchTo = matchTo == NULL ? NULL : matchTo->next;
             } else {
-                newSig = new SigRec;
-                newSig->s1.pclass = VARID;
-                newSig->ptyp = voidPtr;
-                newSig->s1.poffset = l2int18z;
-                newSig->next = NULL;
+                newSig = mkEllipsisSig(l2int18z);
                 if (lastSig == NULL)
                     curIdRec->setSig(newSig);
                 else

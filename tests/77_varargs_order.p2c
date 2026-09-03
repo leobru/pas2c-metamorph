@@ -1,0 +1,57 @@
+/*=l0*/
+//
+// The order actuals are evaluated in.  An ordinary call evaluates them left
+// to right.  A variadic call evaluates the tail first -- the tail is pushed
+// before the frame is opened, so that the mandatory actuals still land on the
+// fixed slots their offsets were frozen to at declaration -- and then the
+// mandatory ones.  Source order holds within each group.
+//
+// C leaves argument evaluation order unspecified, so neither is wrong; this
+// compiler is simply consistent about it, and a variadic call is the one
+// place the answer differs.  Pinned here so that a later change to genEntry
+// cannot move it quietly.
+//
+int seq;
+int step(int id) {
+    seq = seq * 10 + id;
+    return id;
+}
+//
+int plain(int a, int b, int c) {
+    return a + b + c;
+}
+//
+// The values are used, not just counted, so that nothing here can be folded
+// away as dead.
+int vary(int n, ...) {
+    int *ap;
+    int i, t;
+    ap = *(int **)(&n + 1);
+    t = 0;
+    for (i = 0; i < n; i = i + 1)
+        t = t * 10 + ap[i];
+    return t;
+}
+//
+int vary2(int a, int b, ...) {
+    int *ap;
+    ap = *(int **)(&b + 1);
+    return a * 1000 + b * 100 + ap[0] * 10 + ap[1];
+}
+//
+int t;
+void main() {
+    // Left to right, all three.
+    seq = 0; t = plain(step(1), step(2), step(3));
+    printf(" PLAIN  %d %d\n", t, seq);
+    // The two tail actuals first, in source order, then the mandatory one.
+    seq = 0; t = vary(step(2), step(3), step(4));
+    printf(" VARY   %d %d\n", t, seq);
+    // Two mandatory and two tail: the tail pair still goes first, and each
+    // pair keeps its own order.
+    seq = 0; t = vary2(step(1), step(2), step(3), step(4));
+    printf(" VARY2  %d %d\n", t, seq);
+    // With no tail there is nothing to reorder.
+    seq = 0; t = vary(step(0));
+    printf(" NOTAIL %d %d\n", t, seq);
+}
