@@ -535,6 +535,8 @@ kind curVarKind;
 pextf curExternFile;
 char commentModeCH;
 char CH;
+char *lexMemPtr;
+char lexSaveCH;
 int lineNesting,
     FcstCountTo500,
     objBufIdx,
@@ -551,6 +553,7 @@ int lineNesting,
     enableStdInput,
     abort,
     checkFortran;
+int lexSaveEOL;
 irptr outputFile,
     inputFile,
     hashTravPtr,
@@ -1273,6 +1276,24 @@ int c;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void nextCH() {
+    /* An inserted source fragment belongs to the current physical source
+       position.  Read it without touching the line buffer or EOF accounting,
+       and put the file character which was current at insertion back when the
+       terminating zero is reached. */
+    if (lexMemPtr != NULL) {
+        CH  =  *lexMemPtr;
+        ++lexMemPtr;
+        if (CH == 0) {
+            lexMemPtr  =  NULL;
+            CH  =  lexSaveCH;
+            atEOL  =  lexSaveEOL;
+        } else {
+            if (CH == '\n')
+                CH  =  ' ';
+            atEOL  =  false;
+        }
+        return;
+    }
     if (CH == 0) {
         ++eofOverreads;
         if (eofOverreads > maxLineLen) {
@@ -1297,6 +1318,14 @@ void nextCH() {
         } 
     } while (! atEOL);
 } /* nextCH */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void lexFromString(char *text) {
+    lexSaveCH  =  CH;
+    lexSaveEOL  =  atEOL;
+    lexMemPtr  =  text;
+    nextCH();
+} /* lexFromString */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void parseComment() { /* parseComment */
@@ -2477,7 +2506,7 @@ void fcloseFile(irptr fileSym) {
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     form2Insn(KITS+13, KATX+SP);
-    if (inputFile) {
+    if (enableStdInput && inputFile) {
         fcloseFile(inputFile);
         form1Insn(KXTA+SP);  // remove FCLOSE's stacked FCB argument
     }
@@ -6294,7 +6323,7 @@ int l3int1z, frame, l3var3z;
         if (l3var3z)
             form1Insn(KVTM+I8+074001);
         if (curProcNesting == 1) {
-            if (inputFile)
+            if (enableStdInput && inputFile)
                 fopenFile(inputFile, fileForInput);
             if (outputFile)
                 fopenFile(outputFile, fileForOutput);
@@ -8168,7 +8197,6 @@ irptr l3var7z, programObj;
 int l3var8z, sysProcNum;
 tptr temptype;
 int l3var11z;
-sigptr fmtSig, tailSig;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void regSysProc(int l4arg1z) {
@@ -8305,49 +8333,9 @@ void regSysProc(int l4arg1z) {
     temptype  =  intType;
     regSysProc(t'    CARD');
     regSysProc(t'   MINEL');
-    /* printf is not a standard procedure: it is an ordinary variadic
-       assembler routine, predeclared only so that every source is spared a
-       line it would always write.  What is built here is exactly what
-       'void printf(char *, ...) assembler;' would leave behind -- a format
-       parameter on the first argument slot and, on the next, the pointer to
-       the tail that the ellipsis claims -- so the call site, the frame
-       arithmetic and the type checking are the ordinary ones.  The
-       declaration line for a variadic assembler routine of any other name,
-       fprintf included, is still written by hand. */
-    tailSig = malloc(sizeof(sigrec));
-    { register sigrec *sg = tailSig;
-        sg->s1.p.pclass  =  VARID;
-        sg->s1.p.poffset  =  9;
-        sg->ptyp  =  voidPtr;
-        sg->next  =  NULL;
-    }
-    fmtSig = malloc(sizeof(sigrec));
-    { register sigrec *sg = fmtSig;
-        sg->s1.p.pclass  =  VARID;
-        sg->s1.p.poffset  =  8;
-        sg->ptyp  =  charPtrType;
-        sg->next  =  tailSig;
-    }
-    curIdRec = malloc(offsetof(identrec, szRoutine));
-    { register identrec *ir = curIdRec;
-        ir->id  =  t'  PRINTF';
-        /* Nonzero, and the value a routine declared at file scope gets:
-           zero is what marks a standard procedure, and matching the level
-           lets a source redeclaring printf be caught as one already
-           defined. */
-        ir->pck.p.offset  =  curFrameRegTemplate;
-        ir->typ  =  voidType;
-        ir->pck.p.cl  =  ROUTINEID;
-        ir->list  =  NULL;
-        ir->value  =  0;
-        ir->r1.sig  =  fmtSig;
-        ir->r2.preDefLink  =  NULL;
-        /* [0:15] every register clobbered, as any external is assumed to;
-           20 extern, 23 variadic, 26 assembler. */
-        ir->flags  =  [0:15,20,23,26];
-        ir->r1.pos  =  0;
-    }
-    addToHashTab(curIdRec);
+    /* Predeclare PRINTF through the ordinary declaration parser.  The lexer
+       presents this text immediately before the source already in progress. */
+    lexFromString("void printf(char *, ...) assembler;");
     /* The first token of the source is read here, not by the caller: sources
        usually open with a type keyword (int, void), so the predefined type
        names must already be registered.  lookupMode is still lookUse. */
@@ -8381,10 +8369,6 @@ void regSysProc(int l4arg1z) {
     defExtern();
     curIdent  =  t' *INPUT*';
     defExtern();
-    if (! enableStdInput) {
-        inputFile  =  NULL;
-        fileForInput  =  NULL;
-    }
     curIdent  =  savedIdent;
     lookupMode  =  lookUse;
     l3var6z  =  40;
@@ -9379,6 +9363,7 @@ void initOptions() {
     errsInLine  =  0;
     lineCnt  =  1;
     eofOverreads  =  0;
+    lexMemPtr  =  NULL;
     checkFortran  =
     abort  =  false;
     lookup2  =  lookupMode  =  lookUse;
