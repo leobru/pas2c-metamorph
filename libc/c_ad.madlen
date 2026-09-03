@@ -1,7 +1,7 @@
- P/AD:,NAME,DTRAN  /01.06.84/    . Advance the file buffer iterator
+ C/AD:,NAME,DTRAN  /01.06.84/    . Advance the file buffer iterator
 C===========================================================
-C P/AD - advance buffer iterator (the [M1+35B]/[M1+36B] cache).
-C  Called from P/CO, P/GF's text path, P/RF and P/TF to step
+C C/AD - advance buffer iterator (the [M1+35B]/[M1+36B] cache).
+C  Called from C/CO, C/GF's text path, C/RF and C/TF to step
 C  the FILE[7] WTC operand by one element.  Uses [M1+35B] as
 C  the previous-FILE[7] snapshot and [M1+36B] as a copy of it.
 C  Returns through M14; FILE[7] = 0 returns at once.

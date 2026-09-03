@@ -1,15 +1,65 @@
  FREOPEN:,NAME,
 C===========================================================
-C freopen(location, f) - reopen file (for reading) at location.
+C freopen(location, f) - reopen file f for reading at location.
 C
 C Calling convention for a two-argument ASSEMBLER routine:
 C   ACC        = f (pointer to the FCB)
 C   [SP-1]     = location
 C
-C P/RE expects M12 to address the FCB and ACC to contain the
-C new file location.  It is already an ENTRY in p_sys.asm.
+C The reset runs in two halves, C/RE1 and C/RE2, the entries C/CO
+C exports for it.  Between them the FCB is rebuilt from the new
+C location: the word carries the track-table descriptor in its low
+C 15 bits and the open mode above them, and the buffer descriptor
+C fields are put back to their open-time values.
+C
+C Register convention (see FILE.md for the field numbers):
+C   M12 = FCB base throughout
+C   M13 = caller's link on entry, and the link C/RE1 returns
+C         through; C/RE2 returns through the address left in the
+C         runtime scratch at [M1+3]
 C===========================================================
- P/RE:          ,SUBP,
-                ,STI ,12     . M12 := f; ACC := value
-                ,UJ  ,P/RE   . tail call to reset(f, location)
-                ,END ,
+ C/RE1:,SUBP,
+ C/RE2:,SUBP,
+ ,STI,12              . M12 := f, and pop location into the ACC
+ ,NTR,3
+ ,ITS,13              . push location;  ACC := M13, the caller's link
+ 13,VTM,AFTRE1        . C/RE1 returns through M13, so aim it here
+ ,ITS,13              . push the link;  ACC := M13 = AFTRE1
+ 15,ATX,              . push it too: C/RE1 reads its frame from there
+ ,UJ,C/RE1            . first half of the reset
+ AFTRE1:,XTA,         . ACC := 0
+ 12,ATX,16B           . FILE[14] := 0, the packed-mode flag from open
+ 12,ATX,5             . FILE[5] := 0, the within-window step counter
+ 12,ATX,2             . FILE[2] := 0, so the file is not at EOF
+ 15,XTA,-2            . ACC := location, two words down the stack
+ ,ASN,64-6            . << 6 then >> 6 clears the top six bits,
+ ,ASN,64+6            .   leaving the descriptor the loader gave us
+ 15,ATX,              . keep a copy for the low-order half below
+ ,ASN,64+18           . >> 18 brings the open mode down
+ 12,STX,4             . FILE[4] := mode (input 0 / output non-0), pop
+ ,UTC,MASK15
+ ,AAX,                . ACC &= 77 7777, the low fifteen bits
+ 12,ATX,3             . FILE[3] := the track-table descriptor
+ 12,XTA,4             . ACC := FILE[4], the mode just stored
+ ,U1A,JOIN            . output: leave [3] and [2] as they stand
+ 12,ATX,3             . input: FILE[3] := the mode word as well
+ 1,XTA,10B            . ACC := 1U, the runtime's unit constant
+ 12,ATX,2             . FILE[2] := 1, marking the pending element
+ JOIN:12,XTA,1        . ACC := FILE[1], the end-of-window sentinel
+ 12,A-X,15B           . minus FILE[13], the buffer end pointer
+ 1,ATX,5              . leave the window width in runtime scratch
+ ,UTC,LIT76
+ ,XTA,                . ACC := 7 6000, the lane mask C/RF and C/TF use
+ 12,ATX,6             . FILE[6] := it, the working buffer descriptor
+ 12,ATX,20B           . FILE[16] := it, the copy reopening restores from
+ 14,VTM,AFTRE2        . C/RE2 returns through [M1+3], so aim it here
+ ,ITA,14
+ 1,ATX,3              . [M1+3] := AFTRE2
+ ,UJ,C/RE2            . second half of the reset
+ AFTRE2:15,UTM,-2     . drop the location and the frame word
+ 15,XTA,              . ACC := the caller's link, saved on entry
+ ,STI,13              . M13 := it, and pop
+ 13,UJ,               . return
+ MASK15:,LOG,77 7777
+ LIT76:,LOG,7 6000
+ ,END,

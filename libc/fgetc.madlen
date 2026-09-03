@@ -10,16 +10,16 @@ C Result:
 C   ACC = current character, with PASEOLSY returned for EOL;
 C         zero at EOF.
 C
-C P/GF owns ordinary cursor movement and buffer/refill state.  It
+C C/GF owns ordinary cursor movement and buffer/refill state.  It
 C does nothing once FILE[2] is set, so FILE[2] is tested here to
 C produce the zero word C wants as its EOF sentinel.  A
 C synthetic stdin line boundary is recorded in FILE[24] with a
 C space in f^.  At that boundary, compare MONCARD* with PASEOFCD
 C before READ*; a match marks EOF and preserves the monitor card.
 C Return LF for the synthetic boundary.  Save the result and the
-C caller's M13 while P/GF advances to the next element.
+C caller's M13 while C/GF advances to the next element.
 C===========================================================
- P/GF:          ,SUBP,
+ C/GF:          ,SUBP,
  PASEOLSY:      ,LC  ,1
  PASEOFCD:      ,LC  ,1
  MONCARD*:      ,LC  ,1
@@ -46,7 +46,7 @@ C===========================================================
                 ,XTA ,       . ACC := current f^ character
  SAVE:          ,ITS ,13     . push result; ACC := caller's M13
             15  ,ATX ,       . push caller's M13
-            13  ,VJM ,P/GF   . advance/refill using Pascal runtime
+            13  ,VJM ,C/GF   . advance/refill using Pascal runtime
             15  ,XTA ,       . pop caller's M13
                 ,STI ,13     . pop saved character result
             13  ,UJ  ,       . return it

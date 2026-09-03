@@ -1,8 +1,8 @@
- P/NW:,NAME,DTRAN  /01.06.84/    . Heap allocator NEW(p) (date stamp 01.06.84)
+ C/NW:,NAME,DTRAN  /01.06.84/    . Heap allocator NEW(p) (date stamp 01.06.84)
  P/PRINT:,SUBP,                  . External: error-message printer
  P/HT:,SUBP,                     . External: halt
 C===========================================
-C P/NW: allocate M14 words of heap memory.
+C C/NW: allocate M14 words of heap memory.
 C   In:   M14 = requested size in words
 C   Out:  ACC = address of newly-allocated block (success)
 C         or branches via P/HT after printing "NO GLOBAL MEMORY"
@@ -10,7 +10,7 @@ C   M1-relative globals (M1 = 4000000B):
 C     27B (=23) HEAPPTR  bump-allocator pointer (top of used heap)
 C     30B (=24) HEAPLIM  ~(SP after stack grows) - sentinel for overflow
 C     31B (=25) FREELST  head of doubly-linked free-list (0 = empty)
-C     32B (=26) HEAPBSE  initial heap base, saved by P/GD
+C     32B (=26) HEAPBSE  initial heap base, saved by C/GD
 C===========================================
 C --- fast path: try to bump-allocate by advancing HEAPPTR ---
  1,XTA,27B            . ACC := HEAPPTR (current heap top)
@@ -93,10 +93,10 @@ C --- *0035B: tail-finalization: clear and return tail address ---
  ,ITA,14              . ACC := M14 (address of allocated block)
  13,UJ,               . return
 C --- out-of-memory: print "NO GLOBAL MEMORY" and halt ---
-C P/NOMEM is an entry of its own, so anything else that takes memory from this
+C C/NOMEM is an entry of its own, so anything else that takes memory from this
 C heap -- TALLOC, which allocates from the top down -- reports exhaustion in
 C the same words and by the same route.  It does not return.
- P/NOMEM:,ENTRY,                  . report a full heap and halt
+ C/NOMEM:,ENTRY,                  . report a full heap and halt
  *0040B:10,VTM,*0043B.=6H NO GL   . M10 := pointer to " NO GL" segment
  11,VTM,*0045B.=6HEMORY           . M11 := pointer to "EMORY" segment
  13,VJM,P/PRINT                   . print (M10..M11)
@@ -116,7 +116,7 @@ C===========================================
  ,LOG,7777 7777 7770 0000          . M10+2: non-NEXT mask (high 33 bits)
  ,LOG,7777 7777 7777 7776          . M10+3: all-but-bit-47
 C===========================================
- P/GD:,ENTRY,                     . one-shot heap initializer
+ C/GD:,ENTRY,                     . one-shot heap initializer
 C===========================================
  ,ITA,15              . ACC := M15 (= SP, the current top of stack)
  1,ATX,27B            . HEAPPTR := SP   (empty heap starts here)

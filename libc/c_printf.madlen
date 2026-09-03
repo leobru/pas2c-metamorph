@@ -24,11 +24,11 @@ C===========================================================
  C/WO:          ,SUBP,
  C/WR:          ,SUBP,
  C/WC:          ,SUBP,
- P/CW:          ,SUBP,
+ C/CW:          ,SUBP,
  C/A6:          ,SUBP,
  C/6A:          ,SUBP,
  C/WXD:         ,SUBP,
- P/WL:          ,SUBP,
+ C/WL:          ,SUBP,
  C/SP:          ,SUBP,
  C/PUTS:        ,SUBP,
  STRLEN:        ,SUBP,
@@ -175,7 +175,7 @@ C written, so a width below them widens the field rather than truncating it.
                13,VJM,C/WC
                  ,UJ,LOOP
  CNOWID:        7,XTA,-1
-               13,VJM,P/CW
+               13,VJM,C/CW
                  ,UJ,LOOP
  FMA:          13,VJM,GETARG
                  ,XTA,WIDTH
@@ -258,9 +258,9 @@ C One literal format byte.  LF terminates the line exactly as C/PUTS does.
                  ,AEX,NEWLINE
                  ,UZA,OUTNL
                  ,AEX,NEWLINE
-               13,VJM,P/CW
+               13,VJM,C/CW
                  ,UJ,OUTRET
- OUTNL:        13,VJM,P/WL
+ OUTNL:        13,VJM,C/WL
  OUTRET:       15,WTC,
                  ,UJ,
 C Let P/EDIH restore M6..M8 and M13, then discard the caller's contiguous

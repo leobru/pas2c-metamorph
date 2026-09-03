@@ -16,9 +16,9 @@ C Flat memory contains six bytes per word, most significant byte
 C first, so the word holding byte p is p/6 and the byte sits
 C 40 - 8 * (p - 6 * (p/6)) bits above the bottom of it.
 C
-C Every byte is put through P/PF, which writes whatever f^ holds
+C Every byte is put through C/PF, which writes whatever f^ holds
 C and advances the file, exactly as fputw does.  A newline is not
-C a byte to put: LF goes out as P/WL, which ends the line.
+C a byte to put: LF goes out as C/WL, which ends the line.
 C Nothing is appended, so a string that does not end in a newline
 C leaves the line open for the next writer.
 C
@@ -26,15 +26,15 @@ C *OUTPUT* is a common block rather than an entry, so the FILE
 C record is declared here and addressed through M12, the way
 C p_ea.asm addresses it.
 C
-C P/PF and P/WL keep M12 and nothing else: M9, M10, M11, M13, M14
+C C/PF and C/WL keep M12 and nothing else: M9, M10, M11, M13, M14
 C and M2 all come back changed.  So p and the caller's link live
 C in stack words, and the byte address is worked out afresh each
 C time round rather than carried in a register.  For the same
 C reason the constants are reached with UTC instead of a base
 C register: none would survive the call.
 C===========================================================
- P/PF:          ,SUBP,        . put f^ and advance
- P/WL:          ,SUBP,        . end the current line on FILE @ M12
+ C/PF:          ,SUBP,        . put f^ and advance
+ C/WL:          ,SUBP,        . end the current line on FILE @ M12
  *OUTPUT*:      ,LC,30        . 30-word FILE record of OUTPUT
             12,VTM,*OUTPUT*   . puts writes to *OUTPUT*
  C/PUTS:,ENTRY,               . the same, to the FILE @ M12
@@ -67,9 +67,9 @@ C===========================================================
               ,AEX,           . restore the character
             12,WTC,           . address f^ through FILE[0]
               ,ATX,           . f^ := the character
-            13,VJM,P/PF       . put(f)
+            13,VJM,C/PF       . put(f)
               ,UJ,STEP
- ENDLINE:   13,VJM,P/WL       . a newline ends the line instead
+ ENDLINE:   13,VJM,C/WL       . a newline ends the line instead
  STEP:      15,XTA,-2
               ,UTC,ONE
               ,ARX,

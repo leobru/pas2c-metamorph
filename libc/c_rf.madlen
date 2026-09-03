@@ -1,16 +1,16 @@
- P/RF:,NAME,DTRAN  /01.06.84/    . Reset a file for reading
+ C/RF:,NAME,DTRAN  /01.06.84/    . Reset a file for reading
 C===========================================================
-C P/RF - reset a Pascal file for reading.  Tears down any in-
+C C/RF - reset a Pascal file for reading.  Tears down any in-
 C  flight write state, sets FILE[12]/FILE[19]/FILE[0] to the
 C  start of the buffer and turns on the "no element pending"
 C  flag so the first GET will trigger PASINBUF.
 C
-C P/OR - pre-reset sanity check, called from P/CO and P/RF.
+C C/OR - pre-reset sanity check, called from C/CO and C/RF.
 C  Returns at once unless FILE[2] is set and FILE[9] differs
 C  from FILE[10]; otherwise it packs or writes out whatever is
 C  still buffered before the reset proceeds.
 C
-C  Labelled in p_sys.asm: P/OR = OUTRESET.
+C  Labelled in p_sys.asm: C/OR = OUTRESET.
 C===========================================================
 C Register convention (see FILE.md):
 C   M12 = base of the FILE record being acted on
@@ -20,19 +20,19 @@ C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
 C   M13 = link register set by the calling VJM
 C   M14 = secondary link (used inside packed-mode helpers)
  PASLANE*:,LC,1              . 0o76000 buffer/lane mask
- P/AD:,SUBP,                 . advance the file buffer iterator
+ C/AD:,SUBP,                 . advance the file buffer iterator
  PASINBUF:,SUBP,             . allocate / refill the input buffer
- P/RACPAK:,SUBP,             . unpack one element from the buffer
- P/UP:,SUBP,                 . finish a refill (unpack if packed)
- P/PK:,SUBP,                 . pack ACC into the buffer slot
- P/ZI:,SUBP,                 . read/write a disk zone via *70
- P/OB:,SUBP,                 . flush the output buffer to disk
- P/RS:,SUBP,                 . return through the stack top
- P/OR:,SUBP,                 . forward decl, defined below
+ C/RACPAK:,SUBP,             . unpack one element from the buffer
+ C/UP:,SUBP,                 . finish a refill (unpack if packed)
+ C/PK:,SUBP,                 . pack ACC into the buffer slot
+ C/ZI:,SUBP,                 . read/write a disk zone via *70
+ C/OB:,SUBP,                 . flush the output buffer to disk
+ C/RS:,SUBP,                 . return through the stack top
+ C/OR:,SUBP,                 . forward decl, defined below
  ,NTR,3
  ,ITA,13                     . save link
  15,ATX,
- 13,VJM,P/OR                 . flush any pending write
+ 13,VJM,C/OR                 . flush any pending write
  12,XTA,11B                  . ACC := FILE[9]
  12,ATX,12B                  . FILE[10] := FILE[9]
  12,XTA,14B                  . ACC := FILE[12]
@@ -54,28 +54,28 @@ C   M14 = secondary link (used inside packed-mode helpers)
  ,UJ,SEEDBUF
  OUTZONE:,XTA,
  12,ATX,5                    . FILE[5] := 0
- SEEDBUF:14,VJM,P/AD         . advance-buf to seed FILE[7]
+ SEEDBUF:14,VJM,C/AD         . advance-buf to seed FILE[7]
  12,XTA,11B
  ,U1A,NOPEND
  1,XTA,10B
  12,ATX,2                    . FILE[2] := 1U
- ,UJ,P/RS
+ ,UJ,C/RS
  NOPEND:,XTA,
  12,ATX,2
  12,XTA,16B                  . ACC := FILE[14]
- ,U1A,P/UP
- 13,VTM,P/RS
+ ,U1A,C/UP
+ 13,VTM,C/RS
  ,UJ,PASINBUF                . refill via PASINBUF
  FLUSHZON:12,XTA,7
- ,UZA,P/RS
+ ,UZA,C/RS
  12,XTA,6
  ,UTC,PASLANE*               . C := address of lane mask for following AEX
  ,AEX,
- ,UZA,P/RS
- 13,VJM,P/ZI
- ,UJ,P/RS
-C ---- P/OR: pre-reset sanity check (called from P/CO and P/RF)
- P/OR:,ENTRY,
+ ,UZA,C/RS
+ 13,VJM,C/ZI
+ ,UJ,C/RS
+C ---- C/OR: pre-reset sanity check (called from C/CO and C/RF)
+ C/OR:,ENTRY,
  12,XTA,2                    . ACC := FILE[2]
  13,UZA,                     . zero -> return via M13
  12,XTA,11B
@@ -87,7 +87,7 @@ C ---- P/OR: pre-reset sanity check (called from P/CO and P/RF)
  12,XTA,
  12,AEX,15B                  . compare FILE[0] with FILE[13]
  ,UZA,CHKPACK
- 14,VJM,P/PK                 . packed: pack out final bits
+ 14,VJM,C/PK                 . packed: pack out final bits
  12,XTA,23B
  1,ARX,10B
  12,ATX,23B
@@ -100,18 +100,18 @@ C ---- P/OR: pre-reset sanity check (called from P/CO and P/RF)
  ,U1A,SAVECUR
  12,XTA,14B
  12,AEX,23B
- ,UZA,P/RS
+ ,UZA,C/RS
  12,XTA,13B
  1,XTS,10B
  ,NTR,3
  12,A-X,23B
  12,A+X,14B
  12,ATX,13B                  . FILE[11] := FILE[12]+FILE[13]-...
- 13,VJM,P/OB                 . disk-write helper
+ 13,VJM,C/OB                 . disk-write helper
  15,XTA,
  12,ATX,13B
- 13,VTM,P/RS
- ,UJ,P/ZI                    . then claim a track
+ 13,VTM,C/RS
+ ,UJ,C/ZI                    . then claim a track
  SAVECUR:12,XTA,23B
  12,ATX,16B                  . FILE[14] := FILE[19]
  15,WTC,

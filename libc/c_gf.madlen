@@ -1,19 +1,19 @@
- P/GF:,NAME,DTRAN  /01.06.84/    . Get the next element of a file
+ C/GF:,NAME,DTRAN  /01.06.84/    . Get the next element of a file
 C===========================================================
-C P/GF - get next element of FILE @ M12 into f^ at [M1+8].
+C C/GF - get next element of FILE @ M12 into f^ at [M1+8].
 C  FILE[2] non-zero means the file stands at EOF and the get
 C  is a no-op.  FILE[2] zero selects in-window cursor advance
 C  (packed mode) or refill from disk via PASINBUF / from
-C  stdin via P/GL.
+C  stdin via C/GL.
 C
-C P/RACPAK - unpack one packed element from the disk-loaded
+C C/RACPAK - unpack one packed element from the disk-loaded
 C  buffer; see the fuller note at its entry below.
 C
-C P/UP - the tail both PASINBUF and P/RF end a refill on:
+C C/UP - the tail both PASINBUF and C/RF end a refill on:
 C  unpack the freshly filled window when the file is packed,
 C  otherwise return straight through the stack top.
 C
-C  Labelled in p_sys.asm: P/UP = *0667B.
+C  Labelled in p_sys.asm: C/UP = *0667B.
 C===========================================================
 C Register convention (see FILE.md):
 C   M12 = base of the FILE record being acted on
@@ -25,11 +25,11 @@ C   M14 = secondary link (used inside packed-mode helpers)
  SPACE*:,LC,1                . ASCII space constant
  PASIOBIT:,LC,1              . FILE[23] stdin/stdout tag bit
  PASINBUF:,SUBP,             . allocate / refill the input buffer
- P/CB:,SUBP,                 . close the current buffer window
- P/GL:,SUBP,                 . refill the input line from stdin
- P/AD:,SUBP,                 . advance the file buffer iterator
- P/RS:,SUBP,                 . return through the stack top
- P/RACPAK:,SUBP,             . forward decl, defined below
+ C/CB:,SUBP,                 . close the current buffer window
+ C/GL:,SUBP,                 . refill the input line from stdin
+ C/AD:,SUBP,                 . advance the file buffer iterator
+ C/RS:,SUBP,                 . return through the stack top
+ C/RACPAK:,SUBP,             . forward decl, defined below
  ,NTR,3
  12,XTA,2                    . ACC := FILE[2] (EOF marker)
  13,U1A,                     . at EOF the get does nothing
@@ -50,10 +50,10 @@ C   M14 = secondary link (used inside packed-mode helpers)
  1,ARX,10B
  12,ATX,23B                  . FILE[19] += 1
  12,AEX,15B                  . compare to FILE[13]
- ,U1A,P/RACPAK               . FILE[19] != FILE[13] -> unpack via P/RACPAK
+ ,U1A,C/RACPAK               . FILE[19] != FILE[13] -> unpack via C/RACPAK
  12,XTA,2
  ,UZA,PASINBUF               . if pending cleared -> PASINBUF
- CLOSEBUF:14,VJM,P/CB        . else close the buffer window
+ CLOSEBUF:14,VJM,C/CB        . else close the buffer window
  13,UJ,                      . return via M13
  STDINGET:12,XTA,27B         . ACC := FILE[23] (I/O kind bits)
  ,UTC,PASIOBIT               . C := address of bit-1 mask
@@ -62,7 +62,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  12,XTA,30B                  . ACC := FILE[24] (EOLN flag)
  1,AEX,10B                   . XOR with 1U
  12,ATX,30B                  . toggle EOLN
- ,UZA,P/GL                   . trigger disk read on transition
+ ,UZA,C/GL                   . trigger disk read on transition
  14,VTM,SPACE*               . else f^ := ' '
  ,ITA,14
  12,ATX,                     . FILE[0] := ' ' addr
@@ -76,7 +76,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  12,XTA,5                    . ACC := FILE[5] (shift)
  12,AEX,17B                  . compare with FILE[15] (wrap)
  ,UZA,NEXTELT
- 14,VJM,P/AD                 . wrap via advance-buf helper
+ 14,VJM,C/AD                 . wrap via advance-buf helper
  12,XTA,17B                  . FILE[5] := FILE[15]
  12,ATX,5
  ,UJ,NEXTELT
@@ -89,9 +89,9 @@ C   M14 = secondary link (used inside packed-mode helpers)
  ,UZA,PASINBUF
  ,UJ,CLOSEBUF
 C===========================================
- P/RACPAK:,ENTRY,
+ C/RACPAK:,ENTRY,
 C===========================================
-C P/RACPAK - "Read Accumulator Packed".  Unpacks one packed
+C C/RACPAK - "Read Accumulator Packed".  Unpacks one packed
 C  element from the disk-loaded buffer.  FILE[20] supplies the
 C  ASN shift amount (= 64 - elSize), FILE[21] the negative VLM
 C  loop count, FILE[22] the second-stage ASX shift, and FILE[25]
@@ -118,10 +118,10 @@ C  numbers - no instruction patching takes place.
  12,ATX,                     . FILE[0] := FILE[13] (reset cursor)
  13,UJ,
 C---------------------------------------------------------------
-C P/UP: finish a refill - unpack if packed, else just return.
- P/UP:,ENTRY,
+C C/UP: finish a refill - unpack if packed, else just return.
+ C/UP:,ENTRY,
  12,XTA,22B
- ,UZA,P/RS
- 13,VTM,P/RS
- ,UJ,P/RACPAK                . unpack via P/RACPAK
+ ,UZA,C/RS
+ 13,VTM,C/RS
+ ,UJ,C/RACPAK                . unpack via C/RACPAK
  ,END,

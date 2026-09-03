@@ -6,7 +6,7 @@ C   Calling convention (single arg, in ACC):
 C     ACC = fcb     (pointer to the file's FCB)
 C
 C===========================================================
- P/RF:          ,SUBP,
+ C/RF:          ,SUBP,
                 ,ATI ,12     . M12 := f
-                ,UJ  ,P/RF   . tail call to reset(f)
+                ,UJ  ,C/RF   . tail call to reset(f)
                 ,END ,

@@ -5,16 +5,16 @@ C
 C In:   ACC = n, the number of words wanted.
 C Out:  ACC = address of the lowest word of the block.
 C
-C The runtime holds ~top in HEAPLIM ([M1+30B]), top being the last word P/NW
+C The runtime holds ~top in HEAPLIM ([M1+30B]), top being the last word C/NW
 C may hand out, and the arena's own pointer in HEAPPTR ([M1+27B]).  Taking n
 C words off the top lowers HEAPLIM by n, so the block is [top-n+1, top] and
-C P/NW's own overflow test keeps malloc below it.  A block that would reach
-C HEAPPTR means the two ends have met, which is P/NW's own diagnostic: hand
-C it to P/NOMEM, the entry P/NW exports for it.
+C C/NW's own overflow test keeps malloc below it.  A block that would reach
+C HEAPPTR means the two ends have met, which is C/NW's own diagnostic: hand
+C it to C/NOMEM, the entry C/NW exports for it.
 C===========================================================
- P/NOMEM:,SUBP,
+ C/NOMEM:,SUBP,
                 ,ntr , 7
-             1  ,atx , 3          . scratch3 := n, the way P/NW saves its size
+             1  ,atx , 3          . scratch3 := n, the way C/NW saves its size
              1  ,xta , 30b        . ACC := HEAPLIM = ~top
              1  ,aex , 24b        . ACC := top
              1  ,a-x , 3          . ACC := top - n, the new top
@@ -29,5 +29,5 @@ C  UZA there would ask "is omega clear", which is every successful case.
              1  ,xta , 4          . ACC := new top
              1  ,arx , 10b        . ACC := new top + 1, the block's address
             13  ,uj  ,
- NOMEM:         ,uj  , P/NOMEM   . reports and halts; never comes back
+ NOMEM:         ,uj  , C/NOMEM   . reports and halts; never comes back
                 ,end ,

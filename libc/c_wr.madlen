@@ -17,7 +17,7 @@ C===========================================================
  PASMINS*:,LC,1
  PASPERID:,LC,1
  PASPLUS*:,LC,1
- P/CW:,SUBP,
+ C/CW:,SUBP,
  C/TR:,SUBP,
  C/A7:,SUBP,
  C/WI:,SUBP,
@@ -64,7 +64,7 @@ C Derive and emit the leading-space count.
  ,U1A,SIGN
  ,UTC,SPACE*
  ,XTA,
- 13,VJM,P/CW
+ 13,VJM,C/CW
  14,VTM,TEN
  15,XTA,-8
  ,A-X,ONE
@@ -83,7 +83,7 @@ C Print the value sign and make the working value positive.
  15,ATX,-6
  ,UTC,PASMINS*
  ,XTA,
- PUTSIGN:13,VJM,P/CW
+ PUTSIGN:13,VJM,C/CW
  14,VTM,TEN
  15,XTA,-6
  ,UZA,ISZERO
@@ -162,7 +162,7 @@ C C/WI takes both its value and field width as plain integers.
 C Decimal point, fraction, and optional scientific exponent.
  PUTFRAC:,UTC,PASPERID
  ,XTA,
- 13,VJM,P/CW
+ 13,VJM,C/CW
  13,VTM,SPACE*
  13,XTA,
  15,ATX,-1
@@ -176,7 +176,7 @@ C Decimal point, fraction, and optional scientific exponent.
  ,U1A,DONE
  14,VTM,TEN
  ,XTA,EMARK
- 13,VJM,P/CW
+ 13,VJM,C/CW
  14,VTM,PASPLUS*
  15,XTA,-8
  ,NTR,23B
@@ -185,7 +185,7 @@ C Decimal point, fraction, and optional scientific exponent.
  15,ATX,-8
  14,VTM,PASMINS*
  POSEXP:,XTA,TEN
- 13,VJM,P/CW
+ 13,VJM,C/CW
  14,VTM,TEN
  ,XTA,TWO
  15,XTS,-9

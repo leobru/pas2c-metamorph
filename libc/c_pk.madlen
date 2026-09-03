@@ -1,7 +1,7 @@
- P/PK:,NAME,DTRAN  /01.06.84/    . Pack ACC into the buffer slot
+ C/PK:,NAME,DTRAN  /01.06.84/    . Pack ACC into the buffer slot
 C===========================================================
-C P/PK - "Pack into the current buffer slot".  Helper used by
-C  P/PF, P/WL and P/OR.  Loads M10/M11 from FILE[20]/FILE[21]
+C C/PK - "Pack into the current buffer slot".  Helper used by
+C  C/PF, C/WL and C/OR.  Loads M10/M11 from FILE[20]/FILE[21]
 C  (shift amount and -loop count, both plain numbers), walks
 C  M9 down by the element width and OR-folds the new bits
 C  into the word at FILE[19].  Returns through M14.

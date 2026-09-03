@@ -8,7 +8,7 @@ C   M13  = link from VJM
 C
 C Result:
 C   ACC  = 1U  if f^ is the end-of-line marker (= PASEOLSY)
-C   ACC  = FILE[24] (EOLN state cached by P/GF) otherwise.
+C   ACC  = FILE[24] (EOLN state cached by C/GF) otherwise.
 C
 C Implementation walks the head of the current buffer: WTC
 C FILE[0] sets WT to the bit cursor, then XTA loads f^.  The

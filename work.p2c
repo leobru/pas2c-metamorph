@@ -629,15 +629,15 @@ int helperNames[31] = { 0,
         t'P/MI    ',
         t'C/DI    ',
         t'P/1D    ',
-/*10*/  t'P/GD    ',
+/*10*/  t'C/GD    ',
         t'C/E     ',
         t'C/EF    ',
-        t'P/NW    ',
+        t'C/NW    ',
         t'P/RR    ',
         t'C/TR    ',
         t'FOPEN   ',
         t'FCLOSE  ',
-        t'P/IT    ',
+        t'C/IT    ',
         t'C/LNGPAR',
 /*20*/  t'P/LDAR  ',
         t'P/00C   ',
@@ -2477,7 +2477,7 @@ void fcloseFile(irptr fileSym) {
     }
     if (outputFile)
         fcloseFile(outputFile);
-    form1Insn(getHelperProc(18)/*"P/IT"*/ + (KUJ-KVJM-I13));
+    form1Insn(getHelperProc(18)/*"C/IT"*/ + (KUJ-KVJM-I13));
     padToLeft();
 } /* formFileInit */
 //
@@ -5103,7 +5103,7 @@ L10122:         insnList->tail->mode  =  scratch3;
             case fnABSI:  arg1Val.i  =  abs(arg1Val.i); break;
             case fnMALLOC:
                 addToInsnList(KVTM+I14 + getValueOrAllocSymtab(arg1Val.i));
-                addToInsnList(getHelperProc(13)); /*"P/NW"*/
+                addToInsnList(getHelperProc(13)); /*"C/NW"*/
                 { register insnltyp *il = insnList;
                     il->ilm  =  ilRVAL;
                     il->regsused |= E48;
@@ -6220,7 +6220,7 @@ int l3int1z, frame, l3var3z;
                 heapSize  =  4;
             if (! l3var3z) {
                 form2Insn(KVTM+I14+getValueOrAllocSymtab(heapSize*02000),
-                          getHelperProc(10 /*"P/GD"*/));
+                          getHelperProc(10 /*"C/GD"*/));
                 padToLeft();
             }
         }

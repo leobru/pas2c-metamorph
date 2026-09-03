@@ -9,7 +9,7 @@ C shared entry after the packed word has been selected.
 C===========================================================
  PASISOXT:,SUBP,               . Internal-character to ISO translator
  C/SP:,SUBP,                   . Print -ACC spaces when ACC is negative
- P/CW:,SUBP,                   . Print one ISO character from ACC
+ C/CW:,SUBP,                   . Print one ISO character from ACC
  ,ATI,14                       . M14 := ordinal
  ,UTC,BYTEMASK
  ,AAX,                         . Clear the low eight bits
@@ -37,7 +37,7 @@ C --- common packed-word writer ---
  15,ATX,-3                     . Save the remainder
  ,YTA,                         . ACC := six-bit internal character
  13,VJM,PASISOXT               . Translate to ISO
- 13,VJM,P/CW                   . Write it
+ 13,VJM,C/CW                   . Write it
  8,VLM,LOOP
  15,XTA,                       . Pop caller's M8
  ,STI,8                        . Restore M8; pop return link

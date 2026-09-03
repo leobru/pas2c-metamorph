@@ -1,13 +1,13 @@
  PASINBUF:,NAME,DTRAN  /01.06.84/    . Allocate / refill the input buffer
 C===========================================================
 C PASINBUF - allocate/refill the input buffer.  Called from
-C  P/CO once the file is opened, from P/GF when the window
-C  runs dry, and from P/RF.  Pushes M13 then snapshots
+C  C/CO once the file is opened, from C/GF when the window
+C  runs dry, and from C/RF.  Pushes M13 then snapshots
 C  FILE[5]/FILE[6] into FILE[15]/FILE[16] and FILE[13] into
 C  FILE[19] so that PASGIVEP can restore them later, then runs
 C  a VLM-driven copy loop to scoop disk records into the inline
-C  buffer.  If we run out we tail-call P/GT to claim more
-C  tracks, and finish through P/UP.
+C  buffer.  If we run out we tail-call C/GT to claim more
+C  tracks, and finish through C/UP.
 C===========================================================
 C Register convention (see FILE.md):
 C   M12 = base of the FILE record being acted on
@@ -17,8 +17,8 @@ C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
 C   M13 = link register set by the calling VJM
 C   M14 = secondary link (used inside packed-mode helpers)
  PASGIVEP:,SUBP,             . flush a partial packed-output word
- P/GT:,SUBP,                 . claim/allocate disk tracks
- P/UP:,SUBP,                 . unpack the refilled buffer, then return
+ C/GT:,SUBP,                 . claim/allocate disk tracks
+ C/UP:,SUBP,                 . unpack the refilled buffer, then return
  ,ITA,13
  12,XTS,6                    . push M13, ACC := FILE[6]
  ,ATI,10                     . M10 := FILE[6]
@@ -26,7 +26,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  ,U1A,HAVEBUF                . FILE[7]!=0 -> already initialised
  13,VJM,PASGIVEP             . call PASGIVEP to release old buf
  10,VZM,HAVEBUF
- 13,VJM,P/GT                 . allocate fresh tracks
+ 13,VJM,C/GT                 . allocate fresh tracks
  HAVEBUF:12,WTC,7
  ,XTA,1
  ,ATI,9
@@ -51,7 +51,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  12,XTA,14B
  12,ATX,23B                  . FILE[19] := FILE[12]
  12,ATX,                     . FILE[0]  := FILE[12]
- ,UJ,P/UP
+ ,UJ,C/UP
  NEXTZONE:12,XTA,5
  1,ARX,10B                   . ACC += 1U
  15,ATX,1
@@ -69,7 +69,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  ,ITA,13
  ,ITS,14                     . push M13; ACC := M14
  1,XTS,10B
- 13,VJM,P/GT                 . request more tracks
+ 13,VJM,C/GT                 . request more tracks
  15,XTA,
  ,STI,14
  ,ATI,13

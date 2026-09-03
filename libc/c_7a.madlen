@@ -17,7 +17,7 @@ C P/HIDE saves M6..M8 and M13.  C/7AD is the shared entry used
 C after a caller has already saved them and copied the address
 C and count to M8 and M7 respectively.
 C===========================================================
- P/PF:          ,SUBP,        . Put f^ and advance the file
+ C/PF:          ,SUBP,        . Put f^ and advance the file
  P/HIDE:        ,SUBP,        . Save M6, M7, M8 and M13
  P/EDIH:        ,SUBP,        . Restore them
               14,VJM,P/HIDE
@@ -35,7 +35,7 @@ C===========================================================
                 ,YTA,         . ACC := extracted character
               12,WTC,         . Address f^ through FILE[0]
                 ,ATX,         . f^ := character
-              13,VJM,P/PF     . Put it
+              13,VJM,C/PF     . Put it
                7,UTM,-1       . One fewer character remains
                7,VZM,DONE
                6,VLM,NEXTCH   . Continue within this word

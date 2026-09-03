@@ -3,12 +3,12 @@ C===========================================================
 C PASCTRP - "PASCAL CONTROL/TRACKS Pre-allocate".  Reserves
 C  packed-file disk tracks before the first physical write,
 C  using the runtime track table at [M1+37B].  Falls through
-C  into P/GT.
-C P/GT - claim/allocate the next disk track for a packed file.
-C P/CT - validate the track table; reports "NO EXTFILE TRAKCS"
+C  into C/GT.
+C C/GT - claim/allocate the next disk track for a packed file.
+C C/CT - validate the track table; reports "NO EXTFILE TRAKCS"
 C  if it is empty, "NO LOCFILE TRAKCS" if the local pool is
 C  exhausted.
-C P/ZI - read or write one disk zone through the *70 syscall.
+C C/ZI - read or write one disk zone through the *70 syscall.
 C
 C   FILE[3]/FILE[4] hold the file's track-table descriptor.
 C   FILE[5]         running track-window cursor = current zone
@@ -45,8 +45,8 @@ C left-to-right, so the digits 001 land in bits 42..40 = bit 40.
 C The read path (ZIOREAD, reached when FILE[4]=0) ORs it in for
 C D=1; the write path (ZIOWRITE) leaves D=0.
 C
-C  Labelled in p_sys.asm: P/GT = GETTRACK, P/CT = CHKTRACK,
-C  P/ZI = ZONEIO.
+C  Labelled in p_sys.asm: C/GT = GETTRACK, C/CT = CHKTRACK,
+C  C/ZI = ZONEIO.
 C===========================================================
 C Register convention (see FILE.md):
 C   M12 = base of the FILE record being acted on
@@ -57,16 +57,16 @@ C   M13 = link register set by the calling VJM
 C   M14 = secondary link (used inside packed-mode helpers)
  PASLANE*:,LC,1              . 0o76000 buffer/lane mask (seeded below)
  PASIOBIT:,LC,1              . FILE[23] stdin/stdout tag bit (seeded below)
- P/AH:,SUBP,                 . fatal-error abort handler
- P/CT:,SUBP,                 . forward decl, defined below
+ C/AH:,SUBP,                 . fatal-error abort handler
+ C/CT:,SUBP,                 . forward decl, defined below
  12,XTA,4                    . ACC := FILE[4]
  ,U1A,LANETEST
  12,XTA,3                    . check FILE[3]
- ,UZA,P/CT
+ ,UZA,C/CT
  LANETEST:12,XTA,6           . ACC := FILE[6] (lane mask)
  ,UTC,PASLANE*               . C := address of constant 0o76000
  ,AEX,                       . sentinel test
- P/GT:,ENTRY,
+ C/GT:,ENTRY,
  13,UZA,                     . if no work, return via M13
  12,XTA,4
  ,ATI,14                     . M14 := FILE[4] (0 = read side, !=0 = write side)
@@ -75,7 +75,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  14,VZM,ZIOREAD              . FILE[4]==0 (read) -> ZIOREAD with D=1 in ACC
  12,AOX,3                    . else OR FILE[3] into ACC
  ,UJ,ZIOZONE
- P/CT:,ENTRY,
+ C/CT:,ENTRY,
  12,XTA,4
  ,UZA,NEWTRACK
  12,XTA,5
@@ -84,9 +84,9 @@ C   M14 = secondary link (used inside packed-mode helpers)
  12,A-X,4                    . compare to FILE[4]
  13,U1A,                     . FILE[5]+1-FILE[4] < 0 -> return
  :10,VTM,MSGEXTF.=6H NO EX
- ,UJ,P/AH
+ ,UJ,C/AH
  ERRLOCF:10,VTM,MSGLOCF.=6H NO LO
- ,UJ,P/AH
+ ,UJ,C/AH
  NEWTRACK:1,XTA,37B          . ACC := [M1+31] (track-table head)
  ,UZA,ERRLOCF                . empty -> "NO LOCFILE TRAKCS"
  12,XTA,3                    . check FILE[3]
@@ -106,7 +106,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  12,WTC,5
  ,ATX,                       . zero the freshly-claimed track
  13,UJ,                      . return
- P/ZI:,ENTRY,
+ C/ZI:,ENTRY,
  12,XTA,4
  ,U1A,ZIOWRITE
  ZIOREAD:12,WTC,5            . WT := FILE[5] (current zone/track entry)

@@ -1,21 +1,21 @@
- P/PF:,NAME,DTRAN  /01.06.84/    . Put one element to a file
+ C/PF:,NAME,DTRAN  /01.06.84/    . Put one element to a file
 C===========================================================
-C P/PF - put one element from f^ to FILE @ M12.
-C  Mirror of P/GF: bumps FILE[9] (counter), updates the bit
-C  cursor at FILE[0], optionally packs via P/PK and trips
+C C/PF - put one element from f^ to FILE @ M12.
+C  Mirror of C/GF: bumps FILE[9] (counter), updates the bit
+C  cursor at FILE[0], optionally packs via C/PK and trips
 C  the disk-write helpers when the window fills up.
 C  Errors "PUT(F) NOT AT EOF" if FILE[2] is clear: a put is
-C  legal only at the end of the file.  P/TF sets FILE[2] when
-C  a file is opened for output and P/GF sets it on reading the
-C  last element, P/RE2 clears it for an input file - so an
+C  legal only at the end of the file.  C/TF sets FILE[2] when
+C  a file is opened for output and C/GF sets it on reading the
+C  last element, C/RE2 clears it for an input file - so an
 C  input file read to EOF stands open for appending.
 C
-C P/OB - thin shim that saves M13 and drops into P/PF's
-C  disk-write path; P/CO and P/OR use it to flush a buffer.
+C C/OB - thin shim that saves M13 and drops into C/PF's
+C  disk-write path; C/CO and C/OR use it to flush a buffer.
 C
-C P/RS - the runtime's short return tail; see its entry below.
+C C/RS - the runtime's short return tail; see its entry below.
 C
-C  Labelled in p_sys.asm: P/OB = *0642B, P/RS = *0632B.
+C  Labelled in p_sys.asm: C/OB = *0642B, C/RS = *0632B.
 C===========================================================
 C Register convention (see FILE.md):
 C   M12 = base of the FILE record being acted on
@@ -25,14 +25,14 @@ C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
 C   M13 = link register set by the calling VJM
 C   M14 = secondary link (used inside packed-mode helpers)
  PASIOBIT:,LC,1              . FILE[23] stdin/stdout tag bit
- P/AH:,SUBP,                 . fatal-error abort handler
- P/PK:,SUBP,                 . pack ACC into the buffer slot
+ C/AH:,SUBP,                 . fatal-error abort handler
+ C/PK:,SUBP,                 . pack ACC into the buffer slot
  PASGIVEP:,SUBP,             . flush a partial packed-output word
  PASCTRP:,SUBP,              . pre-allocate disk tracks
- P/ZI:,SUBP,                 . read/write a disk zone via *70
- P/CT:,SUBP,                 . validate the track table
- P/CB:,SUBP,                 . close the current buffer window
- P/FL:,SUBP,                 . flush a record to the line printer
+ C/ZI:,SUBP,                 . read/write a disk zone via *70
+ C/CT:,SUBP,                 . validate the track table
+ C/CB:,SUBP,                 . close the current buffer window
+ C/FL:,SUBP,                 . flush a record to the line printer
  ,NTR,3
  12,XTA,2                    . ACC := FILE[2]
  ,UZA,ERRPUT                 . clear -> not at EOF
@@ -46,7 +46,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  13,U1A,                     . not wrapped -> return
  12,XTA,22B                  . ACC := FILE[18] (elem width)
  ,UZA,TXTPUT                 . text mode -> TXTPUT
- 14,VJM,P/PK                 . packed: pack into buffer
+ 14,VJM,C/PK                 . packed: pack into buffer
  12,XTA,23B
  12,A+X,21B                  . FILE[19] += FILE[17]
  12,ATX,23B
@@ -55,7 +55,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  TXTPUT:12,XTA,27B           . ACC := FILE[23]
  ,UTC,PASIOBIT
  ,AAX,
- ,U1A,P/FL                   . stdin/out -> the printer path
+ ,U1A,C/FL                   . stdin/out -> the printer path
  ,ITA,13
  WRITEBUF:12,XTS,6           . push link, ACC := FILE[6]
  ,ATI,10
@@ -87,14 +87,14 @@ C---------------------------------------------------------------
  14,VLM,WRLOOP
  ,ITA,10
  12,ATX,6                    . FILE[6] := M10
- 14,VJM,P/CB                 . trailing close-buffer helper
+ 14,VJM,C/CB                 . trailing close-buffer helper
 C===========================================
- P/RS:,ENTRY,
+ C/RS:,ENTRY,
 C===========================================
-C P/RS - return through the address sitting at the stack top,
+C C/RS - return through the address sitting at the stack top,
 C  without dropping anything.  The disk-write loop above falls
-C  straight in after its close-buffer call; P/CO, P/GF, P/GL and
-C  P/RF reach it by name.
+C  straight in after its close-buffer call; C/CO, C/GF, C/GL and
+C  C/RF reach it by name.
  15,WTC,                     . WT := mem[SP+0] (saved link)
  ,UJ,                        . indirect jump to it
 C ---- WRTAIL: tail of WRLOOP disk-write loop ----
@@ -102,8 +102,8 @@ C ---- WRTAIL: tail of WRLOOP disk-write loop ----
  ,ITS,13
  ,ITS,12                     . save M12/M13/M14 on stack
  15,ATX,
- 13,VJM,P/ZI                 . request more output tracks
- 13,VJM,P/CT                 . and validate the track-table
+ 13,VJM,C/ZI                 . request more output tracks
+ 13,VJM,C/CT                 . and validate the track-table
  15,XTA,                     . restore stack frame
  ,STI,12
  ,STI,13
@@ -111,12 +111,12 @@ C ---- WRTAIL: tail of WRLOOP disk-write loop ----
  10,VTM,76001B               . VLM seed (one zone = 1024 words)
  ,UJ,WRWORD                  . resume disk-write loop
 C---------------------------------------------------------------
-C P/OB: save the link, then join the disk-write path above.
- P/OB:,ENTRY,
+C C/OB: save the link, then join the disk-write path above.
+ C/OB:,ENTRY,
  ,ITA,13
  ,UJ,WRITEBUF
 C---------------------------------------------------------------
  ERRPUT:10,VTM,MSGPUTF.=6H PUT(F
- ,UJ,P/AH
+ ,UJ,C/AH
  MSGPUTF:,ISO,18H PUT(F) NOT AT EOF
  ,END,

@@ -1,7 +1,7 @@
  settop:        , name,
 C settop(top) - install a new top of the Pascal heap.
 C In:  ACC := the new top address.  Its complement goes into [M1+30B], so
-C      P/NW's own overflow test is what keeps malloc below that address.
+C      C/NW's own overflow test is what keeps malloc below that address.
                 , ntr , 7
              1  , aex , 24b
              1  , atx , 30b

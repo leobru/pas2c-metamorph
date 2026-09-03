@@ -66,17 +66,17 @@ c         ,NTR,7     . PLAIN P2C INTEGER ARITHMETIC
           ,UZA,NOMINUS
           ,UTC,PASMINS*
           ,XTA,
-          ,CALL,P/CW . PRINTING MINUS
+          ,CALL,C/CW . PRINTING MINUS
  NOMINUS:2,UTC,
         15,XTA,-20   . <- DIGITS[R2]
           ,AAX,=377
           ,UTC,PASZERO*
           ,ARX,
          2,UTM,-1
-C ONE WORD LONGER THAN ,CALL,P/CW BUT FASTER (AS IN THE ORIGINAL)
+C ONE WORD LONGER THAN ,CALL,C/CW BUT FASTER (AS IN THE ORIGINAL)
         12,WTC,
           ,ATX,
-          ,CALL,P/PF
+          ,CALL,C/PF
          2,V1M,NOMINUS
         15,XTA,
           ,ATI,2

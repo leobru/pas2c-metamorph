@@ -1,24 +1,24 @@
  fclose:       , name,
 C===========================================================
 C fclose(fcb)
-C   Single-argument explicit close.  Calls P/CO with M12 set
+C   Single-argument explicit close.  Calls C/CO with M12 set
 C   to the FCB pointer and ACC set to a non-zero close marker,
 C   mirroring how C/EF re-enters the FILEINIT block with the
 C   FILEINIT-block-address (non-zero) in ACC at entry.  The
 C   FILEINIT-style ,its,13 + ,atx,SP frame is established so
-C   P/CO sees the same stack shape it sees from C/EF, and the
-C   trailing tail-jump to P/IT pops it and returns.
+C   C/CO sees the same stack shape it sees from C/EF, and the
+C   trailing tail-jump to C/IT pops it and returns.
 C
 C   If the runtime in fact distinguishes open from close via
 C   FCB state rather than the saved-mode word, the code is
-C   still correct: P/CO will see an already-opened FCB (set
+C   still correct: C/CO will see an already-opened FCB (set
 C   up by a prior fopen() or by the compiler's implicit
 C   FILEINIT path) and take the close branch on that basis.
 C
 C   Calling convention (single arg, in ACC):
 C     ACC = fcb     (pointer to the file's FCB)
 C
-C   The trailing two-instruction tail (vjm,p/co + uj,p/it) is
+C   The trailing two-instruction tail (vjm,C/co + uj,C/it) is
 C   the intended body but references paslib-only symbols that
 C   the libc-time linker cannot resolve, so those two lines
 C   are commented out below until paslib exposes them (or
@@ -26,18 +26,18 @@ C   until this file is moved into paslib).  In the meantime
 C   the FILEINIT-style frame we just pushed is popped back
 C   off and the procedure returns through the caller's M13.
 C===========================================================
- p/co  :        , subp,
- p/it  :        , subp,
+ C/co  :        , subp,
+ C/it  :        , subp,
                 , ntr , 7      . ABI requirement
-C ---- M12 := fcb (P/CO requires it) ----
+C ---- M12 := fcb (C/CO requires it) ----
                 , ati , 12     . M12 := fcb (ACC still holds fcb)
 C ---- FILEINIT-style frame, with a non-zero close marker ----
                 , bss ,        . ACC is fcb (non-zero -> close discriminator)
                 , its , 13     . push ACC; ACC := M13
             15  , atx ,        . [SP] := M13
-                , bss ,        . ACC is M13 (non-zero -> close marker into P/CO)
-C ---- intended call P/CO (helper #69) and tail-jump to P/IT
+                , bss ,        . ACC is M13 (non-zero -> close marker into C/CO)
+C ---- intended call C/CO (helper #69) and tail-jump to C/IT
 C      (helper #70).
-            13  , vjm , p/co
-                , uj  , p/it
+            13  , vjm , C/co
+                , uj  , C/it
                 , end ,

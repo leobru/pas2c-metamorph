@@ -429,7 +429,7 @@ void settop(int64_t top)
 /* talloc(n) - n words off the top of the heap, the mirror of libc/talloc.madlen.
    The block is [top-n+1, top] and the limit drops below it, so the arena's own
    test keeps allocation out of it.  Meeting the arena means the heap is full,
-   which is P/NW's diagnostic and its wording. */
+   which is C/NW's diagnostic and its wording. */
 int64_t talloc(int64_t words)
 {
     int64_t newtop = heaptop() - words;
@@ -5474,7 +5474,7 @@ L10122:
                     break;
                 case fnMALLOC:
                     addToInsnList(KVTM+I14+getValueOrAllocSymtab(arg1Val.ii));
-                    addToInsnList(getHelperProc(13)); /*"P/NW"*/
+                    addToInsnList(getHelperProc(13)); /*"C/NW"*/
                     insnList->ilm = ilRVAL;
                     insnList->regsused = insnList->regsused | Bits(0);
                     insnList->typ = exprToGen->vt.typ;
@@ -5561,7 +5561,7 @@ void formFileInit()
     }
     if (outputFile)
         fcloseFile(outputFile);
-    form1Insn(getHelperProc(18)/*"P/IT"*/ + (KUJ-KVJM-I13));
+    form1Insn(getHelperProc(18)/*"C/IT"*/ + (KUJ-KVJM-I13));
     padToLeft();
 } /* formFileInit */
 
@@ -6745,7 +6745,7 @@ void parseDecls(int64_t l3arg1z)
                 heapSize = 4;
             if (not l3var3z) {
                 form2Insn(KVTM+I14+getValueOrAllocSymtab(heapSize*02000),
-                          getHelperProc(10 /*"P/GD"*/));
+                          getHelperProc(10 /*"C/GD"*/));
                 padToLeft();
             }
         }
@@ -10650,15 +10650,15 @@ int64_t helperNames[31] = { 0L,
         toText("P/MI    "),
         toText("C/DI    "),
         toText("P/1D    "),
-/*10*/  toText("P/GD    "),
+/*10*/  toText("C/GD    "),
         toText("C/E     "),
         toText("C/EF    "),
-        toText("P/NW    "),
+        toText("C/NW    "),
         toText("P/RR    "),
         toText("C/TR    "),
         toText("FOPEN   "),
         toText("FCLOSE  "),
-        toText("P/IT    "),
+        toText("C/IT    "),
         toText("C/LNGPAR"),
 /*20*/  toText("P/LDAR  "),
         toText("P/00C   "),

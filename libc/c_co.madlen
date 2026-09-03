@@ -1,6 +1,6 @@
- P/CO:,NAME,DTRAN  /01.06.84/    . Create / open / reset a file
+ C/CO:,NAME,DTRAN  /01.06.84/    . Create / open / reset a file
 C===========================================================
-C P/CO - create/open a Pascal file.
+C C/CO - create/open a Pascal file.
 C
 C Setup convention (see FILE.md):
 C   M12 = FILE record base
@@ -9,17 +9,17 @@ C   M10 = fileBufSize     (sizes the inline buffer)
 C   M9  = elSize          (becomes FILE[18], element width)
 C   ACC = external file name (FCST literal), or 0 internal file
 C
-C Re-entered as P/RE1 when only the rewind/reopen logic is
+C Re-entered as C/RE1 when only the rewind/reopen logic is
 C needed.  The REOPEN path handles capacity-decrement on
 C subsequent calls; the main body computes the buffer layout,
 C packed-mode bit-step constants and stashes M11/SP into
 C FILE[3]/[4]/[5] and runtime scratch slots [M1+3..5].
 C
-C P/RE1 - reposition / reopen helper, also reached by the
+C C/RE1 - reposition / reopen helper, also reached by the
 C  fall-through above.  Decides between the read-side
 C  (FILE[4]=0) and write-side (FILE[4]!=0) prep paths.
 C
-C P/RE2 - second half of the reset (rewind) sequence.  Splits
+C C/RE2 - second half of the reset (rewind) sequence.  Splits
 C  on FILE[4] to choose between the packed and text branches,
 C  programs FILE[2]/FILE[8] for a pending read and forks into
 C  PASINBUF.
@@ -34,44 +34,44 @@ C   M14 = secondary link (used inside packed-mode helpers)
  P/BEXF:,SUBP,               . FCST->external-name lookup
  C/MD:,SUBP,                 . integer remainder helper
  C/DI:,SUBP,                 . integer divide helper
- P/WL:,SUBP,                 . terminate the current line
- P/OI:,SUBP,                 . open an input file
- P/AD:,SUBP,                 . advance the file buffer iterator
- P/OR:,SUBP,                 . reset output state / flush a write
- P/ZI:,SUBP,                 . read/write a disk zone via *70
- P/OB:,SUBP,                 . flush the output buffer to disk
- P/RACPAK:,SUBP,             . unpack one element from the buffer
+ C/WL:,SUBP,                 . terminate the current line
+ C/OI:,SUBP,                 . open an input file
+ C/AD:,SUBP,                 . advance the file buffer iterator
+ C/OR:,SUBP,                 . reset output state / flush a write
+ C/ZI:,SUBP,                 . read/write a disk zone via *70
+ C/OB:,SUBP,                 . flush the output buffer to disk
+ C/RACPAK:,SUBP,             . unpack one element from the buffer
  PASINBUF:,SUBP,             . allocate / refill the input buffer
- P/GL:,SUBP,                 . refill the input line from stdin
- P/TF:,SUBP,                 . truncate / rewrite the file
- P/AH:,SUBP,                 . fatal-error abort handler
- P/RS:,SUBP,                 . return through the stack top
+ C/GL:,SUBP,                 . refill the input line from stdin
+ C/TF:,SUBP,                 . truncate / rewrite the file
+ C/AH:,SUBP,                 . fatal-error abort handler
+ C/RS:,SUBP,                 . return through the stack top
  ,NTR,3                      . R := 3 (suppress normalization and rounding)
  1,ATX,3                     . [M1+3] := caller's FCST literal
  12,ATX,32B                  . FILE[26] := ext name (LLLLNNZZZZ designator)
  ,ITA,13                     . ACC := M13 (return addr)
  15,XTS,-3                   . push it; ACC := caller's flag word
- ,UZA,REOPEN                 . zero => re-open path (P/CO again)
+ ,UZA,REOPEN                 . zero => re-open path (C/CO again)
  12,XTA,33B                  . ACC := FILE[27] (capacity)
  1,A-X,10B                   . ACC -= [M1+8] = 1U
  12,ATX,33B                  . FILE[27] := --capacity
  12,XTA,33B                  . re-read for sign test
- ,U1A,P/RS                   . decremented capacity is non-zero -> P/IT
+ ,U1A,C/RS                   . decremented capacity is non-zero -> C/IT
 C===========================================
- P/RE1:,ENTRY,
+ C/RE1:,ENTRY,
 C===========================================
  12,XTA,27B                  . ACC := FILE[23] (I/O kind bits)
  1,AAX,10B                   . AND with [M1+8] = 1 (stdin/out bit)
  ,UZA,NOFLUSH                . not stdin/out -> skip flush
  12,XTA,11B                  . check FILE[9] (in-progress bits)
  ,UZA,NOFLUSH
- 13,VJM,P/WL                 . flush partial line (P/WL inner)
+ 13,VJM,C/WL                 . flush partial line (C/WL inner)
  NOFLUSH:12,XTA,4            . ACC := FILE[4] (open-mode)
  ,U1A,OUTPATH                . non-zero => output path
- 13,VJM,P/OI                 . input path: open helper
- ADVTAIL:14,VTM,P/RS         . arm M14 to point at P/IT trap
- ,UJ,P/AD                    . jump to advance-buffer helper
- OUTPATH:13,VJM,P/OR         . output: reset helper
+ 13,VJM,C/OI                 . input path: open helper
+ ADVTAIL:14,VTM,C/RS         . arm M14 to point at C/IT trap
+ ,UJ,C/AD                    . jump to advance-buffer helper
+ OUTPATH:13,VJM,C/OR         . output: reset helper
  12,XTA,16B                  . ACC := FILE[14] (packed flag)
  ,UZA,ADVTAIL                . text file -> back to common tail
  12,XTA,11B                  . non-zero bit-counter?
@@ -84,9 +84,9 @@ C===========================================
  ,YTA,30B                    . extract product fraction
  WINCAP:1,X-A,10B            . ACC := 1 - ACC
  12,ATX,13B                  . FILE[11] := computed window upper
- 13,VJM,P/OB                 . sub-helper
+ 13,VJM,C/OB                 . sub-helper
  13,VTM,ADVTAIL              . link back to ADVTAIL
- ,UJ,P/ZI                    . jump into PASCTRP tail
+ ,UJ,C/ZI                    . jump into PASCTRP tail
  PACKCALC:12,XTA,16B         . ACC := FILE[14]
  12,ATX,23B                  . FILE[19] := packed flag
  12,XTA,11B                  . ACC := FILE[9]
@@ -99,7 +99,7 @@ C===========================================
  ,UJ,WINCAP                  . merge with text path
 C===========================================================
 C BEXFRET / DECBITS / STDFLAV / PUREOUT / PUREIN / REOPEN form
-C  the FCST-literal decoder.  P/CO loads the FCST word into
+C  the FCST-literal decoder.  C/CO loads the FCST word into
 C  [M1+3] and peels off bit fields (3-bit, 7-bit, 13-bit) to
 C  populate FILE[3], FILE[4] and the stdin/out flag in
 C  FILE[23].  P/BEXF translates a non-zero FCST low-byte into
@@ -130,7 +130,7 @@ C===========================================================
  ,UJ,SETUPTL                 . join common tail
 C ---- TXTDFLT: default values for FILE[20] and FILE[21]     ----
 C  Two more LOG constants, sister table to CONTAB..  Used by
-C  the stdin/stdout (text-mode) prep below so that the P/PK
+C  the stdin/stdout (text-mode) prep below so that the C/PK
 C  packer sees a sane shift-amount and loop-count even when no
 C  real packed math was performed.
  TXTDFLT:,LOG,70             . 56 - default FILE[20] (shift)
@@ -157,7 +157,7 @@ C ---- STDLAY: stdin/stdout buffer layout (no real buffer) ----
  12,ATX,4                    . FILE[4]  := 0 (text/input)
  12,ATX,7                    . FILE[7]  := 0 (FILE[7] WTC slot)
  12,XTA,16B                  . ACC := FILE[14] (packed flag)
- ,UZA,TXTFTCH                . text -> TXTFTCH (joins P/RE2)
+ ,UZA,TXTFTCH                . text -> TXTFTCH (joins C/RE2)
  ,XTA,
  12,ATX,11B                  . packed: FILE[9] := 0
  1,XTA,10B                   . ACC := [M1+8] = 1U
@@ -188,7 +188,7 @@ C ---- REOPEN: re-entry from caller flag word = 0 ----
  12,A+X,33B                  . FILE[27] += 1
  12,ATX,33B
  1,AEX,10B                   . sanity-check the result
- ,U1A,P/RS                   . mismatch -> trap
+ ,U1A,C/RS                   . mismatch -> trap
  REINIT:,XTA,                . re-init defaults
  12,ATX,2                    . FILE[2]  := 0
  12,ATX,27B                  . FILE[23] := 0
@@ -257,9 +257,9 @@ C ---- SETUPTL: common tail used by both setup branches ----
  BUFTOP:,ATI,15              . SP := computed buffer top
  ,XTA,
  12,ATX,7                    . FILE[7] := 0 (clear WTC operand)
- 13,VJM,P/TF                 . call P/TF helper (output finish)
+ 13,VJM,C/TF                 . call C/TF helper (output finish)
 C===========================================
- P/RE2:,ENTRY,
+ C/RE2:,ENTRY,
 C===========================================
  12,XTA,4                    . ACC := FILE[4] (open-mode)
  ,UZA,INPMODE                . input file -> INPMODE
@@ -278,7 +278,7 @@ C===========================================
  12,ATX,10B                  . FILE[8]  := 1U (f^ valid)
  13,VTM,RE2EXIT              . link return through RE2EXIT
  ,UJ,PASINBUF                . jump to PASINBUF
- TXTFTCH:13,VJM,P/GL         . text-mode fetch + EOF check
+ TXTFTCH:13,VJM,C/GL         . text-mode fetch + EOF check
  ,UTC,LIT120.=120            . C := address of constant 0o120
  ,XTA,
  12,ATX,11B                  . FILE[9] := 0o120
@@ -297,18 +297,18 @@ C===========================================
  15,ATX,
  ,UJ,BUFEND
  ERRBIND:10,VTM,MSGBIND.=6H NO BI
- ,UJ,P/AH
+ ,UJ,C/AH
  INPMODE:12,WTC,14B          . input mode: WT := FILE[12]
  ,ATX,                       . zero the buffer slot
  12,XTA,22B
  ,UZA,RE2EXIT                . text -> common exit
  13,VTM,RE2EXIT
- ,UJ,P/RACPAK                . join P/RACPAK
+ ,UJ,C/RACPAK                . join C/RACPAK
  MSGBIND:,ISO,18H NO BIND EXT FILE
 C---------------------------------------------------------------
-C Small literal pool used by P/CO and friends.  These are
+C Small literal pool used by C/CO and friends.  These are
 C plain data words, NOT instructions and NOT self-modifying
-C templates - P/CO loads them through `9,VTM,CONTAB; 9,XTA,N'
+C templates - C/CO loads them through `9,VTM,CONTAB; 9,XTA,N'
 C and friends, treating them as a six-entry table.  M1 (the
 C constant base) does not work for them because the values
 C are needed alongside other constants only known here.
@@ -317,7 +317,7 @@ C   CONTAB+0 = 64  (shift base; 64 - elSize -> bit step)
 C   CONTAB+1 = 48  (BESM-6 word width in bits; divisor)
 C   IOBIT    =  2  (= CONTAB+2; bit-1 mask that tests FILE[23]
 C                   for "is *INPUT* / *OUTPUT*".  The same value
-C                   is the PASIOBIT common that P/GF and P/PF use)
+C                   is the PASIOBIT common that C/GF and C/PF use)
 C   CONTAB+3 = 50  (only the dtran lists it; never loaded)
 C   CONTAB+4 = 51  (likewise)
 C   TESTB3   =  3  (= CONTAB+5; test bit pattern 0o3, read

@@ -1,20 +1,20 @@
- P/TF:,NAME,DTRAN  /01.06.84/    . Truncate (rewrite) a file
+ C/TF:,NAME,DTRAN  /01.06.84/    . Truncate (rewrite) a file
 C===========================================================
-C P/TF - truncate file (= rewrite).  Empties the buffer and
+C C/TF - truncate file (= rewrite).  Empties the buffer and
 C  re-initialises the packed-mode state so a fresh write run
 C  can begin.  The tail walks the [M1+37B] track-table, reading
 C  each entry via `1,WTC,37B' (no patching - WTC just uses
 C  [M1+37B] as the next instruction's address operand).
 C
-C P/OI - open an input file: move FILE[3] into FILE[5] and
+C C/OI - open an input file: move FILE[3] into FILE[5] and
 C  release the track chain hanging off it.
 C
-C P/CB - close the current buffer window: reset FILE[19] and
+C C/CB - close the current buffer window: reset FILE[19] and
 C  FILE[0] to FILE[12], and FILE[0] to FILE[13] when packed.
 C  Returns through M14.
 C
-C  Labelled in p_sys.asm: P/TF = OUTFIN, P/OI = OPENIN,
-C  P/CB = CLOSEWIN.
+C  Labelled in p_sys.asm: C/TF = OUTFIN, C/OI = OPENIN,
+C  C/CB = CLOSEWIN.
 C===========================================================
 C Register convention (see FILE.md):
 C   M12 = base of the FILE record being acted on
@@ -24,30 +24,30 @@ C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
 C   M13 = link register set by the calling VJM
 C   M14 = secondary link (used inside packed-mode helpers)
  PASLANE*:,LC,1              . 0o76000 buffer/lane mask
- P/AD:,SUBP,                 . advance the file buffer iterator
- P/CB:,SUBP,                 . forward decl, defined below
- P/OI:,SUBP,                 . forward decl, defined below
- P/ZI:,SUBP,                 . declared to pull PASCTRP into the load:
+ C/AD:,SUBP,                 . advance the file buffer iterator
+ C/CB:,SUBP,                 . forward decl, defined below
+ C/OI:,SUBP,                 . forward decl, defined below
+ C/ZI:,SUBP,                 . declared to pull PASCTRP into the load:
 C  it owns the load-time seed for PASLANE*, and this is the only
 C  user that does not otherwise call into that module.
- 14,VJM,P/CB                 . close any open window first
+ 14,VJM,C/CB                 . close any open window first
  ,XTA,
  12,ATX,11B                  . FILE[9]  := 0
  12,ATX,12B                  . FILE[10] := 0
  ,UTC,PASLANE*               . C := address of lane mask
  ,XTA,
  12,ATX,6                    . FILE[6]  := lane mask
- 14,VJM,P/AD
+ 14,VJM,C/AD
  1,XTA,10B
  12,ATX,2                    . FILE[2]  := 1U (pending write)
  12,ATX,16B                  . FILE[14] := 1U
  12,XTA,4
  ,U1A,INPFILE
- ,UJ,P/OI
+ ,UJ,C/OI
  INPFILE:,XTA,               . input file: just clear FILE[5]
  12,ATX,5
  13,UJ,
- P/OI:,ENTRY,
+ C/OI:,ENTRY,
  12,XTA,3                    . output: load FILE[3] (track id)
  13,UZA,                     . zero -> just return
  12,ATX,5                    . FILE[5] := FILE[3]
@@ -66,7 +66,7 @@ C  user that does not otherwise call into that module.
  NEXTTRK:12,ATX,5            . FILE[5] := non-zero scan word
  ,UJ,TRKLOOP
 C---------------------------------------------------------------
- P/CB:,ENTRY,
+ C/CB:,ENTRY,
  12,XTA,14B
  12,ATX,23B                  . FILE[19] := FILE[12]
  12,ATX,                     . FILE[0]  := FILE[12]

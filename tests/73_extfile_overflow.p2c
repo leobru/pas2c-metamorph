@@ -1,0 +1,32 @@
+/*=l0*/
+//
+// The standard external file *RESULT*, opened the way the compiler opens its
+// own files, and then written past the tracks it has.
+//
+// A million words is far beyond any disc state, so C/CT finds the external
+// track table empty and reports through C/AH, the runtime's fatal-error
+// handler.  That is the point of the test.  C/AH is otherwise unreachable
+// from the corpus, and it is the only caller of C/WXD.
+//
+// The second output line is what pins C/WXD: it writes the file's name from
+// FILE[26] in a field twelve wide, so the eight characters of *RESULT* are
+// preceded by exactly four spaces.  A field width that reached C/WXD in the
+// wrong representation would mis-pad it or hang in C/SP's space loop.
+//
+typedef struct { int rest[30]; } fileblk;
+//
+void fopen(fileblk *fcb, int sizes, int name) assembler;
+void fputw(int value, fileblk *fcb) assembler;
+void ftruncate(fileblk *fcb) assembler;
+//
+fileblk _result_;
+int i;
+//
+void main() {
+    fopen(&_result_, 010000100000, t'*RESULT*');
+    ftruncate(&_result_);
+    for (i = 1; i <= 1000000; i = i + 1)
+        fputw(i, &_result_);
+    // Not reached: the write above runs the file's tracks out first.
+    printf(" WROTE %d WORDS\n", i - 1);
+}
