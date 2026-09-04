@@ -71,6 +71,7 @@ const int SYMTAB_LIMIT = 075500;
 // change is written out above makeFormals.
 const int MAXFORMALS = 16;
 const int OBJBUF_SIZE = 8192;    // initially 1024
+const int MAXLIT = 500;
 
 const int64_t
     fnABS = 0, fnSIZEOF = 1, fnOFFSETOF = 2, fnMALLOC = 3,
@@ -992,6 +993,12 @@ int64_t curInsnTemplate,
         // Module-lifetime globals and routine statics share this high-water
         // mark; routine locals continue to use programme::localSize.
         moduleDataSize,
+        /* Explicit statics go in a private common of their own, so that every
+           separately compiled module has its own.  Private commons of the same
+           name do not merge, so the name is fixed; the block arrives
+           zero-filled.  staticBlk is its symbol-table entry, allocated once at
+           module start because the module's own start word names it. */
+        staticSize, staticBlk,
         totalErrors,
         lineCnt,
         eofOverreads,
@@ -1004,7 +1011,6 @@ int64_t curInsnTemplate,
 
 std::string stmtName;
 TPtr symType;                   // the type denoted by the current TYPESY
-Kind curVarKind;
 ExtFileRec * curExternFile;
 char commentModeCH;
 unsigned char CH;
@@ -1052,6 +1058,9 @@ TPtr typ121z;
 TPtr voidType, voidPtr;
 // Expression-operator table, filled in the initialize section
 // (opPrec = precNone:48 ...).
+/* File-scope because getPrec and parsePrc both read it.  work.p2c has no
+   getPrec and scopes its copy to parsePrc; where base.cc keeps its own tables
+   is not part of what it emits, so only the behaviour has to agree. */
 int64_t opPrec[64];
 TPtr BooleanType;
 TPtr IntegerType;
@@ -1093,19 +1102,26 @@ int64_t symTabCnt;
 Entries entryPtTable;
 int64_t indexreg[16];
 int64_t opToMode[48];
-int64_t funcInsn[7];
 int64_t InsnTemp[48];
 
 int64_t frameRegTemplate = 04000000;
+/* M6 bases the module's private common, where the explicit statics live.  It
+   is not a display level: the display runs M2..M5 and stops, which is why the
+   nesting limit is four, and freeRegs is [curProcNesting+1:5] so that nothing
+   pins a base here. */
+int64_t moduleRegTemplate = 030000000;
 
 char lineBufBase[132]; // array [1..130] of char;
 int64_t errMapBase[10];
+/* File-scope because initTables fills it with a loop, which inside inSymbol
+   would need a one-time guard in the hottest routine in the lexer.  work.p2c
+   holds the same table as a static of inSymbol; as with opPrec, base.cc's own
+   storage is not part of what it emits. */
 Operator chrClassTabBase[256]; // array ['_000'..'_177'] of Operator;
 KeyWord * KeyWordHashTabBase[128]; // array [0..127] of @KeyWord;
 Symbol charSymTabBase[256]; // array ['_000'..'_177'] of Symbol;
 IdentRecPtr symHash[128]; // array [0..127] of IdentRecPtr;
 IdentRecPtr fieldHash[128]; //array [0..127] of IdentRecPtr;
-int64_t helperMap[30];
 extern int64_t helperNames[30]; // array [1..29] of int64_t;
 
 // Zero-based backing storage; symTabPos and stored references remain BESM
@@ -1117,6 +1133,9 @@ int64_t longSyms[90];
 int64_t objBuffer[OBJBUF_SIZE+1]; // array [1..1024] of int64_t;
 char koi2text[256];
 std::vector<int64_t> FCST; // file of int64_t; /* last */
+Word constVals[MAXLIT];
+int64_t constNums[MAXLIT];
+int64_t constUses[MAXLIT];
 
 std::vector<int64_t> CHILD; // file of int64_t;
 
@@ -1260,18 +1279,12 @@ struct programme {
     Word itemvalue;
 
     int64_t l2int18z, ii, localSize, sizeCount, jj;
-    /* Shared by formOperator and genFullExpr, which is its sibling rather than
-       its child so that the twelve routines inside genFullExpr sit one level
-       higher.  They belong to whichever programme is running: formOperator is
-       never re-entered, so one copy per invocation is more isolation than the
-       pair needs, and none of the four outlives the call that sets it.
-       scratch3 is one word lent out to four unrelated jobs, none of whose
-       lives overlap: genComparison holds the comparison's distance from NEOP
-       in it, genFullExpr the arithmetic mode of the instruction it is
-       emitting, formOperator's own body first an instruction count and later
-       a jump target.  Each of those says at the point of use what it is
-       holding, since the name cannot. */
-    int64_t scratch3, nextInsn;
+    /* Shared by formOperator and genFullExpr, which are siblings here so that
+       the twelve routines inside genFullExpr stay at nesting 4.  They belong to
+       whichever programme is running: formOperator is never re-entered, so one
+       copy per invocation is more isolation than the three need, and none of
+       them outlives the call that sets it. */
+    int64_t nextInsn;
     bool rhsMode;
     InsnList * saved;
     int64_t toAlloc;
@@ -1873,6 +1886,11 @@ int64_t allocExtSymbol(int64_t newSym)
 
 int64_t getHelperProc(int64_t l3arg1z)
 {
+    /* The external symbol allocated for each helper, remembered so that a
+       helper named twice costs one symbol.  Nothing else reads it, and it has
+       to survive the call, so it is this routine's own static; zero-initialised
+       is what work.p2c's '0:30' fill says. */
+    static int64_t helperMap[30];
     if (helperMap[l3arg1z] == 0)  {
         curVal.ii = helperNames[l3arg1z];
         helperMap[l3arg1z] = allocExtSymbol(extSymMask);
@@ -1907,9 +1925,6 @@ bool fcstLess(const Word &left, const Word &right)
 
 int64_t addCurValToFCST()
 {
-    const int64_t MAXLIT = 500;
-    static Word constVals[MAXLIT];
-    static int64_t constNums[MAXLIT];
     int64_t ret;
     int64_t low, high, mid;
     low = 0;
@@ -1919,6 +1934,7 @@ int64_t addCurValToFCST()
         FcstTotal = 1;
         constVals[0] = curVal;
         constNums[0] = FcstCnt;
+        constUses[0] = 1;
         toFCST();
         lits.insert(curVal.ii);
     } else {
@@ -1926,6 +1942,7 @@ int64_t addCurValToFCST()
         do {
             mid = (low + high) / 2;
             if (curVal.a.val == constVals[mid].a.val) {
+              constUses[mid] = constUses[mid] + 1;
               return constNums[mid];
             }
             if (fcstLess(curVal, constVals[mid]))
@@ -1943,10 +1960,12 @@ int64_t addCurValToFCST()
                 low = mid + 1;
                 constVals[low] = constVals[mid];
                 constNums[low] = constNums[mid];
+                constUses[low] = constUses[mid];
             }
             FcstTotal = FcstTotal + 1;
             constVals[high] = curVal;
             constNums[high] = FcstCnt;
+            constUses[high] = 1;
             lits.insert(curVal.ii);
             if (int64_t(lits.size()) != FcstTotal)
                 fprintf(stderr, "Literal divergence: %d\n", int(FcstTotal - lits.size()));
@@ -1954,6 +1973,29 @@ int64_t addCurValToFCST()
         toFCST();
     }
     return ret;
+}
+
+void printLiteralUsage()
+{
+    int64_t top[10];
+    int64_t count = FcstTotal < 10 ? FcstTotal : 10;
+    for (int64_t rank = 0; rank < 10; ++rank)
+        top[rank] = -1;
+    for (int64_t idx = 0; idx < FcstTotal; ++idx) {
+        for (int64_t rank = 0; rank < count; ++rank) {
+            if (top[rank] < 0 || constUses[idx] > constUses[top[rank]]) {
+                for (int64_t pos = count - 1; pos > rank; --pos)
+                    top[pos] = top[pos - 1];
+                top[rank] = idx;
+                break;
+            }
+        }
+    }
+    printf(" TOP LITERAL USAGE\n");
+    for (int64_t rank = 0; rank < count; ++rank)
+        printf(" %2ld %016lo %ld\n", rank + 1,
+               (unsigned long)(constVals[top[rank]].ii & MASK48),
+               constUses[top[rank]]);
 }
 
 int64_t allocSymtab(int64_t newSym)
@@ -3968,6 +4010,14 @@ L4654:
                 l4var1z.ii = macro * l4var5z + l4var6z;
                 l4var6z = allocSymtab(l4var1z.ii & 0777777777777L);
                 addToInsnList(regField + opCode + l4var6z);
+            } else if (l4var4z == moduleRegTemplate) {
+                /* The module's private common has a symbol of its own, so a
+                   static's address is one instruction like a frame variable's
+                   -- which is also what lets an initializer name the block:
+                   beginInitSeg keeps this instruction's address field, and it
+                   is the symbol-and-offset entry interned just below. */
+                l4var5z = staticBlk;
+                goto L4654;
             } else if (l4var4z) {
                 addInsnAndOffset(l4var4z + InsnTemp[UTC], l4var6z);
                 addToInsnList(regField + opCode);
@@ -5093,16 +5143,20 @@ void genComparison()
     bool negate;
     int64_t mode, size;
 
-    int64_t &scratch3 = programme::super.back()->scratch3;
+    /* Which comparison, as its distance from NEOP: the pair for one relation
+       is adjacent, so the low bit is the negated sense and comes off into
+       negate. */
+    int64_t cmpIdx;
+    Kind curVarKind;
     Operator &curOP = genFullExpr::super.back()->curOP;
     int64_t &nextInsn = programme::super.back()->nextInsn;
     int64_t &work = genFullExpr::super.back()->work;
     TPtr &l2typ13z = programme::super.back()->l2typ13z;
 
-    scratch3 = curOP - NEOP;
-    negate = scratch3 & 1;
+    cmpIdx = curOP - NEOP;
+    negate = cmpIdx & 1;
     if (negate)
-        scratch3 = scratch3 - 1;
+        cmpIdx = cmpIdx - 1;
     l2typ13z = insnList->typ;
     curVarKind = (Kind)(l2typ13z.p.pk);
     size = typeSize(l2typ13z);
@@ -5116,11 +5170,11 @@ void genComparison()
     if (size != 1) {
         genFullExpr::super.back()->prepMultiWord();
         addInsnAndOffset(KVTM+I11, 1 - size);
-        work = scratch3 == 4 ? 26 : 23 + (scratch3 >> 1);
+        work = cmpIdx == 4 ? 26 : 23 + (cmpIdx >> 1);
         addToInsnList(getHelperProc(work)); /* P/EQ */
         insnList->ilm = ilRVAL;
         negate = not negate;
-    } else if (scratch3 == 0) {
+    } else if (cmpIdx == 0) {
         nextInsn = InsnTemp[AEX];
         genFullExpr::super.back()->tryFlip(true);
 L7504:
@@ -5168,6 +5222,12 @@ struct Level {
 genFullExpr::genFullExpr(ExprPtr exprToGen_)
     : exprToGen(exprToGen_)
 {
+    /* The instruction each standard function lowers to, read once, below.
+       Positional in fn* order: ABS, SIZEOF, OFFSETOF, MALLOC, CARD, MINEL,
+       ABSI, the two compile-time ones never reaching it. */
+    static const int64_t funcInsn[7] = {
+        /*fnABS*/ KAMX, 0, 0, /*fnMALLOC*/ macro + mcMALLOC,
+        /*fnCARD*/ KACX, /*fnMINEL*/ macro + mcMINEL, /*fnABSI*/ KAMX };
     /* Positional, since g++ takes no designated array initialisers: the
        entries run in Operator order from SHLEFT, and everything past
        ASSIGNOP is the quiet default. */
@@ -5194,7 +5254,9 @@ genFullExpr::genFullExpr(ExprPtr exprToGen_)
         /*CONDOP*/  opfCOMM,  /*ALTERN*/   opfCOMM,
         /*INCROP*/  opfCOMM,  /*DECROP*/   opfCOMM,
         /*ASSIGNOP*/ opfASSN };
-    int64_t &scratch3 = programme::super.back()->scratch3;
+    /* The normalization mode to stamp on the instruction being emitted, which
+       every arm settles before the one place that stores it. */
+    int64_t insnMode;
     bool &rhsMode = programme::super.back()->rhsMode;
     int64_t &nextInsn = programme::super.back()->nextInsn;
     OpFlg flags;
@@ -5275,7 +5337,7 @@ L7567:
         } else { /* 7625: a foldable op with two constant operands is already
                     folded to GETENUM at construction (mkExprFold), so only the
                     non-constant codegen path remains here. */
-                scratch3 = opToMode[curOP];
+                insnMode = opToMode[curOP];
                 flags = opFlags[curOP];
                 nextInsn = opToInsn[curOP];
                 switch (flags) {
@@ -5405,14 +5467,14 @@ L7567:
                         break;
                     }
                     prepLoad();
-                    scratch3 = 1;
+                    insnMode = 1;
                     if (curOP == IMODOP) {
                         if (recip == 1) {
                             /* what is left over a power of two is a mask
                                away, and wants no quotient at all */
                             curVal.ii = arg2Val.ii - 1;
                             addToInsnList(KAAX+I8 + getFCSToffset());
-                            scratch3 = 0;
+                            insnMode = 0;
                             break;
                         }
                         /* the dividend is wanted again once the quotient is
@@ -5465,7 +5527,7 @@ L7567:
                     break;
                 } /* case 10122 */
 L10122:
-                insnList->tail->mode = scratch3;
+                insnList->tail->mode = insnMode;
         }
     } else { /* 10125 */
         if (curOP <= DEREF) {
@@ -5477,9 +5539,10 @@ L10122:
                 insnList->regsused = Bits();
                 insnList->ilm = ilLVAL;
                 /* A static keeps the routine template in pck.offset for
-                   lexical lookup; its generated address alone uses M1. */
+                   lexical lookup; its generated address alone uses M6, the
+                   module's private common. */
                 insnList->payload.ii = curIdRec->pck.cl == STATICID ?
-                                       frameRegTemplate : curIdRec->pck.offset;
+                                       moduleRegTemplate : curIdRec->pck.offset;
                 insnList->disp = curIdRec->value();
                 insnList->st = stWORD;
                 insnList->addrmd = 18;
@@ -5589,13 +5652,13 @@ L10122:
                 if (curOP == TOREAL) {
                     addToInsnList(KAOX+ZERO);
                     addToInsnList(InsnTemp[AVX]);
-                    scratch3 = 3;
+                    insnMode = 3;
                     goto L10122;
                 } else if (curOP == TOINT) {
                     /* Real to integer truncates toward zero, in C/TR
                        (libc); the helper returns with the machine in
                        integer mode. */
-                    scratch3 = 2;
+                    insnMode = 2;
                     addToInsnList(getHelperProc(15)); /* "C/TR" */
                     goto L10122;
                 } else if (curOP == TONAME) {
@@ -5606,18 +5669,18 @@ L10122:
                     addToInsnList(KUTC+I14);
                     addToInsnList(KXTA+I8 +
                                   exprToGen->expr1->vt.typ.rep()->start);
-                    scratch3 = 1;
+                    insnMode = 1;
                     goto L10122;
                 } else if (curOP == BITNEGOP) {
                     addToInsnList(KAEX+ALLONES);
-                    scratch3 = 1;
+                    insnMode = 1;
                     goto L10122;
                 } else {
                     addToInsnList(KAVX+ALLONES);
                     if (curOP == RNEGOP)
-                        scratch3 = 3;
+                        insnMode = 3;
                     else
-                        scratch3 = 1;
+                        insnMode = 1;
                     goto L10122;
                 }
             }
@@ -5657,11 +5720,11 @@ L10122:
             } else {
                 prepLoad();
                 if (work == fnCARD) {
-                    scratch3 = 0;
+                    insnMode = 0;
                 } else if (work == fnABS)
-                    scratch3 = 3;
+                    insnMode = 3;
                 else {
-                    scratch3 = 1;
+                    insnMode = 1;
                 }
                 addToInsnList(funcInsn[work]);
                 goto L10122;
@@ -5740,7 +5803,12 @@ formOperator::formOperator(OpGen op)
 { /* formOperator */
     int64_t & localSize = programme::super.back()->localSize;
     int64_t & sizeCount = programme::super.back()->sizeCount;
-    int64_t & scratch3 = programme::super.back()->scratch3;
+    /* How many instructions SETREG's address took. */
+    int64_t insnCnt;
+    /* BRANCH's own target: it starts as the one the caller left in jumpTarget
+       and is handed back through it, so the two are exchanged rather than
+       shared. */
+    int64_t ownTarget;
     int64_t & nextInsn = programme::super.back()->nextInsn;
     bool & rhsMode = programme::super.back()->rhsMode;
 
@@ -5760,11 +5828,11 @@ formOperator::formOperator(OpGen op)
         break;
     case SETREG: {
         if (insnList->head == NULL)
-            scratch3 = 0;
+            insnCnt = 0;
         else if (insnList->head == insnList->tail)
-            scratch3 = 1;
+            insnCnt = 1;
         else
-            scratch3 = 2;
+            insnCnt = 2;
         helpExpr = new Expr;
         helpExpr->expr1 = pinList;
         pinList = helpExpr;
@@ -5778,7 +5846,7 @@ formOperator::formOperator(OpGen op)
         helpExpr->vt.typ.p.psize = 0;
         switch (insnList->st) {
         case stWORD: {
-            if (scratch3 == 0)  {
+            if (insnCnt == 0)  {
                 l3int2z = 14;
             } else {
                 l3var10z.ii = auxRegs & freeRegs;
@@ -5787,7 +5855,7 @@ formOperator::formOperator(OpGen op)
                 } else {
                     l3int2z = 14;
                 }
-                if (scratch3 != 1) {
+                if (insnCnt != 1) {
                     (void) setAddrTo(l3int2z);
                     addToInsnList(KITA + l3int2z);
                     addInsnAndOffset(curFrameRegTemplate, localSize);
@@ -5840,7 +5908,7 @@ formOperator::formOperator(OpGen op)
     } break;
     case BRANCH:
         noTarget = jumpTarget == 0;
-        scratch3 = jumpTarget;
+        ownTarget = jumpTarget;
         if (insnList->ilm == ilCONST) {
             if (insnList->payload.ii) {
                 jumpTarget = 0;
@@ -5867,16 +5935,16 @@ formOperator::formOperator(OpGen op)
                 genOneOp();
                 if (direction) {
                     if (noTarget)
-                        formJump(scratch3);
+                        formJump(ownTarget);
                     else
-                        form1Insn(InsnTemp[UJ] + scratch3);
+                        form1Insn(InsnTemp[UJ] + ownTarget);
                     fixup(0, jumpTarget);
-                    jumpTarget = scratch3;
+                    jumpTarget = ownTarget;
                 } else {
                     if (not noTarget) {
                         if (not putLeft)
                             padToLeft();
-                        fixup(scratch3, jumpTarget);
+                        fixup(ownTarget, jumpTarget);
                     }
                 }
             } else {
@@ -5899,11 +5967,11 @@ formOperator::formOperator(OpGen op)
                     nextInsn = InsnTemp[UZA];
                 if (noTarget) {
                     jumpType = nextInsn;
-                    formJump(scratch3);
+                    formJump(ownTarget);
                     jumpType = InsnTemp[UJ];
-                    jumpTarget = scratch3;
+                    jumpTarget = ownTarget;
                 } else {
-                    form1Insn(nextInsn + scratch3);
+                    form1Insn(nextInsn + ownTarget);
                 }
             }
         }
@@ -6941,8 +7009,10 @@ void parseDecls(int64_t l3arg1z)
         savedObjIdx = objBufIdx;
         if (curProcNesting != 1)
             form1Insn(0);
-        if (l3var3z)
+        if (l3var3z) {
             form1Insn(KVTM+I8+074001);
+            form1Insn(KVTM + moduleRegTemplate + staticBlk);
+        }
         if (curProcNesting == 1) {
             if (enableStdInput && inputFile)
                 fopenFile(inputFile, fileForInput);
@@ -8495,6 +8565,14 @@ void beginInitSeg(IdentRecPtr var, bool designator) {
     if (objBufIdx != 1)
         error(errVarTooComplex);
     initSegs.push_back(InitSeg{ leftInsn & 0777700000000L, {} });
+    /* Only the address field of that instruction was wanted.  Put the buffer
+       back the way this routine found it, so the instruction itself is
+       overwritten by whatever comes next rather than flushed into the code:
+       at file scope the next initializer overwrites it, but a static inside a
+       routine has real code following it.  prevOpcode goes with it, since the
+       peepholes must not match against an instruction that is being dropped. */
+    putLeft = true;
+    prevOpcode = 0;
 }
 
 // Parse (but do not emit) one global's '= initializer', buffering it into
@@ -9248,7 +9326,7 @@ void defineRoutine(bool bodyBlock = false)
     pinList = NULL;
     arithMode = 1;
     liveRegs = Bits();
-    freeRegs = BitRange(curProcNesting+1, 6);
+    freeRegs = BitRange(curProcNesting+1, 5);
     auxRegs = freeRegs & ~ Bits(minel(freeRegs));
     l3var7z.ii = freeRegs;
     usedRegs = BitRange(1,15) & ~ freeRegs;
@@ -9497,9 +9575,21 @@ initScalars::initScalars() :
     entryPtTable[2] = Bits(1);
     entryPtTable[4] = Bits(1);
     entryPtCnt = 5;
-    CHILD.push_back((Bits(0,4,6) | BitRange(9,12) | Bits(23,28,29) |
-                     BitRange(33,36) | Bits(46))); /*10 24 74001 00 30 74002*/
-    moduleOffset = 040001;
+    staticSize = 0;
+    curVal.ii = leftAlign(toText("CSTA"));
+    /* [24,27,28] is [24,27,28,29] with bit 29 cleared, which is what tells a
+       private common from a shared one. */
+    staticBlk = allocExtSymbol(Bits(24,27,28));
+    /* M6 is established wherever M8 is, and nowhere else: both are module-wide
+       bases that the callee-saved convention carries down every internal call,
+       so they need setting only where control enters the module -- here, and
+       at each entry point.  The pair of VTMs fills the first word; the jump
+       takes the left half of the second, and the right half is the KUTC
+       padToLeft pads with. */
+    CHILD.push_back(int64_t(KVTM+I8+074001) << 24 |
+                    (KVTM + moduleRegTemplate + staticBlk));
+    CHILD.push_back(int64_t(KUJ+074002) << 24 | KUTC);
+    moduleOffset = 040002;
     programObj->setSig(NULL);
     programObj->flags() = int64_t();
     objBufIdx = 1;
@@ -10119,7 +10209,9 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     }
                 }
                 if (l2bool8z) {
-                    if (curProcNesting == 1 or staticDecl)
+                    if (staticDecl)
+                        curIdRec->value() = staticSize;
+                    else if (curProcNesting == 1)
                         curIdRec->value() = moduleDataSize;
                     else
                         curIdRec->value() = localSize;
@@ -10133,10 +10225,11 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                         printf(" OFFSET (%ld) %05loB. WORDS=%05loB\n",
                                curProcNesting, curIdRec->value(), jj);
                     }
-                    if (curProcNesting == 1 or staticDecl) {
+                    if (staticDecl) {
+                        staticSize = staticSize + jj;
+                    } else if (curProcNesting == 1) {
                         moduleDataSize = moduleDataSize + jj;
-                        if (curProcNesting == 1)
-                            localSize = moduleDataSize;
+                        localSize = moduleDataSize;
                     } else
                         localSize = localSize + jj;
                     curExternFile = NULL;
@@ -10156,11 +10249,12 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                             jj = initWords / typeSize(d.type.rep()->base);
                         curIdRec->typ = makeArrayType(jj, d.type.rep()->base,
                                                       d.type.p.pad != 0);
-                        if (curProcNesting == 1 or staticDecl) {
+                        if (staticDecl) {
+                            staticSize = staticSize + typeSize(curIdRec->typ);
+                        } else if (curProcNesting == 1) {
                             moduleDataSize = moduleDataSize +
                                              typeSize(curIdRec->typ);
-                            if (curProcNesting == 1)
-                                localSize = moduleDataSize;
+                            localSize = moduleDataSize;
                         } else
                             localSize = localSize + typeSize(curIdRec->typ);
                     }
@@ -10432,8 +10526,6 @@ struct initTables {
     void initArrays() {
         FcstCnt = 0;
         FcstTotal = 0;
-        for (idx=1; idx <= 29; ++idx)
-            helperMap[idx] = 0;
     } /* initArrays */
 
     void initSets() {
@@ -10506,6 +10598,7 @@ void finalize()
     sizes[10] = lookupMode;
     curVal.ii = moduleOffset - 040000;
     symTab[1] = 041000000 | curVal.ii;
+    symTab[staticBlk - 074000] = symTab[staticBlk - 074000] | staticSize;
     // Forming the compact form of the module header.
     CHILD[7] = sizes[1] | (sizes[2] << 12);
     CHILD[8] = sizes[5] << 30 | sizes[9] << 15 | sizes[10];
@@ -10723,12 +10816,6 @@ int main(int argc, char **argv)
     statEndSys = Bits(SEMICOLON, ENDSY, ELSESY, WHILESY);
     lvalOpSet = Bits(GETELT, GETVAR, GETFIELD) | Bits(DEREF);
 
-    funcInsn[fnABS] = KAMX;
-    funcInsn[fnCARD] = KACX;
-    funcInsn[fnMINEL] = macro + mcMINEL;
-    funcInsn[fnMALLOC] = macro + mcMALLOC;
-    funcInsn[fnABSI] = KAMX;
-
     for (int i = 0; i < 128; ++i) {
         charSymTabBase[i] = NOSY;
         chrClassTabBase[i] = NOOP;
@@ -10844,6 +10931,7 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
     } else {
         finalize();
         printf(" MAXHEAP = %05lo\n", maxHeap);
+        printLiteralUsage();
         // Dump CHILD here
         FILE *f = fopen(outFileName, "w");
         if (f == NULL) {
