@@ -285,6 +285,12 @@ typedef union {
     tptr tp;
     strhash s;
 } word;
+typedef union {
+    /* Word 0 is unused.  For zero-based code word w, halves[2*w+2] is its
+       left instruction and halves[2*w+3] its right instruction. */
+    int words[1025];
+    __packed int:24 halves[2050];
+} objbuf;
 //
 typedef oneinsn *oiptr;
 //
@@ -491,7 +497,7 @@ int jumpType;
 int jumpTarget;
 operator charClass;
 symbol SY;
-int savedObjIdx;
+int savedHalf;
 int FcstCnt;
 int symTabPos;
 int entryPtCnt;
@@ -551,7 +557,7 @@ char *lexMemPtr;
 char lexSaveCH;
 int lineNesting,
     FcstCountTo500,
-    objBufIdx,
+    objHalfIdx,
     lookup2,
     lookupMode,
     condLabCnt,
@@ -559,7 +565,7 @@ int lineNesting,
     errLine,
     atEOL,
     checkTypes,
-    isDefined, putLeft, readNext,
+    isDefined, readNext,
     errors,
     enableStdInput,
     abort,
@@ -590,7 +596,6 @@ numLabel numLabs[20];
 int numLabTop;
 word curToken;
 word curVal;
-int leftInsn;
 int hashMask = 0203407U;
 int curIdent;
 int usedRegs;
@@ -663,7 +668,7 @@ int symTab[01501];
 int longSymCnt;
 int longSym[90];
 int longSyms[90];
-int objBuffer[1025];
+objbuf objBuffer;
 char iso2text[128-'*'];
 int maxHeap;
 ifcb fcst, initbuf;
@@ -875,19 +880,6 @@ int err, errPos, prevPos, listMode,
 } /* endOfLine */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-//              storeObjWord              %
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void storeObjWord(int insn) {
-    objBuffer[objBufIdx]  =  insn;
-    ++moduleOffset;
-    if (objBufIdx == 1024) {
-        error(49); /* errTooManyInsnsInBlock */
-        objBufIdx  =  1;
-    } else
-        ++objBufIdx;
-} /* storeObjWord */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //              form1Insn                 %
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void form1Insn(int arg) {
@@ -902,13 +894,14 @@ static int prevInsn;
     if (opcode == KUJ) {
         if (prevOpcode == opcode)
             return; /* no use in UJ after UJ */
-        if (putLeft && prevOpcode == 1) {
-            pos  =  objBufIdx - 1;
-            if ((objBuffer[pos] & (077700000 << 24)) == (KVJM+I13) << 24) {
+        if (! (objHalfIdx & 1) && prevOpcode == 1) {
+            pos  =  objHalfIdx - 2;
+            if ((objBuffer.halves[pos] & 077700000) == KVJM+I13) {
                 prevOpcode  =  opcode;
-                half1 = (insn & 077777U) << 24;
-                half2 = (objBuffer[pos] >> 24) & 077777U;
-                objBuffer[pos]  =  (KVTM+I13) << 24 | KUJ | half1 | half2;
+                half1 = insn & 077777U;
+                half2 = objBuffer.halves[pos] & 077777U;
+                objBuffer.halves[pos]  =  KVTM+I13 | half1;
+                objBuffer.halves[pos+1]  =  KUJ | half2;
                 return;
             }
         }
@@ -925,12 +918,14 @@ static int prevInsn;
     }
     prevOpcode  =  opcode;
     prevInsn  =  insn;
-    if (putLeft) {
-        leftInsn  =  (insn & halfWord) << 24;
-        putLeft  =  false;
-    } else {
-        putLeft  =  true;
-        storeObjWord(leftInsn | (insn & halfWord));
+    objBuffer.halves[objHalfIdx]  =  insn & halfWord;
+    ++objHalfIdx;
+    if (! (objHalfIdx & 1)) {
+        ++moduleOffset;
+        if (objHalfIdx == 2050) {
+            error(49); /* errTooManyInsnsInBlock */
+            objHalfIdx  =  2;
+        }
     }
 } /* form1Insn */
 //
@@ -958,20 +953,18 @@ const int disNormTemplate = KNTR+7;
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void formJump(int *arg) {
 int pos;
-int isLeft;
     if (prevOpcode != KUJ) {
-        pos  =  putLeft ? objBufIdx + 4096 : objBufIdx;
-        isLeft  =  putLeft;
+        pos  =  objHalfIdx;
         form1Insn(jumpType + *arg);
-        if (putLeft == isLeft)
-            --pos;
+        if (objHalfIdx == pos)
+            pos -= 2;
         *arg  =  pos;
     }
 } /* formJump */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void padToLeft() {
-    if (!putLeft)
+    if (objHalfIdx & 1)
         form1Insn(KUTC);
     prevOpcode  =  0;
 } /* padToLeft */
@@ -1200,28 +1193,16 @@ int getValueOrAllocSymtab(int value) {
 // fixup -- address-fixup helper.  mode 0 starts a chain at moduleOffset,
 // and the other modes patch a pending chain; see the arms below.
 void fixup(int mode, int arg) {
-int addr, insn, leftHalf;
-int isLarge;
+int addr, insn;
 int work, offset;
     if (mode == 0) {
         padToLeft();
         curVal.i  =  moduleOffset;
 L1:     addr  =  curval.i & 077777U;
-        leftHalf = curVal.i << 24;
         while (arg) {
-            if (4096 < arg) {
-                isLarge  =  true;
-                arg  -=  4096;
-            } else isLarge  =  false;
-            insn  =  objBuffer[arg];
-            if (isLarge) {
-                curVal.i  = (insn >> 24) & 077777U;
-                insn  =  insn & 07770000077777777U | leftHalf;
-            } else {
-                curVal.i  =  insn & 077777U;
-                insn  =  insn & 07777777777700000U | addr;
-            }
-            objBuffer[arg]  =  insn;
+            insn  =  objBuffer.halves[arg];
+            curVal.i  =  insn & 077777U;
+            objBuffer.halves[arg]  =  insn & 077700000 | addr;
             arg  =  curVal.i;
         }
         return;
@@ -2841,8 +2822,8 @@ eptr altExpr;
 void outputObjFile() {
 int idx;
     padToLeft();
-    for (idx = 1; idx < objBufIdx; ++idx)
-        fputw(objBuffer[idx], &_CHILD_);
+    for (idx = 1; idx < (objHalfIdx >> 1); ++idx)
+        fputw(objBuffer.words[idx], &_CHILD_);
     lineStartOffset  =  moduleOffset;
     prevOpcode  =  0;
 } /* outputObjFile */
@@ -2957,7 +2938,7 @@ void processInsn() {
             if (curInsn == 0) {
                 padToLeft();
                 form1Insn(KUZA + moduleOffset + 1);
-            } else if (putLeft) {
+            } else if (! (objHalfIdx & 1)) {
                 /* Put UTC in the right half so the patched branch target is
                    the following left-half XTA. */
                 form1Insn(KUTC);
@@ -5488,7 +5469,7 @@ int ownTarget;
                         jumpTarget  =  ownTarget;
                     } else {
                         if (! noTarget) {
-                            if (! putLeft)
+                            if (objHalfIdx & 1)
                                 padToLeft();
                             fixup(ownTarget, jumpTarget);
                         }
@@ -6428,7 +6409,7 @@ int l3int1z, frame, l3var3z;
             form2Insn(KATX+SP, (KUTM+SP) + frame);
         }
         formAndAlign(l3int1z);
-        savedObjIdx  =  objBufIdx;
+        savedHalf  =  objHalfIdx;
         if (curProcNesting != 1)
             form1Insn(0);
         if (l3var3z) {
@@ -7722,26 +7703,24 @@ void ifWhileStatement() {
 // Open a new destination segment: 'var' bare (offset 0) or, when 'designator',
 // 'var[index]...' (SY at '['; parsePostfix builds the GETELT chain, leaving SY
 // at '=').  formOperator(SETREG12) forms the destination's address as a single
-// instruction with no module/FCST side effect: putLeft parks it in leftInsn
-// instead of the object buffer, and only its address field is kept, so which
-// register it would have loaded does not matter here.
+// instruction with no module/FCST side effect.  Only its address field is
+// kept, so which register it would have loaded does not matter here.
 void beginInitSeg(irptr var, int designator) {
     curExpr  =  mkExpr(GETVAR, var->typ, (eptr)var, NULL);
     if (designator)
         parsePostfix();
-    putLeft  =  true;
-    objBufIdx  =  1;
+    objHalfIdx  =  2;
     formOperator(SETREG12);
-    if (objBufIdx != 1)
+    if (objHalfIdx != 3)
         error(errVarTooComplex);
-    putInitEntry(0, leftInsn & (07777U << 24), 0);
+    putInitEntry(0, (objBuffer.halves[2] & 07777U) << 24, 0);
     /* Only the address field of that instruction was wanted.  Put the buffer
        back the way this routine found it, so the instruction itself is
        overwritten by whatever comes next rather than flushed into the code:
        at file scope the next initializer overwrites it, but a static inside a
        routine has real code following it.  prevOpcode goes with it, since the
        peepholes must not match against an instruction that is being dropped. */
-    putLeft  =  true;
+    objHalfIdx  =  2;
     prevOpcode  =  0;
 } /* beginInitSeg */
 //
@@ -7898,16 +7877,13 @@ int besmOpcode;
                     formOperator(LOAD);
                 /* Replace only the opcode of the instruction just formed;
                    retain its register and address fields. */
-                if (putLeft)
-                    objBuffer[objBufIdx-1]  =
-                        (objBuffer[objBufIdx-1] & ~02770000U) | besmOpcode;
-                else
-                    leftInsn  =  (leftInsn & ~(02770000U << 24)) |
-                                (besmOpcode << 24);
+                objBuffer.halves[objHalfIdx-1]  =
+                    (objBuffer.halves[objHalfIdx-1] & ~02770000U) |
+                    besmOpcode;
             } else {
                 /* Literal commands are not candidates for the ordinary
                    instruction peepholes.  Reset their history while leaving
-                   putLeft alone, so successive operands fill successive
+                   the half cursor alone, so successive operands fill successive
                    halves. */
                 prevOpcode  =  0;
                 form1Insn(curVal.i);
@@ -8250,8 +8226,8 @@ int l3var1z, l3var2z;
 irptr l3idr5z;
 int l3var7z;
 int hasMain;
-    objBufIdx  =  1;
-    objBuffer[objBufIdx]  =  0U;
+    objHalfIdx  =  2;
+    objBuffer.words[1]  =  0U;
     curInsnTemplate  =  KXTA;
     bool48z  =  ((E48 >> 22) & procName->flags) >> 25;
     hasMain  =  false;
@@ -8334,11 +8310,10 @@ int hasMain;
        a scratch display register to hold the link, and a routine without a
        frame has nowhere to save what it borrows -- its callers no longer
        rebuild the display, so it gets a frame like everything else. */
-    if (!bool48z && (objBufIdx == 2) && (sizeCount == 8) &&
+    if (!bool48z && ((objHalfIdx >> 1) == 2) && (sizeCount == 8) &&
        (curProcNesting != 1) && (usedRegs & [1:15]) != [1:15]) {
-        objBuffer[1]  =  (KUJ+I13) << 24;
+        objBuffer.words[1]  =  (KUJ+I13) << 24;
         procName->flags |= [25];
-        putLeft  =  true;
     } else if ((curProcNesting != 1) || hasMain) {
         jj = curProcNesting == 1 ? 12 /* C/EF */ : 11; /* C/E */
         form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
@@ -8353,9 +8328,8 @@ int hasMain;
         }
         curVal.i  =  sizeCount;
         if (curProcNesting != 1) {
-            l3var7z  =  (curVal.i - 2) << 24;
-            objBuffer[savedObjIdx]  =
-                objBuffer[savedObjIdx] | l3var7z | (KUTM+SP) << 24;
+            objBuffer.halves[savedHalf]  =
+                objBuffer.halves[savedHalf] | (curVal.i - 2) | (KUTM+SP);
         }
     }
     outputObjFile();
@@ -8540,7 +8514,7 @@ void regSysProc(int l4arg1z) {
     moduleOffset  =  040002;
     programObj->r1.sig  =  NULL;
     programObj->flags  =  0U;
-    objBufIdx  =  1;
+    objHalfIdx  =  2;
     lookupMode  =  lookDef;
     outputObjFile();
     outputFile  =  NULL;
@@ -8908,7 +8882,7 @@ void exitScope(int a) {
         lookup2  =  lookupMode  =  lookUse;
         markTypeSym();
     }
-    objBufIdx  =  1;
+    objHalfIdx  =  2;
     if (SY == TYPEDEFSY) {
         // C-style: exactly one type-spec + declarator-list per 'typedef'
         // keyword (no Pascal-style continuation without restating it).
@@ -9479,7 +9453,7 @@ static int resWordName[20] = {
     numLabTop  =  0;
     totalErrors  =  0;
     heapCallsCnt  =  0;
-    putLeft  =  true;
+    objHalfIdx  =  2;
     readNext  =  true;
     curFrameRegTemplate  =  frameRegTemplate;
     curProcNesting  =  1;

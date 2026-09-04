@@ -971,7 +971,7 @@ int64_t jumpType, jumpTarget;
 Operator charClass;
 Symbol   SY;
 
-int64_t savedObjIdx,
+int64_t savedHalf,
         FcstCnt,
         symTabPos,
         entryPtCnt,
@@ -1028,7 +1028,7 @@ int64_t strBuf[21];
 
 int64_t lineNesting,
         FcstTotal,
-        objBufIdx,
+        objHalfIdx,
         lookup2, lookupMode, condLabCnt,
         prevOpcode,
         charEncoding,
@@ -1036,7 +1036,7 @@ int64_t lineNesting,
 
 bool atEOL,
     checkTypes,
-    isDefined, putLeft, readNext,
+    isDefined, readNext,
     errors,
     enableStdInput,
     bool110z,
@@ -1081,8 +1081,6 @@ Word curToken, curVal;
 const int64_t extSymMask = 043000000L;
 const int64_t halfWord = 077777777L;
 const int64_t leftAddr = 077777L << 24;
-
-int64_t leftInsn;
 int64_t curIdent;
 int64_t usedRegs, liveRegs, freeRegs, auxRegs;
 
@@ -1129,7 +1127,8 @@ int64_t symTab[SYMTAB_LIMIT - 074000 + 1];
 int64_t longSymCnt;
 int64_t longSymTabBase[90];
 int64_t longSyms[90];
-int64_t objBuffer[OBJBUF_SIZE+1]; // array [1..1024] of int64_t;
+// Word 0 is unused; even half indices are left instructions and odd are right.
+int64_t objBuffer[OBJBUF_SIZE+1];
 char koi2text[256];
 std::vector<int64_t> FCST; // file of int64_t; /* last */
 Word constVals[MAXLIT];
@@ -1725,15 +1724,20 @@ void addToHashTab(IdentRecPtr arg)
 
 void error(int64_t errNo);
 
-void storeObjWord(int64_t insn)
+int64_t getObjHalf(int64_t idx)
 {
-    objBuffer[objBufIdx] = insn;
-    moduleOffset = moduleOffset + 1;
-    if (objBufIdx == OBJBUF_SIZE) {
-        error(49); /* errTooManyInsnsInBlock */
-        objBufIdx = 1;
-    } else
-        objBufIdx = objBufIdx + 1;
+    int64_t word = objBuffer[idx >> 1];
+    return (idx & 1) ? word & halfWord : (word >> 24) & halfWord;
+}
+
+void setObjHalf(int64_t idx, int64_t insn)
+{
+    int64_t &word = objBuffer[idx >> 1];
+    insn &= halfWord;
+    if (idx & 1)
+        word = (word & ~halfWord) | insn;
+    else
+        word = (word & halfWord) | (insn << 24);
 }
 
 void form1Insn(int64_t arg)
@@ -1750,15 +1754,16 @@ void form1Insn(int64_t arg)
         if (prevOpcode == opcode.ii)
             // No need for a jump after jump.
             return;
-        if (putLeft and (prevOpcode == 1)) {
-            pos = objBufIdx - 1;
-            if (((objBuffer[pos] >> 24) & ~077777) == I13+KVJM) {
+        if (not (objHalfIdx & 1) and (prevOpcode == 1)) {
+            pos = objHalfIdx - 2;
+            if ((getObjHalf(pos) & ~077777) == I13+KVJM) {
                 // Chaining the call and the jump.
                 int64_t addr1, addr2;
                 prevOpcode = opcode.ii;
                 addr1 = Insn.ii & 077777;
-                addr2 = (objBuffer[pos] >> 24) & 077777;
-                objBuffer[pos] = (I13+KVTM+addr1) << 24 | (KUJ+addr2);
+                addr2 = getObjHalf(pos) & 077777;
+                setObjHalf(pos, I13+KVTM+addr1);
+                setObjHalf(pos+1, KUJ+addr2);
                 return;
             }
         }
@@ -1777,12 +1782,14 @@ void form1Insn(int64_t arg)
     }
     prevOpcode = opcode.ii;
     prevInsn = Insn;
-    if (putLeft) {
-        leftInsn = (Insn.ii & halfWord) << 24;
-        putLeft = false;
-    } else {
-        putLeft = true;
-        storeObjWord(leftInsn | (Insn.ii & halfWord));
+    setObjHalf(objHalfIdx, Insn.ii);
+    ++objHalfIdx;
+    if (not (objHalfIdx & 1)) {
+        ++moduleOffset;
+        if (objHalfIdx == 2*(OBJBUF_SIZE+1)) {
+            error(49); /* errTooManyInsnsInBlock */
+            objHalfIdx = 2;
+        }
     }
 }
 
@@ -1807,31 +1814,21 @@ void disableNorm()
     }
 }
 
-int64_t getObjBufIdxPlus()
-{
-    if (putLeft)
-        return objBufIdx + 4096;
-    else
-        return objBufIdx;
-}
-
 void formJump(int64_t & arg)
 {
     int64_t pos;
-    bool isLeft;
     if (prevOpcode != InsnTemp[UJ]) {
-        pos = getObjBufIdxPlus();
-        isLeft = putLeft;
+        pos = objHalfIdx;
         form1Insn(jumpType + arg);
-        if (putLeft == isLeft)
-            pos = pos - 1;
+        if (objHalfIdx == pos)
+            pos -= 2;
         arg = pos;
     }
 }
 
 void padToLeft()
 {
-    if (not putLeft)
+    if (objHalfIdx & 1)
         form1Insn(InsnTemp[UTC]);
     prevOpcode = -1;
 }
@@ -2159,27 +2156,14 @@ void fixup(int64_t mode, int64_t arg)
 {
     int64_t work, offset;
     if (mode == 0) {
-        int64_t addr, insn, leftHalf;
-        bool isLeft;
+        int64_t addr, insn;
         padToLeft();
         curVal.ii = moduleOffset;
 L1:     addr = curVal.ii & 077777;
-        leftHalf = (curVal.ii & halfWord) << 24;
         while (arg) {
-            if (4096 < arg)  {
-                isLeft = true;
-                arg = arg - 4096;
-            } else isLeft = false;
-            insn = objBuffer[arg];
-            if (isLeft) {
-                curVal.ii = insn & leftAddr;
-                curVal.ii = curVal.ii >> 24;
-                insn = (insn & ~leftAddr) | leftHalf;
-            } else {
-                curVal.ii = insn & 077777;
-                insn = (insn & ~077777L) | addr;
-            };
-            objBuffer[arg] = insn;
+            insn = getObjHalf(arg);
+            curVal.ii = insn & 077777;
+            setObjHalf(arg, (insn & ~077777L) | addr);
             arg = curVal.ii;
         };
         return;
@@ -2283,8 +2267,8 @@ void endOfLine()
         }
     } /* 1160 */
     if ((listMode == 2) and (moduleOffset != lineStartOffset)) {
-        OBPROG(objBuffer[objBufIdx - moduleOffset + lineStartOffset],
-               objBuffer[objBufIdx-1]);
+        OBPROG(objBuffer[(objHalfIdx >> 1) - moduleOffset + lineStartOffset],
+               objBuffer[(objHalfIdx >> 1)-1]);
     } /* 1174 */
     lineStartOffset = moduleOffset;
     linePos = 0;
@@ -3773,7 +3757,7 @@ L3556:
                 if (curInsn.ii == 0) {
                     padToLeft();
                     form1Insn(InsnTemp[UZA] + moduleOffset + 1);
-                } else if (putLeft) {
+                } else if (not (objHalfIdx & 1)) {
                     form1Insn(InsnTemp[UTC]);
                 }
                 form1Insn(InsnTemp[UTC] + getValueOrAllocSymtab(tempInsn.ii));
@@ -5938,7 +5922,7 @@ formOperator::formOperator(OpGen op)
                     jumpTarget = ownTarget;
                 } else {
                     if (not noTarget) {
-                        if (not putLeft)
+                        if (objHalfIdx & 1)
                             padToLeft();
                         fixup(ownTarget, jumpTarget);
                     }
@@ -7002,7 +6986,7 @@ void parseDecls(int64_t l3arg1z)
             form2Insn(KATX+SP, (KUTM+SP) + frame.ii);
         }
         formAndAlign(l3int1z);
-        savedObjIdx = objBufIdx;
+        savedHalf = objHalfIdx;
         if (curProcNesting != 1)
             form1Insn(0);
         if (l3var3z) {
@@ -8548,26 +8532,25 @@ std::vector<InitSeg> initSegs;
 // Start a new destination segment: 'var' bare (offset 0), or -- when
 // 'designator' -- 'var[index]...' (SY is at '['; parsePostfix builds the GETELT
 // chain and leaves SY at '=').  formOperator(SETREG12) forms the destination's
-// address as a single instruction with no module/FCST side effect: putLeft
-// parks it in leftInsn instead of the object buffer, and only its address field
-// is kept, so which register it would have loaded does not matter here.
+// address as a single instruction with no module/FCST side effect.  Only its
+// address field is kept, so which register it would have loaded does not matter
+// here.
 void beginInitSeg(IdentRecPtr var, bool designator) {
     curExpr = mkExpr(GETVAR, var->typ, (ExprPtr)var, NULL);
     if (designator)
         parsePostfix();
-    putLeft = true;
-    objBufIdx = 1;
+    objHalfIdx = 2;
     (void) formOperator(SETREG12);
-    if (objBufIdx != 1)
+    if ((objHalfIdx >> 1) != 1)
         error(errVarTooComplex);
-    initSegs.push_back(InitSeg{ leftInsn & 0777700000000L, {} });
+    initSegs.push_back(InitSeg{ (getObjHalf(2) & 07777) << 24, {} });
     /* Only the address field of that instruction was wanted.  Put the buffer
        back the way this routine found it, so the instruction itself is
        overwritten by whatever comes next rather than flushed into the code:
        at file scope the next initializer overwrites it, but a static inside a
        routine has real code following it.  prevOpcode goes with it, since the
        peepholes must not match against an instruction that is being dropped. */
-    putLeft = true;
+    objHalfIdx = 2;
     prevOpcode = 0;
 }
 
@@ -8835,18 +8818,13 @@ struct standProc {
                         (void) formOperator(LOAD);
                     /* Replace only the opcode of the instruction just
                        formed; retain its register and address fields. */
-                    if (putLeft)
-                        objBuffer[objBufIdx-1] =
-                            (objBuffer[objBufIdx-1] & ~02770000LL) |
-                            besmOpcode;
-                    else
-                        leftInsn =
-                            (leftInsn & ~(02770000LL << 24)) |
-                            (besmOpcode << 24);
+                    setObjHalf(objHalfIdx-1,
+                        (getObjHalf(objHalfIdx-1) & ~02770000LL) |
+                        besmOpcode);
                 } else {
                     /* Literal commands are not candidates for the ordinary
                        instruction peepholes.  Reset their history while
-                       leaving putLeft alone, so successive operands fill
+                       leaving the half cursor alone, so successive operands fill
                        successive halves. */
                     prevOpcode = 0;
                     form1Insn(curVal.ii);
@@ -9266,8 +9244,7 @@ void outputObjFile()
     int64_t idx;
 
     padToLeft();
-    objBufIdx = objBufIdx - 1;
-    for (idx = 1; idx <= objBufIdx; ++idx)
+    for (idx = 1; idx < (objHalfIdx >> 1); ++idx)
         CHILD.push_back(objBuffer[idx]);
     lineStartOffset = moduleOffset;
     prevOpcode = -1;
@@ -9286,8 +9263,8 @@ void defineRoutine(bool bodyBlock = false)
     bool &done = programme::super.back()->done;
     int64_t &fileExit = programme::super.back()->fileExit;
 
-    objBufIdx = 1;
-    objBuffer[objBufIdx] = 0;
+    objHalfIdx = 2;
+    objBuffer[1] = 0;
     curInsnTemplate = InsnTemp[XTA];
     bool48z = has(procName->flags(), 22);
     if (curProcNesting == 1) {
@@ -9368,11 +9345,10 @@ void defineRoutine(bool bodyBlock = false)
        a scratch display register to hold the link, and a routine without a
        frame has nowhere to save what it borrows -- its callers no longer
        rebuild the display, so it gets a frame like everything else. */
-    if (not bool48z and (objBufIdx == 2) and (sizeCount == 8) and
+    if (not bool48z and ((objHalfIdx >> 1) == 2) and (sizeCount == 8) and
         (curProcNesting != 1) and ((usedRegs & BitRange(1,15)) != BitRange(1,15))) {
         objBuffer[1] = int64_t(KUJ+I13) << 24;          /* 13,UJ, */
         procName->flags() = procName->flags() | Bits(25);
-        putLeft = true;
     } else if (curProcNesting != 1 or hasMain) {
         jj = curProcNesting == 1 ? 12 /* C/EF */ : 11; /* C/E */
         form1Insn(getHelperProc(jj) + (KUJ-KVJM-I13));
@@ -9385,8 +9361,8 @@ void defineRoutine(bool bodyBlock = false)
         curVal.ii = sizeCount;
         if (curProcNesting != 1) {
             curVal.ii = curVal.ii - 2;
-            l3var7z.ii = curVal.ii << 24;
-            objBuffer[savedObjIdx] |= l3var7z.ii | int64_t(KUTM+SP) << 24;
+            setObjHalf(savedHalf,
+                getObjHalf(savedHalf) | curVal.ii | (KUTM+SP));
         }
     } 
     outputObjFile();
@@ -9588,7 +9564,7 @@ initScalars::initScalars() :
     moduleOffset = 040002;
     programObj->setSig(NULL);
     programObj->flags() = int64_t();
-    objBufIdx = 1;
+    objHalfIdx = 2;
     lookupMode = lookDef;
     outputObjFile();
     outputFile = NULL;
@@ -9982,7 +9958,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             lookup2 = lookupMode = lookUse;
             markTypeSym();
         } /* 22511 */
-        objBufIdx = 1;
+        objHalfIdx = 2;
         if (SY == TYPEDEFSY) {
             // C-style: exactly one type-spec + declarator-list per
             // 'typedef' keyword (no Pascal-style continuation without
@@ -10566,7 +10542,7 @@ struct initTables {
         numLabTop = 0;
         totalErrors = 0;
         heapCallsCnt = 0;
-        putLeft = true;
+        objHalfIdx = 2;
         readNext = true;
         curFrameRegTemplate = frameRegTemplate;
         curProcNesting = 1;
