@@ -1,0 +1,102 @@
+/*=l0*/
+//
+// C's comma operator: evaluate the left operand, throw its value away, take
+// the right one.  It is the lowest precedence there is, below assignment, and
+// it is left-associative, so 'a, b, c' is '((a, b), c)'.
+//
+// A comma is an operator only where C allows a full expression -- an
+// expression statement, the three clauses of a 'for', the controlling
+// expression of an 'if', 'while', 'do'-'while' or 'switch', a 'return', and a
+// parenthesised expression.  Everywhere else it stays the separator it was:
+// an argument list, a declarator list and an initializer are all built from
+// assignment-expressions, and this test pins both halves of that.
+//
+int i, j, n, x, seq;
+int c = 1, d = 2;
+//
+int step(int id) {
+    seq = seq * 10 + id;
+    return id;
+}
+//
+int f(int a, int b) {
+    return a * 10 + b;
+}
+//
+int last() {
+    return (7, 8, 9);
+}
+//
+void main() {
+    // The shape the operator exists for.
+    n = 0;
+    for (i = 0, j = 5; i < j; ++i, --j)
+        n = n + 1;
+    printf(" FOR    %d %d %d\n", i, j, n);
+    // A comma in the condition too: the value of the whole is the last one.
+    n = 0;
+    for (i = 0; j = i + 1, i < 3; ++i)
+        n = n + j;
+    printf(" FORC   %d %d\n", n, j);
+    // The value is the right operand's.
+    x = (1, 2);
+    printf(" VALUE  %d\n", x);
+    // ... and the left operand's effects still happen.
+    x = (i = 3, i + 1);
+    printf(" SIDE   %d %d\n", x, i);
+    // Left-associative, and every operand is evaluated, in order.
+    seq = 0;
+    x = (step(1), step(2), step(3));
+    printf(" ORDER  %d %d\n", x, seq);
+    // At statement level the assignment binds tighter than the comma, so
+    // this is '(x = 5), 6' and the 6 is discarded.
+    x = 5, 6;
+    printf(" STMT   %d\n", x);
+    // The middle operand of a ternary is a full expression, as in C, so a
+    // comma is an operator there; the third operand is a
+    // conditional-expression, so a comma after the whole ternary belongs to
+    // whatever encloses it.
+    i = 1; x = (i ? 20, 21 : 30);
+    printf(" TERN_T %d\n", x);
+    i = 0; x = (i ? 20, 21 : 30);
+    printf(" TERN_F %d\n", x);
+    // The arm not taken is not evaluated, comma or no comma -- the left
+    // operand's code belongs inside the arm, not in front of the branch.
+    seq = 0; i = 0; x = (i ? step(2), step(3) : step(4));
+    printf(" TERN_E %d %d\n", x, seq);
+    // Same obligation on the short-circuit operators.
+    seq = 0; i = 0; x = (i && (step(8), 1));
+    printf(" ANDSC  %d %d\n", x, seq);
+    // A comma whose left operand ends in a ternary.  The lexer sets charClass
+    // for operator characters only, so at this comma it still holds the
+    // CONDOP the '?' left there; the ternary is recognised by its precedence,
+    // which comes from the symbol, so the stale value cannot mislead it.
+    i = 1;
+    x = (i ? 20 : 30, 40);
+    printf(" AFTER  %d\n", x);
+    // A constant right operand carries no instructions of its own and could
+    // be folded away; the effects on the left must survive that.
+    seq = 0; x = (step(5), 77);
+    printf(" CONST  %d %d\n", x, seq);
+    // The controlling expressions, all of which read a full expression.
+    if (n = 0, n + 1)
+        printf(" IF     %d\n", n);
+    i = 0;
+    while (j = i, i < 2)
+        i = i + 1;
+    printf(" WHILE  %d %d\n", i, j);
+    switch (i = 9, 2) {
+    case 2: printf(" SWITCH %d\n", i); break;
+    default: printf(" SWITCH BAD\n");
+    }
+    // A return takes one too.
+    printf(" RETURN %d\n", last());
+    // Where a comma is still a separator.  Each of these would print
+    // differently if the operator had reached it.
+    printf(" ARGS   %d\n", f(7, 8));
+    printf(" DECL   %d %d\n", c, d);
+    // A parenthesised comma is one argument, not two.
+    printf(" PAREN  %d\n", f((1, 2), 3));
+    // printf's own actuals are a separator list of its own.
+    printf(" SEP    %d %d\n", 4, 5);
+}

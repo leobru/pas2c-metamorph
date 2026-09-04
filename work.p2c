@@ -26,7 +26,7 @@ const int errBooleanNeeded = 0,
           errEOFEncountered = 52,
           errFirstDigitInCharLiteralGreaterThan3 = 60;
 //
-const int precNone = -1,  precAssign = 0,  precCond = 1,
+const int precNone = -2,  precComma = -1,  precAssign = 0,  precCond = 1,
           precOr = 2,     precAnd = 3,     precBitOr = 4,
           precBitXor = 5, precBitAnd = 6,  precEq = 7,
           precRel = 8,    precShift = 9,   precAdd = 10,
@@ -193,7 +193,13 @@ typedef enum {
       is deliberately below GETELT and not in it: it stores after arithmetic,
       leaving the additive omega, which is a sign test;
    -- GETELT sits above every binary operator and DEREF above every lvalue one,
-      which formOperator tests with '<'. */
+      which formOperator tests with '<';
+   -- COMMAOP is in none of those ranges and in no operator-indexed table:
+      opPrec stops at ALTERN and opToInsn/opFlags at STKLVAL, and genFullExpr
+      answers it before reaching either.  NOOP stays last, being the "no
+      operator" the character table is filled with.  These are the 48 an
+      operator may have: a set literal is one word, so a 49th would fall out
+      of 'has([...], op)'. */
 typedef enum {
     SHLEFT,     SHRIGHT,    SETAND,     SETXOR,     SETOR,
     MUL,        IMULOP,     RDIVOP,     IDIVOP,     IMODOP,
@@ -204,7 +210,7 @@ typedef enum {
     GETVAR,     GETENUM,    GETFIELD,   DEREF,      STKLVAL,
     INDCALL,    PROCADDR,   ALNUM,      TOREAL,     TOINT,
     TONAME,     NOTOP,      INEGOP,     RNEGOP,     BITNEGOP,   STANDPROC,
-    ADDROF,     NOOP
+    ADDROF,     COMMAOP,    NOOP
 } operator;
 //
 typedef enum {
@@ -3348,9 +3354,15 @@ int omegaIsZeroTest(eptr e) {
    a load, so omega already means "is it zero".  Anything else leaves whatever
    omega the arithmetic set, which is a sign test, and needs an AEX to fix it.
    NOTOP only flips the polarity bit -- a do-while wraps its condition in one
-   -- so look under it. */
-    while (e->op == NOTOP)
-        e  =  e->expr1;
+   -- and a comma answers with its right operand, so look under both. */
+    while (true) {
+        if (e->op == NOTOP)
+            e  =  e->expr1;
+        else if (e->op == COMMAOP)
+            e  =  e->expr2;
+        else
+            break;
+    }
     return (e->typ == boolType) |
            has([SHLEFT..SETOR,GETELT..ALNUM], e->op);
 } /* omegaIsZeroTest */
@@ -3773,6 +3785,19 @@ int itemvalue;
 //
 int l2int18z, ii, localSize, sizeCount, jj;
 int toAlloc;
+/* Shared by formOperator and genFullExpr, which is its sibling rather than
+   its child so that the twelve routines inside genFullExpr sit one level
+   higher.  They belong to whichever programme is running: formOperator is
+   never re-entered, so one copy per invocation is more isolation than the
+   pair needs, and none of the four outlives the call that sets it.
+   scratch3 is one word lent out to four unrelated jobs, none of whose lives
+   overlap: genComparison holds the comparison's distance from NEOP in it,
+   genFullExpr the arithmetic mode of the instruction it is emitting,
+   formOperator's own body first an instruction count and later a jump target.
+   Each of those says at the point of use what it is holding, since the name
+   cannot. */
+int scratch3, nextInsn, rhsMode;
+insnltyp *saved;
 //
 // File scope, so the shared declarator parser below -- a sibling of
 // parseTypeRef, not nested inside it -- can read them right after each
@@ -3807,23 +3832,6 @@ irptr it;
     }
     return false;
 } /* knownInType */
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void formOperator(opgen l3arg1z) { /* formOperator */
-/* scratch3 is one word lent out to four unrelated jobs, none of whose lives
-   overlap: genComparison holds the comparison's distance from NEOP in it,
-   genFullExpr the arithmetic mode of the instruction it is emitting,
-   formOperator's own body first an instruction count and later a jump target.
-   Each of those says at the point of use what it is holding, since the name
-   cannot. */
-int l3int2z, scratch3;
-int nextInsn;
-eptr helpExpr;
-int direction;
-int noTarget;
-int l3var10z, l3var11z;
-insnltyp *saved;
-int rhsMode;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void genFullExpr(eptr exprToGen) { /* genFullExpr */
@@ -4848,6 +4856,33 @@ L7567:
         genRMWAssign();
         return;
     }
+    if (curOP == COMMAOP) {
+        /* What the comma answers is the right operand; the left one is kept
+           for its effects.  Those go in front of the right operand's own
+           instructions, in the list the caller will emit -- not out through
+           genOneOp, which would put them where the tree is being built rather
+           than where its value is wanted, and so outside the arm of a ternary
+           or the short circuit of && and ||. */
+        genFullExpr(exprToGen->expr1);
+        otherIns  =  insnList;
+        genFullExpr(exprToGen->expr2);
+        if (otherIns->tail) {
+            /* A constant answers with a value and no instructions at all, and
+               a consumer may fold it without ever emitting the list; load it
+               first, so that the effects on the left cannot go with it. */
+            if (insnList->ilm == ilCONST)
+                prepLoad();
+            if (insnList->tail == NULL) {
+                insnList->head  =  otherIns->head;
+                insnList->tail  =  otherIns->tail;
+            } else {
+                otherIns->tail->next  =  insnList->head;
+                insnList->head  =  otherIns->head;
+            }
+            insnList->regsused  =  insnList->regsused | otherIns->regsused;
+        }
+        return;
+    }
     if (curOP < GETELT) {
         genFullExpr(exprToGen->expr2);
         otherIns  =  insnList;
@@ -5303,6 +5338,14 @@ L10122:         insnList->tail->mode  =  scratch3;
 } /* genFullExpr */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void formOperator(opgen l3arg1z) { /* formOperator */
+int l3int2z;
+eptr helpExpr;
+int direction;
+int noTarget;
+int l3var10z, l3var11z;
     rhsMode  =  true;
     if (errors && l3arg1z != SETREG || curExpr == NULL)
         return;
@@ -5845,21 +5888,6 @@ void definePtrType(tptr toType) {
 } /* definePtrType */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void parseRecordDecl(tptr *rectype, int isOuterDecl, int isUnion) { /* parseRecordDecl */
-tptr selType;
-irptr prevField;
-int nestedIsUnion;
-caserec cases1, cases2;
-// isPacked is a single shared global here (unlike base.cc's
-// per-parseTypeRef-instance member), so parsing each field's own
-// type-spec below resets it to that field's OWN packedness -- wiping
-// out the ENCLOSING record's '__packed'-ness that packOneField needs.
-// recIsPacked saves/restores it around each field's parseTypeRef call;
-// fieldPackedFlag carries the field's own packedness through to
-// parseOneDeclarator (for its array-suffix packing), separately.
-int recIsPacked, recIsLsb, fieldPackedFlag, fieldIsInt, declWidth;
-//
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Assigns curField's offset (and, in a __packed struct, its bit
 // shift/width) within the enclosing record's shared bit-packing state
 // (cases), then bumps that state past it. Operates on curField (not a
@@ -5867,8 +5895,11 @@ int recIsPacked, recIsLsb, fieldPackedFlag, fieldIsInt, declWidth;
 // the original Pascal-derived packFields()/ctypes-branch packFields()
 // did -- see packFieldChain's own comment for why this stayed a
 // once-per-GROUP call with an internal loop, rather than one call per
-// individual declarator.
-void packOneField() {
+// individual declarator.  recIsLsb comes in as a parameter rather than from
+// the enclosing scope: parseRecordDecl recurses for a nested struct, so its
+// locals cannot be promoted, and this routine is a sibling of it so that it
+// sits one nesting level higher.
+void packOneField(int recIsLsb) {
 int fieldWidth, pairIdx, minFirst, scanIdx, curFirst;
 int placed, wholeWord;
 pair *curSlot;
@@ -5943,6 +5974,21 @@ pair *curSlot;
     }
 } /* packOneField */
 //
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+void parseRecordDecl(tptr *rectype, int isOuterDecl, int isUnion) { /* parseRecordDecl */
+tptr selType;
+irptr prevField;
+int nestedIsUnion;
+caserec cases1, cases2;
+// isPacked is a single shared global here (unlike base.cc's
+// per-parseTypeRef-instance member), so parsing each field's own
+// type-spec below resets it to that field's OWN packedness -- wiping
+// out the ENCLOSING record's '__packed'-ness that packOneField needs.
+// recIsPacked saves/restores it around each field's parseTypeRef call;
+// fieldPackedFlag carries the field's own packedness through to
+// parseOneDeclarator (for its array-suffix packing), separately.
+int recIsPacked, recIsLsb, fieldPackedFlag, fieldIsInt, declWidth;
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if (SY != BEGINSY)
@@ -6061,7 +6107,7 @@ pair *curSlot;
                 do {
                     if (isUnion)
                         cases  =  cases1;
-                    packOneField();
+                    packOneField(recIsLsb);
                     if (isUnion && ((cases2.size < cases.size) ||
                         isPacked && (cases.size == 1) && (cases2.size == 1) &&
                         (cases.count == 1) && (cases2.count == 1) &&
@@ -6448,6 +6494,7 @@ int labIdx;
 // declaration parsers, so a constant expression in a declaration can reach it
 // without going through statement().
 void expression();
+void fullExpression();
 void parseUnaryExpression();
 void parseCallArgs(irptr subroutine, eptr callee);
 //
@@ -6858,7 +6905,7 @@ int hasFields;
             curExpr->typ  =  l4typ11z;
         } else {
             readNext  =  false;
-            expression();
+            fullExpression();
             checkSymAndRead(RPAREN);
         }
         break;
@@ -7091,6 +7138,14 @@ void bldByPrc(int prec) {
     case precOr:
         bldLogOp(oper, leftExpr, match);
         break;
+    case precComma:
+        /* The value and the type are the right operand's; the left one is
+           kept for its effects alone.  The one arm that does not read 'oper',
+           which is as well: the lexer sets charClass for operator characters
+           only, so at a comma it still holds whatever the last operator left
+           there. */
+        curExpr = mkExpr(COMMAOP, curExpr->typ, leftExpr, curExpr);
+        break;
     }
 } /* bldByPrc */
 //
@@ -7104,6 +7159,8 @@ void bldByPrc(int prec) {
             curPrec = opPrec[charClass];
         else if (SY == BECOMES)
             curPrec = precAssign;
+        else if (SY == COMMA)
+            curPrec = precComma;
         else
             curPrec = precNone;
 
@@ -7115,9 +7172,20 @@ void bldByPrc(int prec) {
         inSymbol();
         leftExpr = curExpr;
 
-        if (oper == CONDOP) {
-            /* Right-associative ternary: cond ? thenExpr : elseExpr */
-            parsePrc(precAssign);
+        /* By the precedence, not by 'oper': charClass is set for operator
+           characters only, so at a comma it still holds whatever the last
+           operator left there -- CONDOP, if the left operand ended in a
+           ternary, which would take '(a ? b : c, d)' for one.  precCond is
+           opPrec[CONDOP] and nothing else's, so the two tests agree wherever
+           charClass means anything at all. */
+        if (curPrec == precCond) {
+            /* Right-associative ternary: cond ? thenExpr : elseExpr.  The
+               middle operand is a full expression, as in C -- a comma is an
+               operator there, the ':' ending it either way -- while the third
+               is a conditional-expression, which is why the else arm is
+               parsed at precCond and an assignment to a ternary binds outside
+               it. */
+            parsePrc(precComma);
             if (SY != COLON)
                 requiredSymErr(COLON);
             else
@@ -7200,7 +7268,7 @@ void parentExpression() {
         inSymbol();
     checkSymAndRead(LPAREN);
     readNext  =  false;
-    expression();
+    fullExpression();
     checkSymAndRead(RPAREN);
 }
 //
@@ -7212,6 +7280,19 @@ void expression() {
         readNext  =  true;
     parsePrc(precAssign);
 } /* expression */
+//
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+/* C's full expression -- the only place a comma is an operator rather than a
+   separator.  Everywhere else an expression is an assignment-expression, which
+   is why an initializer, an actual argument and a case label still split on
+   the comma. */
+void fullExpression() {
+    if (readNext)
+        inSymbol();
+    else
+        readNext  =  true;
+    parsePrc(precComma);
+} /* fullExpression */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 /* One constant expression, with SY already on its first token: parse it, take
@@ -7285,7 +7366,7 @@ eptr loopExpr;
     checkSymAndRead(LPAREN);
     if (SY != SEMICOLON) {
         readNext = false;
-        expression();
+        fullExpression();
         formOperator(DOIT);
     }
     checkSymAndRead(SEMICOLON);
@@ -7294,7 +7375,7 @@ eptr loopExpr;
     leave = 0;
     if (SY != SEMICOLON) {
         readNext = false;
-        expression();
+        fullExpression();
         jumpTarget = 0;
         formOperator(BRANCH);
         leave = jumpTarget;
@@ -7303,7 +7384,7 @@ eptr loopExpr;
     loopExpr = NULL;
     if (SY != RPAREN) {
         readNext = false;
-        expression();
+        fullExpression();
         loopExpr = curExpr;
     }
     checkSymAndRead(RPAREN);
@@ -7730,7 +7811,7 @@ void returnOp() {
         else {
             retSeen  =  true;
             readNext = false;
-            expression();
+            fullExpression();
             if (procName->typ.p.pk == kindPtr)
                 curExpr = decayArray(curExpr);
             if (typeCheck(procName->typ, curExpr->typ)) {
@@ -7929,7 +8010,7 @@ L8888:      skip(skipToSet | statEndSys);
            used as a statement.  readNext := false keeps the current SY
            (the leading IDENT) for expression() to consume. */
         readNext = false;
-        expression();
+        fullExpression();
         formOperator(DOIT);
         checkSymAndRead(SEMICOLON);
         break;
@@ -8041,7 +8122,7 @@ L8888:      skip(skipToSet | statEndSys);
            unary operators and so on.  readNext := false keeps the current SY
            for expression() to consume. */
         readNext = false;
-        expression();
+        fullExpression();
         formOperator(DOIT);
         checkSymAndRead(SEMICOLON);
         break;
@@ -9102,9 +9183,9 @@ void exitScope(int a) {
                 }
                 ++curProcNesting;
                 /* The display takes one index register per level, and
-                   freeRegs is [curProcNesting+1:6]: level 6 would leave the
-                   expression evaluator none. */
-                if (5 < curProcNesting)
+                   freeRegs is [curProcNesting+1:6]: level 5 leaves the
+                   expression evaluator one, level 6 none. */
+                if (4 < curProcNesting)
                     error(81); /* errProcNestingTooDeep */
                 hadParens  =  (SY == LPAREN);
                 if (hadParens)

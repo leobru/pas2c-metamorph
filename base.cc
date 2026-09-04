@@ -98,7 +98,7 @@ const int64_t
     errFirstDigitInCharLiteralGreaterThan3 = 60;
 
 const int64_t
-    precNone = -1,   precAssign = 0,
+    precNone = -2,   precComma = -1,  precAssign = 0,
     precCond = 1,    precOr = 2,     precAnd = 3,
     precBitOr = 4,   precBitXor = 5, precBitAnd = 6,
     precEq = 7,      precRel = 8,    precShift = 9,
@@ -248,7 +248,13 @@ enum Insn {
       is deliberately below GETELT and not in it: it stores after arithmetic,
       leaving the additive omega, which is a sign test;
    -- GETELT sits above every binary operator and DEREF above every lvalue one,
-      which formOperator tests with '<'. */
+      which formOperator tests with '<';
+   -- COMMAOP is in none of those ranges and in no operator-indexed table:
+      opPrec stops at ALTERN and opToInsn/opFlags at STKLVAL, and genFullExpr
+      answers it before reaching either.  NOOP stays last, being the "no
+      operator" the character table is filled with.  These are the 48 an
+      operator may have: a set literal is one word, so a 49th would fall out
+      of 'has([...], op)'. */
 enum Operator {
     SHLEFT,     SHRIGHT,
     SETAND,     SETXOR,     SETOR,
@@ -260,7 +266,8 @@ enum Operator {
     GETELT,     GETVAR,     GETENUM,    GETFIELD,   DEREF,
     STKLVAL,    INDCALL,    PROCADDR,   ALNUM,
     TOREAL,     TOINT,      TONAME,     NOTOP,      INEGOP,
-    RNEGOP,     BITNEGOP,   STANDPROC,  ADDROF,     NOOP
+    RNEGOP,     BITNEGOP,   STANDPROC,  ADDROF,     COMMAOP,
+    NOOP
 };
 
 static_assert(IMULOP == MUL + 1 and IDIVOP == RDIVOP + 1 and
@@ -1135,7 +1142,7 @@ std::string Expr::p()
         "GETENUM","GETFIELD","DEREF","STKLVAL","INDCALL","PROCADDR","ALNUM",
         "TOREAL","TOINT","TONAME","NOTOP","INEGOP","RNEGOP","BITNEGOP",
         "STANDPROC",
-        "ADDROF","NOOP"
+        "ADDROF","COMMAOP","NOOP"
     };
     char buf[256];
     const char * nm = (op >= 0 && op <= NOOP) ? opName[op] : "??";
@@ -1253,6 +1260,20 @@ struct programme {
     Word itemvalue;
 
     int64_t l2int18z, ii, localSize, sizeCount, jj;
+    /* Shared by formOperator and genFullExpr, which is its sibling rather than
+       its child so that the twelve routines inside genFullExpr sit one level
+       higher.  They belong to whichever programme is running: formOperator is
+       never re-entered, so one copy per invocation is more isolation than the
+       pair needs, and none of the four outlives the call that sets it.
+       scratch3 is one word lent out to four unrelated jobs, none of whose
+       lives overlap: genComparison holds the comparison's distance from NEOP
+       in it, genFullExpr the arithmetic mode of the instruction it is
+       emitting, formOperator's own body first an instruction count and later
+       a jump target.  Each of those says at the point of use what it is
+       holding, since the name cannot. */
+    int64_t scratch3, nextInsn;
+    bool rhsMode;
+    InsnList * saved;
     int64_t toAlloc;
     int64_t labFence;
     static std::vector<programme *> super;
@@ -3409,21 +3430,11 @@ struct formOperator {
     formOperator(OpGen l3arg1z);
     ~formOperator() { super.pop_back(); }
 
-    /* scratch3 is one word lent out to four unrelated jobs, none of whose
-       lives overlap: genComparison holds the comparison's distance from NEOP
-       in it, genFullExpr the arithmetic mode of the instruction it is
-       emitting, formOperator's own body first an instruction count and later
-       a jump target.  Each of those says at the point of use what it is
-       holding, since the name cannot. */
-    int64_t l3int2z, scratch3;
-    int64_t nextInsn;
+    int64_t l3int2z;
     ExprPtr helpExpr;
-    OpFlg flags;
     bool direction;
     bool noTarget;
     Word l3var10z, l3var11z;
-    InsnList * saved;
-    bool rhsMode;
 };
 std::vector<formOperator*> formOperator::super;
 
@@ -4160,11 +4171,17 @@ bool isCheapLval(ExprPtr e)
    a load, so omega already means "is it zero".  Anything else leaves whatever
    omega the arithmetic set, which is a sign test, and needs an AEX to fix it.
    NOTOP only flips the polarity bit -- a do-while wraps its condition in one
-   -- so look under it. */
+   -- and a comma answers with its right operand, so look under both. */
 bool omegaIsZeroTest(ExprPtr e)
 {
-    while (e->op == NOTOP)
-        e = e->expr1;
+    while (true) {
+        if (e->op == NOTOP)
+            e = e->expr1;
+        else if (e->op == COMMAOP)
+            e = e->expr2;
+        else
+            break;
+    }
     return e->vt.typ == BooleanType or
            has((BitRange(SHLEFT, SETOR) | BitRange(GETELT, ALNUM)), e->op);
 }
@@ -4201,12 +4218,12 @@ struct genFullExpr {
     int64_t recip;
 
     void genHelper() {
-        InsnList * &saved = formOperator::super.back()->saved;
+        InsnList * &saved = programme::super.back()->saved;
         push();
         saved = insnList;
         insnList = otherIns;
         prepLoad();
-        addToInsnList(getHelperProc(formOperator::super.back()->nextInsn));
+        addToInsnList(getHelperProc(programme::super.back()->nextInsn));
         insnList->regsused = insnList->regsused | saved->regsused | BitRange(11,14);
         saved->tail->next = insnList->head;
         insnList->head = saved->head;
@@ -4238,8 +4255,8 @@ struct genFullExpr {
     void tryFlip(bool commutes) {
         int64_t l5var1z;
         InsnList * l5var2z;
-        InsnList * &saved = formOperator::super.back()->saved;
-        int64_t &nextInsn = formOperator::super.back()->nextInsn;
+        InsnList * &saved = programme::super.back()->saved;
+        int64_t &nextInsn = programme::super.back()->nextInsn;
 
         if (not has(otherIns->regsused, 0)) {
             l5var1z = 0;
@@ -4465,7 +4482,7 @@ L33:        prepLoad();
         ExprPtr innerNode, rhsExpr, lhsExpr, rmwLhs;
         ExprPtr synthOp, synthAsn;
         Operator innerOp;
-        bool &rhsMode = formOperator::super.back()->rhsMode;
+        bool &rhsMode = programme::super.back()->rhsMode;
 
         lhsExpr = exprToGen->expr1;
         innerNode = exprToGen->expr2;
@@ -4537,7 +4554,7 @@ void genGetElt()
     InsnListPtr getEltInsns[10];
     int64_t idxOffsets[10];
     ExprPtr & exprToGen = genFullExpr::super.back()->exprToGen;
-    InsnList * &saved = formOperator::super.back()->saved;
+    InsnList * &saved = programme::super.back()->saved;
 
     dimCnt = 0;
     baseExpr = exprToGen;
@@ -5076,9 +5093,9 @@ void genComparison()
     bool negate;
     int64_t mode, size;
 
-    int64_t &scratch3 = formOperator::super.back()->scratch3;
+    int64_t &scratch3 = programme::super.back()->scratch3;
     Operator &curOP = genFullExpr::super.back()->curOP;
-    int64_t &nextInsn = formOperator::super.back()->nextInsn;
+    int64_t &nextInsn = programme::super.back()->nextInsn;
     int64_t &work = genFullExpr::super.back()->work;
     TPtr &l2typ13z = programme::super.back()->l2typ13z;
 
@@ -5177,11 +5194,11 @@ genFullExpr::genFullExpr(ExprPtr exprToGen_)
         /*CONDOP*/  opfCOMM,  /*ALTERN*/   opfCOMM,
         /*INCROP*/  opfCOMM,  /*DECROP*/   opfCOMM,
         /*ASSIGNOP*/ opfASSN };
-    int64_t &scratch3 = formOperator::super.back()->scratch3;
-    bool &rhsMode = formOperator::super.back()->rhsMode;
-    int64_t &nextInsn = formOperator::super.back()->nextInsn;
-    OpFlg &flags = formOperator::super.back()->flags;
-    InsnList * &saved = formOperator::super.back()->saved;
+    int64_t &scratch3 = programme::super.back()->scratch3;
+    bool &rhsMode = programme::super.back()->rhsMode;
+    int64_t &nextInsn = programme::super.back()->nextInsn;
+    OpFlg flags;
+    InsnList * &saved = programme::super.back()->saved;
     IdentRecPtr &curIdRec = programme::super.back()->curIdRec;
 
     static int level;
@@ -5205,6 +5222,33 @@ L7567:
     }
     if (curOP == RMWASSIGN) {
         genRMWAssign();
+        return;
+    }
+    if (curOP == COMMAOP) {
+        /* What the comma answers is the right operand; the left one is kept
+           for its effects.  Those go in front of the right operand's own
+           instructions, in the list the caller will emit -- not out through
+           genOneOp, which would put them where the tree is being built rather
+           than where its value is wanted, and so outside the arm of a ternary
+           or the short circuit of && and ||. */
+        genFullExpr(exprToGen->expr1);
+        otherIns = insnList;
+        genFullExpr(exprToGen->expr2);
+        if (otherIns->tail) {
+            /* A constant answers with a value and no instructions at all, and
+               a consumer may fold it without ever emitting the list; load it
+               first, so that the effects on the left cannot go with it. */
+            if (insnList->ilm == ilCONST)
+                prepLoad();
+            if (insnList->tail == NULL) {
+                insnList->head = otherIns->head;
+                insnList->tail = otherIns->tail;
+            } else {
+                otherIns->tail->next = insnList->head;
+                insnList->head = otherIns->head;
+            }
+            insnList->regsused = insnList->regsused | otherIns->regsused;
+        }
         return;
     }
     if (curOP < GETELT) {
@@ -5696,6 +5740,9 @@ formOperator::formOperator(OpGen op)
 { /* formOperator */
     int64_t & localSize = programme::super.back()->localSize;
     int64_t & sizeCount = programme::super.back()->sizeCount;
+    int64_t & scratch3 = programme::super.back()->scratch3;
+    int64_t & nextInsn = programme::super.back()->nextInsn;
+    bool & rhsMode = programme::super.back()->rhsMode;
 
     super.push_back(this);
     rhsMode = true;
@@ -7018,6 +7065,7 @@ ExprPtr decayArray(ExprPtr e)
 } /* decayArray */
 
 void expression();
+void fullExpression();
 void parseCallArgs(IdentRecPtr subroutine, ExprPtr callee);
 
 /* Recovery for an error that leaves nothing to build a value from: skip to a
@@ -7300,6 +7348,8 @@ int64_t getPrec(Symbol sym, Operator cls)
         return opPrec[cls];
     else if (sym == BECOMES)
         return precAssign;
+    else if (sym == COMMA)
+        return precComma;
     else
         return precNone;
 } /* getPrec */
@@ -7672,7 +7722,7 @@ Factor::Factor()
                 curExpr->vt.typ = l4typ11z;
             } else {
                 readNext = false;
-                expression();
+                fullExpression();
                 checkSymAndRead(RPAREN);
             }
         } break;
@@ -7908,6 +7958,14 @@ void parsePrc(int64_t minPrec)
         case precOr:
             bldLogOp(oper, leftExpr, match);
             break;
+        case precComma:
+            /* The value and the type are the right operand's; the left one is
+               kept for its effects alone.  The one arm that does not read
+               'oper', which is as well: the lexer sets charClass for operator
+               characters only, so at a comma it still holds whatever the last
+               operator left there. */
+            curExpr = mkExpr(COMMAOP, curExpr->vt.typ, leftExpr, curExpr);
+            break;
         }
     };
 
@@ -7926,9 +7984,20 @@ void parsePrc(int64_t minPrec)
         inSymbol();
         leftExpr = curExpr;
 
-        if (oper == CONDOP) {
-            /* Right-associative ternary: cond ? thenExpr : elseExpr */
-            parsePrc(precAssign);
+        /* By the precedence, not by 'oper': charClass is set for operator
+           characters only, so at a comma it still holds whatever the last
+           operator left there -- CONDOP, if the left operand ended in a
+           ternary, which would take '(a ? b : c, d)' for one.  precCond is
+           opPrec[CONDOP] and nothing else's, so the two tests agree wherever
+           charClass means anything at all. */
+        if (curPrec == precCond) {
+            /* Right-associative ternary: cond ? thenExpr : elseExpr.  The
+               middle operand is a full expression, as in C -- a comma is an
+               operator there, the ':' ending it either way -- while the third
+               is a conditional-expression, which is why the else arm is
+               parsed at precCond and an assignment to a ternary binds outside
+               it. */
+            parsePrc(precComma);
             if (SY != COLON)
                 requiredSymErr(COLON);
             else
@@ -8013,7 +8082,7 @@ void parentExpression()
         inSymbol();
     checkSymAndRead(LPAREN);
     readNext = false;
-    expression();
+    fullExpression();
     checkSymAndRead(RPAREN);
 } /* parentExpression */
 
@@ -8025,6 +8094,19 @@ void expression()
         readNext = true;
     parsePrc(precAssign);
 } /* expression */
+
+/* C's full expression -- the only place a comma is an operator rather than a
+   separator.  Everywhere else an expression is an assignment-expression, which
+   is why an initializer, an actual argument and a case label still split on
+   the comma. */
+void fullExpression()
+{
+    if (readNext)
+        inSymbol();
+    else
+        readNext = true;
+    parsePrc(precComma);
+} /* fullExpression */
 
 void setStrLab()
 {
@@ -8067,7 +8149,7 @@ void forStatement()
     checkSymAndRead(LPAREN);
     if (SY != SEMICOLON) {
         readNext = false;
-        expression();
+        fullExpression();
         (void) formOperator(DOIT);
     }
     checkSymAndRead(SEMICOLON);
@@ -8076,7 +8158,7 @@ void forStatement()
     leave = 0;
     if (SY != SEMICOLON) {
         readNext = false;
-        expression();
+        fullExpression();
         jumpTarget = 0;
         (void) formOperator(BRANCH);
         leave = jumpTarget;
@@ -8085,7 +8167,7 @@ void forStatement()
     loopExpr = NULL;
     if (SY != RPAREN) {
         readNext = false;
-        expression();
+        fullExpression();
         loopExpr = curExpr;
     }
     checkSymAndRead(RPAREN);
@@ -8202,7 +8284,6 @@ void caseStatement()
     CaseChainPtr &curClause = programme::super.back()->curClause;
     SwState savSwitch;
     int64_t savTop;
-    bool isIntCase;
     bool itemsEnded;
     TPtr exprtype;
     int64_t itemSpan;
@@ -8247,7 +8328,6 @@ void caseStatement()
     }
     formJump(endOfStmt);
     padToLeft();
-    isIntCase = typeCheck(exprtype, IntegerType);
     if (curSwitch.allClauses) {
         expected = curSwitch.allClauses->value;
         minValue = expected;
@@ -8258,11 +8338,7 @@ void caseStatement()
                 exprtype.p.pk != kindScalar)
                 goto L16140;        /* a gap in the labels: compare them */
             maxValue = expected;
-            if (isIntCase) {
-                expected.ii = expected.ii + 1;
-            } else {
-                expected.ii = expected.ii + 1; // raw ordinal, no exponent
-            }
+            expected = i64ToRawInt(rawIntToI64(expected) + 1);
             ++nClauses;
             curClause = curClause->next;
         } /* while 16142 */
@@ -8316,7 +8392,8 @@ L16140:
         minValue.ii = (minValue.ii - minValue.ii); /* WTF? */
         while (curSwitch.allClauses) {
             if (itemsEnded) {
-                curVal.ii = (minValue.ii - curSwitch.allClauses->value.ii);
+                curVal = i64ToRawInt(rawIntToI64(minValue) -
+                                     rawIntToI64(curSwitch.allClauses->value));
                 /* KVZM reads the index register, so a step of zero -- a
                    first label of zero -- needs no instruction of its own.
                    The accumulator chain below keeps its KAEX even then: it
@@ -8634,7 +8711,7 @@ void returnOp() {
         else {
             retSeen = true;
             readNext = false;
-            expression();
+            fullExpression();
             if (procName->typ.p.pk == kindPtr)
                 curExpr = decayArray(curExpr);
             if (typeCheck(procName->typ, curExpr->vt.typ)) {
@@ -8780,7 +8857,8 @@ Statement::Statement()
                                 if (itemvalue == curClause->value) {
                                     error(73); /* errCaseLabelsIdentical */
                                     break;
-                                } else if (itemvalue.ii < curClause->value.ii) {
+                                } else if (rawIntToI64(itemvalue) <
+                                           rawIntToI64(curClause->value)) {
                                     break;
                                 } else {
                                     prev = curClause;
@@ -8848,7 +8926,7 @@ Statement::Statement()
                        expression used as a statement.  readNext := false keeps
                        the current SY (the leading IDENT) for expression(). */
                     readNext = false;
-                    expression();
+                    fullExpression();
                     (void) formOperator(DOIT);
                     checkSymAndRead(SEMICOLON);
                 } else {
@@ -8860,7 +8938,7 @@ Statement::Statement()
                         Bits(CHARCONST,STRINGSY,LBRACK)), SY)) {
                 /* Generic expression statement: '++x;', '(x = 1);', etc. */
                 readNext = false;
-                expression();
+                fullExpression();
                 (void) formOperator(DOIT);
                 checkSymAndRead(SEMICOLON);
             } else if (SY == BEGINSY) {
@@ -10129,9 +10207,9 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     l2int18z = 9;
                 curProcNesting = curProcNesting + 1;
                 /* The display takes one index register per level, and
-                   freeRegs is [curProcNesting+1:6]: level 6 would leave the
-                   expression evaluator none. */
-                if (5 < curProcNesting)
+                   freeRegs is [curProcNesting+1:6]: level 5 leaves the
+                   expression evaluator one, level 6 none. */
+                if (4 < curProcNesting)
                     error(81); /* errProcNestingTooDeep */
                 hadParens = (SY == LPAREN);
                 if (hadParens)
