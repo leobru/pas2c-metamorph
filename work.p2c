@@ -561,7 +561,6 @@ int lineNesting,
     checkTypes,
     isDefined, putLeft, readNext,
     errors,
-    declEntry,
     enableStdInput,
     abort,
     checkFortran;
@@ -1358,7 +1357,6 @@ void readOptFlag(int *res) {
         nextCH();
         badOpt  =  true;
         switch (CH) {
-        case 'E': readOptFlag(&declEntry); break;
         case 'F': readOptFlag(&checkFortran); break;
         case 'I': readOptFlag(&enableStdInput); break;
         case 'L': PASINFOR.listMode = readOptVal(3); break;
@@ -8261,7 +8259,7 @@ int hasMain;
         /* The level 1 block is a call of the routine named MAIN.  A module
            without one has nothing to run, so neither the block nor the file
            open/close that frames it is emitted, and the module keeps only the
-           entry points its E+ routines declare. */
+           entry points its explicitly extern-defined routines declare. */
         bucket = mapAI(t'    MAIN' & hashMask);
         l3idr5z  =  symHash[bucket];
         while (l3idr5z && l3idr5z->id != t'    MAIN')
@@ -9094,14 +9092,6 @@ void exitScope(int a) {
         declIsRoutine  =  curDeclarator.ptrOnly && (SY == LPAREN);
         if (staticDecl && declIsRoutine)
             error(errBadSymbol);
-        if (externDecl && declIsRoutine) {
-            error(errBadSymbol);
-            skip(skipToSet | [SEMICOLON]);
-            if (SY == SEMICOLON)
-                inSymbol();
-            markTypeSym();
-            continue;
-        }
         if (! declIsRoutine) {
             /* ---- variable declarator list ---- */
             lookupMode  =  lookUse;
@@ -9237,7 +9227,7 @@ void exitScope(int a) {
                     ir->value  =  0;
                     ir->r1.sig  =  NULL;
                     ir->r2.preDefLink  =  NULL;
-                    ir->flags  =  declEntry ? [0:15,22] : [0:15];
+                    ir->flags  =  [0:15];
                     ir->r1.pos  =  0;
                     curFrameRegTemplate += frameRegTemplate;
                     l2int18z  =  l2bool8z ? 8 : 9;
@@ -9284,6 +9274,12 @@ void exitScope(int a) {
                     parseParameters(curIdRec->r1.sig);
             }
             if (SY == BEGINSY) {
+                if (externDecl) {
+                    if (curProcNesting != 2)
+                        error(errBadSymbol);
+                    else
+                        curIdRec->flags  =  curIdRec->flags | [22];
+                }
                 if (! hadParens)
                     error(42); /* errNoParamList */
                 scopeBound = (irptr)setup();
@@ -9297,10 +9293,10 @@ void exitScope(int a) {
                 myrollup((int)scopeBound);
                 goto L23301;
             }
-            if ((SY == EXTERNSY) ||
+            if ((externDecl && SY == SEMICOLON) ||
                 ((SY == IDENT) &&
                  ((curIdent == t' FORTRAN') || (curIdent == t'ASSEMBLE')))) {
-                if (SY == EXTERNSY) {
+                if (externDecl && SY == SEMICOLON) {
                     curVal.i  =  [20];
                 } else if (curIdent == t'ASSEMBLE') {
                     curVal.i  =  [20,26];
@@ -9311,7 +9307,8 @@ void exitScope(int a) {
                     curVal.i  =  [21];
                 }
                 curIdRec->flags  =  curIdRec->flags | curVal.i;
-                inSymbol();
+                if (SY != SEMICOLON)
+                    inSymbol();
                 checkSymAndRead(SEMICOLON);
             } else {
                 checkSymAndRead(SEMICOLON);
@@ -9558,7 +9555,6 @@ void initOptions() {
     forValue  =  true;
     atEOL  =  false;
     checkTypes  =  true;
-    declEntry  =
     enableStdInput  =
     errors  =  false;
     fileBufSize  =  1;

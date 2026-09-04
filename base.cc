@@ -1038,7 +1038,6 @@ bool atEOL,
     checkTypes,
     isDefined, putLeft, readNext,
     errors,
-    declEntry,
     enableStdInput,
     bool110z,
     sortFcst,
@@ -2489,9 +2488,6 @@ parseComment::parseComment()
             nextCH();
             badOpt = true;
             switch (CH) {
-            case 'E': case 'e':
-                readOptFlag(declEntry);
-                break;
             case 'F': case 'f':
                 readOptFlag(checkFortran);
                 break;
@@ -9298,7 +9294,7 @@ void defineRoutine(bool bodyBlock = false)
         // The level 1 block is a call of the routine named MAIN.  A module
         // without one has nothing to run, so neither the block nor the file
         // open/close that frames it is emitted, and the module keeps only the
-        // entry points its E+ routines declare.
+        // entry points its explicitly extern-defined routines declare.
         bucket = toText("MAIN") % 65535 % 128;
         l3idr5z = symHash[bucket];
         while (l3idr5z and l3idr5z->id != toText("MAIN"))
@@ -10147,14 +10143,6 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
         bool isRoutine = d.ptrOnly and SY == LPAREN;
         if (staticDecl and isRoutine)
             error(errBadSymbol);
-        if (externDecl and isRoutine) {
-            error(errBadSymbol);
-            skip(skipToSet | Bits(SEMICOLON));
-            if (SY == SEMICOLON)
-                inSymbol();
-            markTypeSym();
-            continue;
-        }
         if (not isRoutine) {
             /* ---- variable declarator list ---- */
             lookupMode = lookUse;
@@ -10289,10 +10277,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 curIdRec->value() = 0;
                 curIdRec->setSig(NULL);
                 curIdRec->setPreDef(NULL);
-                if (declEntry)
-                    curIdRec->flags() = BitRange(0,15) | Bits(22);
-                else
-                    curIdRec->flags() = BitRange(0,15);
+                curIdRec->flags() = BitRange(0,15);
                 curIdRec->r1.pos = 0;
                 curFrameRegTemplate = curFrameRegTemplate + frameRegTemplate;
                 if (done)
@@ -10339,6 +10324,12 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     parseParameters(curIdRec->sig());
             } /* 23224 */
             if (SY == BEGINSY) {
+                if (externDecl) {
+                    if (curProcNesting != 2)
+                        error(errBadSymbol);
+                    else
+                        curIdRec->flags() = curIdRec->flags() | Bits(22);
+                }
                 if (not hadParens)
                     error(42); /* errNoParamList */
                 setup(scopeBound);
@@ -10352,10 +10343,10 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 myrollup(scopeBound);
                 goto L23301;
             }
-            if (SY == EXTERNSY or
+            if ((externDecl and SY == SEMICOLON) or
                 (SY == IDENT and
                  (curIdent == toText("FORTRAN") or curIdent == toText("ASSEMBLE")))) {
-                if (SY == EXTERNSY) {
+                if (externDecl and SY == SEMICOLON) {
                     curVal.ii = Bits(20);
                 } else if (curIdent == toText("ASSEMBLE")) {
                     curVal.ii = Bits(20,26);
@@ -10366,7 +10357,8 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                     curVal.ii = Bits(21);
                 }
                 curIdRec->flags() = curIdRec->flags() | curVal.ii;
-                inSymbol();
+                if (SY != SEMICOLON)
+                    inSymbol();
                 checkSymAndRead(SEMICOLON);
             } else {
                 checkSymAndRead(SEMICOLON);
@@ -10685,7 +10677,6 @@ void initOptions(int argc, char **argv)
     forValue = true;
     atEOL = false;
     checkTypes = true;
-    declEntry = false;
     enableStdInput = false;
     errors = false;
     sortFcst = false;
@@ -10718,9 +10709,6 @@ void initOptions(int argc, char **argv)
             continue;
         case 'c':
             checkTypes = (optarg[0] == '+');
-            continue;
-        case 'e':
-            declEntry = (optarg[0] == '+');
             continue;
         case 'f':
             checkFortran = (optarg[0] == '+');

@@ -1,7 +1,7 @@
 /*=k9,l0*/
 //
 void later();
-void extdecl() extern;
+extern void extdecl();
 void fortdecl() fortran;
 void asmdecl() assembler;
 int forward;
