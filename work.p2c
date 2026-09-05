@@ -632,7 +632,7 @@ symbol charSym[128] = {
     [':']=COLON, ['!']=EXPROP, ['~']=EXPROP, ['?']=EXPROP };
 hashArray symHash = NULL:128, fieldHash = NULL:128;
 int helperNames[30] = { 0,
-        t'P/1     ',
+        t'C/1     ',
         t'C/2     ',
         t'C/3     ',
         t'C/4     ',

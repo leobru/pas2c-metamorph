@@ -31,7 +31,7 @@ C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
 C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
 C   M13 = link register set by the calling VJM
 C   M14 = secondary link (used inside packed-mode helpers)
- P/BEXF:,SUBP,               . FCST->external-name lookup
+ C/BEXF:,SUBP,               . FCST->external-name lookup
  C/MD:,SUBP,                 . integer remainder helper
  C/DI:,SUBP,                 . integer divide helper
  C/WL:,SUBP,                 . terminate the current line
@@ -102,7 +102,7 @@ C BEXFRET / DECBITS / STDFLAV / PUREOUT / PUREIN / REOPEN form
 C  the FCST-literal decoder.  C/CO loads the FCST word into
 C  [M1+3] and peels off bit fields (3-bit, 7-bit, 13-bit) to
 C  populate FILE[3], FILE[4] and the stdin/out flag in
-C  FILE[23].  P/BEXF translates a non-zero FCST low-byte into
+C  FILE[23].  C/BEXF translates a non-zero FCST low-byte into
 C  an external file name and returns via BEXFRET.
 C===========================================================
  BEXFRET:1,ATX,3             . save BEXF result back into [M1+3]
@@ -111,7 +111,7 @@ C===========================================================
  ,UTC,MSKNAME.=:0077         . C := &mask (0o77 in bits 37..42; ,OCT, left-packed)
  ,AAX,                       . isolate the FCST ext-name field (bits 37..42)
  13,VTM,BEXFRET              . link for BEXF return
- ,U1A,P/BEXF                 . if any low bits, look up ext name
+ ,U1A,C/BEXF                 . if any low bits, look up ext name
  DECBITS:1,XTA,3             . reload FCST (or BEXF result)
  ,ASN,64-7                   . normalise the field positions
  ,ASN,64+13

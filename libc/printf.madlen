@@ -46,17 +46,17 @@ C===========================================================
  C/SP:          ,SUBP,
  C/PUTS:        ,SUBP,
  STRLEN:        ,SUBP,
- P/HIDE:        ,SUBP,
- P/EDIH:        ,SUBP,
+ C/HIDE:        ,SUBP,
+ C/EDIH:        ,SUBP,
  C/08:          ,SUBP,
  C/LDAR:        ,SUBP,
  *OUTPUT*:,LC,30
-C P/HIDE saves M13 and the three scratch registers M6..M8.  M6 then bases the
-C constants and static scratch storage below; only P/HIDE's four words use SP.
+C C/HIDE saves M13 and the three scratch registers M6..M8.  M6 then bases the
+C constants and static scratch storage below; only C/HIDE's four words use SP.
                12,VTM,*OUTPUT*
                  ,ATI,10
  COMMON:          ,NTR,3
-               14,VJM,P/HIDE
+               14,VJM,C/HIDE
                 6,BASE,NEWLINE
                15,MTJ,8
                 8,UTM,-5
@@ -276,7 +276,7 @@ C One literal format byte.  LF terminates the line exactly as C/PUTS does.
  OUTNL:        13,VJM,C/WL
  OUTRET:       15,WTC,
                  ,UJ,
-C Let P/EDIH restore M6..M8 and M13, then leave SP at the format's slot:
+C Let C/EDIH restore M6..M8 and M13, then leave SP at the format's slot:
 C the format is this routine's to pop, the tail is the caller's.
  DONE:           ,XTA,ENTRYSP
                  ,ATI,10
@@ -285,7 +285,7 @@ C the format is this routine's to pop, the tail is the caller's.
                 8,MTJ,15
                15,UTM,5
                14,VTM,RET
-                 ,UJ,P/EDIH
+                 ,UJ,C/EDIH
  RET:          10,MTJ,15
                13,UJ,
 C fprintf(f, fmt, ...): one more mandatory word, the destination, pushed

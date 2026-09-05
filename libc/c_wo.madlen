@@ -12,24 +12,24 @@ C than 16 is supplied as leading spaces by C/SP.  For a width at
 C most 16, 16-width selects the first generated digit, thereby
 C retaining the requested number of low-order digits.
 C
-C After P/HIDE and the extra delta slot are pushed, M8 marks the
+C After C/HIDE and the extra delta slot are pushed, M8 marks the
 C start of the 16-character digit buffer.  Relative to M8:
 C   -1 = 16-width (clamped to 0 for widths greater than 16)
-C   -2..-5 = M6, M7, M8 and M13 saved by P/HIDE
+C   -2..-5 = M6, M7, M8 and M13 saved by C/HIDE
 C   -6 = the shifting copy of the input word
 C   -7 = output digit count (the width, clamped to 16)
 C M6 first addresses the shifting word, then the digit to emit;
 C M7 is first the 16-pass generator counter, then the output count.
 C===========================================================
  PASZERO*:,LC,1                  . ASCII '0' character
- P/HIDE:,SUBP,                  . Save M13 and scratch registers M6..M8
- P/EDIH:,SUBP,                  . Restore M6..M8 and M13
+ C/HIDE:,SUBP,                  . Save M13 and scratch registers M6..M8
+ C/EDIH:,SUBP,                  . Restore M6..M8 and M13
  C/SP:,SUBP,                    . Print -ACC spaces when ACC is negative
  C/CW:,SUBP,                    . Print one character from ACC
 C --- prologue and field-width handling ---
  ,NTR,7                         . Plain P2C integer arithmetic
  15,ATX,                        . Push the word being formatted
- 14,VJM,P/HIDE                  . Save M13 and M6..M8
+ 14,VJM,C/HIDE                  . Save M13 and M6..M8
  ,UTC,SIXTEEN
  ,XTA,                          . ACC := integer 16 (full octal width)
  15,A-X,-6                     . ACC := 16 - requested width
@@ -71,8 +71,8 @@ C --- select the requested suffix and write it ---
  ,UJ,*0022B                    . Continue until M7 reaches zero
 C --- discard temporaries, restore saved registers and return ---
  *0025B:8,UTC,-1
- 15,VTM,                        . SP := M8-1, just above P/HIDE's save area
- 14,VJM,P/EDIH                 . Restore M6..M8 and M13
+ 15,VTM,                        . SP := M8-1, just above C/HIDE's save area
+ 14,VJM,C/EDIH                 . Restore M6..M8 and M13
  15,UTM,-2                     . Drop the saved value and field-width argument
  13,UJ,                         . Return to the caller
  SIXTEEN:,LOG,20                . Full width of a 48-bit word in octal digits

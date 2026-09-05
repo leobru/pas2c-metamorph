@@ -18,7 +18,7 @@ cat << EOF > tmp$$
 *assem
  PASCONTR:,NAME,DTRAN  /01.06.84/
  PASINFOR:,LC,18
- P/SETEXF:,SUBP,
+ C/SETEXF:,SUBP,
  RGEXPORT:,LC,1
  14,VTM,*0004B
  14,XTA,2
@@ -27,7 +27,7 @@ cat << EOF > tmp$$
  14,XTA,3
  ,UTC,PASINFOR
  ,ATX,3
- ,UJ,P/SETEXF
+ ,UJ,C/SETEXF
  *0004B:,TEXT,8HPASINPUT
  ,LOG,${src_extent} 400
  ,LOG,2

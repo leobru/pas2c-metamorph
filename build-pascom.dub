@@ -21,17 +21,13 @@
  PASMITXT:  , SUBP,
  PASISOCD:  , SUBP,
  PASLIST :  , SUBP,
- GAM/0   :  , EQU ,PASINFOR+1
  P/PAMPAM:  , SUBP,
- PASCONTR:  , SUBP,
+ PASCONTR :  , SUBP,
  C/WI    :  , SUBP,
 cLONGJMP :  , SUBP,
  PASOUT  :  , SUBP,
  P/FIRP  :  , PC  ,1024
  PASCOMPL:  , SUBP,
- GAM/5   :  , EQU ,ENTRY*-1
- GAM/7   :  , EQU ,PASINFOR+8
- GAN/0   :  , EQU ,MONITOR*+2
  READ*   :  , SUBP,
 C===========================================
  *PASCAL :  ,ENTRY,
@@ -49,14 +45,14 @@ C===========================================
             , UZA ,*0010B
           14, XTA ,
             , ATX ,*0045B
- *0010B  : 9, VTM ,GAM/0   .PASINFOR+1
+ *0010B  : 9, VTM ,PASINFOR+1
           14, VTM ,-6
           13, VJM ,P/PAMPAM
           13, VJM ,PASCONTR
           13, VJM ,PASCOMPL
             , XTA ,FLGEX*
             , U1A ,*0033B
-          11, VTM ,GAM/5   .ENTRY*-1
+          11, VTM ,ENTRY*-1
  *0016B  :11, UTM ,1
           11, XTA ,
             , U1A ,*0016B
@@ -74,17 +70,17 @@ C===========================================
           15, ATX ,2
           15, *70 ,1
           14, VTM ,-9
-           8, VTM ,GAM/7   .PASINFOR+8
+           8, VTM ,PASINFOR+8
           13, VJM ,P/PAMPAM
           15, *70 ,2
-            , UJ  ,GAN/0   .MONITOR*+2
+            , UJ  ,MONITOR*+2
  *0033B  :  , UTC ,MONCARD*
             , XTA ,
             , ASN ,64-8
             , YTA ,
             , UTC ,*0055B  .=52
             , AEX ,
-            , UZA ,GAN/0   .MONITOR*+2
+            , UZA ,MONITOR*+2
             , ITS ,15
           13, VJM ,READ*
             , UJ  ,*0033B

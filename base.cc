@@ -10938,7 +10938,7 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
 }
 
 int64_t helperNames[30] = { 0L,
-        toText("P/1     "),
+        toText("C/1     "),
         toText("C/2     "),
         toText("C/3     "),
         toText("C/4     "),

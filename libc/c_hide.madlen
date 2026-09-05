@@ -1,0 +1,29 @@
+ C/HIDE:,NAME,
+C===========================================================
+C C/HIDE / C/EDIH - save/restore M6, M7, M8 and M13 (one module, two
+C entries).  C/HIDE pushes them and jumps to the caller's link in M14;
+C C/EDIH pops them back and returns the same way.  Used by printf and
+C the packed-character writers (C/7A, C/A7, C/WO) to free M6..M8 as
+C scratch while keeping the caller's own use of those registers intact
+C across the call.
+C
+C This is a verbatim port of the Pascal runtime's P/HIDE/P/EDIH
+C (paslib/p_hide.dtran).  Structure and content are otherwise
+C unexamined; the fixpoint check and full test suite verify it.
+C===========================================================
+                ,ITA ,13
+                ,ITS ,8
+                ,ITS ,7
+                ,ITS ,6
+           15   ,ATX ,
+           14   ,UJ  ,
+C===========================================================
+ C/EDIH:,ENTRY,
+C===========================================================
+           15   ,XTA ,
+                ,STI ,6
+                ,STI ,7
+                ,STI ,8
+                ,ATI ,13
+           14   ,UJ  ,
+                ,END ,
