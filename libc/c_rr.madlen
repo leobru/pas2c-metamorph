@@ -1,0 +1,39 @@
+ C/RR:,NAME,
+C===========================================================
+C C/RR - load a non-simple packed field (a packed array element, or an
+C MSB-ordered struct) addressed through a pointer.
+C
+C   Entry:  ACC = the field's shift amount (untagged plain integer)
+C           M11 = address of the width-specific table (C/01/C/02/C/03/
+C                 C/04/C/06/C/07, picked by work.p2c at compile time --
+C                 see libc/c_01.madlen)
+C           M14 = address of the word(s) containing the field, set by
+C                 setAddrTo(14)
+C           M13 = return link
+C
+C prepLoad (work.p2c) selects this over C/LDAR when the value's kind is
+C a packed array, or a struct not declared __lsb.  Shares C/LDAR's
+C prologue; diverges only in the final extraction.  This is a verbatim
+C port of the Pascal runtime's P/RR (paslib/p_rr.dtran); the width-table
+C format it reads via M11 is not independently understood beyond the
+C shape documented at c_01.madlen.  The fixpoint check and full test
+C suite verify it (test 30 reaches this specific routine).
+C===========================================================
+                ,NTR ,3
+            1   ,AOX ,11B
+           15   ,ATX ,1
+           11   ,A*X ,
+                ,ATI ,10
+           10   ,J+M ,14
+           11   ,A*X ,1
+                ,YTA ,100B
+           15   ,X-A ,1
+                ,ATI ,10
+           14   ,XTA ,
+           10   ,UTC ,
+           11   ,ASX ,5
+           11   ,WTC ,3
+                ,ASX ,-2
+                ,YTA ,
+           13   ,UJ  ,
+                ,END ,

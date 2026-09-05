@@ -3,11 +3,51 @@ C===========================================================
 C halt() - terminate the program through the Pascal runtime.
 C
 C Calling convention for a zero-argument ASSEMBLER routine:
-C   M13 = return link
+C   M13 = return link (discarded -- halt() never returns)
+C   M1  = runtime constant base
+C   M7  = top of the Pascal activation chain (kept current by the runtime)
 C
-C P/HT does not return normally.  Tail-call it so it receives the caller's
-C link and the current activation chain unchanged.
+C This is the Pascal runtime's P/HT (paslib/p_ht.asm), inlined instead of
+C tail-called:
+C   1. Invoke the user's post-mortem-dump entry if one was installed at
+C      PASPMDAD -- the same cell name and convention C/AH already uses.
+C   2. Call P/RC to walk back up the activation chain rooted at M7,
+C      running any cleanup linked from each frame's state word at
+C      mem[M7+1].
+C   3. Patch the address field of the outermost frame's state word so
+C      the eventual frame-return jumps to STOP*, the runtime's final
+C      exit.  mem[M7+1] is a *data* slot in the activation frame, never
+C      an instruction in program text, so this is not self-modifying
+C      code.
+C   4. Dispatch to P/E (normal end) or P/EF (forced end, runs the
+C      patched cleanup) depending on whether the outer frame carried one.
 C===========================================================
- P/HT:          ,SUBP,
-                ,UJ  ,P/HT
-                ,END ,
+ PASPMDAD:,LC,1              . user post-mortem-dump entry, or 0
+ STOP*:,SUBP,                . runtime final exit (MS Dubna OS)
+ P/E:,SUBP,                  . normal Pascal end-of-program
+ P/RC:,SUBP,                 . activation-chain unwinder
+ P/EF:,SUBP,                 . forced end (runs patched cleanup)
+ 14,VTM,PASPMDAD             . M14 := &PASPMDAD
+ 14,XTA,                     . ACC := PASPMDAD
+ ,UZA,NOPMD                  . none installed -> skip PMD
+ 13,VTM,NOPMD                . arrange PMD to return here
+ 14,WTC,                     . C := PASPMDAD
+ ,UJ,                        . jump into the PMD handler
+ NOPMD:1,MTJ,13              . M13 := M1 (chain-end sentinel for P/RC:
+C                              it stops when M7 == saved M13)
+ 14,VJM,P/RC                 . unwind the activation chain
+ 7,XTA,1                     . ACC := mem[M7+1] = outer frame's
+C                              state/return-link word
+ ,UTC,ADDRMASK.=77 7770 0000 . C := address of high-bits mask
+ ,AAX,                       . ACC &= mask (clear address field, keep
+C                              cleanup/opcode bits)
+ 14,VTM,STOP*                . M14 := STOP*
+ ,ITS,14                     . push STOP* onto the BESM-6 stack
+ 15,AOX,-1                   . ACC |= mem[SP-1] = STOP* (install STOP*
+C                              as the new address part)
+ 7,STX,1                     . store patched link; pop saved high part
+C                              into ACC
+ ,UZA,P/E                    . saved cleanup/opcode part zero -> P/E
+ ,UJ,P/EF                    . else hand off to P/EF
+ ADDRMASK:,LOG,77 7770 0000  . high-bits mask (clears the address field)
+ ,END,

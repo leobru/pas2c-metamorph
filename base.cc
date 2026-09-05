@@ -3623,7 +3623,7 @@ L3556:
                     add2InsnsToBuf(KSTI+14, KUTC+I14);
                     break;
                 case mcMULTI: {
-                    addInsnToBuf(getHelperProc(7));        /* P/MI */
+                    addInsnToBuf(getHelperProc(7));        /* C/MI */
                 } break;
                 case mcADDSTK2REG:
                     add2InsnsToBuf(KWTC+SP, KUTM+indexreg[curInsn.ii]);
@@ -3926,7 +3926,7 @@ void prepLoad()
                     isSimple = false;
                 }
                 addToInsnList(getHelperProc(isSimple
-                    ? 20 /* "P/LDAR" */ : 14 /* "P/RR" */));
+                    ? 20 /* "C/LDAR" */ : 14 /* "C/RR" */));
                 insnList->tail->mode = 1;
             }
         } // FALLTHRU
@@ -4088,7 +4088,7 @@ void prepStore()
                 prependToInsnList(InsnTemp[YTA]);
                 prependToInsnList(ASN64 - l4int1z);
             }
-            addToInsnList(getHelperProc(22)); /* "P/STAR" */
+            addToInsnList(getHelperProc(22)); /* "C/STAR" */
             insnList->tail->mode = 1;
         }
     }
@@ -4745,7 +4745,7 @@ void genGetElt()
                     if (curVal.ii == 24)
                         curVal.ii = 7;
                     curVal.ii = shl48(curVal.ii, 24);
-                    addToInsnList(allocSymtab(  /* P/00C */
+                    addToInsnList(allocSymtab(  /* C/00C */
                         helperNames[21] | curVal.ii)+(KVTM+I11));
                     insnCopy.addrmd = 16;
                     insnCopy.shift = 0;
@@ -5488,7 +5488,7 @@ L7567:
                     tryFlip(true);
                     insnList->tail->mode = 1;
                     /* The unsigned product takes what the m- mode takes:
-                       the low half of it, with no P/MI fixup. */
+                       the low half of it, with no C/MI fixup. */
                     addToInsnList(exprToGen->vt.typ == UnsignedType
                                   ? KYTA+64 : macro + mcMULTI);
                     break;
@@ -10944,22 +10944,22 @@ int64_t helperNames[30] = { 0L,
         toText("C/4     "),
         toText("C/5     "),
         toText("C/MD    "),
-        toText("P/MI    "),
+        toText("C/MI    "),
         toText("C/DI    "),
         toText("P/1D    "),
 /*10*/  toText("C/GD    "),
         toText("C/E     "),
         toText("C/EF    "),
         toText("C/NW    "),
-        toText("P/RR    "),
+        toText("C/RR    "),
         toText("C/TR    "),
         toText("FOPEN   "),
         toText("FCLOSE  "),
         toText("C/IT    "),
         toText("C/LNGPAR"),
-/*20*/  toText("P/LDAR  "),
-        toText("P/00C   "),
-        toText("P/STAR  "),
+/*20*/  toText("C/LDAR  "),
+        toText("C/00C   "),
+        toText("C/STAR  "),
         toText("P/EQ    "),
         toText("P/GE    "),
         toText("P/MF    "),

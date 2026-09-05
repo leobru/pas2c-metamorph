@@ -638,22 +638,22 @@ int helperNames[30] = { 0,
         t'C/4     ',
         t'C/5     ',
         t'C/MD    ',
-        t'P/MI    ',
+        t'C/MI    ',
         t'C/DI    ',
         t'P/1D    ',
 /*10*/  t'C/GD    ',
         t'C/E     ',
         t'C/EF    ',
         t'C/NW    ',
-        t'P/RR    ',
+        t'C/RR    ',
         t'C/TR    ',
         t'FOPEN   ',
         t'FCLOSE  ',
         t'C/IT    ',
         t'C/LNGPAR',
-/*20*/  t'P/LDAR  ',
-        t'P/00C   ',
-        t'P/STAR  ',
+/*20*/  t'C/LDAR  ',
+        t'C/00C   ',
+        t'C/STAR  ',
         t'P/EQ    ',
         t'P/GE    ',
         t'P/MF    ',
@@ -3064,7 +3064,7 @@ void processInsn() {
                 add2InsnsToBuf(KSTI+14, KUTC+I14);
                 break;
             case mcMULTI:
-                addInsnToBuf(getHelperProc(7));        /* P/MI */
+                addInsnToBuf(getHelperProc(7));        /* C/MI */
                 break;
             case mcADDSTK2REG:
                 add2InsnsToBuf(KWTC+SP, KUTM+
@@ -3291,7 +3291,7 @@ int isSimple;
                     isSimple  =  false;
                 }
                 addToInsnList(getHelperProc(isSimple
-                    ? 20 /* "P/LDAR" */ : 14 /* "P/RR" */));
+                    ? 20 /* "C/LDAR" */ : 14 /* "C/RR" */));
                 il->tail->mode  =  1;
             }
             // FALLTHRU
@@ -3489,7 +3489,7 @@ kind l4var7z;
                 prependToInsnList(KYTA);
                 prependToInsnList(ASN64 - l4int1z);
             }
-            addToInsnList(getHelperProc(22)); /* "P/STAR" */
+            addToInsnList(getHelperProc(22)); /* "C/STAR" */
             insnList->tail->mode  =  1;
         }
     }
@@ -4208,7 +4208,7 @@ int idxOffsets[10];
                     if (curVal.i == 24)
                         curVal.i  =  7;
                     curVal.i <<= 24;
-                    addToInsnList(allocSymtab(  /* P/00C */
+                    addToInsnList(allocSymtab(  /* C/00C */
                         helperNames[21] | curVal.i)+(KVTM+I11));
                     insnCopy.addrmd  =  16;
                     insnCopy.shift  =  0;
@@ -5067,7 +5067,7 @@ L7567:
                     tryFlip(true);
                     insnList->tail->mode  =  1;
                     /* The unsigned product takes what the m- mode takes:
-                       the low half of it, with no P/MI fixup. */
+                       the low half of it, with no C/MI fixup. */
                     addToInsnList(exprToGen->typ == uintType
                                   ? KYTA + 64 : macro + mcMULTI);
                     break;

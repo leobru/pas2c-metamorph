@@ -1,0 +1,36 @@
+ C/LDAR:,NAME,
+C===========================================================
+C C/LDAR - load a non-simple packed field (LSB-ordered struct, or a
+C scalar/simple type) addressed through a pointer.
+C
+C   Entry:  ACC = the field's shift amount (untagged plain integer)
+C           M11 = address of the width-specific table (C/01/C/02/C/03/
+C                 C/04/C/06/C/07, picked by work.p2c at compile time --
+C                 see libc/c_01.madlen)
+C           M14 = address of the word(s) containing the field, set by
+C                 setAddrTo(14)
+C           M13 = return link
+C
+C prepLoad (work.p2c) selects this over C/RR when the value's kind is a
+C scalar, or a struct declared __lsb; C/RR is its MSB/array sibling.
+C This is a verbatim port of the Pascal runtime's P/LDAR
+C (paslib/p_ldar.dtran); the width-table format it reads via M11 is not
+C independently understood beyond the shape documented at c_01.madlen.
+C The fixpoint check and full test suite verify it.
+C===========================================================
+                ,NTR ,3
+            1   ,AOX ,11B
+           15   ,ATX ,1
+           11   ,A*X ,
+                ,ATI ,10
+           10   ,J+M ,14
+           11   ,A*X ,1
+                ,YTA ,100B
+           15   ,X-A ,1
+                ,ATI ,10
+           14   ,XTA ,
+           10   ,UTC ,
+           11   ,ASX ,5
+           11   ,AAX ,2
+           13   ,UJ  ,
+                ,END ,

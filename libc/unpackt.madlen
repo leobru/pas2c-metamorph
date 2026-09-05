@@ -10,21 +10,49 @@ C   M13    = return link
 C
 C   void unpackt(void *, void *, int) assembler;
 C
-C P/KC takes the unpacked address in M11, the packed address in
-C M12, the count in M14 and the width of a packed slot as an ASN
-C code in M10, as P/CK does; M9 holds one less the number of
-C slots per word, which for six-bit characters is 1 - 8.
+C This is the Pascal runtime's P/KC (paslib/p_kc.dtran), inlined instead of
+C tail-called.  M11 addresses the unpacked characters, M12 the packed
+C array, M14 counts characters down to 0, M10 is the ASN code for the slot
+C width (64-6 = 58, a 6-bit left shift), and M9 holds one less the number
+C of slots per word (1-8 = -7, eight six-bit slots per 48-bit word), as
+C packt.madlen's own P/CK conversion will also use.
 C
-C P/KC returns through M13, which still holds the caller's link,
-C so the jump into it is the return as well.
+C M13 (the return link) has to be freed up for the outer loop below to
+C reuse as its own slots-per-word counter, so it is pushed on entry and
+C popped back into C (then jumped through) on the way out.
+C
+C Each inner pass shifts the remaining packed word left 6 bits -- ASN
+C clears Y first, so a left shift moves exactly the slot that fell out of
+C the accumulator into Y's low bits -- then YTA copies that slot back into
+C the accumulator.  The result is then XORed against a saved 0 -- a no-op,
+C kept only because it's what P/KC itself does.
 C===========================================================
- P/KC:          ,SUBP,
                 ,NTR ,7      . ABI requirement
                 ,STI ,14     . M14 := count; ACC := dst
                 ,STI ,11     . M11 := dst, the unpacked characters
                 ,ATI ,12     . M12 := src, the packed array
-             9  ,VTM ,-7     . 1 - 8, the form P/KC wants
+             9  ,VTM ,-7     . 1 - 8, slots-per-word minus one
             10  ,VTM ,58     . 64 - 6, the ASN code for the slot width
-                ,XTA ,
-                ,UJ  ,P/KC   . tail call: P/KC returns to our caller
+                ,XTA ,       . ACC := 0
+                ,NTR ,3
+           15   ,ATX ,3      . [SP+3] := 0                (saved for the XOR below)
+                ,ITA ,13     . ACC := M13, the return link
+           15   ,ATX ,       . push it                     (frame now +1: SP' = SP+1)
+ WORDLOOP:  12  ,XTA ,       . ACC := the next packed word
+           15   ,ATX ,1      . [SP'+1] := ACC, the word being unpacked
+            9   ,MTJ ,13     . M13 := M9 = -7, the per-word slot counter
+ SLOTLOOP:  15  ,XTA ,1      . ACC := [SP'+1], the remaining word
+           10   ,ASN ,       . [Y,A] <<= 6: Y := the slot shifted out, A := the rest
+           15   ,ATX ,1      . [SP'+1] := ACC, the shifted remainder
+                ,YTA ,       . ACC := Y, the extracted slot
+           15   ,AEX ,2      . ACC ^= [SP'+2] = [SP+3] = 0  (see header note)
+           11   ,ATX ,       . dst[0] := ACC
+           11   ,UTM ,1      . M11 += 1
+           14   ,UTM ,-1     . M14 -= 1, one character consumed
+           14   ,VZM ,DONE   . count exhausted -> DONE
+           13   ,VLM ,SLOTLOOP . M13 += 1; loop while the old M13 was nonzero
+           12   ,UTM ,1      . M12 += 1
+                ,UJ  ,WORDLOOP
+ DONE:      15  ,WTC ,       . pop the saved return link back into C
+                ,UJ  ,       . return: jump to C
                 ,END ,

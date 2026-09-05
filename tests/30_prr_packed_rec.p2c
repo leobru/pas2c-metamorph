@@ -1,7 +1,7 @@
 /*=k9,l0*/
 
 typedef struct {
-    int lo, hi;
+    int lo:6, hi:6;
 } pair;
 
 __packed pair tab[4];

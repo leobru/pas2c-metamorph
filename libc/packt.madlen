@@ -10,25 +10,92 @@ C   M13    = return link
 C
 C   void packt(void *, void *, int) assembler;
 C
-C P/CK takes the unpacked address in M11, the packed address in
-C M12, the count in M14, the width of a packed slot as an ASN
-C code in M10, and the number of slots per word in M9.  Six-bit
-C characters go eight to a word, which fixes those two.
+C This is the Pascal runtime's P/CK (paslib/p_ck.dtran), inlined instead of
+C tail-called: M11 addresses the unpacked characters, M12 the packed
+C array, M14 the count, M10 the ASN code for the slot width, M9 the
+C number of slots per word.  Six-bit characters go eight to a word, which
+C fixes those two.
 C
-C An unpacked character array gives every element a word of its
-C own, so both addresses are word addresses; VOID * is what lets
-C the caller pass an array of any character type.
-C
-C P/CK returns through M13, which still holds the caller's link,
-C so the jump into it is the return as well.
+C This is a straight transliteration of p_ck.dtran, label for label: the
+C count-exactly-8 fast path at WORDCHECK/PACKWORD, and the prefetch loop
+C at PREFETCH that advances M11/M13 by up to a wordful before falling into
+C PACKWORD for the general case.  DEADLOOP is unreachable -- the bare XTA
+C ahead of it always loads 0, and 0 is what UZA branches away on -- but is
+C kept rather than deleted, matching P/CK.  Verified by test 113 and a
+C differential check (against the original P/CK) at counts that aren't
+C multiples of M9.
 C===========================================================
- P/CK:          ,SUBP,
                 ,NTR ,7      . ABI requirement
                 ,STI ,14     . M14 := count; ACC := dst
                 ,STI ,12     . M12 := dst, the packed array
                 ,ATI ,11     . M11 := src, the unpacked characters
              9  ,VTM ,8      . eight six-bit characters to a word
             10  ,VTM ,58     . 64 - 6, the ASN code for the slot width
-                ,XTA ,
-                ,UJ  ,P/CK   . tail call: P/CK returns to our caller
+                ,XTA ,       . ACC := 0
+                ,NTR ,3
+             1  ,ATX ,3      . [M1+3] := 0
+                ,ITA ,13     . ACC := M13, the return link
+                ,ITS ,14     . push it; ACC := M14 = count
+             1  ,XTS ,3      . push count; ACC := [M1+3] = 0
+                ,UZA ,START  . always 0 -> START
+ DEADLOOP:  15  ,MTJ ,13
+           15   ,UTM ,2
+ DLPUSH:    11  ,XTS ,
+           11   ,UTM ,1
+            1   ,AEX ,3
+           14   ,UTM ,-1
+           14   ,V1M ,DLPUSH
+           11   ,XTS ,
+           13   ,MTJ ,15
+           13   ,UTC ,
+           11   ,VTM ,3
+ START:         ,ITA ,9      . ACC := M9 = 8
+                ,UTC ,TWO.=2
+                ,X-A ,       . ACC := 2 - 8 = -6
+                ,ATI ,14     . M14 := -6
+ WORDCHECK:     ,ITA ,9      . ACC := M9 = 8
+           15   ,X-A ,-1     . ACC := count - 8
+                ,U1A ,NEXTORDONE . count != 8 -> NEXTORDONE
+ PACKWORD:  15  ,ATX ,-1     . the count slot := 0 (exactly one word packed)
+           14   ,MTJ ,13     . M13 := M14 = -6
+            9   ,J+M ,11     . M11 += M9 = 8
+                ,XTA ,       . ACC := 0
+ PACKLOOP:  13  ,UTC ,-2     . C := M13 - 2
+           11   ,AEX ,       . ACC ^= mem[M11+C]
+           10   ,ASN ,       . [Y,A] <<= 6
+           13   ,VLM ,PACKLOOP . M13 += 1; loop while the old M13 was nonzero
+           11   ,AEX ,-1     . ACC ^= mem[M11-1], the eighth character
+           12   ,ATX ,       . mem[M12] := ACC, the packed word
+           12   ,UTM ,1      . M12 += 1
+           15   ,XTA ,-1     . ACC := the count slot
+                ,UZA ,NEXTORDONE . 0 remaining -> NEXTORDONE
+                ,UJ  ,WORDCHECK
+ NEXTORDONE:15  ,XTA ,-1     . ACC := the count slot
+                ,U1A ,PREFETCH . nonzero -> PREFETCH
+           15   ,UTM ,-1     . drop the two pushed frame words
+           15   ,WTC ,       . pop the saved return link into C
+                ,UJ  ,       . return: jump to C
+ PREFETCH:      ,ATI ,13     . M13 := ACC, the remaining count
+                ,ITA ,8      . ACC := M8
+                ,ITS ,7      . push it; ACC := M7
+           15   ,ATX ,       . push it
+           15   ,MTJ ,8      . M8 := SP (below the two just-saved registers)
+           14   ,UTC ,-2     . C := M14 - 2 = -8
+            7   ,VTM ,       . M7 := -8
+ PFLOOP:    13  ,VZM ,PFSKIP . remaining count == 0 -> PFSKIP
+           13   ,UTM ,-1     . remaining count -= 1
+           11   ,XTA ,       . ACC := mem[M11], the next character
+           11   ,UTM ,1      . M11 += 1
+ PFPUSH:    15  ,ATX ,       . push it (or, from PFSKIP, whatever ACC still holds)
+            7   ,VLM ,PFLOOP . M7 += 1; loop while the old M7 was nonzero
+            8   ,MTJ ,15     . SP := M8, discarding the pushed run
+           15   ,MTJ ,11     . M11 := SP, the base of that run
+           15   ,XTA ,       . pop: ACC := the saved M7
+                ,STI ,7      . M7 := ACC; pop: ACC := the saved M8
+                ,ATI ,8      . M8 := ACC
+                ,XTA ,       . ACC := 0
+                ,UJ  ,PACKWORD
+ PFSKIP:        ,XTA ,       . ACC := 0; PFPUSH pushes this in place of a real character
+                ,UJ  ,PFPUSH
+ TWO:           ,LOG ,2
                 ,END ,

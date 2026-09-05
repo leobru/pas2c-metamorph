@@ -1,0 +1,37 @@
+ C/08:,NAME,
+C===========================================================
+C C/08 - the eighth member of the per-width table family (see
+C c_01.madlen); read via M11 by C/LDAR/C/RR/C/STAR, and also by
+C printf.madlen's own internal packed-field access (see the SUBP
+C reference there, renamed from P/08 alongside this conversion).
+C
+C This is a verbatim port of the Pascal runtime's P/08
+C (paslib/p_08.dtran).  Structure and content are otherwise
+C unexamined; the fixpoint check and full test suite verify it.
+C===========================================================
+ ,LOG,4002 5252 5252 5253
+ ,LOG,4000 0000 0000 0006
+ ,LOG,377
+ ,ATX,
+ ,Z00,*0013B
+ ,ATX,
+ ,Z00,*0021B
+ ,LOG,6400 0000 0000 0000
+ ,LOG,6000 0000 0000 0000
+ ,LOG,5400 0000 0000 0000
+ ,LOG,5000 0000 0000 0000
+ ,LOG,4400 0000 0000 0000
+ ,LOG,4000 0000 0000 0000
+ *0013B:,LOG,1400 0000 0000 0000
+ ,LOG,2000 0000 0000 0000
+ ,LOG,2400 0000 0000 0000
+ ,LOG,3000 0000 0000 0000
+ ,LOG,3400 0000 0000 0000
+ ,LOG,4000 0000 0000 0000
+ *0021B:,LOG,17 7777 7777 7777
+ ,LOG,7760 0377 7777 7777
+ ,LOG,7777 7400 7777 7777
+ ,LOG,7777 7777 0017 7777
+ ,LOG,7777 7777 7760 0377
+ ,LOG,7777 7777 7777 7400
+                ,END ,

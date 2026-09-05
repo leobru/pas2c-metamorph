@@ -1,0 +1,42 @@
+ C/STAR:,NAME,
+C===========================================================
+C C/STAR - store into a non-simple packed field addressed through a
+C pointer.
+C
+C   Entry:  ACC = the field's shift amount (untagged plain integer)
+C           [SP-1] = the value to store
+C           M11 = address of the width-specific table (C/01/C/02/C/03/
+C                 C/04/C/06/C/07, picked by work.p2c at compile time --
+C                 see libc/c_01.madlen)
+C           M14 = address of the word(s) containing the field, set by
+C                 setAddrTo(14)
+C           M13 = return link
+C
+C Shares C/LDAR/C/RR's prologue (through the second ,ATI,10); diverges
+C after that into the store-specific merge of the new value with the
+C surrounding word(s).  This is a verbatim port of the Pascal runtime's
+C P/STAR (paslib/p_star.dtran); the width-table format it reads via M11
+C is not independently understood beyond the shape documented at
+C c_01.madlen.  The fixpoint check and full test suite verify it.
+C===========================================================
+                ,NTR ,3
+            1   ,AOX ,11B
+           15   ,ATX ,1
+           11   ,A*X ,
+                ,ATI ,10
+           10   ,J+M ,14
+           11   ,A*X ,1
+                ,YTA ,100B
+           15   ,X-A ,1
+                ,ATI ,10
+           15   ,XTA ,-1
+           11   ,WTC ,3
+           10   ,ASX ,
+           15   ,ATX ,-1
+           14   ,AEX ,
+           11   ,WTC ,4
+           10   ,AAX ,
+           15   ,AEX ,
+           14   ,ATX ,
+           13   ,UJ  ,
+                ,END ,

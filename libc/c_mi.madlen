@@ -1,0 +1,25 @@
+ C/MI:,NAME,
+C===========================================================
+C C/MI - fix up the low half of a signed integer multiply.
+C
+C   Calling convention (single arg, in ACC):
+C     ACC = the naive low half of the product (from KMUL/YTA)  ->  ACC = corrected
+C     M13 = return link
+C
+C work.p2c's mcMULTI macro emits a call to this right after a KMUL whose
+C result needs the signed low half rather than the unsigned one KYTA+64
+C gives (genFullExpr's opfMULMSK case, and the negative-stride packed-array
+C index case).  This is the Pascal runtime's P/MI (paslib/p_mi.dtran),
+C ported instruction for instruction: [M1+13B] is the "positive-mantissa
+C mask (bits 7..47)" from p_bx.asm's constant table; XOR-AND-XOR through it
+C replaces bits 7-47 of the naive value with YTA's non-logical
+C reconstruction from Y, keeping the sign (bit 48) and the low 6 bits from
+C the naive value.
+C===========================================================
+           15   ,ATX ,1      . [SP+1] := ACC, the naive low half
+                ,YTA ,100B   . ACC := Y's mantissa, sign cleared, unshifted
+           15   ,AEX ,1      . ACC ^= [SP+1]
+            1   ,AAX ,13B    . ACC &= the positive-mantissa mask
+           15   ,AEX ,1      . ACC ^= [SP+1]
+           13   ,UJ  ,       . return the corrected low half
+                ,END ,

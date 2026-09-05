@@ -12,19 +12,32 @@ C Result:
 C   ACC = the six characters at p packed into one word, the
 C         first of them in the most significant byte.
 C
-C This is the PCK standard procedure as a function: PCK sets
-C M12 to the address of a CHAR lvalue, calls P/PA and stores
-C the word P/PA leaves in the accumulator, so the whole of the
-C work is P/PA's and the address is all it wants.  An unpacked
-C character array gives every element a word of its own, which
-C is why the argument is an INT * rather than a CHAR *, a
-C CHAR * being a byte index into flat memory.
+C This is the Pascal runtime's P/PA (paslib/p_pa.dtran), inlined instead of
+C tail-called.  M12 addresses the six characters; the accumulator is built
+C up in the scratch slot [SP+1] one character at a time, shifting left 8
+C bits after each of the first five so the next character lands in the low
+C byte, then OR-ing in the sixth (and last) character unshifted:
 C
-C P/PA returns the packed word through M13, which still holds
-C the caller's link, so the jump into it is the return as well.
+C   ACC := 0
+C   for i in 0..4: ACC := (ACC | p[i]) << 8
+C   ACC := ACC | p[5]
+C
+C which places p[0] in the most significant byte and p[5] in the least.
+C The loop runs five passes (M14 = -4..0, via VLM's check-then-increment
+C order) covering p[0..4]; p[5] is read once after the loop.
 C===========================================================
- P/PA:          ,SUBP,
                 ,NTR ,7      . ABI requirement
-                ,ATI ,12     . M12 := p, the address P/PA packs from
-                ,UJ  ,P/PA   . tail call: P/PA returns the word to our caller
+                ,ATI ,12     . M12 := p
+                ,XTA ,       . ACC := 0
+           15   ,ATX ,1      . [SP+1] := 0, the running accumulator
+           14   ,VTM ,-4     . M14 := -4, a 5-pass loop counter
+ LOOP:     14   ,UTC ,       . C := M14, the byte offset (-4..0)
+           12   ,XTA ,4      . ACC := p[4+M14]
+           15   ,AOX ,1      . ACC |= [SP+1]
+                ,ASN ,64-8   . ACC <<= 8
+           15   ,ATX ,1      . [SP+1] := ACC
+           14   ,VLM ,LOOP   . M14 += 1; loop while the old M14 was nonzero
+           12   ,XTA ,5      . ACC := p[5], the last character
+           15   ,AOX ,1      . ACC |= [SP+1]
+           13   ,UJ  ,       . return the packed word
                 ,END ,

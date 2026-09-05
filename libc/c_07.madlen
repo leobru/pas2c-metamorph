@@ -1,0 +1,30 @@
+ C/07:,NAME,
+C===========================================================
+C C/07 - one of a family of per-width tables (C/01, C/02, C/03,
+C C/04, C/06, C/07 -- C/05 does not exist, matching the original
+C library) that C/LDAR, C/RR and C/STAR read via M11.  work.p2c
+C picks the family member at compile time by OR-ing a width-
+C derived value into helperNames[21] (the base name, renamed
+C from P/00C to C/00C alongside this family) -- see
+C work.p2c:4212 and its base.cc mirror.
+C
+C This is a verbatim port of the Pascal runtime's P/07
+C (paslib/p_07.dtran): a short relocation-bearing header,
+C then a table of shift-position values sized inversely to the
+C field width.  Structure and content are otherwise unexamined;
+C the fixpoint check and full test suite are what verify it.
+C===========================================================
+ ,LOG,4010 0000 0000 0001
+ ,LOG,4000 0000 0000 0002
+ ,LOG,7777 7777
+ ,ATX,
+ ,Z00,*0007B
+ ,ATX,
+ ,Z00,*0011B
+ ,LOG,5400 0000 0000 0000
+ ,LOG,4000 0000 0000 0000
+ *0007B:,LOG,2400 0000 0000 0000
+ ,LOG,4000 0000 0000 0000
+ *0011B:,LOG,7777 7777
+ ,LOG,7777 7777 0000 0000
+                ,END ,

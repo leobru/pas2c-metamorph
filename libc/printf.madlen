@@ -48,8 +48,8 @@ C===========================================================
  STRLEN:        ,SUBP,
  P/HIDE:        ,SUBP,
  P/EDIH:        ,SUBP,
- P/08:          ,SUBP,
- P/LDAR:        ,SUBP,
+ C/08:          ,SUBP,
+ C/LDAR:        ,SUBP,
  *OUTPUT*:,LC,30
 C P/HIDE saves M13 and the three scratch registers M6..M8.  M6 then bases the
 C constants and static scratch storage below; only P/HIDE's four words use SP.
@@ -259,8 +259,8 @@ C byte pointer by one.
                 1,ARX,8
                  ,STX,FMTPTR
                14,VTM,
-               11,VTM,P/08
-               13,VJM,P/LDAR
+               11,VTM,C/08
+               13,VJM,C/LDAR
                  ,ATI,14
                15,WTC,
                  ,UJ,

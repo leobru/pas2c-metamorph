@@ -1,0 +1,34 @@
+ C/0П:,NAME,
+C===========================================================
+C C/0<control> - another member of the per-width table family
+C (see c_01.madlen); read via M11 by C/LDAR/C/RR/C/STAR.
+C The name's last two bytes are the same non-ASCII pair the
+C original P/0<control> used -- the OR-construction in work.p2c
+C (helperNames[21] combined with the field width) produces this
+C exact byte pair for a 6-bit field, which is what test 30
+C exercises.
+C
+C This is a verbatim port of the Pascal runtime's P/0<control>
+C (paslib/p_0П.dtran).  Structure and content are otherwise
+C unexamined; the fixpoint check and full test suite verify it.
+C===========================================================
+ ,LOG,4004 0000 0000 0001
+ ,LOG,4000 0000 0000 0004
+ ,LOG,7777
+ ,ATX,
+ ,Z00,*0011B
+ ,ATX,
+ ,Z00,*0015B
+ ,LOG,6200 0000 0000 0000
+ ,LOG,5400 0000 0000 0000
+ ,LOG,4600 0000 0000 0000
+ ,LOG,4000 0000 0000 0000
+ *0011B:,LOG,1600 0000 0000 0000
+ ,LOG,2400 0000 0000 0000
+ ,LOG,3200 0000 0000 0000
+ ,LOG,4000 0000 0000 0000
+ *0015B:,LOG,7777 7777 7777
+ ,LOG,7777 0000 7777 7777
+ ,LOG,7777 7777 0000 7777
+ ,LOG,7777 7777 7777 0000
+                ,END ,

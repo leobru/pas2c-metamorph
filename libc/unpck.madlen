@@ -13,23 +13,30 @@ C Result:
 C   p[0]..p[5] hold the six eight-bit characters of value, the
 C   most significant byte of it in p[0].
 C
-C P/UN wants the destination address in M12 and the word in the
-C accumulator, and that is the whole of what it wants.  An
-C unpacked character array gives every element a word of its
-C own, which is why the destination is an INT * and not a
-C CHAR *, a CHAR * being a byte index into flat memory.
-C
 C The word is the pushed argument and the address arrives in the
 C accumulator, so STI is the whole of the entry sequence: it
 C takes the address for M12 and pops the word into the
 C accumulator in one instruction.  That is what makes this order
 C of the two arguments the convenient one.
 C
-C P/UN returns through M13, which still holds the caller's link,
-C so the jump into it is the return as well.
+C This is the Pascal runtime's P/UN (paslib/p_un.dtran), inlined instead of
+C tail-called.  Each pass shifts the remaining word left 8 bits -- ASN
+C clears Y first, so a left shift moves exactly the top byte that fell out
+C of the accumulator into Y's low bits -- then YTA copies that byte back
+C into the accumulator to store.  Six passes (M14 = -5..0, via VLM's
+C check-then-increment order) place p[0]..p[5] in order, most significant
+C byte first.
 C===========================================================
- P/UN:          ,SUBP,
                 ,NTR ,7      . ABI requirement
                 ,STI ,12     . M12 := p; ACC := value
-                ,UJ  ,P/UN   . tail call: P/UN returns to our caller
+           15   ,ATX ,1      . [SP+1] := value, the word being unpacked
+           14   ,VTM ,-5     . M14 := -5, a 6-pass loop counter
+ LOOP:     15   ,XTA ,1      . ACC := [SP+1], the remaining word
+                ,ASN ,64-8   . [Y,A] <<= 8: Y := the top byte shifted out
+           15   ,ATX ,1      . [SP+1] := ACC, the shifted remainder
+                ,YTA ,       . ACC := Y, the extracted byte
+           14   ,UTC ,       . C := M14, the byte offset (-5..0)
+           12   ,ATX ,5      . p[5+M14] := ACC
+           14   ,VLM ,LOOP   . M14 += 1; loop while the old M14 was nonzero
+           13   ,UJ  ,       . return
                 ,END ,
