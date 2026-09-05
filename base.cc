@@ -1258,7 +1258,7 @@ struct programme {
     IdentRecPtr procName;
     IdentRecPtr preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr;
     bool isPredefined, l2bool8z, inTypeDef, externDecl;
-    bool done, retSeen, hadParens, typedefPending;
+    bool done, retSeen, hadParens, typedefPending, isFortranEntry;
     int64_t fileExit;
     int64_t l2var12z;
     TPtr l2typ13z, l2typ14z, typedRetType, ceTyp;
@@ -6973,7 +6973,7 @@ void parseDecls(int64_t l3arg1z)
         } else {
             frame.ii = 9;
         }
-        if (l3var3z)
+        if (l3var3z && has(procName->flags(), 21))
             form2Insn((KVTM+I14) + l3arg1z + (frame.ii - 8) * 01000,
                       getHelperProc(27 /*"P/NN"*/) - 010000000);
         if (1 < l3arg1z) {
@@ -10299,12 +10299,36 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                 if (hadParens)
                     parseParameters(curIdRec->sig());
             } /* 23224 */
+            isFortranEntry = false;
+            // Declaring an entry routine's body FORTRAN is temporarily
+            // disabled -- see AGENTS.md.  Uncomment to restore.
+            // if (externDecl and SY == IDENT and curIdent == toText("FORTRAN")) {
+            //     inSymbol();
+            //     if (checkFortran) {
+            //         curVal.ii = Bits(21,24);
+            //         checkFortran = false;
+            //     } else {
+            //         curVal.ii = Bits(21);
+            //     }
+            //     if (SY == BEGINSY) {
+            //         isFortranEntry = true;
+            //     } else {
+            //         // No body: the bodyless external-Fortran declaration,
+            //         // with FORTRAN already consumed by the lookahead above.
+            //         curIdRec->flags() = curIdRec->flags() | curVal.ii;
+            //         checkSymAndRead(SEMICOLON);
+            //         goto L23301;
+            //     }
+            // }
             if (SY == BEGINSY) {
                 if (externDecl) {
                     if (curProcNesting != 2)
                         error(errBadSymbol);
-                    else
+                    else {
                         curIdRec->flags() = curIdRec->flags() | Bits(22);
+                        // if (isFortranEntry)
+                        //     curIdRec->flags() = curIdRec->flags() | curVal.ii;
+                    }
                 }
                 if (not hadParens)
                     error(42); /* errNoParamList */

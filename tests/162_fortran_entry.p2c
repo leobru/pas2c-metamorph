@@ -1,0 +1,22 @@
+/*=k9,l0*/
+//
+// Marking an entry routine's body 'fortran' -- extern int fortentry(int a,
+// int b) fortran { return a + b; } -- is temporarily disabled at the
+// parser (see AGENTS.md and work.p2c/base.cc's defineRoutine); the syntax
+// is a compile error until that capability comes back.
+//
+// Without 'fortran' an entry routine gets only M6/M8 -- the default, and
+// what seplib.p2c's ADDUP/HOWMANY/LIBOWNER already look like.  BASE is a
+// STATIC, which lives in this module's own private common addressed through
+// M6, so calling PLAINENTRY here exercises the M6 half of the trimmed
+// prologue end to end; ./runsep.sh exercises the cross-module case the
+// mechanism actually exists for.
+//
+static int base = 100;
+extern int plainentry(int a, int b) {
+    return base + a * b;
+}
+//
+void main() {
+    printf("PLAIN=%d\n", plainentry(6, 7));
+}
