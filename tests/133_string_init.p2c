@@ -14,6 +14,7 @@
 //
 typedef __packed char line[18];
 typedef __packed char dozen[12];
+typedef __packed int:6 doztext[12];
 //
 int before = 5;
 line one = "HELLO WORLD, HERE!";
@@ -24,7 +25,7 @@ int after = 9;
 // Twelve characters are exactly two words, the case the pool pads.
 dozen exact = "ABCDEFGHIJKL";
 int guard = 11;
-dozen astext = t"ABCDEFGHIJKL";
+doztext astext = t"ABCDEFGHIJKL";
 int last = 13;
 int i;
 // The other consumer of the same buffered words is an expression, where they

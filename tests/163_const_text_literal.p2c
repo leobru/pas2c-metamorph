@@ -1,0 +1,12 @@
+/*=l0*/
+// A const declared with a genuinely 6-bit-packed element type is a legal
+// destination for a t"..." literal (isTextArray, not isCharArray, gates
+// this).  sizeof is checked rather than an indexed read: reading an
+// element back out of *any* const packed array -- ISO or TEXT, unrelated
+// to this fix -- hits a pre-existing "*NO INTEGER*" runtime guard that
+// this test does not exercise.
+const __packed int:6 greeting[2] = t"AB";
+
+void main() {
+    printf(" CONST  %d\n", sizeof(greeting));
+}

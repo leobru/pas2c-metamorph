@@ -1,0 +1,6 @@
+/*=l0*/
+// A t"..." literal's elements are int:6, not char: an 8-bit-packed const
+// destination is the wrong shape and must be rejected.
+const __packed char bad[2] = t"AB";
+
+void main() {}

@@ -1,10 +1,11 @@
 /*=k9,l0*/
 typedef __packed char chars[4];
+typedef __packed int:6 textchars[4];
 
 chars ascii = "A\
 B\
 CD";
-chars text = t"EF\
+textchars text = t"EF\
 GH";
 
 void main() {

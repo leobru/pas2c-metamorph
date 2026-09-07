@@ -565,7 +565,10 @@ std::string Alfa::print() const
     return ret;
 }
 
-int64_t pck(unsigned char * p)
+// Host-native equivalents of the runtime's pck/packt externals -- work.p2c
+// calls the real ones; base.cc, running on the host rather than under the
+// BESM-6 emulator, reimplements what they do instead of linking against them.
+int64_t pck(unsigned char *p)
 {
     int64_t w = 0;
     for (int i = 0; i < 6; ++i)
@@ -573,11 +576,13 @@ int64_t pck(unsigned char * p)
     return w;
 }
 
-void unpck(int64_t w, unsigned char * p)
+void packt(unsigned char *src, int64_t *dst, int64_t count)
 {
-    for (int i = 5; i >= 0; --i) {
-        p[i] = w & 0xFF;
-        w >>= 8;
+    for (int64_t i = 0; i < count / 8; ++i) {
+        int64_t w = 0;
+        for (int j = 0; j < 8; ++j)
+            w = (w << 6) | (src[8*i + j] & 077);
+        dst[i] = w;
     }
 }
 
@@ -1025,6 +1030,12 @@ unsigned char lexSaveCH;
 // longest a string can reach is the 125 characters doCharConst stores, which
 // is 21 words.
 int64_t strBuf[21];
+
+// Set whenever the string literal just packed into strBuf/strWords was
+// t"..." (TEXT, 6 bits/char) rather than plain ISO (8 bits/char): the
+// lexer's own literalEncoding is gone by the time parseLiteral and
+// parseConstDeclValue run, so this is what they read instead.
+bool strIsText;
 
 int64_t lineNesting,
         FcstTotal,
@@ -2360,7 +2371,7 @@ struct inSymbol {
     int64_t numstr[17];
     int64_t expLiteral;
     int64_t expMagnitude;
-    int64_t charBits, charMask;
+    int64_t charBits, charMask, charsPerWord, fillByte;
     int64_t l3int162z;
     int64_t chord;
     int64_t l3var164z;
@@ -2892,6 +2903,7 @@ exitLoop:
                    holds six of them or eight. */
                 charBits = literalEncoding == 3 ? 6 : 8;
                 charMask = literalEncoding == 3 ? 077 : 0377;
+                strIsText = literalEncoding == 3;
                 if (litQuote == '\'' and strLen * charBits <= 48) {
                     /* A single-quoted literal is one word, right-aligned from
                        one character up: the characters land in the low end, so
@@ -2907,25 +2919,38 @@ exitLoop:
                 }
                 {
                     /* Double quotes give a packed character array of the
-                       length written, left-aligned and padded with NULs: six
-                       characters to the word.  The words go to strBuf and no
-                       further -- where they end up is for the consumer to say.
-                       As many of them as the type has, so a length that is an
-                       exact multiple of six takes no word of padding along.
-                       NUL is what the padding has to be, and one of them
-                       belongs to the string: the type counts strLen + 1
-                       characters, so every literal carries a terminator and
-                       strlen and puts stop on it.  The word count follows
-                       that length, which is why a string filling its last
-                       word exactly takes another one -- there is nowhere else
-                       for the terminator to go.  It costs nothing anywhere
-                       else: the terminator lands in padding that was there
-                       already. */
+                       length written, left-aligned and padded with a
+                       terminator: six characters to the word in ISO, eight
+                       in TEXT (charBits/charMask already say which).  The
+                       words go to strBuf and no further -- where they end up
+                       is for the consumer to say.  As many of them as the
+                       type has, so a length that is an exact multiple of
+                       charsPerWord takes no word of padding along.  The
+                       terminator is one of the padding characters -- 0 in
+                       ISO, koi2text['*'] in TEXT -- and one of them belongs
+                       to the string: the type counts strLen + 1 characters,
+                       so every literal carries a terminator and strlen puts
+                       stop on it.  The word count follows that length, which
+                       is why a string filling its last word exactly takes
+                       another one -- there is nowhere else for the
+                       terminator to go.  It costs nothing anywhere else: the
+                       terminator lands in padding that was there already. */
                     SY = STRINGSY;
-                    unpck(0, &localBuf[tokenIdx]);
-                    strWords = (strLen + 6) / 6;
-                    for (tokenLen = 0; tokenLen < strWords; ++tokenLen)
-                        strBuf[tokenLen] = pck(&localBuf[6 + 6*tokenLen]);
+                    charsPerWord = 48 / charBits;
+                    strWords = (strLen + charsPerWord) / charsPerWord;
+                    fillByte = strIsText ? (koi2text['*'] & charMask) : 0;
+                    for (tokenLen = tokenIdx;
+                         tokenLen < 6 + charsPerWord * strWords; ++tokenLen)
+                        localBuf[tokenLen] = fillByte;
+                    // pck packs six eight-bit characters at a time, one word
+                    // per call; packt packs a counted run of six-bit ones,
+                    // eight to a word, so the padded length -- already a
+                    // multiple of charsPerWord -- packs in one call.
+                    if (strIsText)
+                        packt(&localBuf[6], strBuf, charsPerWord * strWords);
+                    else
+                        for (tokenLen = 0; tokenLen < strWords; ++tokenLen)
+                            strBuf[tokenLen] = pck(&localBuf[6 + 6*tokenLen]);
                     /* A one-word string's token is its value, as an
                        integer's is. */
                     curToken.ii = strBuf[0];
@@ -3243,13 +3268,15 @@ L99:        litType.setRep(NULL);
             litType = CharType;
             break;
         case STRINGSY:
-            /* A string constant is a packed char array of its own length
-               and a NUL: the terminator is part of the type, so sizeof
+            /* A string constant is a packed array of its own length and a
+               terminator: the terminator is part of the type, so sizeof
                counts it and write emits it, taking no column.  One word is
                the value itself; more than one goes to the pool now, an
                expression needing an address to load from, and that address
-               is the value. */
-            litType = makeArrayType(strLen + 1, CharType, true);
+               is the value.  A t"..." literal's elements are int:6, not
+               char -- strIsText says which this one was. */
+            litType = makeArrayType(strLen + 1,
+                                     strIsText ? mkIntScl(6) : CharType, true);
             if (strWords != 1)
                 litValue.ii = strToFCST();
             break;
@@ -7091,6 +7118,14 @@ bool isCharArray(TPtr arg)
     return arg.p.pk == kindArray and arg.rep()->base == CharType;
 } /* isCharArray */
 
+/* The TEXT-literal analog of isCharArray: a t"..." literal's element type
+   is the same interned mkIntScl(6) every packed int:6 array in the compile
+   already shares, never CharType. */
+bool isTextArray(TPtr arg)
+{
+    return arg.p.pk == kindArray and arg.rep()->base == mkIntScl(6);
+} /* isTextArray */
+
 /* An array used as a value is the address of its first element, as in C.
    Anything else comes back as it stands, so a call site may apply this
    unconditionally.  The shapes are the ones the '&' arm builds for '&a[0]':
@@ -9198,8 +9233,9 @@ void parseArrSz(int64_t & asize)
 void parseConstDeclValue(TPtr declared, TPtr &typ, Word &value)
 {
     if (SY == STRINGSY) {
+        bool wasText = strIsText;      // parseLiteral may relex; read first
         parseLiteral(typ, value, true);
-        if (not isCharArray(declared)) {
+        if (wasText ? not isTextArray(declared) : not isCharArray(declared)) {
             error(33); /* errIllegalTypesForAssignment */
         } else {
             if (declared.rep()->asize == 0) {
