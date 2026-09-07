@@ -14,7 +14,7 @@ src_extent=$(./pashelp-source-extent.sh lexsrc.utxt)
 cat << EOF > tmp$$
 *NAME lexer
 *disc:1/local
-*file:pascom,42
+*file:ccom,42
 *file:libc,43
 *file:lexsrc,44
 *file:lexinp,54
@@ -38,7 +38,7 @@ cat << EOF >> tmp$$
 *libra:22
 *call pashelp
 P 2 0 ${src_extent}B .
-*call *pascom
+*call ccom
 EOF
 cat << EOF >> tmp$$
 *copy:0,000000,000000

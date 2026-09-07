@@ -7,7 +7,7 @@ src_extent=$(./pashelp-source-extent.sh tmp.utxt)
 cat << EOF > tmp$$
 *NAME test
 *disc:1/local
-*file:pascom,42
+*file:ccom,42
 *file:libc,43
 *file:tmp,44
 *file:base,41
@@ -18,7 +18,7 @@ cat << EOF > tmp$$
 *libra:41
 *call pashelp
 P 2 0 ${src_extent}B .
-*call *pascom
+*call ccom
 *libra:23
 *call dtran(program)
 *call setftn:one,long

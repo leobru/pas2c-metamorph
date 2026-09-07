@@ -2,16 +2,16 @@
 cat << EOF > tmp$$
 *NAME work
 *disc:1/local
-*file:pascom,42
+*file:ccom,42
 *file:work,41
 *file:libc,43
-*     *pascom and pasmitxt
+*     ccom and pasmitxt
 *libra:42
 *     taking the work compiler module
 *libra:41
 *perso:43,cont
 *libra:22
-*call *pascom
+*call ccom
 EOF
 if [ "$1" = "-d" ]; then ln -f tmp$$ run.dub ; shift; fi
 sed 's/{/<:/g;s/}/:>/g' < $1 >> tmp$$

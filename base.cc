@@ -1310,7 +1310,7 @@ std::vector<programme *> programme::super;
 const char *progname;
 
 /* The host mirror of the runtime's PASMITXT table, which lives in
-   build-pascom.dub -- see that file for the numbering.  Every error number the
+   build-ccom.dub -- see that file for the numbering.  Every error number the
    compiler can raise has a case here; anything left over falls through to
    "Dunno", which now means a genuinely unknown number rather than a gap in the
    table.  Errors 200 and up never reach this function: printErrMsg reports

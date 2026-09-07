@@ -8,11 +8,11 @@ src_extent=$(./pashelp-source-extent.sh tmpsrc.utxt)
 cat << EOF > tmp$$
 *NAME work
 *disc:1/local
-*file:pascom,42
+*file:ccom,42
 *file:libc,43
 *file:$work_module,41
 *file:tmpsrc,44
-*     *pascom and pasmitxt
+*     ccom and pasmitxt
 *libra:42
 *perso:43,cont
 *     taking the $work_module compiler module
@@ -20,7 +20,7 @@ cat << EOF > tmp$$
 *libra:22
 *call pashelp
 P 2 0 ${src_extent}B .
-*call *pascom
+*call ccom
 *copy:0,000000,000000
 *no load list
 *execute

@@ -9,7 +9,7 @@ src_extent=$(./pashelp-source-extent.sh wrksrc.utxt)
 cat << EOF > tmp$$
 *NAME work
 *disc:1/local
-*file:pascom,42
+*file:ccom,42
 *file:libc,43
 *file:work,41
 *file:wrksrc,44
@@ -34,14 +34,14 @@ cat << EOF > tmp$$
  ,INT,0
  ,END,
 *system
-*     *pascom and pasmitxt
+*     ccom and pasmitxt
 *libra:42
 *     taking the work compiler module
 *libra:41
 *libra:43
 *libra:22
 *call allmemory
-*call *pascom
+*call ccom
 *copy:20,270000,670000
 *table:exclude(pascontr)
 *exclude

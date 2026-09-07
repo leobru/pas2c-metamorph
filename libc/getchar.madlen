@@ -1,0 +1,18 @@
+ GETCHAR:,NAME,
+C===========================================================
+C getchar() - read one character from *INPUT*, with C stream semantics
+C (PASEOLSY for end-of-line, 0 at EOF).  Equivalent to fgetc(_input_).
+C
+C   int getchar() assembler;
+C
+C No argument of its own: FGETC (libc/fgetc.madlen) wants the FCB
+C address in ACC, so this loads &*INPUT* there and tails into it --
+C M13 rides through unchanged, since FGETC returns through the same
+C link that reached here.
+C===========================================================
+ FGETC:,SUBP,                 . fgetc(fcb), this project's libc/fgetc.madlen
+ *INPUT*:,LC,30               . 30-word FILE record of INPUT
+ 14,VTM,*INPUT*                . M14 := &*INPUT*
+ ,ITA,14                      . ACC := M14
+ ,UJ,FGETC
+ ,END,

@@ -40,7 +40,7 @@ elif [ "$compiler" = host ]; then
         exit 1
     fi
 else
-    for module in pascom libc work; do
+    for module in ccom libc work; do
         if [ ! -f "$root/$module.bin" ]; then
             echo "$0: $module.bin is required for a work check" >&2
             exit 2
@@ -52,7 +52,7 @@ else
     cat > "$tmpdir/check.dub" <<EOF
 *NAME ntrcheck
 *disc:1/local
-*file:pascom,42
+*file:ccom,42
 *file:libc,43
 *file:work,41
 *file:ntrsrc,44
@@ -63,7 +63,7 @@ else
 *libra:22
 *call pashelp
 P 2 0 ${extent}B .
-*call *pascom
+*call ccom
 *copy:20,270000,670000
 *table:exclude(pascontr)
 *exclude

@@ -1,9 +1,9 @@
-*name make pascom
+*name make ccom
 *disc:1/local
-*file:pascom,67,w
+*file:ccom,67,w
 *no list
 *assem
- *PASCOM :  , NAME,        .DTRAN  /01.06.84/
+ CCOM    :  , NAME,        .DTRAN  /01.06.84/
  FLGEX*  :  , LC  ,1
  MONITOR*:  , SUBP,
  P/PAGES :  , SUBP,
@@ -29,9 +29,6 @@ cLONGJMP :  , SUBP,
  P/FIRP  :  , PC  ,1024
  PASCOMPL:  , SUBP,
  READ*   :  , SUBP,
-C===========================================
- *PASCAL :  ,ENTRY,
-C===========================================
           13, VJM ,PASISOCD
           13, VJM ,PASLIST
            8, VTM ,PASINFOR

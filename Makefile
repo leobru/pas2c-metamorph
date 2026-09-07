@@ -11,7 +11,7 @@ check: self.o work.o
 work.o work.bin: base work.p2c preprocess.py reconstruct-bin-header.py work.sh
 	./work.sh
 
-self.o: work.bin pascom.bin libc.bin work.p2c self.sh
+self.o: work.bin ccom.bin libc.bin work.p2c self.sh
 	./self.sh
 	grep -B 2 -A 1 'LINES STRUCTURE 1' self.lst
 
@@ -22,15 +22,15 @@ libc.bin: $(wildcard libc/*.madlen)
 base: base.cc
 	g++ -O3 -Wall -std=c++17 -o base base.cc
 
-pascom.bin: build-pascom.dub
-	dubna build-pascom.dub
+ccom.bin: build-ccom.dub
+	dubna build-ccom.dub
 
 # Tests compiled by the host compiler directly.
 test hotest: base libc.bin
 	./runhotests.sh
 
 # Tests compiled by the emulator-hosted, self-hosted work compiler.
-worktest: work.o libc.bin pascom.bin
+worktest: work.o libc.bin ccom.bin
 	./runtests.sh -work
 
 clean:
