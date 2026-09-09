@@ -1,0 +1,142 @@
+ C/ARGV:,NAME,
+C===========================================================
+C C/ARGV - parse MONCARD/ (the previous monitor card) into argc/argv.
+C
+C MONCARD/ is a packed 80-character ISO array (six bytes per word,
+C most significant byte first).  MONCARD* is the next card -- a
+C different common; do not confuse the two.
+C
+C Columns 0..5 (*CALL and the following space) are skipped
+C unconditionally.  The rest is whitespace-tokenised in place:
+C each argument is NUL-terminated by overwriting the trailing space.
+C
+C No arguments.  M13 = return link.  M2..M6 are left alone.
+C M8 is the caller's constant-pool base and must not be touched.
+C
+C char* values (byte indices) are full words in memory / ACC -- they
+C do not fit in index registers.  Only word addresses and small
+C counts (shift, byte-in-word) use M-registers; argc lives in ARGCW.
+C
+C M11 bases the constant/BSS pool so the module may be linked above
+C 07777 without long-address faults (same pattern as STRLEN/PRINTF).
+C
+C Pushes use XTS/ITS (ACC is the logical stack top).  After return:
+C   ACC      = argv, the word address of argv[0]
+C   [M15-1]  = argc
+C   below    = argv[0] .. argv[argc-1], each a byte index
+C              word_address * 6 + byte_in_word
+C===========================================================
+ MONCARD/:,LC,14
+                ,NTR,7
+              13,MTJ,9          . M9 := return link (not M8: const pool)
+              11,BASE,ZERO      . constants and BSS via M11
+              14,VTM,MONCARD/
+                ,NTR,3
+                ,ITA,14
+                ,A*X,SIX
+                ,YTA,64         . ACC := p0 = 6 * addr(MONCARD/)
+                ,ATX,P
+                ,ARX,EIGHTY
+                ,ATX,ENDP       . end := p0 + 80
+                ,XTA,P
+                ,ARX,SIXINT
+                ,ATX,P          . p := p0 + 6
+                ,XTA,ZERO
+                ,ATX,ARGCW      . argc := 0
+                ,ITA,15
+                ,ATX,ARGVB      . argv base := current empty slot
+                ,UJ,SKIPSP
+C-----------------------------------------------------------
+C GETBYT - ACC := the byte at byte-index P.  Uses M10,M14,SCR.
+C-----------------------------------------------------------
+ GETBYT:        ,NTR,3
+                ,XTA,P
+                ,ATX,SCR
+                ,A*X,INV6
+                ,ATI,14         . M14 := word address
+                ,A*X,SIX
+                ,YTA,64         . ACC := 6 * word
+                ,X-A,SCR        . ACC := byte offset in word
+                ,ASN,64-3       . ACC := 8 * offset
+                ,X-A,FORTY      . ACC := 40 - 8 * offset
+                ,ATI,10
+              14,XTA,
+              10,ASN,64         . byte to the bottom
+                ,AAX,LOWBYT
+              13,UJ,
+C-----------------------------------------------------------
+C PUTNUL - store a NUL at byte-index P.  Uses M10,M14,SCR.
+C-----------------------------------------------------------
+ PUTNUL:        ,NTR,3
+                ,XTA,P
+                ,ATX,SCR
+                ,A*X,INV6
+                ,ATI,14
+                ,A*X,SIX
+                ,YTA,64
+                ,X-A,SCR        . ACC := byte offset 0..5
+                ,ATI,10         . M10 := offset (CLEARM index)
+              14,XTA,
+              10,AAX,CLEARM     . clear that byte lane
+              14,ATX,
+              13,UJ,
+C-----------------------------------------------------------
+ SKIPSP:        ,XTA,P
+                ,AEX,ENDP
+                ,UZA,FINISH     . p == end
+              13,VJM,GETBYT
+                ,AEX,SPACE
+                ,UZA,ISSP
+                ,UJ,HAVTOK
+ ISSP:          ,XTA,P
+                ,ARX,ONE
+                ,ATX,P          . p := p + 1
+                ,UJ,SKIPSP
+C-----------------------------------------------------------
+ HAVTOK:        ,XTA,P          . ACC := byte index of this arg
+                ,XTS,ZERO       . push it; ACC := 0
+                ,XTA,ARGCW
+                ,ARX,ONE
+                ,ATX,ARGCW      . argc := argc + 1
+ SCAN:          ,XTA,P
+                ,ARX,ONE
+                ,ATX,P          . p := p + 1
+                ,AEX,ENDP
+                ,UZA,ENDTOK     . token runs to end of card
+              13,VJM,GETBYT
+                ,AEX,SPACE
+                ,U1A,SCAN       . non-space: keep scanning
+              13,VJM,PUTNUL     . overwrite the trailing space with NUL
+                ,XTA,P
+                ,ARX,ONE
+                ,ATX,P
+                ,UJ,SKIPSP
+C-----------------------------------------------------------
+ ENDTOK:      13,VJM,PUTNUL     . NUL after the last character (byte at end)
+ FINISH:        ,XTA,ARGCW      . ACC := argc
+                ,XTS,ARGVB      . push argc; ACC := argv (word addr)
+               9,MTJ,13         . restore return link
+              13,UJ,
+C-----------------------------------------------------------
+ ZERO:          ,LOG,0000 0000 0000 0000
+ ONE:           ,LOG,0000 0000 0000 0001
+ SPACE:         ,LOG,0000 0000 0000 0040
+ SIXINT:        ,LOG,0000 0000 0000 0006
+ EIGHTY:        ,LOG,0000 0000 0000 0120
+ FORTY:         ,LOG,0000 0000 0000 0050
+ LOWBYT:        ,LOG,0000 0000 0000 0377
+ INV6:          ,LOG,4002 5252 5252 5253
+ SIX:           ,LOG,4000 0000 0000 0006
+C AND-masks that clear one of the six byte lanes (from C/08)
+ CLEARM:        ,LOG,0017 7777 7777 7777
+                ,LOG,7760 0377 7777 7777
+                ,LOG,7777 7400 7777 7777
+                ,LOG,7777 7777 0017 7777
+                ,LOG,7777 7777 7760 0377
+                ,LOG,7777 7777 7777 7400
+ ARGVB:         ,BSS,1          . argv base (word address)
+ ARGCW:         ,BSS,1          . argc
+ P:             ,BSS,1          . current byte index (char*)
+ ENDP:          ,BSS,1          . exclusive end byte index
+ SCR:           ,BSS,1          . scratch for byte math
+                ,END,

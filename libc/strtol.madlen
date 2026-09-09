@@ -1,0 +1,65 @@
+ STRTOL:,NAME,
+C===========================================================
+C strtol(p, base) - read a non-negative integer from the digit
+C characters at p, in the given base.
+C
+C   int strtol(char *p, int base) assembler;
+C
+C Calling convention for a two-argument ASSEMBLER routine:
+C   ACC        = base (2..10; not checked)
+C   [SP-1]     = p, a byte index into flat memory
+C   M13        = return link
+C
+C Each character is loaded with C/LDAR through the C/08 width
+C table, the same way PRINTF reads a format byte: M14 = 0 and
+C ACC holds the byte index.  Digits are ISO '0'..; the first
+C character whose value is not in 0 .. base-1 ends the scan.
+C No sign, no "0x", no endptr.  The stacked p is consumed; the
+C value returns in ACC.
+C
+C Stack frame (after the prologue's UTM 3):
+C   [SP-4]  p
+C   [SP-3]  value
+C   [SP-2]  base
+C   [SP-1]  return link
+C ONE and E48 come from the runtime table at M1: [M1+8] and [M1+21].
+C===========================================================
+ C/08:          ,SUBP,
+ C/LDAR:        ,SUBP,
+                ,NTR,3
+              15,UTM,3          . room for base, value and the return link
+              15,ATX,-2         . [SP-2] := base; [SP-4] still holds p
+                ,ITA,13
+              15,ATX,-1         . [SP-1] := link
+                ,XTA,
+              15,ATX,-3         . value := 0
+ LOOP:        14,VTM,0          . flat-memory word base for C/LDAR
+              11,VTM,C/08
+              15,XTA,-4         . ACC := p
+              13,VJM,C/LDAR     . ACC := the byte at p
+                ,UTC,ASCII0
+                ,A-X,           . ACC := c - '0'
+                ,U1A,DONE       . c < '0'
+              15,ATX,1          . [SP+1] := d
+              15,XTA,-2         . ACC := base
+              15,X-A,1          . ACC := d - base
+                ,UZA,DONE       . d >= base
+              15,XTA,-2
+                1,AOX,25B       . ACC := E48 | base  ([M1+21] = MSB)
+              15,ATX,2
+              15,XTA,-3         . value
+              15,A*X,2
+                ,YTA,64         . value * base
+              15,ARX,1          . + d (still in [SP+1])
+              15,ATX,-3
+              15,XTA,-4
+                1,ARX,10B       . p := p + 1  ([M1+8] = 1U)
+              15,ATX,-4
+                ,UJ,LOOP
+ DONE:        15,XTA,-1
+                ,ATI,13
+              15,XTA,-3
+              15,UTM,-4         . drop value, base, link and p
+              13,UJ,
+ ASCII0:        ,LOG,0000 0000 0000 0060
+                ,END,
