@@ -17,7 +17,7 @@ void middle() {
     printf(" middle: unreachable\n");
 }
 //
-void main() {
+void main(int argc, char **argv) {
     n = setjmp(jb);
     printf(" setjmp returned %d\n", n);
     if (n == 0) {

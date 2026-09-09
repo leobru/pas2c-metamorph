@@ -70,7 +70,7 @@ int zeroed() {
 
 int after = 300;
 
-void main() {
+void main(int argc, char **argv) {
     printf(" GLOBAL %d %d %d\n", before, middle, after);
     printf(" COUNT  %d %d\n", counter(), counter());
     printf(" RECUR  %d %d\n", recursive(3), recursive(1));

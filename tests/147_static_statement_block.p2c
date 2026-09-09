@@ -1,5 +1,5 @@
 /*=k9,l0*/
-void main() {
+void main(int argc, char **argv) {
     int ordinary;
     ordinary = 1;
     static int too_late;

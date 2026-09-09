@@ -23,7 +23,7 @@ int bump(rec r) { r.a = r.a + 100; return r.a; }
 //
 rec g;
 trip v;
-void main() {
+void main(int argc, char **argv) {
     g.a = 1; g.b = 2; g.c = 3;
     v[0] = 10; v[1] = 20; v[2] = 30;
     printf(" S=%d A=%d P=%d\n", sum3(g, 100), addup(v, g), plain(9, 4));

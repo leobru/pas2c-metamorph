@@ -31,7 +31,7 @@ int apply(vfn f) {
     return f(3, 7, 8, 9);
 }
 //
-void main() {
+void main(int argc, char **argv) {
     printf(" DIRECT   %d\n", sum(3, 1, 2, 3));
     fp = &sum;
     printf(" TYPEDEF  %d\n", fp(3, 4, 5, 6));

@@ -4,6 +4,6 @@ void greet(int x) {
     printf("Hello, number %d\n", x);
 }
 //
-void main() {
+void main(int argc, char **argv) {
     greet(42);
 }

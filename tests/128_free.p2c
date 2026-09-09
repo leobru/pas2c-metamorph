@@ -7,7 +7,7 @@ void *q;
 void *r;
 void *again;
 
-void main() {
+void main(int argc, char **argv) {
     p = malloc(2);
     q = malloc(3);
     r = malloc(1);

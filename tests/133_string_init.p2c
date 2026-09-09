@@ -43,7 +43,7 @@ void show(char *p, int n) {
     for (k = 0; k <= n - 1; k = k + 1)
         printf("%c", p[k]);
 }
-void main() {
+void main(int argc, char **argv) {
     printf(" SIZE  %3d%3d%3d\n", sizeof(one), sizeof(many), sizeof(exact));
     printf(" ONE   ");  show(one, 18);       putln();
     printf(" MANY0 ");  show(many[0], 18);   putln();

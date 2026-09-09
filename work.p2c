@@ -636,7 +636,7 @@ symbol charSym[128] = {
     [';']=SEMICOLON, ['[']=LBRACK, [']']=RBRACK, ['=']=BECOMES,
     [':']=COLON, ['!']=EXPROP, ['~']=EXPROP, ['?']=EXPROP };
 hashArray symHash = NULL:128, fieldHash = NULL:128;
-int helperNames[30] = { 0,
+int helperNames[31] = { 0,
         t'C/1     ',
         t'C/2     ',
         t'C/3     ',
@@ -665,7 +665,8 @@ int helperNames[30] = { 0,
         t'P/FM    ',
         t'P/NN    ',
         t'C/SHL   ',
-        t'C/SHR   ' };
+        t'C/SHR   ',
+/*30*/  t'C/ARGV  ' };
 //
 /* Backing storage is zero-based; symTabPos and all references stored in the
    compiler's records remain BESM symbol-table addresses starting at 074000. */
@@ -1092,7 +1093,7 @@ int getHelperProc(int l3arg1z) {
 /* The external symbol allocated for each helper, remembered so that a helper
    named twice costs one symbol.  Nothing else reads it, and it has to survive
    the call, so it is this routine's own static. */
-static int helperMap[30] = 0:30;
+static int helperMap[31] = 0:31;
     if (helperMap[l3arg1z] == 0) {
         curVal.i  =  helperNames[l3arg1z];
         helperMap[l3arg1z]  =  allocExtSymbol(extSymMask);
@@ -8257,6 +8258,8 @@ int l3var1z, l3var2z;
 irptr l3idr5z;
 int l3var7z;
 int hasMain;
+sigptr mainSig;
+int mainFrm;
     objHalfIdx  =  2;
     objBuffer.words[1]  =  0U;
     curInsnTemplate  =  KXTA;
@@ -8274,6 +8277,14 @@ int hasMain;
         hasMain  =  (l3idr5z != NULL) && (l3idr5z->pck.p.cl == ROUTINEID) &&
                     (l3idr5z->pck.p.offset != 0);
         if (hasMain) {
+            /* main must be declared as in C: main(int argc, char **argv). */
+            mainSig  =  l3idr5z->r1.sig;
+            if (mainSig == NULL || mainSig->next == NULL ||
+                mainSig->next->next != NULL)
+                error(errNoCommaOrParenOrTooFewArgs);
+            else if (!isIntTyp(mainSig->ptyp) ||
+                     mainSig->next->ptyp != getPtrType(charPtrType))
+                error(40); /*errIncompatibleArgumentTypes*/
             fileExit  =  moduleOffset;
             formFileInit();
         } else {
@@ -8321,10 +8332,16 @@ int hasMain;
             skipToEnd();
         }
         if (hasMain) {
-            /* The call node parseCallArgs would have built for 'main()',
-               with no arguments: op ALNUM, the routine in id2. */
-            curExpr  =  mkExpr(ALNUM, l3idr5z->typ, NULL, (eptr)l3idr5z);
-            formOperator(DOIT);
+            /* C/ARGV leaves [vector][argc] with ACC = argv.  Rearrange into
+               the normal two-arg calling sequence: [frame][argc], ACC = argv. */
+            mainFrm  =  l3idr5z->typ == voidType ? 8 : 9;
+            formAndAlign(getHelperProc(30)); /* C/ARGV */
+            form1Insn(KATI+14);             /* M14 := argv */
+            form1Insn(KXTA+SP);             /* pop argc */
+            form1Insn(KUTM+SP + mainFrm);   /* reserve callee frame */
+            form1Insn(KATX+SP);             /* push argc */
+            form1Insn(KITA+14);             /* ACC := argv */
+            formAndAlign(allocGlobalObject(l3idr5z) + (KVJM+I13));
         }
     } else if (CH != '\0') {
         do {
@@ -9594,7 +9611,7 @@ void initOptions() {
     paseofcd  =  '*copy:';
 } /* initOptions */
 //
-void main() {
+void main(int argc, char **argv) {
     void puts(char *) assembler;
     fopen(&PASINPUT, 010000100010, t'PASINPUT');
     fopen(&_CHILD_, 010000100000, t'*CHILD* ');

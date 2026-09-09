@@ -1,7 +1,7 @@
 /*=k9,l0*/
 //
 char c;
-void main() {
+void main(int argc, char **argv) {
     c = 'A';
     printf("Character: %c\n", c);
     c = c + 1;

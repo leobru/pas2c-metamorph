@@ -4,6 +4,6 @@
 // characters, or eight in TEXT.  A string longer than that is written in
 // double quotes.
 //
-void main() {
+void main(int argc, char **argv) {
     static int foo = 'SEVENCH';
 }

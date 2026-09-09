@@ -97,7 +97,7 @@ int call3(int n) {
     return deepDef(n);
 }
 //
-void main() {
+void main(int argc, char **argv) {
     printf(" BLOCK ");
     printf("%4d%4d%4d%4d\n", call1(0), call1(4), call1(5), call1(9));
     printf(" IF    ");

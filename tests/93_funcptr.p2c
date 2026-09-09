@@ -34,7 +34,7 @@ binop pick(int which) {
     return mul2;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     binop f;
     int (*g)(int);
     float (*fr)(float);

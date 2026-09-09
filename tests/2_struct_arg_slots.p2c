@@ -74,7 +74,7 @@ outer o;
 wide gw;
 pairfn fp;
 //
-void main() {
+void main(int argc, char **argv) {
     g2.a = 3;   g2.b = 4;
     h2.a = 5;   h2.b = 6;
     g5.p = 1;   g5.q = 2;   g5.r = 3;   g5.s = 4;   g5.t = 5;

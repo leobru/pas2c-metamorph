@@ -61,7 +61,7 @@ w30 *pick30(int f) {
     return f ? &s30 : &d30;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     printf(" SIZES %3d%3d%3d%3d%3d%3d\n", sizeof(w1), sizeof(w2), sizeof(w3), sizeof(w5),
            sizeof(w30), sizeof(pk1));
     s1.a  =  11;

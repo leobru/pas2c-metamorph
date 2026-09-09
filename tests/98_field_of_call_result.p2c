@@ -54,7 +54,7 @@ int twice(int x) {
     return x + x;
 }
 //
-void main() {
+void main(int argc, char **argv) {
 lsbu vl;
 msbu vm;
 plain vp;

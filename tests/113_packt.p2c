@@ -15,7 +15,7 @@ textchar plain[16], back[16];
 char cback[8];
 pk16 u;
 int i, j, same;
-void main() {
+void main(int argc, char **argv) {
     for (i = 0; i <= 15; ++i)
         plain[i] = i + 1;
     packt(&plain, &u, 16);

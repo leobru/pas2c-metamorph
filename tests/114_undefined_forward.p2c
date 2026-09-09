@@ -8,4 +8,4 @@ int second(int b);
 //
 int second(int b) { return b + 1; }
 //
-void main() { printf("%d\n", second(1)); }
+void main(int argc, char **argv) { printf("%d\n", second(1)); }

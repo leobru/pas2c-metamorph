@@ -4,4 +4,4 @@ int owner() {
     return hidden;
 }
 int stranger() { return hidden; }
-void main() { owner(); }
+void main(int argc, char **argv) { owner(); }

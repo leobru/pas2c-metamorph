@@ -14,7 +14,7 @@ rec r, r2;
 rec * p;
 char c;
 int i, t, n;
-void main() {
+void main(int argc, char **argv) {
     b.flag = 1; b.n = 5; r.v = 9; c = 'A'; i = 0; p = &r;
     if (b.flag) printf(" BITFIELD YES\n"); else printf(" BITFIELD NO\n");
     if (p) printf(" POINTER YES\n"); else printf(" POINTER NO\n");

@@ -1,33 +1,26 @@
 /*=l0*/
 //
-typedef struct {
-    char *data;
-    int w1, w2, w3, w4, w5, w6, w7, w8, w9, w10,
-    w11, w12, w13, w14, w15, w16, w17, w18, w19, w20,
-    w21, w22, w23, w24, w25, w26, w27, w28, w29;
-} fileblk;
+void fopen(int fcb[30], int sizes, int name) assembler;
+void fclose(int fcb[30]) assembler;
 //
-void fopen(fileblk *fcb, int sizes, int name) assembler;
-void fclose(fileblk *fcb) assembler;
+int f[30], a[30], b[30], c[30];
 //
-fileblk f, a, b, c;
-//
-void main() {
-    fopen(&f, 010000100010, 0);
-    printf("open %d %d %d %d %d\n", f.w18, f.w27, f.w1 != 0, f.w12 != 0, f.w13 != 0);
-    fclose(&f);
-    printf("close %d %d %d\n", f.w27, f.w23, f.w24);
+void main(int argc, char **argv) {
+    fopen(f, 010000100010, 0);
+    printf("open %d %d %d %d %d\n", f[18], f[27], f[1] != 0, f[12] != 0, f[13] != 0);
+    fclose(f);
+    printf("close %d %d %d\n", f[27], f[23], f[24]);
 
-    fopen(&a, 010000100010, 0);
-    printf("a %d %d %d\n", a.w18, a.w27, a.w1 != 0);
-    fclose(&a);
-    fopen(&b, 010000100010, 0);
-    printf("b %d %d %d\n", b.w18, b.w27, b.w1 != 0);
-    fclose(&b);
-    fopen(&c, 010000100010, 0);
-    printf("c %d %d %d\n", c.w18, c.w27, c.w1 != 0);
-    fclose(&c);
-    fopen(&a, 010000100010, 0);
-    printf("a2 %d %d %d\n", a.w18, a.w27, a.w1 != 0);
-    fclose(&a);
+    fopen(a, 010000100010, 0);
+    printf("a %d %d %d\n", a[18], a[27], a[1] != 0);
+    fclose(a);
+    fopen(b, 010000100010, 0);
+    printf("b %d %d %d\n", b[18], b[27], b[1] != 0);
+    fclose(b);
+    fopen(c, 010000100010, 0);
+    printf("c %d %d %d\n", c[18], c[27], c[1] != 0);
+    fclose(c);
+    fopen(a, 010000100010, 0);
+    printf("a2 %d %d %d\n", a[18], a[27], a[1] != 0);
+    fclose(a);
 }

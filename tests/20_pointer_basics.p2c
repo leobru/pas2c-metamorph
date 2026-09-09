@@ -3,7 +3,7 @@
 typedef int *intptr;
 intptr p;
 int x;
-void main() {
+void main(int argc, char **argv) {
     x = 42;
     p = &x;
     printf("Value through pointer: %d\n", *p);

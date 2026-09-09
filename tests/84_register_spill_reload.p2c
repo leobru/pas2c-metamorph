@@ -35,7 +35,7 @@ int func(int n) {
     return n * 2;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     i = 1;
     j = 2;
     arr[1].tag = 100;

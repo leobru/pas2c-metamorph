@@ -7,7 +7,7 @@ const int N = 3, M = 2;
 int a[N+2];
 int b[N*M];
 int i;
-void main() {
+void main(int argc, char **argv) {
     for (i = 0; i <= N+1; i = i + 1) {
         a[i] = i * 10;
     }

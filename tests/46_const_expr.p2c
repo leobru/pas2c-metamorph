@@ -6,7 +6,7 @@ const int A = 1 + 2 * 3,
           D = (1 << 4) | 3;
 const __packed char S[] = "HELLO ";
 int x;
-void main() {
+void main(int argc, char **argv) {
     x = B;
     printf(" A=%d\n", A);
     printf(" B=%d\n", B);

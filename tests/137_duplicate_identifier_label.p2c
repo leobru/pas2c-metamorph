@@ -1,6 +1,6 @@
 /*=k9,l0*/
 // The diagnostic must print DUPENAME rather than its packed numeric word.
-void main() {
+void main(int argc, char **argv) {
 dupename:
     ;
 DUPENAME:

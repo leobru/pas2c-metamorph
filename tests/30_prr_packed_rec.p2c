@@ -8,7 +8,7 @@ __packed pair tab[4];
 int i;
 pair p;
 
-void main() {
+void main(int argc, char **argv) {
     tab[0].lo = 10;
     tab[0].hi = 20;
     tab[1].lo = 30;

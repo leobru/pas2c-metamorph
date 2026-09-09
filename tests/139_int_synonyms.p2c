@@ -33,7 +33,7 @@ int n;
 // A run works in a parameter list and as a result type.
 short twice(unsigned long v) { return v + v; }
 //
-void main() {
+void main(int argc, char **argv) {
     // One type: every spelling takes a value from every other.
     a = 1;  b = a + 1;  c = b + 1;  d = c + 1;  e = d + 1;
     f = e + 1;  g = f + 1;  h = g + 1;  i = h + 1;

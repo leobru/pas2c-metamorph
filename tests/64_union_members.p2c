@@ -12,7 +12,7 @@ typedef struct {
 } tagged;
 numunion n;
 tagged t;
-void main() {
+void main(int argc, char **argv) {
     n.i = 42;
     printf("union i = %d\n", n.i);
     printf("sizeof union = %d\n", sizeof(numunion));

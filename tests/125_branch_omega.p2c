@@ -18,7 +18,7 @@ rec r1, r2, r3;
 rec * p;
 char c;
 int n, i;
-void main() {
+void main(int argc, char **argv) {
     // do-while, raw int  -- expect 3 iterations, i = 3+2+1 = 6
     n = 3; i = 0;
     do { i = i + n; n = n - 1; } while (n);

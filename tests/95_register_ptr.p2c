@@ -25,7 +25,7 @@ int sum3(rec *q) {
     return q->a + q->b + q->c;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     r1.a = 1;  r1.b = 2;  r1.c = 3;
     r2.a = 10; r2.b = 20; r2.c = 30;
     nest.inner.a = 100; nest.inner.b = 200; nest.inner.c = 300;

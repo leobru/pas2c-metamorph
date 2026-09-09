@@ -29,7 +29,7 @@ void f() {
     topmost = locrec.alpha;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     topmost = 0;
     f();
     undeclaredOnPurpose = 1;

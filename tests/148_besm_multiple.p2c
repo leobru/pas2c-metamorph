@@ -8,7 +8,7 @@ int copied;
 int literal;
 int calculated;
 
-void main() {
+void main(int argc, char **argv) {
     besm(02200000, 02200000, 02200000);
     besm(0100000 : source, 0000000 : copied);
     besm(0100000 : 77, 0000000 : literal);

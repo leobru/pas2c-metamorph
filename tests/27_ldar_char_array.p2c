@@ -4,7 +4,7 @@
 char chars[5];
 int idx;
 char ch;
-void main() {
+void main(int argc, char **argv) {
     chars[0] = 'A';
     chars[1] = 'B';
     chars[2] = 'C';

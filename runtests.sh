@@ -102,10 +102,15 @@ run_test() {
                 return
             fi
         fi
-        # Extract output after *EXECUTE line
-        if grep -q '\*EXECUTE' "$result_file"; then
-            # Get everything after *EXECUTE until the separator line
-            sed -n '/\*EXECUTE/,/^----/ p' "$result_file" | tail -n +2 | head -n -1 > "${result_file}.output"
+        # Extract output after *EXECUTE, or *CALL PASCOMPL (argv .call sidecar)
+        if grep -qE '\*EXECUTE|\*CALL PASCOMPL' "$result_file"; then
+            if grep -q '\*EXECUTE' "$result_file"; then
+                sed -n '/\*EXECUTE/,/^----/ p' "$result_file" | tail -n +2 | head -n -1 > "${result_file}.output"
+            else
+                # *CALL leaves *END FILE in the listing; drop monitor cards.
+                sed -n '/\*CALL PASCOMPL/,/^----/ p' "$result_file" | tail -n +2 | head -n -1 |
+                    grep -v '^\*' > "${result_file}.output"
+            fi
             
             # Check if expected output file exists
             if [ -f "$expected_file" ]; then

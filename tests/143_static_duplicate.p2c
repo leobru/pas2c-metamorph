@@ -4,4 +4,4 @@ int f() {
     static int same;
     return 0;
 }
-void main() { f(); }
+void main(int argc, char **argv) { f(); }

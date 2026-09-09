@@ -6,7 +6,7 @@
 // compile ends with that single error rather than a second, spurious one.
 //
 char c;
-void main() {
+void main(int argc, char **argv) {
     printf("");
     c  =  'A';
     printf(" UNREACHED %c\n", c);

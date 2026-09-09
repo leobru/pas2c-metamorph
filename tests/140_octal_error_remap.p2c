@@ -2,6 +2,6 @@
 // error(20) with a non-identifier token is reported as error 1.
 int value;
 
-void main() {
+void main(int argc, char **argv) {
     value = 08;
 }

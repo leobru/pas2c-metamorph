@@ -10,7 +10,7 @@ void later() {
     forward = 42;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     later();
     printf("FORWARD=%d\n", forward);
 }

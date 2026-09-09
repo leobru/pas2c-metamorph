@@ -40,7 +40,7 @@ int vary2(int a, int b, ...) {
 }
 //
 int t;
-void main() {
+void main(int argc, char **argv) {
     // Left to right, all three.
     seq = 0; t = plain(step(1), step(2), step(3));
     printf(" PLAIN  %d %d\n", t, seq);

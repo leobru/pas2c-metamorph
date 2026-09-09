@@ -35,7 +35,7 @@ void report(int a, int b) {
     mark("LEAVE ");
 }
 //
-void main() {
+void main(int argc, char **argv) {
     mark("START ");
     // Every line is written twice, once through each entry, so the two must
     // agree character for character.

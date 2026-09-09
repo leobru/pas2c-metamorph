@@ -16,7 +16,7 @@ int early_void(int x) {
     return x + 100;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     printf("sq(5)=%d\n", square(5));
     printf("sq(9)=%d\n", square(9));
     printf("cl(7,1,5)=%d\n", clamp(7, 1, 5));

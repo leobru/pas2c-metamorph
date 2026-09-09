@@ -34,7 +34,7 @@ lsbview l;
 outerview o;
 int lsb;                        // still a perfectly good identifier
 //
-void main() {
+void main(int argc, char **argv) {
     lsb = 5;
     printf(" SIZES %d%d%d IDENT %d\n", sizeof(msbrec), sizeof(lsbrec), sizeof(outerrec), lsb);
     m.w = 0;

@@ -14,7 +14,7 @@
 __packed char tail[7] = "ABCDEFG";
 int i;
 //
-void main() {
+void main(int argc, char **argv) {
     printf("OK");
     printf("|\n");
     printf(" BYTES");

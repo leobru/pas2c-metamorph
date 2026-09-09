@@ -1,0 +1,57 @@
+/*=l0*/
+//
+// freopen(location, f) rebinds an open FCB.  location packs the open mode
+// above bit 18 and the track-table descriptor in its low 15 bits
+// (libc/freopen.madlen).  freopen leaves the stdin/stdout tag in FILE[23]
+// alone, so a disc binding of *OUTPUT* must clear it.
+//
+void fopen(void *fcb, int sizes, int name) assembler;
+void fclose(void *fcb) assembler;
+void freopen(int location, void *fcb) assembler;
+void ftruncate(void *fcb) assembler;
+void frewind(void *fcb) assembler;
+int fgetc(void *fcb) assembler;
+void fprintf(void *fcb, char *fmt, ...) assembler;
+//
+int scratch[30];
+int resLoc, a, b, c;
+int *fp;
+//
+int locOf(void *fcb) {
+    fp = fcb;
+    return (fp[4] << 18) | (fp[3] & 077777);
+}
+//
+void asDisc(void *fcb) {
+    fp = fcb;
+    fp[23] = 0;
+}
+//
+void main(int argc, char **argv) {
+    // A closed *RESULT* yields a live location word for freopen.
+    fopen(scratch, 010000100010, t'*RESULT*');
+    ftruncate(scratch);
+    resLoc = locOf(scratch);
+    fclose(scratch);
+
+    // freopen *OUTPUT* onto that location and write a short line.
+    asDisc(&_output_);
+    freopen(resLoc, &_output_);
+    ftruncate(&_output_);
+    // ftruncate may mint a new track descriptor; keep the one the bytes land in.
+    resLoc = locOf(&_output_);
+    fprintf(&_output_, "AB\n");
+    fclose(&_output_);
+
+    // Restore *OUTPUT* as the standard stream.
+    fopen(&_output_, 010000100010, t'*OUTPUT*');
+
+    // freopen *INPUT* from the same location (disc layout via an internal open).
+    fopen(&_input_, 010000100010, 0);
+    freopen(resLoc, &_input_);
+    frewind(&_input_);
+    a = fgetc(&_input_);
+    b = fgetc(&_input_);
+    c = fgetc(&_input_);
+    printf("%d %d %d\n", a, b, c);
+}

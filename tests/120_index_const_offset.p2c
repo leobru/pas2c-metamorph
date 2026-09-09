@@ -10,7 +10,7 @@ int backing[8];
 int *ptr;
 int i, j;
 
-void main() {
+void main(int argc, char **argv) {
     i = 3;
     j = 1;
 

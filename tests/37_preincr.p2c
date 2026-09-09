@@ -1,7 +1,7 @@
 /*=k9,l0*/
 //
 int i, j, k, n;
-void main() {
+void main(int argc, char **argv) {
     i = 10;
     ++i;
     printf("inc %d\n", i);

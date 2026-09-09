@@ -148,7 +148,7 @@ int fewNeg(int n) {
     return 999;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     printf(" ODDMIN\n");
     for (i = -7; i <= 6; i = i + 1)
         printf("   N %6d R %5d\n", i, oddMin(i));

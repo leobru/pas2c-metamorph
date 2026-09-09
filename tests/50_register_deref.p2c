@@ -10,7 +10,7 @@ typedef struct {
 ppoint p;
 point obj;
 holder h;
-void main() {
+void main(int argc, char **argv) {
     p = &obj;
     { register point *rp = p;
         rp->x = 11;

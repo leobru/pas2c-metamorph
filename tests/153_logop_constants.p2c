@@ -9,7 +9,7 @@ int side(int value) {
     return value;
 }
 
-void main() {
+void main(int argc, char **argv) {
     calls = 0;
     printf("LOR1 %d %d\n", (1 || side(0)), calls);
     calls = 0;

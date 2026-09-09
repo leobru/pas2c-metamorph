@@ -2,7 +2,7 @@
 // HALT is an ordinary zero-argument libc routine.
 void halt() assembler;
 
-void main() {
+void main(int argc, char **argv) {
     printf("before halt\n");
     halt();
     printf("after halt\n");

@@ -14,7 +14,7 @@
 // Expected: exactly one error, "REQUIRED CASE", and a terminating compile.
 //
 int k;
-void main() {
+void main(int argc, char **argv) {
     switch (k) {
         1: k = 1;
         default: k = 2;

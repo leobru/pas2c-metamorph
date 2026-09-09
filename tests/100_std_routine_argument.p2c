@@ -4,7 +4,7 @@
 int negate(int value) { return -value; }
 void consume(int (*fn)(int)) {}
 
-void main() {
+void main(int argc, char **argv) {
     consume(negate);
     consume(CARD);
 }

@@ -29,7 +29,7 @@ void ptrf(int *q) { q[0] = 77; }
 void arrf(int q[3]) { q[1] = 88; }
 int bystruct(tri s) { s.x = 0; return s.y; }
 //
-void main() {
+void main(int argc, char **argv) {
     for (i = 0; i <= 4; i = i + 1)
         a[i]  =  i + 1;
     store(a);

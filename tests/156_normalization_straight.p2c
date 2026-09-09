@@ -8,7 +8,7 @@
 int i, j, n;
 float f, g;
 
-void main() {
+void main(int argc, char **argv) {
     i = 7;
     j = 3;
     f = 1.5;

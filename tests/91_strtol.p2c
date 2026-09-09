@@ -1,0 +1,13 @@
+/*=i+,c-*/
+int strtol(char *p, int base) assembler;
+
+void main(int argc, char **argv) {
+    printf("D10=%d\n", strtol("12345", 10));
+    printf("D8=%d\n", strtol("77", 8));
+    printf("D2=%d\n", strtol("1011", 2));
+    printf("STOP=%d\n", strtol("12X3", 10));
+    printf("EMPTY=%d\n", strtol("X", 10));
+    printf("LEAD=%d\n", strtol("007", 10));
+    printf("EQ=%d\n", strtol("9", 9));
+    printf("OK9=%d\n", strtol("876", 9));
+}

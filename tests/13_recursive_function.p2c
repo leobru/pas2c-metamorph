@@ -8,6 +8,6 @@ int fact(int n) {
     }
 }
 //
-void main() {
+void main(int argc, char **argv) {
     printf(" 5! = %d\n", fact(5));
 }

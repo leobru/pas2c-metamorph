@@ -9,7 +9,7 @@ void target() {
     value += 10;
 }
 
-void main() {
+void main(int argc, char **argv) {
     value = 0;
     goto forward;
     value = 1000;

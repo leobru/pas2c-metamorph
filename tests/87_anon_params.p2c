@@ -16,7 +16,7 @@ int two(int *) { return 2; }
 // An unnamed multi-word by-value parameter ahead of a named one.
 int tail(triple, int c) { return c; }
 
-void main() {
+void main(int argc, char **argv) {
     cell = 5;
     printf(" SECOND=%d\n", second(1, 2, 3));
     printf(" TWO=%d\n", two(&cell));

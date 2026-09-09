@@ -9,7 +9,7 @@ typedef __packed struct {
 } tiny;
 point p;
 int words[8];
-void main() {
+void main(int argc, char **argv) {
     printf(" size int=%d\n", sizeof(int));
     printf(" size point=%d\n", sizeof(point));
     printf(" size words=%d\n", sizeof(words));

@@ -29,7 +29,7 @@ int i;
 //
 void putln() assembler;
 void putchar(char) assembler;
-void main() {
+void main(int argc, char **argv) {
     // The padding is NUL, and it is inside the array.
     printf(" PART ");
     for (i = 0; i < 6; i = i + 1)  printf("%4d", (int)part[i]);

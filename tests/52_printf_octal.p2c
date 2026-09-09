@@ -10,7 +10,7 @@
 // accepted and ignored, which lets a format written for a host C compiler
 // read the same here.
 //
-void main() {
+void main(int argc, char **argv) {
     printf(" MIN   [%o][%o][%o]\n", 0, 8, 64);
     printf(" WIDE  [%5o][%2o][%1o]\n", 8, 64, 64);
     printf(" FILL  [%05o][%016o][%017o]\n", 8, 8, 8);

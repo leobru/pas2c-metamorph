@@ -17,7 +17,7 @@ int dup;
 typedef int alias;
 int alias;
 //
-void main() {
+void main(int argc, char **argv) {
     int ok;
     int dup;            // legal: shadows the global
     int ok;

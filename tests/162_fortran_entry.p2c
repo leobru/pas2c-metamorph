@@ -17,6 +17,6 @@ extern int plainentry(int a, int b) {
     return base + a * b;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     printf("PLAIN=%d\n", plainentry(6, 7));
 }

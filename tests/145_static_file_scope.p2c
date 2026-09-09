@@ -6,7 +6,7 @@ int helper() {
     return explicit + implicit;
 }
 
-void main() {
+void main(int argc, char **argv) {
     explicit += 1;
     implicit += 2;
     printf(" STATIC %d %d %d\n", explicit, implicit, helper());

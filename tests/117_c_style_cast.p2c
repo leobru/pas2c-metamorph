@@ -31,7 +31,7 @@ int twice(int n) {
     return n + n;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     // A character and an integer are one word each, so either names the
     // other's value.
     c  =  (char)65;

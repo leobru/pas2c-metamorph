@@ -48,7 +48,7 @@ promoted p;
 compatible q;
 bitunion u;
 
-void main() {
+void main(int argc, char **argv) {
     printf(" SIZES %d %d %d %d %d %d\n", sizeof(msbrec), sizeof(lsbrec),
            sizeof(mixed), sizeof(promoted), sizeof(compatible), sizeof(bitunion));
 

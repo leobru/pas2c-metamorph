@@ -1,5 +1,5 @@
 /*=k9,l0*/
 int _input_;
 int _OUTPUT_;
-void main() {
+void main(int argc, char **argv) {
 }

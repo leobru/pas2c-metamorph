@@ -4,7 +4,7 @@ typedef struct {
     int x, y;
 } point;
 point p;
-void main() {
+void main(int argc, char **argv) {
     p.x = 10;
     p.y = 20;
     printf("Point: (%d, %d)\n", p.x, p.y);

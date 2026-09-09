@@ -1,7 +1,7 @@
 /*=k9,l0*/
 //
 int i;
-void main() {
+void main(int argc, char **argv) {
     i = 0X0;
     printf(" 0X0      = %d\n", i);
     i = 0XA;

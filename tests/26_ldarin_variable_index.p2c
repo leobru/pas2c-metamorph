@@ -3,7 +3,7 @@
 // Test P/LDARIN helper: integer array with variable index
 int arr[10];
 int idx, value;
-void main() {
+void main(int argc, char **argv) {
     arr[0] = 100;
     arr[1] = 200;
     arr[2] = 300;

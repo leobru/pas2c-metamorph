@@ -17,7 +17,7 @@ void putln() assembler;
 // Counts its calls, so a skipped operand can be seen to have been skipped.
 int side(int v) { n = n + 1;  return v; }
 //
-void main() {
+void main(int argc, char **argv) {
     printf(" AND  ");
     for (i = 0; i <= 3; i = i + 1) {
         a = i / 2;  b = i % 2;

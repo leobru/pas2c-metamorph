@@ -12,6 +12,7 @@ fi
 
 src="$1"
 input_file="${src%.p2c}.input"
+call_file="${src%.p2c}.call"
 lun=41
 
 rm -f tmpbin.bin tmpbin.txt tmpbin.o tmpbin.raw.o tmpbin.bin
@@ -36,8 +37,12 @@ cat << EOF > tmp$$
 *perso:$lun
 *perso:43,cont
 *no load list
-*execute
 EOF
+if [ -f "$call_file" ]; then
+    cat "$call_file" >> tmp$$
+else
+    echo '*execute' >> tmp$$
+fi
 if [ -f "$input_file" ]; then
     cat "$input_file" >> tmp$$
 fi

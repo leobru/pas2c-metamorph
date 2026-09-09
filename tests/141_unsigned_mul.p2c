@@ -26,7 +26,7 @@ bits w;
 unsigned twice(unsigned v) { return v * 2; }
 int      half(unsigned v)  { return v / 2; }
 //
-void main() {
+void main(int argc, char **argv) {
     // In range, the unsigned product is the product.
     a = 1000;  b = 1000;  c = 3;
     printf(" MUL   %10d%8d%8d\n", (a * b), (a * c), (b * 7));

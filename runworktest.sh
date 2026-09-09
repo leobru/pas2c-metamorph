@@ -2,6 +2,7 @@
 work_module=${WORK_MODULE:-work}
 src=$1
 input_file="${src%.p2c}.input"
+call_file="${src%.p2c}.call"
 rm -f tmpsrc.bin tmpsrc.txt
 sed 's/{/<:/g;s/}/:>/g' < "$src" > tmpsrc.utxt
 src_extent=$(./pashelp-source-extent.sh tmpsrc.utxt)
@@ -23,8 +24,12 @@ P 2 0 ${src_extent}B .
 *call ccom
 *copy:0,000000,000000
 *no load list
-*execute
 EOF
+if [ -f "$call_file" ]; then
+    cat "$call_file" >> tmp$$
+else
+    echo '*execute' >> tmp$$
+fi
 if [ -f "$input_file" ]; then
     cat "$input_file" >> tmp$$
 fi

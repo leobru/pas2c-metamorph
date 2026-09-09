@@ -9,7 +9,7 @@ typedef struct {
 three t;
 int k;
 //
-void main() {
+void main(int argc, char **argv) {
     t.a  =  1;
     k  =  (int)t;
     printf(" NEVER %d\n", k);

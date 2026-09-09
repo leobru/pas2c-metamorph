@@ -57,7 +57,7 @@ int twice(int x) {
 int (*fp)(int);
 int arr[3];
 //
-void main() {
+void main(int argc, char **argv) {
     c1.v  =  11;
     c2.v  =  22;
     g  =  70;

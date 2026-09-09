@@ -8,7 +8,7 @@
 //
 int s;
 //
-void main() {
+void main(int argc, char **argv) {
     s  =  0;
     // A label with no switch anywhere.
     case 1: s  =  1;

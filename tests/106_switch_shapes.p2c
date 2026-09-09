@@ -103,7 +103,7 @@ int bump() {
     return 2;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     printf(" SMALL3 ");
     st  =  stWORD;   printf("%4d", small3(st));
     st  =  stSLICE;  printf("%4d", small3(st));

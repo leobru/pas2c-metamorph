@@ -9,7 +9,7 @@ alfa a = "ABCDEF";
 char s[6];
 int i;
 
-void main() {
+void main(int argc, char **argv) {
     s[0] = 'A';
     s[5] = 'F';
 

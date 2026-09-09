@@ -16,7 +16,7 @@ bits b;
 rec r1, r2, r3;
 rec * p;
 int i, k, n;
-void main() {
+void main(int argc, char **argv) {
     // pre-decrement as a condition: 3 -> 2,1,0, so 2 passes, i ends 0
     i = 3; n = 0;
     while (--i) { n = n + i; }

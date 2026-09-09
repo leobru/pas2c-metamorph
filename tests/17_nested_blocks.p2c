@@ -1,7 +1,7 @@
 /*=k9,l0*/
 //
 int x;
-void main() {
+void main(int argc, char **argv) {
     x = 1;
     printf("Outer: x = %d\n", x);
     {

@@ -16,7 +16,7 @@ int w[4];
 alfa a = "AAAAAA", b = "ZZZZZZ";
 int i, j;
 //
-void main() {
+void main(int argc, char **argv) {
     // Four words in ascending order of their leading byte: 0, then a space
     // (040), then 'A' (0101), then 'Z' (0132).
     w[0]  =  1;

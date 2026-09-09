@@ -26,7 +26,7 @@ int twice(int x) {
     return x + x;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     p3  =  &t3[0];
     q3  =  &t3[2];
     p5  =  &s5;

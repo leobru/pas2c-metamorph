@@ -14,7 +14,7 @@ void later() {
     printf("LATER\n");
 }
 //
-void main() {
+void main(int argc, char **argv) {
     ping();
     printf("ANSWER=%d\n", answer());
     later();

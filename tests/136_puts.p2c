@@ -13,7 +13,7 @@ __packed char buf[42];
 int i;
 int start;
 //
-void main() {
+void main(int argc, char **argv) {
     // A plain run at every byte offset in a word: the byte the routine picks
     // out has to be the right one in all six lanes.
     for (start = 0; start < 6; start = start + 1) {

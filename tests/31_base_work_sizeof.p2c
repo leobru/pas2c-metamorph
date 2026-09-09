@@ -2,6 +2,6 @@
 
 int words[8];
 
-void main() {
+void main(int argc, char **argv) {
     printf("RESULT %d\n", sizeof(words));
 }

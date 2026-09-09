@@ -10,7 +10,7 @@ typedef struct {
 } three;
 int k;
 //
-void main() {
+void main(int argc, char **argv) {
     k  =  offsetof(int, a);
     printf(" NEVER %d\n", k);
 }

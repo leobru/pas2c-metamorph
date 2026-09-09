@@ -10,7 +10,7 @@ __packed char s1[6] = "HELLO ";
 __packed char s2[6] = "HELLO ";
 char *cp;
 //
-void main() {
+void main(int argc, char **argv) {
     printf(" SAME   %2d%2d%2d\n", (s1 == s1), (s1 != s2), (s1 == s2));
     cp  =  s1;
     printf(" PTR    %2d%2d\n", (cp == s1), (cp == s2));

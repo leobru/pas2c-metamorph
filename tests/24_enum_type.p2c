@@ -2,7 +2,7 @@
 //
 typedef enum { RED, GREEN, BLUE } color;
 color c;
-void main() {
+void main(int argc, char **argv) {
     c = GREEN;
     if (c == GREEN) {
         printf("Color is GREEN\n");

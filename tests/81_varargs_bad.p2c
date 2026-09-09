@@ -31,7 +31,7 @@ int sum(int n, ...) {
     return n;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     sum();
 }
 //

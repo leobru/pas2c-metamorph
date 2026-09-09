@@ -16,7 +16,7 @@ bits b;
 rec r1, r2;
 rec *p, *q;
 int i, m, n, r;
-void main() {
+void main(int argc, char **argv) {
     // RMWASSIGN operand: the value is in the accumulator, omega is additive
     i = 3; m = 1;
     if (--i && m) r = 1; else r = 0;

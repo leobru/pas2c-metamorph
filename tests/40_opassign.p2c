@@ -2,7 +2,7 @@
 int a, b;
 int arr[4];
 int k;
-void main() {
+void main(int argc, char **argv) {
 a = 10;
 b = 3;
 a += b;     printf(" add %d\n", a);

@@ -4,7 +4,7 @@ typedef __packed int:6 pair[2];
 pair s = t"AB";
 int t;
 
-void main() {
+void main(int argc, char **argv) {
     t = 7;
     printf(" ID     %d\n", t);
     printf(" CHAR   %d %d %d\n", (int)t'A', (int)T'B', (int)t'\n');

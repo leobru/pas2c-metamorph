@@ -31,7 +31,7 @@
  * does not overstrike successive lines.
  */
 int a, b, q, r, n;
-void main() {
+void main(int argc, char **argv) {
     /* ---------- A. constant folding (path 1) ---------- */
     q = 100 / 7;          printf(" A01 %d\n", q);
     r = 100 % 7;          printf(" A02 %d\n", r);

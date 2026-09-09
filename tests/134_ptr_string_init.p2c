@@ -30,6 +30,6 @@ char *wide = "ABCDEFG";
 char *tab[2] = { "AB", "CD" };
 //
 void f() { }
-void main() {
+void main(int argc, char **argv) {
     printf(" UNREACHED %c\n", *cp);
 }

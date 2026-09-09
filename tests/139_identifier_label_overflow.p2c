@@ -1,6 +1,6 @@
 /*=k9,l0*/
 // The historical routine-local label table still has exactly twenty slots.
-void main() {
+void main(int argc, char **argv) {
 label01: ;
 label02: ;
 label03: ;

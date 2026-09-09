@@ -1,5 +1,4 @@
 /*=k9,l0*/
-typedef struct { int *data; int rest[29]; } ifcb;
-extern ifcb _input_, _output_;
-void main() {
+extern int _input_[30], _output_[30];
+void main(int argc, char **argv) {
 }

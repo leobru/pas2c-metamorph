@@ -87,8 +87,14 @@ run_test() {
                 return
             fi
         fi
-        if grep -q '\*EXECUTE' "$result_file"; then
-            sed -n '/\*EXECUTE/,/^----/ p' "$result_file" | tail -n +2 | head -n -1 > "${result_file}.output"
+        if grep -qE '\*EXECUTE|\*CALL PASCOMPL' "$result_file"; then
+            if grep -q '\*EXECUTE' "$result_file"; then
+                sed -n '/\*EXECUTE/,/^----/ p' "$result_file" | tail -n +2 | head -n -1 > "${result_file}.output"
+            else
+                # *CALL leaves *END FILE in the listing; drop monitor cards.
+                sed -n '/\*CALL PASCOMPL/,/^----/ p' "$result_file" | tail -n +2 | head -n -1 |
+                    grep -v '^\*' > "${result_file}.output"
+            fi
 
             if [ -f "$expected_file" ]; then
                 if diff -q "${result_file}.output" "$expected_file" > /dev/null 2>&1; then

@@ -322,7 +322,7 @@ void uP999983() { int i;
         chk(999983, uv, uv / 999983, uv % 999983);
     } }
 //
-void main() {
+void main(int argc, char **argv) {
     qbad = 0;  rbad = 0;  lbad = 0;
     printf(" MATRIX  DIVISOR       DIVIDEND        QUOTIENT REMAINDER\n");
     dP2();

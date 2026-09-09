@@ -1,32 +1,25 @@
 /*=l0*/
 //
-typedef struct {
-    int *data;
-    int w1, w2, w3, w4, w5, w6, w7, w8, w9, w10,
-    w11, w12, w13, w14, w15, w16, w17, w18, w19, w20,
-    w21, w22, w23, w24, w25, w26, w27, w28, w29;
-} fileblk;
+void fopen(int fcb[30], int sizes, int name) assembler;
+void fclose(int fcb[30]) assembler;
+void ftruncate(int fcb[30]) assembler;
+void frewind(int fcb[30]) assembler;
+int fgetc(int fcb[30]) assembler;
+void fputw(int value, int fcb[30]) assembler;
 //
-void fopen(fileblk *fcb, int sizes, int name) assembler;
-void fclose(fileblk *fcb) assembler;
-void ftruncate(fileblk *fcb) assembler;
-void frewind(fileblk *fcb) assembler;
-int fgetc(fileblk *fcb) assembler;
-void fputw(int value, fileblk *fcb) assembler;
-//
-fileblk f;
+int f[30];
 int a, b, c;
 //
-void main() {
-    fopen(&f, 010000100010, 0);
-    ftruncate(&f);
-    fputw('A', &f);
-    fputw(012, &f);
+void main(int argc, char **argv) {
+    fopen(f, 010000100010, 0);
+    ftruncate(f);
+    fputw('A', f);
+    fputw(012, f);
 
-    frewind(&f);
-    a = fgetc(&f);
-    b = fgetc(&f);
-    c = fgetc(&f);
+    frewind(f);
+    a = fgetc(f);
+    b = fgetc(f);
+    c = fgetc(f);
     printf("%d %d %d\n", a, b, c);
-    fclose(&f);
+    fclose(f);
 }

@@ -59,7 +59,7 @@ int inner(int k) {
 }
 //
 int i, t;
-void main() {
+void main(int argc, char **argv) {
     mark("START ");
     printf(" SUM0 =%d\n", sum(0));
     printf(" SUM1 =%d\n", sum(1, 10));

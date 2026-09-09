@@ -48,7 +48,7 @@ void report(int reg, int got, int want) {
         printf(" M%d LOST\n", reg);
 }
 
-void main() {
+void main(int argc, char **argv) {
     besm(PLANT2, PLANT3, PLANT4, PLANT5, PLANT6);
     touch();
     besm(READ2, KATX : ret2, READ3, KATX : ret3, READ4, KATX : ret4,

@@ -1,7 +1,7 @@
 /*=k9,l0*/
 //
 int ok;
-void main() {
+void main(int argc, char **argv) {
     // Six characters are a word only in single quotes now: double
     // quotes carry a terminator, and %o wants one word.
     printf(" %03o %03o %03o %03o %03o %03o %03o %03o %03o %010o\n", '\101', '\7', '\a', '\b', '\f', '\n', '\r',

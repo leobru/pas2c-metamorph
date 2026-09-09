@@ -1,7 +1,7 @@
 /*=k9,l0*/
 //
 int a, b;
-void main() {
+void main(int argc, char **argv) {
     a = 5;
     b = ~a;
     // On 48-bit BESM-6, ~5 should flip all bits

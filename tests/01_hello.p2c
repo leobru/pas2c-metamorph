@@ -1,5 +1,5 @@
 /*=k9,l0*/
 //
-void main() {
+void main(int argc, char **argv) {
     printf("Hello from p2c!\n");
 }

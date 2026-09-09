@@ -1130,7 +1130,7 @@ KeyWord * KeyWordHashTabBase[128]; // array [0..127] of @KeyWord;
 Symbol charSymTabBase[256]; // array ['_000'..'_177'] of Symbol;
 IdentRecPtr symHash[128]; // array [0..127] of IdentRecPtr;
 IdentRecPtr fieldHash[128]; //array [0..127] of IdentRecPtr;
-extern int64_t helperNames[30]; // array [1..29] of int64_t;
+extern int64_t helperNames[31]; // array [1..30] of int64_t;
 
 // Zero-based backing storage; symTabPos and stored references remain BESM
 // symbol-table addresses starting at 074000.
@@ -1897,7 +1897,7 @@ int64_t getHelperProc(int64_t l3arg1z)
        helper named twice costs one symbol.  Nothing else reads it, and it has
        to survive the call, so it is this routine's own static; zero-initialised
        is what work.p2c's '0:30' fill says. */
-    static int64_t helperMap[30];
+    static int64_t helperMap[31];
     if (helperMap[l3arg1z] == 0)  {
         curVal.ii = helperNames[l3arg1z];
         helperMap[l3arg1z] = allocExtSymbol(extSymMask);
@@ -9292,6 +9292,8 @@ void defineRoutine(bool bodyBlock = false)
     IdentRecPtr l3idr5z = NULL;   /* only read when hasMain says it was found */
     Word l3var7z;
     bool hasMain = false;
+    SigPtr mainSig = NULL;
+    int64_t mainFrm = 0;
     IdentRecPtr &procName = programme::super.back()->procName;
     int64_t &sizeCount = programme::super.back()->sizeCount;
     int64_t &jj = programme::super.back()->jj;
@@ -9315,6 +9317,14 @@ void defineRoutine(bool bodyBlock = false)
         hasMain = l3idr5z != NULL and l3idr5z->pck.cl == ROUTINEID
                   and l3idr5z->pck.offset != 0;
         if (hasMain) {
+            // main must be declared as in C: main(int argc, char **argv).
+            mainSig = l3idr5z->sig();
+            if (mainSig == NULL or mainSig->next == NULL or
+                mainSig->next->next != NULL)
+                error(errNoCommaOrParenOrTooFewArgs);
+            else if (not isIntTyp(mainSig->ptyp) or
+                     mainSig->next->ptyp != getPtrType(charPtrType))
+                error(40); /*errIncompatibleArgumentTypes*/
             fileExit = moduleOffset;
             formFileInit();
         } else {
@@ -9361,10 +9371,16 @@ void defineRoutine(bool bodyBlock = false)
             skipToEnd();
         }
         if (hasMain) {
-            // The call node parseCallArgs would have built for 'main()',
-            // with no arguments: op ALNUM, the routine in id2.
-            curExpr = mkExpr(ALNUM, l3idr5z->typ, NULL, (ExprPtr) l3idr5z);
-            (void) formOperator(DOIT);
+            // C/ARGV leaves [vector][argc] with ACC = argv.  Rearrange into
+            // the normal two-arg calling sequence: [frame][argc], ACC = argv.
+            mainFrm = l3idr5z->typ == voidType ? 8 : 9;
+            formAndAlign(getHelperProc(30)); /* C/ARGV */
+            form1Insn(KATI+14);             /* M14 := argv */
+            form1Insn(KXTA+SP);             /* pop argc */
+            form1Insn(KUTM+SP + mainFrm);   /* reserve callee frame */
+            form1Insn(KATX+SP);             /* push argc */
+            form1Insn(KITA+14);             /* ACC := argv */
+            formAndAlign(allocGlobalObject(l3idr5z) + (KVJM+I13));
         }
     } else if (CH) {
         do {
@@ -10973,7 +10989,7 @@ L9999:  printf(" IN %ld LINES %ld ERRORS\n", lineCnt-1, totalErrors);
     }
 }
 
-int64_t helperNames[30] = { 0L,
+int64_t helperNames[31] = { 0L,
         toText("C/1     "),
         toText("C/2     "),
         toText("C/3     "),
@@ -11002,4 +11018,5 @@ int64_t helperNames[30] = { 0L,
         toText("P/FM    "),
         toText("P/NN    "),
         toText("C/SHL   "),
-        toText("C/SHR   ")};
+        toText("C/SHR   "),
+/*30*/  toText("C/ARGV  ")};

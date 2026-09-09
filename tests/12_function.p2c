@@ -5,7 +5,7 @@ int square(int x) {
     return x * x;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     result = square(7);
     printf("7 squared = %d\n", result);
 }

@@ -15,6 +15,6 @@ int outer(int base) {
     return total;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     printf("blocks %d\n", outer(5));
 }

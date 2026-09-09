@@ -30,7 +30,7 @@ char un[6];
 char *cp;
 int i;
 //
-void main() {
+void main(int argc, char **argv) {
     // A scalar's address, read and written through.
     x  =  41;
     p  =  &x;

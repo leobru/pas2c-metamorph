@@ -223,7 +223,7 @@ void printToken() {
     writeln();
 }
 //
-void main() {
+void main(int argc, char **argv) {
     fopen(&TOKENS, 010000100000, 0);
     reset(TOKENS, 0100450000);
     initTabs();

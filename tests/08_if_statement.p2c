@@ -1,7 +1,7 @@
 /*=k9,l0*/
 //
 int x;
-void main() {
+void main(int argc, char **argv) {
     x = 10;
     if (x > 5) {
         printf("x is greater than 5\n");

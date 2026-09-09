@@ -1,7 +1,7 @@
 /*=k9,l0*/
 //
 int a, b;
-void main() {
+void main(int argc, char **argv) {
     a = 10;
     b = 20;
     

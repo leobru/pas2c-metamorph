@@ -5,7 +5,7 @@ char chars[5];
 __packed int:8 packed[14];
 int matrix[2][3];
 int idx;
-void main() {
+void main(int argc, char **argv) {
     arr[2] = 33;
     idx = 2;
     printf("arr %d\n", arr[idx]);

@@ -27,7 +27,7 @@ int mixedIf(int path) {
     return i + n;
 }
 
-void main() {
+void main(int argc, char **argv) {
     n = mixedIf(0) + mixedIf(1);
     printf(" NORM IF %d\n", n);
 }

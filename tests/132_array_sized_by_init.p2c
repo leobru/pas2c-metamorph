@@ -14,7 +14,7 @@ __packed int:8 p[] = { 0, 0 };
 int c[4];
 int i, s;
 //
-void main() {
+void main(int argc, char **argv) {
     printf(" SIZE  %3d%3d%3d%3d\n", sizeof(a), sizeof(b), sizeof(p), sizeof(c));
     s  =  0;
     for (i = 0; i <= 2; i = i + 1)

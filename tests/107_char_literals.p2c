@@ -19,7 +19,7 @@ int i, k;
 char c;
 //
 void putln() assembler;
-void main() {
+void main(int argc, char **argv) {
     i  =  'AB';
     printf(" ASSIGN%2d%2d\n", (i == 'AB'), (i != 'BA'));
     printf(" SHIFT %4d%7d\n", ('AB' >> 8), 'AB');

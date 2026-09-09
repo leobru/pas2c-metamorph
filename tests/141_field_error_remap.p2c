@@ -5,6 +5,6 @@ typedef struct {
 } record;
 record value;
 
-void main() {
+void main(int argc, char **argv) {
     value.absent = 1;
 }

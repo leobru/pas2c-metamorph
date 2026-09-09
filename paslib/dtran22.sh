@@ -3,7 +3,6 @@ fn=`echo "$1" | tr '*/' '#_'`
 cat << EOF > tmp$$
 *name dtran
 *disc:1/local
-*file:ccom,67
 *libra:22
 *table:liblist($1)
 *call library

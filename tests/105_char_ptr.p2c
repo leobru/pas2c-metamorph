@@ -17,7 +17,7 @@ int firstOf(char *s) {
     return (int)*s;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     c  =  (char)88;
     d  =  (char)89;
     for (i = 0; i <= 5; i = i + 1)

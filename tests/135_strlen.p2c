@@ -18,7 +18,7 @@ void fill() {
     }
 }
 
-void main() {
+void main(int argc, char **argv) {
     ok = 1;
     for (start = 0; start < 6; start = start + 1) {
         for (nul = start; nul < 30; nul = nul + 1) {

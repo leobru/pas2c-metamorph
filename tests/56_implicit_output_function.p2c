@@ -4,6 +4,6 @@ int f() {
     return 12345;
 }
 //
-void main() {
+void main(int argc, char **argv) {
     printf("%10d\n", f());
 }

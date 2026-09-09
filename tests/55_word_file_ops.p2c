@@ -1,50 +1,43 @@
 /*=l0*/
 //
-typedef struct {
-    int w0;
-    int w1, w2, w3, w4, w5, w6, w7, w8, w9, w10,
-    w11, w12, w13, w14, w15, w16, w17, w18, w19, w20,
-    w21, w22, w23, w24, w25, w26, w27, w28, w29;
-} fileblk;
+void fopen(int fcb[30], int sizes, int name) assembler;
+void fclose(int fcb[30]) assembler;
+void fputw(int value, int fcb[30]) assembler;
+void ftruncate(int fcb[30]) assembler;
+void frewind(int fcb[30]) assembler;
+int fgetw(int fcb[30]) assembler;
 //
-void fopen(fileblk *fcb, int sizes, int name) assembler;
-void fclose(fileblk *fcb) assembler;
-void fputw(int value, fileblk *fcb) assembler;
-void ftruncate(fileblk *fcb) assembler;
-void frewind(fileblk *fcb) assembler;
-int fgetw(fileblk *fcb) assembler;
-//
-fileblk f;
+int f[30];
 int w, off;
 //
 // FILE[19] is the buffer cursor and FILE[12] the buffer start; both are
 // absolute addresses that move with the loader map, so what is checked is
 // the cursor as an offset from the start.
 //
-void main() {
-    fopen(&f, 010000100060, 0);
-    printf("open %d %d %d %d\n", f.w4, f.w18, f.w27, f.w2);
+void main(int argc, char **argv) {
+    fopen(f, 010000100060, 0);
+    printf("open %d %d %d %d\n", f[4], f[18], f[27], f[2]);
 
-    ftruncate(&f);
-    printf("truncate %d %d %d %d\n", f.w4, f.w14, f.w2, f.w16);
+    ftruncate(f);
+    printf("truncate %d %d %d %d\n", f[4], f[14], f[2], f[16]);
 
-    fputw(1234, &f);
-    fputw(2345, &f);
-    fputw(3456, &f);
-    off = f.w19 - f.w12;
-    printf("put %d %d %d\n", f.w2, off, f.w27);
+    fputw(1234, f);
+    fputw(2345, f);
+    fputw(3456, f);
+    off = f[19] - f[12];
+    printf("put %d %d %d\n", f[2], off, f[27]);
 
-    frewind(&f);
-    off = f.w19 - f.w12;
-    printf("rewind %d %d %d %d\n", f.w4, f.w2, off, f.w27);
-    w = fgetw(&f);
-    off = f.w19 - f.w12;
-    printf("get1 %d %d %d %d\n", w, f.w2, off, f.w27);
-    w = fgetw(&f);
-    off = f.w19 - f.w12;
-    printf("get2 %d %d %d %d\n", w, f.w2, off, f.w27);
+    frewind(f);
+    off = f[19] - f[12];
+    printf("rewind %d %d %d %d\n", f[4], f[2], off, f[27]);
+    w = fgetw(f);
+    off = f[19] - f[12];
+    printf("get1 %d %d %d %d\n", w, f[2], off, f[27]);
+    w = fgetw(f);
+    off = f[19] - f[12];
+    printf("get2 %d %d %d %d\n", w, f[2], off, f[27]);
 
-    fclose(&f);
-    off = f.w19 - f.w12;
-    printf("close %d %d %d %d\n", f.w4, f.w2, off, f.w27);
+    fclose(f);
+    off = f[19] - f[12];
+    printf("close %d %d %d %d\n", f[4], f[2], off, f[27]);
 }

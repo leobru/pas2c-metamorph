@@ -28,7 +28,7 @@ again:
     return i + n;
 }
 
-void main() {
+void main(int argc, char **argv) {
     n = gotoPath(0) + gotoPath(1);
     printf(" NORM GOTO %d\n", n);
 }

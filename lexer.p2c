@@ -740,7 +740,7 @@ void initTables() {
     regKeywords();
 }
 //
-void main() {
+void main(int argc, char **argv) {
     fopen(&PASINPUT, 010000100010, 0);
     reset(PASINPUT, 0100540000);
     fopen(&TOKENS, 010000100000, 0);
