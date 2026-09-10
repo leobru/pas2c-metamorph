@@ -1,0 +1,67 @@
+/*=l1,k8*/
+//
+// The driver half of the separately compiled work compiler.  work.p2c holds
+// everything else (the parser/codegen and their private state) and exports
+// the four routines and the globals below as extern; this file declares the
+// matching externs and supplies MAIN, which work.p2c itself no longer does.
+//
+// Types shared across the boundary are re-declared locally rather than
+// imported (P2C has no such import): ifcb must stay the same 30-word shape
+// on both sides since FCST/INITBUF/PASINPUT/_CHILD_ are extern blocks the
+// loader merges by size, while pasinfotyp only needs the two leading fields
+// this file actually touches (listMode, errors) to land at the same offsets
+// as work.p2c's full definition.
+//
+const int false = 0U, true = 1U;
+//
+const __packed char boilerplate[] = " BESM-6 C THAT NEVER WAS (2026)\n";
+//
+typedef struct { int rest[30]; } ifcb;
+typedef ifcb *pfcb;
+typedef struct {
+    /*0*/ int listMode;
+    /*1*/ int *errors;
+} pasinfotyp;
+//
+extern void programme(int *retSizePtr, void *procName, int bodyBlock);
+extern void initOptions();
+extern void initTables();
+extern void finalize();
+//
+extern int curInsnTemplate;
+extern void *hashTravPtr;
+extern int errors;
+extern int totalErrors;
+extern int lineCnt;
+extern int maxHeap;
+extern int jb9999[6];
+extern ifcb fcst, initbuf;
+extern ifcb pasinput, _child_;
+extern pasinfotyp pasinfor;
+//
+int setup() assembler;
+int setjmp(int *jmpbuf) assembler;
+void fopen(pfcb, int, int) assembler;
+//
+void main(int argc, char **argv) {
+    void puts(char *) assembler;
+    fopen(&PASINPUT, 010000100010, t'PASINPUT');
+    fopen(&_CHILD_, 010000100000, t'*CHILD* ');
+    if (PASINFOR.listMode)
+        puts(boilerplate);
+    printf(" INITHEAP = %05o\n", setup());
+    if (setjmp(jb9999)) goto L9999;
+    initOptions();
+    curInsnTemplate  =  0;
+    initTables();
+    fopen(&FCST, 010000100000, 0);
+    fopen(&INITBUF, 010000100000, 0);
+    programme(&curInsnTemplate, hashTravPtr, false);
+    if (errors) {
+L9999:  printf(" IN %d LINES %d ERRORS\n", lineCnt-1, totalErrors);
+    } else {
+        finalize();
+        *PASINFOR.errors  =  false;
+        printf(" MAXHEAP = %05o\n", maxHeap);
+    }
+}

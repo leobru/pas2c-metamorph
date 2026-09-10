@@ -26,6 +26,33 @@ MASK48 = (1 << 48) - 1
 PASCOMPL = 0o6041634357556054
 PROGRAM = 0o6062574762415500
 
+# Set on an entry's offset word while entryPtTable lives in memory (base.cc's
+# `(1L << 46) | frame.ii`, work.p2c's `[1] | frame & ~[0, 3]`); a real
+# catalog's on-disk copy has it stripped, leaving the bare offset.
+ENTRY_OFFSET_TAG = 1 << 46
+ENTRY_OFFSET_MASK = MASK48 & ~ENTRY_OFFSET_TAG
+
+ENTRYPT_RE = re.compile(r"^ENTRYPT\s+(\d+)\s+([0-7]+)\s*$")
+
+
+def parse_entries(text):
+    """Parse a finalize() entry-point dump (see base.cc/work.p2c) into an
+    ordered list of raw words, 1-indexed position matching print order:
+    [1]=module name, [2]=a tag word, [3]="PROGRAM " alias, [4]=alias tag,
+    then (name, tagged-offset) pairs for each extern routine, terminated by
+    a zero word. The raw object never carries this table -- it only exists
+    in the compiler's own memory -- so it has to come from this side
+    channel instead."""
+    entries = {}
+    for line in text.splitlines():
+        m = ENTRYPT_RE.match(line)
+        if m:
+            entries[int(m.group(1))] = int(m.group(2), 8)
+    if not entries:
+        raise ValueError("no ENTRYPT lines found in entries file")
+    count = max(entries)
+    return [entries[i] for i in range(1, count + 1)]
+
 
 def read_word(data, idx):
     start = idx * WORD_BYTES
@@ -88,22 +115,48 @@ def parse_date(value):
     return value
 
 
-def build_prefix(fields, date):
+def build_prefix(fields, date, entries=None):
     words = [0] * PREFIX_WORDS
     rounded_len = (fields["actual_len_words"] + 0o37) & ~0o37
 
     words[0] = 0o2104000 + rounded_len
-    words[2] = PASCOMPL
     words[3] = 0o2010420000000000 | (fields["memory_size"] << 15)
-    words[4] = PROGRAM
 
-    words[7] = MASK48
-    words[8] = ascii_word("LIBRAR")
-    words[9] = ascii_word("Y OT  ")
-    words[10] = ascii_word(date[:6])
-    words[11] = ascii_word(date[6:] + "    ")
-    for idx in range(12, 24):
-        words[idx] = ascii_word("      ")
+    if entries:
+        # entries[0] is the module's own name (PASCOMPL for a hasMain
+        # module, NOPROGRA otherwise -- the compiler decided this, wrap
+        # does not need to). entries[2]/[3] are the in-memory "PROGRAM "
+        # alias pair, which the real on-disk directory does not carry
+        # (confirmed against a real *call tcatalog output byte for byte);
+        # entries[4:] are (name, tagged-offset) pairs for each extern
+        # routine, ending with a zero terminator.
+        words[2] = entries[0]
+        next_word = 4
+        idx = 4
+        while idx < len(entries):
+            name = entries[idx]
+            words[next_word] = name
+            next_word += 1
+            if name != 0:
+                offset = entries[idx + 1] if idx + 1 < len(entries) else 0
+                words[next_word] = offset & ENTRY_OFFSET_MASK
+                next_word += 1
+                idx += 2
+            else:
+                idx += 1
+        # Required end-of-table marker right after the zero terminator,
+        # confirmed against a real *call tcatalog output.
+        words[next_word] = MASK48
+    else:
+        words[2] = PASCOMPL
+        words[4] = PROGRAM
+        words[7] = MASK48
+        words[8] = ascii_word("LIBRAR")
+        words[9] = ascii_word("Y OT  ")
+        words[10] = ascii_word(date[:6])
+        words[11] = ascii_word(date[6:] + "    ")
+        for idx in range(12, 24):
+            words[idx] = ascii_word("      ")
 
     words[2046] = ascii_word(date[:6])
     words[2047] = int.from_bytes(date[6:].encode("ascii") + b" \0\0\0", "big")
@@ -111,18 +164,26 @@ def build_prefix(fields, date):
     return b"".join(write_word(word) for word in words)
 
 
+def load_entries(path):
+    if not path:
+        return None
+    return parse_entries(Path(path).read_text())
+
+
 def command_header(args):
     data = Path(args.input).read_bytes()
     fields, _ = dms_fields(data)
     date = parse_date(args.date)
-    sys.stdout.buffer.write(build_prefix(fields, date))
+    entries = load_entries(args.entries)
+    sys.stdout.buffer.write(build_prefix(fields, date, entries))
 
 
 def command_wrap(args):
     data = Path(args.input).read_bytes()
     fields, body = dms_fields(data)
     date = parse_date(args.date)
-    output = build_prefix(fields, date) + body
+    entries = load_entries(args.entries)
+    output = build_prefix(fields, date, entries) + body
     if args.zones:
         target_size = args.zones * ZONE_BYTES
         if len(output) > target_size:
@@ -159,6 +220,12 @@ def main(argv=None):
 
     header = sub.add_parser("header", help="write only the 2-zone prefix")
     header.add_argument("input", help="raw DMS .o file")
+    header.add_argument(
+        "--entries",
+        help="finalize() ENTRYPT dump (e.g. the compiler's .lst) to build a "
+        "real, name-resolvable entry directory from; omit for the old "
+        "fixed PASCOMPL/PROGRAM placeholder",
+    )
     header.set_defaults(func=command_header)
 
     wrap = sub.add_parser("wrap", help="write prefix plus unchanged .o payload")
@@ -169,6 +236,12 @@ def main(argv=None):
         type=int,
         default=0,
         help="pad wrapped output to this many 6K zones",
+    )
+    wrap.add_argument(
+        "--entries",
+        help="finalize() ENTRYPT dump (e.g. the compiler's .lst) to build a "
+        "real, name-resolvable entry directory from; omit for the old "
+        "fixed PASCOMPL/PROGRAM placeholder",
     )
     wrap.set_defaults(func=command_wrap)
 

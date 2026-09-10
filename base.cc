@@ -10673,6 +10673,15 @@ void finalize()
         putchar('\n');
     }
     entryPtTable[entryPtCnt] = 0;
+    // reconstruct-bin-header.py has no other way to learn a module's entry
+    // points (name, offset): the raw object never carries entryPtTable, it
+    // only exists here in memory (the DUBNA-hosted compiler hands its own
+    // copy to the runtime, which the cataloging step reads directly -- see
+    // work.p2c's finalize and pasinfor.entryptr).  Print it so the host
+    // build path has an equivalent channel.
+    printf("ENTRYCNT %ld\n", entryPtCnt);
+    for (idx = 1; idx <= entryPtCnt; ++idx)
+        printf("ENTRYPT %ld %016lo\n", idx, entryPtTable[idx]);
 
 } /* finalize */
 

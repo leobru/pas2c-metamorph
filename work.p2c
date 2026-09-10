@@ -1,6 +1,4 @@
-/*=l1,k8,l1*/
-//
-const __packed char boilerplate[] = " BESM-6 C THAT NEVER WAS (2026)\n";
+/*=l1,k8*/
 //
 const int fnABS = 0, fnSIZEOF = 1, fnOFFSETOF = 2, fnMALLOC = 3,
           fnCARD = 4, fnMINEL = 5, fnABSI = 6;
@@ -483,8 +481,8 @@ const void *NULL = (void*)0;
 typedef void *uword;
 // Six characters in a word, the shape a six-character string constant has.
 //
-NumberFormat numFormat;
-int statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
+static NumberFormat numFormat;
+static int statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
     blockBegSys = [CONSTSY, TYPEDEFSY, TYPESY, STATICSY, BEGINSY],
     statBegSys = [IDENT, EXPROP, LPAREN, INTCONST, REALCONST,
                   CHARCONST, STRINGSY, LBRACK, BEGINSY, IFSY,
@@ -492,43 +490,43 @@ int statEndSys = [SEMICOLON, ENDSY, ELSESY, WHILESY],
                   BREAKSY, CONTSY, RETURNSY, SEMICOLON],
     skipToSet,
     lvalOpSet = [GETELT, GETVAR, GETFIELD, DEREF];
-int bool48z, forValue;
-int jumpType;
-int jumpTarget;
-operator charClass;
-symbol SY;
-int savedHalf;
-int FcstCnt;
-int symTabPos;
-int entryPtCnt;
-int fileBufSize;
+static int bool48z, forValue;
+static int jumpType;
+static int jumpTarget;
+static operator charClass;
+static symbol SY;
+static int savedHalf;
+static int FcstCnt;
+static int symTabPos;
+static int entryPtCnt;
+static int fileBufSize;
 /* Pointers pinned in index registers by the register declarations of the
    blocks now open, innermost first; genEntry reloads a spilled one after a
    call that clobbers its register. */
-eptr pinList;
-int curInsnTemplate;
-int linePos;
-int prevErrPos;
-int errsInLine;
-int moduleOffset;
-int lineStartOffset;
-int curFrameRegTemplate;
-int curProcNesting;
+static eptr pinList;
+extern int curInsnTemplate;
+static int linePos;
+static int prevErrPos;
+static int errsInLine;
+static int moduleOffset;
+static int lineStartOffset;
+static int curFrameRegTemplate;
+static int curProcNesting;
 // Module-lifetime globals use this high-water mark; routine locals continue
 // to use programme's localSize frame counter.
-int moduleDataSize;
+static int moduleDataSize;
 /* Explicit statics go in a private common of their own instead, so that every
    separately compiled module has its own.  Private commons of the same name do
    not merge, so the name is fixed; the block arrives zero-filled.  staticBlk is
    its symbol-table entry, allocated at module start because the module's own
    start word names it.  The size is patched into the entry by finalize, being
    unknown until then. */
-int staticSize, staticBlk;
-int totalErrors;
-int lineCnt;
-int eofOverreads;
-int bucket;
-int strLen;
+static int staticSize, staticBlk;
+extern int totalErrors;
+extern int lineCnt;
+static int eofOverreads;
+static int bucket;
+static int strLen;
 // A double-quoted string is packed into strBuf rather than laid straight into
 // the constant pool: which pool the words belong in is the consumer's to
 // decide.  parseLiteral puts them in FCST, an expression needing an address to
@@ -536,31 +534,31 @@ int strLen;
 // where they cost no pool word and coalesce with the items around them.  The
 // longest a string can reach is the 125 characters doCharConst stores, which
 // is 21 words.
-int strBuf[21];
-int strWords;
+static int strBuf[21];
+static int strWords;
 // Set whenever the string literal just packed into strBuf/strWords was
 // t"..." (TEXT, 6 bits/char) rather than plain ISO (8 bits/char): the
 // lexer's own literalEncoding is gone by the time parseLiteral and
 // parseConstDeclValue run, so this is what they read instead.
-int strIsText;
-int heapCallsCnt;
-int heapSize;
+static int strIsText;
+static int heapCallsCnt;
+static int heapSize;
 /* Known accumulator normalization state: 0 is unknown, 1 is normalization
    disabled (NTR 7, integer arithmetic), and 2 is normalization enabled
    (bare NTR, real arithmetic). */
-int arithMode;
+static int arithMode;
 /* The construct an error is reported against, as the one word its six
    characters occupy: an array is not assignable, so it is held as a word,
    which is what %a prints.  Every one of them is exactly six characters,
    since a single-quoted literal is right-aligned in its word and a shorter
    one would not fill what %a writes. */
-int stmtName;
-pextf curExternFile;
-char commentModeCH;
-char CH;
-char *lexMemPtr;
-char lexSaveCH;
-int lineNesting,
+static int stmtName;
+static pextf curExternFile;
+static char commentModeCH;
+static char CH;
+static char *lexMemPtr;
+static char lexSaveCH;
+static int lineNesting,
     FcstCountTo500,
     objHalfIdx,
     lookup2,
@@ -571,62 +569,62 @@ int lineNesting,
     atEOL,
     checkTypes,
     isDefined, readNext,
-    errors,
     enableStdInput,
     abort,
     checkFortran;
-int lexSaveEOL;
-irptr outputFile,
+extern int errors;
+static int lexSaveEOL;
+static irptr outputFile,
     inputFile,
-    hashTravPtr,
     uProcPtr;
-extfilerec *externFileList;
-tptr typ121z,
+extern irptr hashTravPtr;
+static extfilerec *externFileList;
+static tptr typ121z,
     voidType, voidPtr,
     boolType;
-tptr intType;
+static tptr intType;
 // This machine has one integer but not one multiply: 'unsigned' is a type of
 // its own only so that a product of unsigned operands takes the multiply the
 // m- mode takes.  Everything else treats the two alike -- typeCheck holds
 // any two non-enum scalars compatible -- which is what isIntTyp is for.
-tptr uintType;
-tptr realType;
-tptr charType;
-tptr charPtrType, flatMemType;
-irptr flatMemVar;
-tptr symType; // the type denoted by the current TYPESY
-tptr arg1Type;
-tptr arg2Type;
-numLabel numLabs[20];
-int numLabTop;
-word curToken;
-word curVal;
-int hashMask = 0203407U;
-int curIdent;
-int usedRegs;
-int liveRegs;
-int freeRegs;
-int auxRegs;
-eptr uVarPtr;
-eptr curExpr;
-insnltyp *insnList;
-inptr internHead;
-extfilerec *fileForOutput, *fileForInput;
-int symTabCnt;
-entries entryPtTable;
-int indexreg[16]; // indexreg[0] unused
-int opToMode[STKLVAL+1];
-int frameRegTemplate = 04000000;
+static tptr uintType;
+static tptr realType;
+static tptr charType;
+static tptr charPtrType, flatMemType;
+static irptr flatMemVar;
+static tptr symType; // the type denoted by the current TYPESY
+static tptr arg1Type;
+static tptr arg2Type;
+static numLabel numLabs[20];
+static int numLabTop;
+static word curToken;
+static word curVal;
+static int hashMask = 0203407U;
+static int curIdent;
+static int usedRegs;
+static int liveRegs;
+static int freeRegs;
+static int auxRegs;
+static eptr uVarPtr;
+static eptr curExpr;
+static insnltyp *insnList;
+static inptr internHead;
+static extfilerec *fileForOutput, *fileForInput;
+static int symTabCnt;
+static entries entryPtTable;
+static int indexreg[16]; // indexreg[0] unused
+static int opToMode[STKLVAL+1];
+static int frameRegTemplate = 04000000;
 /* M6 bases the module's private common, where the explicit statics live.  It
    is not a display level: the display runs M2..M5 and stops, which is why the
    nesting limit is four, and freeRegs is [curProcNesting+1:5] so that nothing
    pins a base here. */
-int moduleRegTemplate = 030000000;
-int jb9999[6];
-char lineBuf[130];
-int errMap[10];
-kword *kwordHash[128] = NULL:128;
-symbol charSym[128] = {
+static int moduleRegTemplate = 030000000;
+extern int jb9999[6];
+static char lineBuf[130];
+static int errMap[10];
+static kword *kwordHash[128] = NULL:128;
+static symbol charSym[128] = {
     NOSY:128,
     ['0']=INTCONST:10, ['A']=IDENT:26, ['Ю']=IDENT:31,
     ['\'']=CHARCONST, ['"']=CHARCONST, ['_']=IDENT,
@@ -635,8 +633,8 @@ symbol charSym[128] = {
     [',']=COMMA, ['.']=PERIOD, ['^']=EXPROP, ['(']=LPAREN, [')']=RPAREN,
     [';']=SEMICOLON, ['[']=LBRACK, [']']=RBRACK, ['=']=BECOMES,
     [':']=COLON, ['!']=EXPROP, ['~']=EXPROP, ['?']=EXPROP };
-hashArray symHash = NULL:128, fieldHash = NULL:128;
-int helperNames[31] = { 0,
+static hashArray symHash = NULL:128, fieldHash = NULL:128;
+static int helperNames[31] = { 0,
         t'C/1     ',
         t'C/2     ',
         t'C/3     ',
@@ -670,14 +668,14 @@ int helperNames[31] = { 0,
 //
 /* Backing storage is zero-based; symTabPos and all references stored in the
    compiler's records remain BESM symbol-table addresses starting at 074000. */
-int symTab[01501];
-int longSymCnt;
-int longSym[90];
-int longSyms[90];
-objbuf objBuffer;
-char iso2text[128-'*'];
-int maxHeap;
-ifcb fcst, initbuf;
+static int symTab[01501];
+static int longSymCnt;
+static int longSym[90];
+static int longSyms[90];
+static objbuf objBuffer;
+static char iso2text[128-'*'];
+extern int maxHeap;
+extern ifcb fcst, initbuf;
 extern ifcb pasinput, _child_;
 //
 typedef struct {
@@ -3772,7 +3770,7 @@ int rec;
     lookupMode  =  setcount;
 } /* flushInitializers */
 
-void programme(int *retSizePtr, irptr procName, int bodyBlock) { /* programme */
+extern void programme(int *retSizePtr, irptr procName, int bodyBlock) { /* programme */
 irptr preDefHead, typelist, scopeBound, l2var4z, curIdRec, workidr;
 int isPredefined, l2bool8z, retSeen, inTypeDef, hadParens, externDecl,
     staticDecl, isFortranEntry;
@@ -9451,7 +9449,7 @@ L23301:     ;
 } /* programme */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void initTables() { /* initTables */
+extern void initTables() { /* initTables */
 void ftruncate(pfcb) assembler;
 int idx, jdx;
 
@@ -9533,7 +9531,7 @@ static int resWordName[20] = {
 } /* initTables */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void finalize() {
+extern void finalize() {
 void fclose(pfcb) assembler;
 int idx, cnt;
     pasinfor.sizes[0]  =  1;
@@ -9582,7 +9580,7 @@ int idx, cnt;
 } /* finalize */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-void initOptions() {
+extern void initOptions() {
     pasinfor.startOffset  =  (pasinfor.startOffset & ~[0..6]) - 16384;
     commentModeCH  =  ' ';
     lineNesting  =  0;
@@ -9610,26 +9608,3 @@ void initOptions() {
     symTabCnt  =  0;
     paseofcd  =  '*copy:';
 } /* initOptions */
-//
-void main(int argc, char **argv) {
-    void puts(char *) assembler;
-    fopen(&PASINPUT, 010000100010, t'PASINPUT');
-    fopen(&_CHILD_, 010000100000, t'*CHILD* ');
-    if (PASINFOR.listMode)
-        puts(boilerplate);
-    printf(" INITHEAP = %05o\n", setup());
-    if (setjmp(jb9999)) goto L9999;
-    initOptions();
-    curInsnTemplate  =  0;
-    initTables();
-    fopen(&FCST, 010000100000, 0);
-    fopen(&INITBUF, 010000100000, 0);
-    programme(&curInsnTemplate, hashTravPtr, false);
-    if (errors) {
-L9999:  printf(" IN %d LINES %d ERRORS\n", lineCnt-1, totalErrors);
-    } else {
-        finalize();
-        *PASINFOR.errors  =  false;
-        printf(" MAXHEAP = %05o\n", maxHeap);
-    }
-}

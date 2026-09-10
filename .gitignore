@@ -38,6 +38,7 @@ base
 
 # But not the main ones
 !work.p2c
+!workmain.p2c
 !lexer.p2c
 !lexer.pas
 !quine.p2c
