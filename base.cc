@@ -1914,6 +1914,12 @@ void toFCST()
 }
 
 // Lay the buffered string into the constant pool; answer where it starts.
+// Lay the buffered string into the constant pool; answer where it starts.
+// Not tagged with I8: unlike getFCSToffset(), this feeds both prepLoad
+// (wants an I8-tagged value, to load the string's own words) and
+// setAddrTo (wants the raw offset, to fold into its own macro*l4var5z
+// address encoding when taking the string's address) -- callers combine
+// it however each of them needs.
 int64_t strToFCST()
 {
     int64_t start = FcstCnt;
@@ -2057,6 +2063,11 @@ int64_t allocSymtab(int64_t newSym)
     return ret;
 }
 
+// Returns an FCST offset with I8 already added in: the result selects M8
+// (the const pointer) on its own, so a caller combining it with an opcode
+// must never add I8 again -- doing so sums two index-register fields
+// (M8+M8=M16, or worse if some other tag is already present) instead of
+// picking one, corrupting the effective address.
 int64_t getFCSToffset()
 {
     int64_t ret;
@@ -2064,11 +2075,11 @@ int64_t getFCSToffset()
     ret = addCurValToFCST();
     offset = ret;
     if (offset < 2048) {
-        /* empty */
+        ret = offset + I8;
     } else if (offset >= 4096)
         error(204);
     else {
-        ret = allocSymtab(offset + 040000000) - 070000;
+        ret = allocSymtab(offset + 040000000) - 070000 + I8;
     }
     return ret;
 }
@@ -2192,8 +2203,8 @@ L1:     addr = curVal.ii & 077777;
         work = -mode;
         curVal.ii = arg & 0x1FFFFFFFFFFL;
         arg = getFCSToffset();
-        form3Insn(KATX+SP+1, KSUB+I8 + offset, work);
-        form3Insn(KRSUB+I8 + arg, work, KXTA+SP+1);
+        form3Insn(KATX+SP+1, KSUB+offset, work);
+        form3Insn(KRSUB+arg, work, KXTA+SP+1);
         return;
     } else if (mode == -1) {
         form1Insn(KVTM+I14 + lineCnt);
@@ -3673,7 +3684,7 @@ L3556:
                     add2InsnsToBuf(KVTM+I14, KXTA+I14);
                       curVal.ii = 040077777;
                       add2InsnsToBuf(allocSymtab(curVal.ii) + (KXTS+SP),
-                                     KAAX+I8 + curInsn.ii);
+                                     KAAX+curInsn.ii);
                       add2InsnsToBuf(KAEX+SP, KATX+I14);
                 } break;
                 case mcMALLOC:
@@ -3887,13 +3898,13 @@ void genSliceExtract()
 //      }
         if (ends != 48) {
             curVal.ii = MASK48 >> (48 - wd);
-            addToInsnList(KAAX+I8 + getFCSToffset());
+            addToInsnList(KAAX+getFCSToffset());
         }
     } else {
         if (ends != 48)
             addToInsnList(ASN64-48 + ends);
         curVal.ii = shl48(MASK48, 48 - wd);
-        addToInsnList(KAAX+I8 + getFCSToffset());
+        addToInsnList(KAAX+getFCSToffset());
     }
     insnList->st = stWORD;
 } /* genSliceExtract */
@@ -3911,9 +3922,11 @@ void prepLoad()
     switch (insnList->ilm) {
         case ilCONST: {
             curVal.ii = insnList->payload.ii;
-            if (typeSize(valueType) == 1)
-                curVal.ii = getFCSToffset();
-            addToInsnList(constRegTemplate + curInsnTemplate + curVal.ii);
+            if (typeSize(valueType) == 1) {
+                addToInsnList(curInsnTemplate + getFCSToffset());
+            } else {
+                addToInsnList(constRegTemplate + curInsnTemplate + curVal.ii);
+            }
         } break;
         case ilLVAL: {
             helper = insnList->addrmd;
@@ -4751,7 +4764,7 @@ void genGetElt()
                     prepLoad();
                     if (l5var7z) {
                         curVal.ii = (0 - l5var7z) & INT41_MASK;
-                        addToInsnList(KADD+I8 + getFCSToffset());
+                        addToInsnList(KADD+getFCSToffset());
                         insnList->tail->mode = 1;
                     }
                     l5var24z = has(insnCopy.regsused, 0);
@@ -5479,7 +5492,7 @@ L7567:
                             /* what is left over a power of two is a mask
                                away, and wants no quotient at all */
                             curVal.ii = arg2Val.ii - 1;
-                            addToInsnList(KAAX+I8 + getFCSToffset());
+                            addToInsnList(KAAX+getFCSToffset());
                             insnMode = 0;
                             break;
                         }
@@ -5489,7 +5502,7 @@ L7567:
                     }
                     if (recip != 1) {
                         curVal.ii = recip | Bits(0);
-                        addToInsnList(KMUL+I8 + getFCSToffset());
+                        addToInsnList(KMUL+getFCSToffset());
                     }
                     addToInsnList(ASN64 + 47 - minel(arg2Val.ii));
                     if (curOP == IMODOP) {
@@ -5497,7 +5510,7 @@ L7567:
                            times the divisor */
                         insnList->tail->mode = 1;
                         curVal.ii = arg2Val.ii | Bits(0);
-                        addToInsnList(KMUL+I8 + getFCSToffset());
+                        addToInsnList(KMUL+getFCSToffset());
                         addToInsnList(KYTA+64);
                         addToInsnList(KRSUB+SP);
                     }
@@ -6068,7 +6081,7 @@ TPtr makeArrayType(int64_t asize, TPtr elem, bool makePacked)
         sizeVal = asize * typeSize(elem);
         curVal.ii = typeSize(elem);
         curVal.ii = (curVal.ii & BitRange(7,47)) | Bits(0);
-        perwordVal = KMUL+ I8 + getFCSToffset();
+        perwordVal = KMUL+ getFCSToffset();
     }
     arrayType.setRep(besm6_alloc_record<Types>(offsetof(Types, szArray)));
     arrayType.rep()->asize = asize;
@@ -6939,7 +6952,7 @@ void fopenFile(IdentRecPtr fileSym, ExtFileRec * extFileP)
     // The only files opened this way are *INPUT* and *OUTPUT*
     // with known characteristics (1 word, 8 bits).
     curVal.ii = fileBufSize * 010000000000L + 0100010;
-    form1Insn(KXTS+I8 + getFCSToffset());
+    form1Insn(KXTS+getFCSToffset());
     if (extFileP == NULL) {
         form1Insn(KXTS);
     } else {
@@ -6947,7 +6960,7 @@ void fopenFile(IdentRecPtr fileSym, ExtFileRec * extFileP)
         if (curVal.ii == 512)
             // offset holds a packed file name (e.g. "*OUTPUT*"), not a number.
             curVal.ii = extFileP->offset;
-        form1Insn(KXTS+I8 + getFCSToffset());
+        form1Insn(KXTS+getFCSToffset());
     }
     formAndAlign(getHelperProc(16)); /*"FOPEN"*/
 } /* fopenFile */
@@ -8489,7 +8502,7 @@ L16140:
                 form1Insn(KVZM+I14 + curSwitch.allClauses->offset);
             } else {
                 curVal.ii = (minValue.ii ^ curSwitch.allClauses->value.ii);
-                form2Insn(KAEX + I8 + getFCSToffset(),
+                form2Insn(KAEX + getFCSToffset(),
                           InsnTemp[UZA] + curSwitch.allClauses->offset);
             }
             minValue = curSwitch.allClauses->value;
