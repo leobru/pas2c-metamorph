@@ -59,7 +59,8 @@ const int macro = 0100000000,
 // Some locations are only used by runtime, here for reference
 //  ASCII0 =    04000007;
 const int E1 =        04000010,
-          ZERO =      04000011,
+          ZERO =      04000006,
+          INTEXP =    04000011,
 //  MULTMASK =  04000012;
 //  MAXREAL =   04000013;
 //  MANTISSA =  04000014;
@@ -2959,10 +2960,8 @@ void processInsn() {
             } else {
                 l4var213z  =  false;
             }
-            curVal.i  =  l4var213z;
-            i  =  addCurValToFCST();
-            curVal.i  =  l4var213z ^ 1;
-            tempInsn  =  addCurValToFCST() - i;
+            i  =  l4var213z ? E1 : ZERO;
+            tempInsn  =  l4var213z ? ZERO - E1 : E1 - ZERO;
             if (curInsn == 0) {
                 padToLeft();
                 form1Insn(KUZA + moduleOffset + 1);
@@ -2977,7 +2976,7 @@ void processInsn() {
                     error(211);
                 fixup(0, l4inl7z->code);
             }
-            form1Insn(KXTA+I8 + i);
+            form1Insn(KXTA + i);
             return;
         }
         if (curInsn >= 2*macro) {
@@ -5249,7 +5248,7 @@ L10122:         insnList->tail->mode  =  insnMode;
         } else {
             prepLoad();
             if (curOP == TOREAL) {
-                addToInsnList(KAOX+ZERO);
+                addToInsnList(KAOX+INTEXP);
                 addToInsnList(KAVX);
                 insnMode  =  3;
                 goto L10122;

@@ -134,9 +134,10 @@ const int64_t
 
 const int64_t
     ASN64 = 0360100,
+    ZERO =      04000006,
     ASCII0 =    04000007,
     E1 =        04000010,
-    ZERO =      04000011,
+    INTEXP =    04000011,
     MULTMASK =  04000012,
     MANTISSA =  04000014,
     MINUS1 =    04000017,
@@ -3777,10 +3778,8 @@ L3556:
                 } else {
                   l4var213z = false;
                 }
-                curVal.ii = l4var213z;
-                l4var2z = addCurValToFCST();
-                curVal.ii = l4var213z ^ 1;
-                tempInsn.ii = addCurValToFCST() - l4var2z;
+                l4var2z = l4var213z ? E1 : ZERO;
+                tempInsn.ii = (l4var213z ? ZERO : E1) - l4var2z;
                 if (curInsn.ii == 0) {
                     padToLeft();
                     form1Insn(InsnTemp[UZA] + moduleOffset + 1);
@@ -3793,7 +3792,7 @@ L3556:
                         error(211);
                     fixup(0, l4inl7z->code);
                 }
-                form1Insn(KXTA+I8 + l4var2z);
+                form1Insn(KXTA + l4var2z);
                 continue;
             }; /* 4230 */
             if (curInsn.ii >= 2*macro) {
@@ -5657,7 +5656,7 @@ L10122:
             } else {
                 prepLoad();
                 if (curOP == TOREAL) {
-                    addToInsnList(KAOX+ZERO);
+                    addToInsnList(KAOX+INTEXP);
                     addToInsnList(InsnTemp[AVX]);
                     insnMode = 3;
                     goto L10122;
