@@ -1,5 +1,5 @@
  C/NW:,NAME,DTRAN  /01.06.84/    . Heap allocator NEW(p) (date stamp 01.06.84)
- P/PRINT:,SUBP,                  . External: error-message printer
+ C/PRINT:,SUBP,                  . External: error-message printer
  HALT:,SUBP,                     . External: halt
 C===========================================
 C C/NW: allocate M14 words of heap memory.
@@ -99,7 +99,7 @@ C the same words and by the same route.  It does not return.
  C/NOMEM:,ENTRY,                  . report a full heap and halt
  *0040B:10,VTM,*0043B.=6H NO GL   . M10 := pointer to " NO GL" segment
  11,VTM,*0045B.=6HEMORY           . M11 := pointer to "EMORY" segment
- 13,VJM,P/PRINT                   . print (M10..M11)
+ 13,VJM,C/PRINT                   . print (M10..M11)
  13,VJM,HALT
  *0043B:,ISO,12H NO GLOBAL M      . string " NO GLOBAL M" (12 chars)
  *0045B:,ISO,6HEMORY              . string "EMORY"        (6 chars)

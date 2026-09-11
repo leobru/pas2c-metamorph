@@ -1,0 +1,22 @@
+ C/NB8:,NAME,
+C===========================================================
+C C/NB8 - verbatim port of the Pascal runtime's PASNB8
+C (paslib/pasnb8.dtran), renamed for the C libc.  Fully
+C self-contained, no SUBP dependencies.
+C===========================================================
+                ,ITA ,13
+                ,ITS ,8
+                ,NTR ,3
+                ,ITA ,11
+                ,ITS ,10
+           15   ,A-X ,
+                ,ATI ,13
+           10   ,MTJ ,14
+ LOOP:     14   ,XTA ,
+            9   ,AAX ,13B
+           14   ,ATX ,
+           14   ,UTM ,1
+           13   ,VLM ,LOOP
+           15   ,WTC ,
+                ,UJ  ,
+                ,END ,

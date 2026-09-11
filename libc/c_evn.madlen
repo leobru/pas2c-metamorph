@@ -1,0 +1,38 @@
+ C/EVN:,NAME,
+C===========================================================
+C C/EVN - verbatim port of the Pascal runtime's PASEVN
+C (paslib/pasevn.dtran), renamed for the C libc.  Calls C/HID
+C on entry and tail-calls C/DIH on exit.
+C===========================================================
+ C/HID:         ,SUBP,
+ C/DIH:         ,SUBP,
+            9   ,VTM ,
+           14   ,VJM ,C/HID
+                ,ITA ,11
+                ,ITS ,10
+                ,NTR ,3
+           15   ,A-X ,
+                ,ATI ,13
+           10   ,MTJ ,14
+            9   ,VTM ,ONE.=1
+ OUTER:     6   ,VTM ,-5
+ INNER:    14   ,XTA ,
+                ,ASN ,64-8
+           14   ,ATX ,
+                ,YTA ,
+           15   ,ATX ,
+                ,ACX ,
+            9   ,AAX ,
+                ,UZA ,SKIP
+            9   ,XTA ,1
+ SKIP:     15   ,AEX ,
+           14   ,AEX ,
+           14   ,ATX ,
+            6   ,VLM ,INNER
+           14   ,UTM ,1
+           13   ,VLM ,OUTER
+            9   ,VTM ,
+                ,UJ  ,C/DIH
+ ONE:            ,LOG ,1
+                ,LOG ,200
+                ,END ,

@@ -4,7 +4,7 @@ C C/AH - fatal-error handler shared by the whole runtime.
 C  Entered by `,UJ,C/AH' with M10 pointing at an ,ISO, error
 C  message.  Re-seeds PASZERO* with ASCII '0' (it might have
 C  been used as scratch by earlier C/WXD output), then prints:
-C   - the error text (P/PRINT reads from M11 = M10+2),
+C   - the error text (C/PRINT reads from M11 = M10+2),
 C   - the offending file's external name (FILE[26]) via C/WXD,
 C     which reads the field-width parameter (= 12) that we
 C     leave on the stack one slot below C/WXD's frame.
@@ -20,7 +20,7 @@ C  Labelled ABORT in p_sys.asm.
 C===========================================================
  PASZERO*:,LC,1              . ASCII '0' constant
  PASPMDAD:,LC,1              . post-mortem-dump entry, or 0
- P/PRINT:,SUBP,              . printf-like core (in p_print)
+ C/PRINT:,SUBP,              . printf-like core (in c_out)
  C/WOLN:,SUBP,               . write the *OUTPUT* line so far
  C/WXD:,SUBP,                . write a 48-bit word as 6-bit chars
  C/WL:,SUBP,                 . terminate the current line
@@ -31,7 +31,7 @@ C===========================================================
  ,ATX,
  10,MTJ,11                   . M11 := M10 (caller's error-msg ptr)
  11,UTM,2                    . skip ,ISO, header words
- 13,VJM,P/PRINT              . print the error string
+ 13,VJM,C/PRINT              . print the error string
  ,UTC,WIDTH12                . C := address of field-width constant 12
  ,XTA,
  12,XTS,32B                  . push width=12; ACC := FILE[26]=name

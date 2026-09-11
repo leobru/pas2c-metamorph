@@ -21,7 +21,7 @@ C   -7 = output digit count (the width, clamped to 16)
 C M6 first addresses the shifting word, then the digit to emit;
 C M7 is first the 16-pass generator counter, then the output count.
 C===========================================================
- PASZERO*:,LC,1                  . ASCII '0' character
+ PASZERO*:,LC,1                    . ASCII '0' character
  C/HIDE:,SUBP,                  . Save M13 and scratch registers M6..M8
  C/EDIH:,SUBP,                  . Restore M6..M8 and M13
  C/SP:,SUBP,                    . Print -ACC spaces when ACC is negative

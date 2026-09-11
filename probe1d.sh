@@ -48,7 +48,7 @@ cat << 'EOF' > tmp$$
 *assem
  PROGRAM :,NAME,
  P/1D    :,LC,40
- P/BX    :,SUBP,                    . pulls in initialization of P/1D
+ C/BX    :,SUBP,                    . pulls in initialization of P/1D
                 1,VTM,P/1D
                 2,VTM,6-22          . M2 := -16 (17 passes; M2 is callee-saved, survives PRINTO)
  LOOP:          2,UTC,

@@ -1,0 +1,27 @@
+ C/HID:,NAME,
+C===========================================================
+C C/HID / C/DIH - historical runtime save/restore pair (one module,
+C two entries; C/DIH is "HID" reversed, matching C/HIDE/C/EDIH).
+C C/EVN calls both as SUBP dependencies.
+C
+C Verbatim port of the Pascal runtime's PASHID/PASDIH
+C (paslib/pashid.dtran), renamed for the C libc.  Distinct from
+C C/HIDE/C/EDIH (M6..M8 and M13 only).
+C===========================================================
+                ,ITS ,13
+ LOOP1:     9   ,ITS ,6
+            9   ,VLM ,LOOP1
+           15   ,ATX ,
+           14   ,UJ  ,
+C===========================================================
+ C/DIH:,ENTRY,
+C===========================================================
+           15   ,XTA ,
+           13   ,VTM ,6
+ LOOP2:    13   ,UTC ,
+                ,STI ,
+           13   ,UTM ,-1
+            9   ,VLM ,LOOP2
+                ,STI ,13
+           13   ,UJ  ,
+                ,END ,

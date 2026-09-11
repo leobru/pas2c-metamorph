@@ -27,7 +27,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
  PASENDS*:,LC,1              . line-printer NEWLINE constant
  SPACE*:,LC,1                . ASCII space constant
  C/PF:,SUBP,                 . put f^ and advance the file
- P/PRINT:,SUBP,              . printf-like core (in p_print)
+ C/PRINT:,SUBP,              . printf-like core (in c_out)
  C/TF:,SUBP,                 . truncate / rewrite the file
  C/PK:,SUBP,                 . pack ACC into the buffer slot
  C/FL:,SUBP,                 . forward decl, defined below
@@ -67,7 +67,7 @@ C  when it finds the same FILE[23] bit set.
  ,XTA,
  ,ASN,64-40
  11,ATX,
- DOPRINT:13,VJM,P/PRINT      . issue PRINT8 to flush record
+ DOPRINT:13,VJM,C/PRINT      . issue PRINT8 to flush record
  12,XTA,15B
  12,AEX,23B
  ,UZA,NEWPAGE

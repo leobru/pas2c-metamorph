@@ -24,9 +24,9 @@ C      patched cleanup) depending on whether the outer frame carried one.
 C===========================================================
  PASPMDAD:,LC,1              . user post-mortem-dump entry, or 0
  STOP*:,SUBP,                . runtime final exit (MS Dubna OS)
- P/E:,SUBP,                  . normal Pascal end-of-program
+ C/E:,SUBP,                  . normal Pascal end-of-program
  P/RC:,SUBP,                 . activation-chain unwinder
- P/EF:,SUBP,                 . forced end (runs patched cleanup)
+ C/EF:,SUBP,                 . forced end (runs patched cleanup)
  14,VTM,PASPMDAD             . M14 := &PASPMDAD
  14,XTA,                     . ACC := PASPMDAD
  ,UZA,NOPMD                  . none installed -> skip PMD
@@ -47,7 +47,7 @@ C                              cleanup/opcode bits)
 C                              as the new address part)
  7,STX,1                     . store patched link; pop saved high part
 C                              into ACC
- ,UZA,P/E                    . saved cleanup/opcode part zero -> P/E
- ,UJ,P/EF                    . else hand off to P/EF
+ ,UZA,C/E                    . saved cleanup/opcode part zero -> C/E
+ ,UJ,C/EF                    . else hand off to C/EF
  ADDRMASK:,LOG,77 7770 0000  . high-bits mask (clears the address field)
  ,END,

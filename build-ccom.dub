@@ -24,8 +24,7 @@
  P/PAMPAM:  , SUBP,
  PASCONTR :  , SUBP,
  C/WI    :  , SUBP,
-cLONGJMP :  , SUBP,
- PASOUT  :  , SUBP,
+ C*OUT   :  , SUBP,
  P/FIRP  :  , PC  ,1024
  PASCOMPL:  , SUBP,
  READ*   :  , SUBP,
