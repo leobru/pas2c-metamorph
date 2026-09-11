@@ -94,9 +94,9 @@ C The UTM chain leaves ACC untouched, so its failure restores M14 from ACC.
                14,UTM,103B-104B
                14,VZM,FMD
                14,UTM,104B-105B
-               14,VZM,FMREAL
+               14,VZM,FME                . 'E': scientific
                14,UTM,105B-106B
-               14,VZM,FMREAL
+               14,VZM,FMF                . 'F': fixed-point
                14,UTM,106B-117B
                14,VZM,FMO
                14,UTM,117B-123B
@@ -202,7 +202,8 @@ C written, so a width below them widens the field rather than truncating it.
                10,VTM,6
                13,VJM,C/6A
                  ,UJ,LOOP
- FMREAL:       13,VJM,GETARG
+ FMF:          14,VTM,1                  . M14 := 1, fixed-point
+ FME:          13,VJM,GETARG             . M14 := 0, exponential
                  ,XTA,WIDTH
                  ,U1A,RWIDTH
                  ,XTA,W14
