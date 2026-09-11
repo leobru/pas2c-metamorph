@@ -9,7 +9,7 @@ if [ $# -ne 1 ]; then
     echo "usage: $0 [-work] input-file" >&2
     exit 2
 fi
-sed 's/{/<:/g;s/}/:>/g' < lexer.p2c > lexsrc.utxt
+sed 's/{/<:/g;s/}/:>/g' < tokens.p2c > lexsrc.utxt
 src_extent=$(./pashelp-source-extent.sh lexsrc.utxt)
 cat << EOF > tmp$$
 *NAME lexer
