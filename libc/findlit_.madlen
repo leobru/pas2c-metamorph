@@ -1,0 +1,32 @@
+ FINDLIT*:,NAME,
+C===========================================================
+C FINDLIT* - find a value in the runtime constant table [M1+6]..[M1+22].
+C
+C Calling convention (single argument, in ACC):
+C   ACC = search key
+C   M1  = runtime constant-table base (P/1D)
+C   M13 = return link
+C
+C Result:
+C   ACC = offset N in 6..22 if [M1+N] equals the key (first match),
+C         or 0 if none.  Key 0 matches [M1+6] and returns 6.
+C
+C M14 is the VLM loop index: starts at -16 (17 passes, -16..0).
+C Addressing uses displacement 22, so [M1+22+M14] covers
+C [M1+6]..[M1+22].  A match jumps via UZA FOUND; mismatch falls
+C into VLM.  At FOUND, M14 += 22 yields the actual offset.
+C===========================================================
+                ,NTR,3
+           15   ,ATX,1        . save key
+           14   ,VTM,6-22     . 17 passes
+ LOOP:     15   ,XTA,1
+           14   ,UTC,
+            1   ,AEX,22       . key XOR [M1+22+M14]
+                ,UZA,FOUND    . match → offset
+           14   ,VLM,LOOP
+                ,XTA,         . not found
+           13   ,UJ,
+ FOUND:    14   ,UTM,22       . M14 := offset 6..22
+                ,ITA,14
+           13   ,UJ,
+                ,END,

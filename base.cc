@@ -189,6 +189,7 @@ const int64_t
 //  KV1M =      03500000,
     KVLM =      03700000,
 
+    I1 =        04000000,       /* P/1D pointer, for tagging findLit()'s offset */
     I7 =        034000000,      /* frame pointer */
     I8 =        040000000,      /* const pointer */
     I9 =        044000000,      /* temp register */
@@ -2063,15 +2064,43 @@ int64_t allocSymtab(int64_t newSym)
     return ret;
 }
 
+/* Mirror of libc/findlit_.madlen's FINDLIT*: search the P/1D runtime
+ * constant block ([M1+6]..[M1+22], see paslib/p_bx.asm) for a value equal
+ * to the argument, returning its offset (6..22) or 0 if none matches.
+ * P1D_VALUES (p1d_values.h) holds the block's actual initialized
+ * contents, read by running a probe under DUBNA (probe1d.sh, a P2C
+ * driver calling a peek1d assembly helper in a loop) rather than
+ * hand-derived from p_bx.asm's ,REAL,/,INT,/,OCT, directives -- nine of
+ * them (offsets 6, 8, 10, 11, 12, 16, 20, 21, 22 -- ZERO, E1, MULTMASK,
+ * MAXREAL, MANTISSA, E15TO1, ALLONES, MSB, E40TO7) were cross-checked
+ * against values independently computed from p_bx.asm and matched
+ * exactly, which is why the remaining eight (two ISO/text slots, and the
+ * REAL/tagged-INTEGER ones this file could not safely hand-derive) are
+ * trusted too. p1d_values.h is transient -- the Makefile regenerates it
+ * via probe1d.sh, not committed. */
+#include "p1d_values.h"
+
+int64_t findLit(int64_t value)
+{
+    for (int64_t i = 0; i < 17; ++i)
+        if (P1D_VALUES[i] == value) return i + 6;
+    return 0;
+}
+
 // Returns an FCST offset with I8 already added in: the result selects M8
 // (the const pointer) on its own, so a caller combining it with an opcode
 // must never add I8 again -- doing so sums two index-register fields
 // (M8+M8=M16, or worse if some other tag is already present) instead of
-// picking one, corrupting the effective address.
+// picking one, corrupting the effective address. A value already sitting
+// in the P/1D runtime constant block (findLit) needs no pool entry at
+// all -- it's tagged with I1 (M1, the P/1D pointer) instead.
 int64_t getFCSToffset()
 {
     int64_t ret;
     int64_t offset;
+    int64_t shared;
+    shared = findLit(curVal.ii);
+    if (shared) return shared + I1;
     ret = addCurValToFCST();
     offset = ret;
     if (offset < 2048) {

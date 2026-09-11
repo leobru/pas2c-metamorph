@@ -118,6 +118,7 @@ const int E1 =        04000010,
 //   KV1M =      03500000;
           KVLM =      03700000,
 //
+          I1 =        004000000,      /* P/1D pointer, for tagging findLit_()'s offset */
           I7 =        034000000,      /* frame pointer */
           I8 =        040000000,      /* const pointer */
           I9 =        044000000,      /* temp register */
@@ -1153,9 +1154,13 @@ static int symtbidx[SYMTAB_MAX];
 // (the const pointer) on its own, so a caller combining it with an opcode
 // must never add I8 again -- doing so sums two index-register fields
 // (M8+M8=M16, or worse if some other tag is already present) instead of
-// picking one, corrupting the effective address.
+// picking one, corrupting the effective address. A value already sitting
+// in the P/1D runtime constant block (findLit_, libc/findlit_.madlen) needs no
+// pool entry at all -- it's tagged with I1 (M1, the P/1D pointer) instead.
 int getFCSToffset() {
-int offset;
+int offset, shared;
+int findLit_(int value) assembler;
+    if (shared = findLit_(curVal.i)) return shared + I1;
     offset  =  addCurValToFCST();
     if (offset < 2048) {
         return offset + I8;

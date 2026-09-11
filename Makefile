@@ -40,8 +40,37 @@ self-work.o self-wmain.o: work.bin ccom.bin libc.bin work.p2c workmain.p2c self.
 libc.bin: $(wildcard libc/*.madlen)
 	./libc.sh
 
+# base.cc's findLit() mirror table: the P/1D runtime constant block's real
+# contents, read by running probe1d.sh's probe under DUBNA. probe1d.sh is
+# one hand-written MADLEN deck, assembled and run directly under DUBNA
+# with only libc.bin + the system-provided library 22 attached -- no
+# ccom.bin/work.bin/pashelp/base involved at all, so this has no path back
+# to `base` and cannot cycle with it (see probe1d.sh's own comments). That
+# also means a from-scratch checkout with no prior `base`/p1d_values.h can
+# still bootstrap: libc.bin builds independently, the probe runs off it
+# alone, and only then does base.cc have what it needs to compile.
+#
+# p1d_values.h itself is a plain file target (so `base` sees its real
+# mtime and only relinks on a genuine change) whose sole prerequisite is
+# this PHONY target -- that's what makes the refresh run on every `make`
+# without forcing base to relink every time too: p1d_values.h.refresh's
+# recipe conditionally swaps the probed content into p1d_values.h, and
+# p1d_values.h's own (empty) recipe just inherits whatever that left
+# behind. Transient: not committed.
+.PHONY: p1d_values.h.refresh
+p1d_values.h.refresh: libc.bin probe1d.sh
+	./probe1d.sh
+	if ! cmp -s p1d_values.h.new p1d_values.h 2>/dev/null; then \
+		mv p1d_values.h.new p1d_values.h; \
+		echo "p1d_values.h updated"; \
+	else \
+		rm -f p1d_values.h.new; \
+	fi
+
+p1d_values.h: p1d_values.h.refresh
+
 # Host-native compiler, the root of the bootstrap.
-base: base.cc
+base: base.cc p1d_values.h
 	g++ -O3 -Wall -std=c++17 -o base base.cc
 
 # Host-native b6as/Unix-style assembly dump; not in the bootstrap.
@@ -60,4 +89,4 @@ worktest: work.bin libc.bin ccom.bin
 	./runtests.sh -work
 
 clean:
-	rm -rf *.o tmp* *.lst *.asm *.bin *.utxt test_results test_results_hot
+	rm -rf *.o tmp* *.lst *.asm *.bin *.utxt test_results test_results_hot p1d_values.h
