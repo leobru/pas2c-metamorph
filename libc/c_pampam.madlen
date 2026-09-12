@@ -1,0 +1,12 @@
+ C/PAMPAM:,NAME,DTRAN  /01.06.84/
+C===========================================================
+C C/PAMPAM - block copy: words from [M8] to [M9], M14 times
+C (M14 is a negative count for VLM).  Port of P/PAMPAM.
+C===========================================================
+ *0000B:8,XTA,
+ 9,ATX,
+ 8,UTM,1
+ 9,UTM,1
+ 14,VLM,*0000B
+ 13,UJ,
+ ,END,

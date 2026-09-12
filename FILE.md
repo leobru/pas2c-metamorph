@@ -183,7 +183,7 @@ A file's external **designator** is an octal word of the form `LLLLNNZZZZ`
 The FCST literal the compiler passes to `P/CO` (and that lands in `FILE[26]`)
 is the file's 8-char external **name**, *not* the designator. `P/CO` stashes
 that name in `FILE[26]` and scratch `[M1+3]`; for the standard files
-(`*OUTPUT*`, `*INPUT*`, `PASINPUT`, `*RESULT*`, `*CHILD*`) `P/BEXF`
+(`STDOUT`, `STDIN`, `PASINPUT`, `*RESULT*`, `*CHILD*`) `P/BEXF`
 (`p_bexf.asm`) maps the name to its `LLLLNNZZZZ` designator and the FCST decoder
 (`*0070B`/`*0071B`/`*0074B`) writes that back into `[M1+3]`. The decoder then
 peels the open-mode / stdin bits into `FILE[3]`, `FILE[4]` and the stdin flag in

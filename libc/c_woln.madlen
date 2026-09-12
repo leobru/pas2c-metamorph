@@ -1,6 +1,6 @@
  C/WOLN:,NAME,DTRAN  /01.06.84/    . Terminate an output line
 C===========================================================
-C C/WOLN - "Write OUTPUT Line".  Wires M12 to the *OUTPUT*
+C C/WOLN - "Write OUTPUT Line".  Wires M12 to the STDOUT
 C  FILE record, then falls through into C/WL.
 C
 C PUTLN - the same address under the name the P2C runtime
@@ -22,7 +22,7 @@ C         mask, [M1+12] = positive-mantissa mask, [M1+25B] = MSB;
 C         [M1+3..5] and [M1+35B..37B] are runtime scratch)
 C   M13 = link register set by the calling VJM
 C   M14 = secondary link (used inside packed-mode helpers)
- *OUTPUT*:,LC,30             . 30-word FILE record of OUTPUT
+ STDOUT:,LC,30               . 30-word FILE record of OUTPUT
  PASEOLSY:,LC,1              . end-of-line char (ASCII LF)
  PASENDS*:,LC,1              . line-printer NEWLINE constant
  SPACE*:,LC,1                . ASCII space constant
@@ -34,7 +34,7 @@ C   M14 = secondary link (used inside packed-mode helpers)
 C===========================================
  PUTLN:,ENTRY,
 C===========================================
- 12,VTM,*OUTPUT*
+ 12,VTM,STDOUT
 C===========================================
  C/WL:,ENTRY,
 C===========================================

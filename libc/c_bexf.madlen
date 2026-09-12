@@ -32,12 +32,12 @@ C ,LOG, designator (octal LLLLNNZZZZ); the trailing bare ,LOG,
 C is the zero terminator.
 C===========================================================
  ,DATA,
- /0005B:,TEXT,8H*OUTPUT*      . standard output stream
+ /0005B:,TEXT,8HSTDOUT        . standard output stream
  ,LOG,6 3200                  .   designator 0o632000
- ,TEXT,8H*INPUT*              . standard input stream
+ ,TEXT,8HSTDIN                . standard input stream
  ,LOG,6 2200                  .   designator 0o622000
  ,TEXT,8HPASINPUT             . alias for standard input
- ,LOG,6 2200                  .   designator 0o622000 (same as *INPUT*)
+ ,LOG,6 2200                  .   designator 0o622000 (same as STDIN)
  ,TEXT,8H*RESULT*             . scratch result file
  ,LOG,272 7000 0400           .   designator 0o2727000400
  ,TEXT,8H*CHILD*              . child/overlay file

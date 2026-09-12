@@ -16,7 +16,7 @@ int f[30];
 int c;
 //
 void main(int argc, char **argv) {
-    fprintf(&_output_, "%s %d\n", "TO OUTPUT", 42);
+    fprintf(stdout, "%s %d\n", "TO OUTPUT", 42);
 
     fopen(f, 010000100010, 0);
     ftruncate(f);

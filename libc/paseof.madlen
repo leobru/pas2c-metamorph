@@ -1,0 +1,32 @@
+ PASEOF:,NAME,
+C===========================================================
+C PASEOF - historical runtime routine, reached transitively from a
+C compiled program's own error/exit path (present in every test's link
+C map, per an empirical scan of all 174).
+C
+C This is a verbatim port of the Pascal runtime's PASEOF
+C (paslib/paseof.asm) -- fully self-contained, no SUBP dependencies.
+C Structure and content are otherwise unexamined; the fixpoint check and
+C full test suite verify it.
+C===========================================================
+ MONCARD*:,LC,14
+                ,UTC ,MONCARD*
+                ,XTA ,
+           15   ,ATX ,1
+           14   ,VTM ,SEVEN76.=:776
+           14   ,AAX ,
+           14   ,AEX ,1
+           13   ,U1A ,
+ LOOP:     14   ,XTA ,2
+                ,UZA ,DONE
+           15   ,AEX ,1
+           13   ,UZA ,
+           14   ,UTM ,1
+                ,UJ  ,LOOP
+ DONE:     14   ,XTA ,
+           13   ,UJ  ,
+ SEVEN76:       ,OCT ,776
+                ,OCT ,124
+                ,ISO ,24H*READ *END F*CALL *EXECU
+                ,LOG ,
+                ,END ,

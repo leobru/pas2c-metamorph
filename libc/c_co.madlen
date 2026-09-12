@@ -316,7 +316,7 @@ C
 C   CONTAB+0 = 64  (shift base; 64 - elSize -> bit step)
 C   CONTAB+1 = 48  (BESM-6 word width in bits; divisor)
 C   IOBIT    =  2  (= CONTAB+2; bit-1 mask that tests FILE[23]
-C                   for "is *INPUT* / *OUTPUT*".  The same value
+C                   for "is STDIN / STDOUT".  The same value
 C                   is the C*IOBIT common that C/GF and C/PF use)
 C   CONTAB+3 = 50  (only the dtran lists it; never loaded)
 C   CONTAB+4 = 51  (likewise)

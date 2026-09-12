@@ -1,0 +1,28 @@
+ PASLIST:,NAME,
+C===========================================================
+C PASLIST - historical runtime routine, part of library 22's P/SETEXF
+C resolution batch (self-hosting's own bootstrap; not reached by the
+C ordinary test corpus).
+C
+C This is a verbatim port of the Pascal runtime's PASLIST
+C (paslib/paslist.dtran) -- fully self-contained, no SUBP dependencies.
+C Structure and content are otherwise unexamined; the fixpoint check
+C verifies it.
+C===========================================================
+ FULISFL*:,LC,1
+ NOLISFL*:,LC,1
+                ,XTA ,FULISFL*
+                ,UZA ,CHECKNO
+           14   ,VTM ,TWO.=I2
+                ,UJ  ,DONE
+ CHECKNO:       ,XTA ,NOLISFL*
+                ,UZA ,SETONE
+           14   ,VTM ,ZERO.=I0
+                ,UJ  ,DONE
+ SETONE:   14   ,VTM ,ONE.=I1
+ DONE:     14   ,XTA ,
+           13   ,UJ  ,
+ TWO:            ,INT ,2
+ ZERO:            ,INT ,0
+ ONE:             ,INT ,1
+                ,END ,

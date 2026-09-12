@@ -21,7 +21,7 @@ C===========================================================
  PASZERO*:,LC,1              . ASCII '0' constant
  PASPMDAD:,LC,1              . post-mortem-dump entry, or 0
  C/PRINT:,SUBP,              . printf-like core (in c_out)
- C/WOLN:,SUBP,               . write the *OUTPUT* line so far
+ C/WOLN:,SUBP,               . write the STDOUT line so far
  C/WXD:,SUBP,                . write a 48-bit word as 6-bit chars
  C/WL:,SUBP,                 . terminate the current line
  STOP*:,SUBP,                . runtime STOP / fatal exit

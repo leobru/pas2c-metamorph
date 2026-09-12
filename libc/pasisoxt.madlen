@@ -1,0 +1,34 @@
+ PASISOXT:,NAME,
+C===========================================================
+C PASISOXT - translate one internal character code to its ISO/output
+C form; work.p2c calls it directly (`char pasisoxt(textchar) fortran;`,
+C used from printErrMsg) through the ordinary Fortran-call marshalling,
+C the same as PASMITXT.
+C
+C This is a verbatim port of the Pascal runtime's PASISOXT
+C (paslib/pasisoxt.dtran) -- fully self-contained, no SUBP dependencies.
+C Structure and content are otherwise unexamined; the fixpoint check and
+C full test suite verify it.
+C===========================================================
+           15   ,ATX ,1
+                ,ASN ,64+2
+                ,ATI ,14
+           14   ,UTM ,TABLE.=6H00ЦБ
+           15   ,XTA ,1
+                ,UTC ,THREE.=3
+                ,AAX ,
+                ,ASN ,64-3
+           15   ,ATX ,
+           14   ,XTA ,
+           15   ,WTC ,
+                ,ASN ,64
+                ,UTC ,MASK.=377
+                ,AAX ,
+           13   ,UJ  ,
+ TABLE:         ,ISO ,24H00ЦБ  00ИГФД00Й*  00/ЖЯЛ
+                ,ISO ,24H00321000765400 Ь9800Ы+-П
+                ,ISO ,24H00CBAЗ00GFED00KJIH00ONML
+                ,ISO ,24H00SRQP00WVUT00ШZYX00ЮЧЩЭ
+ THREE:         ,LOG ,3
+ MASK:          ,LOG ,377
+                ,END ,

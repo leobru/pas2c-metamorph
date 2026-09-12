@@ -2172,25 +2172,22 @@ irptr idRec;
     extLine  =  0;
     toAlloc  =  30U | [24,27,28,29];
     aligned  =  leftAlign(curIdent);
-    if ((curIdent == t' *INPUT*') || (curIdent == t'*OUTPUT*')) {
+    if ((curIdent == t'STDIN') || (curIdent == t'STDOUT')) {
         idRec = malloc(offsetof(identrec, szIdent));
         { register identrec *ir = idRec;
             ir->id  =  curIdent;
             ir->pck.p.offset  =  0;
-            /* An FCB is 30 opaque words.  Its size is all the compiler needs
-               of the type -- that is how put/get/reset/rewrite and write's
-               leading file argument recognize a file -- and no operator
-               applies to it, so it is a void of 30 words.  Assigning the
-               whole-word arm clears bits/psize/pad and leaves pk kindVoid. */
-            ir->typ.rep  =  NULL;
-            ir->typ.p.psize  =  30;
+            /* An FCB is 30 words; int[30] gives it the same shape as an
+               ordinary array formal (fgetc(int fcb[30])), so it decays to
+               a pointer at any call site instead of needing an explicit &. */
+            ir->typ  =  makeArrayType(30, intType, false);
             ir->pck.p.cl  =  VARID;
             ir->list  =  NULL;
         }
         curVal.i  =  aligned;
         idRec->value  =  allocExtSymbol(toAlloc);
         addToHashTab(idRec);
-        if (curIdent == t' *INPUT*')
+        if (curIdent == t'STDIN')
             inputFile  =  idRec;
         else
             outputFile  =  idRec;
@@ -2213,7 +2210,7 @@ irptr idRec;
         efp->offset  =  aligned;
     }
     if (extLine) {
-        if (curIdent == t'*OUTPUT*')
+        if (curIdent == t'STDOUT')
             fileForOutput  =  curExternFile;
         else
             fileForInput  =  curExternFile;
@@ -2629,7 +2626,7 @@ int fileAddr;
     }
     form1Insn(KVTM+I14 + fileAddr);
     form1Insn(KITS+14);
-// The only files opened this way are *INPUT* and *OUTPUT*
+// The only files opened this way are STDIN and STDOUT
 // with known characteristics (1 word, 8 bits).
     curVal.i  =  fileBufSize * 010000000000 + 0100010;
     form1Insn(KXTS+getFCSToffset());
@@ -5705,7 +5702,7 @@ int wasGroup;
         d->bucket  =  bucket;
         d->wasDefined  =  isDefined ||
             ((lookupMode == lookDef) &&
-             ((curIdent == t' *INPUT*') || (curIdent == t'*OUTPUT*')));
+             ((curIdent == t'STDIN') || (curIdent == t'STDOUT')));
         d->foundRec  =  hashTravPtr;
         inSymbol();
     } else if (nameOptional && has([RPAREN, COMMA, LBRACK], SY)) {
@@ -6202,7 +6199,7 @@ L12247:
         curField  =  NULL;
         curType.rep = malloc(offsetof(types, szScalar));
         while (SY == IDENT) {
-            if (isDefined || (curIdent == t' *INPUT*') || (curIdent == t'*OUTPUT*'))
+            if (isDefined || (curIdent == t'STDIN') || (curIdent == t'STDOUT'))
                 error(errIdentAlreadyDefined);
             enumName  =  curIdent;
             enumBucket  =  bucket;
@@ -8585,9 +8582,9 @@ void regSysProc(int l4arg1z) {
     lineStartOffset  =  moduleOffset;
     l3var5z  =  1;
     savedIdent  =  curIdent;
-    curIdent  =  t'*OUTPUT*';
+    curIdent  =  t'STDOUT';
     defExtern();
-    curIdent  =  t' *INPUT*';
+    curIdent  =  t'STDIN';
     defExtern();
     curIdent  =  savedIdent;
     lookupMode  =  lookUse;
@@ -9135,7 +9132,7 @@ void exitScope(int a) {
             while (moreDecls) {
                 if (externDecl && (curProcNesting == 1)) {
                     curIdent  =  curDeclarator.name;
-                    if ((curIdent == t' *INPUT*') || (curIdent == t'*OUTPUT*'))
+                    if ((curIdent == t'STDIN') || (curIdent == t'STDOUT'))
                         error(errIdentAlreadyDefined);
                     else
                         defExtern();

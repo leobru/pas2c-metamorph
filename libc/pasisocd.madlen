@@ -1,0 +1,59 @@
+ PASISOCD:,NAME,
+C===========================================================
+C PASISOCD - data-only historical runtime module.  Reserves four
+C shared cells (ISOPGOST, ISOPTEXT, ISOPITM, ISOPRESV -- the last two
+C written by other routines at runtime, never initialized here) and
+C seeds ISOPTEXT/ISOPGOST from a load-time image, exactly as P/1D's
+C own constant block is seeded in paslib/p_bx.asm.  Not reached by the
+C ordinary test corpus; part of library 22's P/SETEXF resolution batch
+C (self-hosting's own bootstrap).
+C
+C This is a verbatim port of the Pascal runtime's PASISOCD
+C (paslib/pasisocd.dtran).  Structure and content are otherwise
+C unexamined; the fixpoint check verifies it.
+C===========================================================
+ ISOPGOST:,LC,22
+ ISOPTEXT:,LC,11
+ ISOPITM:,LC,22
+ ISOPRESV:,LC,22
+           13   ,UJ  ,
+                ,DATA,
+ TEXTIMG:       ,LOG ,1236 0035 0017 2021
+                ,LOG ,2223 2425 2627 3031
+                ,LOG ,41
+                ,LOG ,4243 4445 4647 5051
+                ,LOG ,5253 5455 5657 6061
+                ,LOG ,6263 6465 6667 7071
+                ,LOG ,7200 0000 0000 7741
+                ,LOG ,203 0445 0506 7007
+                ,LOG ,1353 1455 5057 3415
+                ,LOG ,6043 6471 1642 3237
+                ,OCT ,4073 7475 76
+                ,LOG ,
+ GOSTIMG:       ,LOG ,360 7417 0360 7535
+                ,LOG ,500 7417 0360 7417
+                ,LOG ,360 7516 2361 5017
+                ,LOG ,360 7417 2621 0420
+                ,LOG ,705 7124 3665 1125
+                ,LOG ,2405 1417 2665 6017
+                ,LOG ,2565 3121 2761 1023
+                ,LOG ,620 5015 0260 7014
+                ,LOG ,402 0060 2005
+                ,LOG ,140 3410 0221 7426
+                ,LOG ,721 2436 2661 0440
+                ,LOG ,1043 0477 1124 0101
+                ,ISO ,18H-BC*D,E.0FGH2IJK53
+                ,LOG ,2301 3417 0604 6532
+                ,LOG ,1722 0041 1542 2045
+                ,LOG ,1502 1465 1202 4452
+                ,ISO ,6H+,-./>
+                ,LOG ,1403 0462 1462 3042
+                ,LOG ,1663 5047 1603 6071
+                ,LOG ,1560 7417 0360 7417
+                ,LOG ,360 7417 0360 7417
+                ,LOG ,360 7417 0360 7417
+           11   ,SET ,TEXTIMG
+            1   ,,   ISOPTEXT
+           22   ,SET ,GOSTIMG
+            1   ,,   ISOPGOST
+                ,END ,

@@ -40,22 +40,22 @@ void main(int argc, char **argv) {
     // Every line is written twice, once through each entry, so the two must
     // agree character for character.
      printf(" ZERO\n");
-    fprintf(&_output_, " ZERO\n");
+    fprintf(stdout, " ZERO\n");
      printf(" ONE %d\n", 42);
-    fprintf(&_output_, " ONE %d\n", 42);
+    fprintf(stdout, " ONE %d\n", 42);
      printf(" THREE %d %d %d\n", 1, 2, 3);
-    fprintf(&_output_, " THREE %d %d %d\n", 1, 2, 3);
+    fprintf(stdout, " THREE %d %d %d\n", 1, 2, 3);
      printf(" MIXED %d %c %o\n", 7, 'A', 64);
-    fprintf(&_output_, " MIXED %d %c %o\n", 7, 'A', 64);
+    fprintf(stdout, " MIXED %d %c %o\n", 7, 'A', 64);
      printf(" STR %s|\n", "ABC");
-    fprintf(&_output_, " STR %s|\n", "ABC");
+    fprintf(stdout, " STR %s|\n", "ABC");
     report(11, 22);
     mark("CALLS ");
     // Twenty calls of three tail words each: a one-word error per call is
     // sixty words of drift by the time the next mark prints.
     printf(" LOOP ");
     for (i = 0; i < 20; i = i + 1)
-        fprintf(&_output_, ".", 1, 2, 3);
+        fprintf(stdout, ".", 1, 2, 3);
     printf("\n");
     mark("LOOP  ");
     // A format asking for more than was passed stops when the walk reaches

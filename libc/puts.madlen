@@ -1,6 +1,6 @@
  PUTS:,NAME,
 C===========================================================
-C puts(p) - write the bytes before the first NUL to *OUTPUT*.
+C puts(p) - write the bytes before the first NUL to STDOUT.
 C
 C Calling convention for a one-argument ASSEMBLER routine:
 C   ACC = p, a byte index into flat memory
@@ -9,7 +9,7 @@ C
 C   void puts(char *) assembler;
 C
 C C/PUTS - the same, to the FILE addressed by M12.  puts is the one-word
-C  wrapper that names *OUTPUT*; PRINTF enters here for %S, so that a
+C  wrapper that names STDOUT; PRINTF enters here for %S, so that a
 C  destination file reaches the string conversions too.
 C
 C Flat memory contains six bytes per word, most significant byte
@@ -22,7 +22,7 @@ C a byte to put: LF goes out as C/WL, which ends the line.
 C Nothing is appended, so a string that does not end in a newline
 C leaves the line open for the next writer.
 C
-C *OUTPUT* is a common block rather than an entry, so the FILE
+C STDOUT is a common block rather than an entry, so the FILE
 C record is declared here and addressed through M12, the way
 C p_ea.asm addresses it.
 C
@@ -35,8 +35,8 @@ C register: none would survive the call.
 C===========================================================
  C/PF:          ,SUBP,        . put f^ and advance
  C/WL:          ,SUBP,        . end the current line on FILE @ M12
- *OUTPUT*:      ,LC,30        . 30-word FILE record of OUTPUT
-            12,VTM,*OUTPUT*   . puts writes to *OUTPUT*
+ STDOUT:        ,LC,30        . 30-word FILE record of OUTPUT
+            12,VTM,STDOUT     . puts writes to STDOUT
  C/PUTS:,ENTRY,               . the same, to the FILE @ M12
             15,UTM,2          . two local words
             15,ATX,-2         . save p

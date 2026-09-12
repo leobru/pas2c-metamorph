@@ -1,10 +1,10 @@
-/*=i+,c-*/
+/*=i+*/
 char fgetc(int fcb[30]) assembler;
 
 void main(int argc, char **argv) {
-    printf("%c\n", fgetc(_input_));
-    printf("%c\n", fgetc(_input_));
-    printf("%c\n", fgetc(_input_));
-    printf("%c\n", fgetc(_input_));
-    printf("%c\n", fgetc(_input_));
+    printf("%c\n", fgetc(stdin));
+    printf("%c\n", fgetc(stdin));
+    printf("%c\n", fgetc(stdin));
+    printf("%c\n", fgetc(stdin));
+    printf("%c\n", fgetc(stdin));
 }

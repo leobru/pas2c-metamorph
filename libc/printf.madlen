@@ -18,7 +18,7 @@ C count is passed or needed: the two boundaries bound the walk.  The
 C caller drops the tail with its own UTM after the call, so this routine
 C pops what was pushed for it and nothing else -- one word here.
 C
-C PRINTF names *OUTPUT*; FPRINTF takes the destination FILE as the
+C PRINTF names STDOUT; FPRINTF takes the destination FILE as the
 C argument before the format, and pops the two.  Rather than carry the
 C difference through, FPRINTF writes the format over the destination's
 C slot and drops one word, arriving at PRINTF's own frame; the epilogue
@@ -50,10 +50,10 @@ C===========================================================
  C/EDIH:        ,SUBP,
  C/08:          ,SUBP,
  C/LDAR:        ,SUBP,
- *OUTPUT*:,LC,30
+ STDOUT:       ,LC,30
 C C/HIDE saves M13 and the three scratch registers M6..M8.  M6 then bases the
 C constants and static scratch storage below; only C/HIDE's four words use SP.
-               12,VTM,*OUTPUT*
+               12,VTM,STDOUT
                  ,ATI,10
  COMMON:          ,NTR,3
                14,VJM,C/HIDE

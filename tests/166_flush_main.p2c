@@ -1,6 +1,6 @@
 /*=k9,l0*/
 //
-// An unterminated line on *OUTPUT* must still appear when main returns:
+// An unterminated line on STDOUT must still appear when main returns:
 // normal exit flushes the buffered record even with no '\n'.
 //
 void main(int argc, char **argv) {

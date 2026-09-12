@@ -1219,23 +1219,20 @@ void defExtern()
     IdentRecPtr idRec;
 
     aligned.ii = leftAlign(curIdent);
-    if (curIdent == toText("*INPUT*") || curIdent == toText("*OUTPUT*")) {
+    if (curIdent == toText("STDIN") || curIdent == toText("STDOUT")) {
         idRec = besm6_alloc_record<IdentRec>(offsetof(IdentRec, szIdent));
         idRec->id = curIdent;
         idRec->pck.offset = 0;
-        /* An FCB is 30 opaque words.  Its size is all the compiler needs
-           of the type -- that is how put/get/reset/rewrite and write's
-           leading file argument recognize a file -- and no operator
-           applies to it, so it is a void of 30 words. */
-        idRec->typ.word = 0;
-        idRec->typ.setRep(NULL);        // ord(NULL) == 0, as in work.p2c
-        idRec->typ.p.psize = 30;
+        // An FCB is 30 words; int[30] gives it the same shape as an
+        // ordinary array formal (fgetc(int fcb[30])), so it decays to a
+        // pointer at any call site instead of needing an explicit &.
+        idRec->typ = makeArrayType(30, IntegerType, false);
         idRec->pck.cl = VARID;
         idRec->list() = NULL;
         curVal = aligned;
         idRec->value() = allocExtSymbol(047000000 | 30);
         addToHashTab(idRec);
-        if (curIdent == toText("*INPUT*"))
+        if (curIdent == toText("STDIN"))
             inputFile = idRec;
         else
             outputFile = idRec;
@@ -1256,7 +1253,7 @@ void defExtern()
     curExternFile->line = line;
     curExternFile->offset = aligned.ii;
     if (line) {
-        if (curIdent == toText("*OUTPUT*"))
+        if (curIdent == toText("STDOUT"))
             fileForOutput = curExternFile;
         else
             fileForInput = curExternFile;
@@ -6294,9 +6291,9 @@ void readDeclaratorCore(std::vector<DclOp> & ops, Declarator & d)
     } else if (SY == IDENT) {
         d.name = curIdent;
         d.bucket = bucket;
-        d.wasDefined = isDefined /* ||
+        d.wasDefined = isDefined ||
             (lookupMode == lookDef &&
-             (curIdent == toText("*INPUT*") || curIdent == toText("*OUTPUT*"))) */;
+             (curIdent == toText("STDIN") || curIdent == toText("STDOUT")));
         d.foundRec = hashTravPtr;
         inSymbol();
     } else if (nameOptional and has(Bits(RPAREN, COMMA, LBRACK), SY)) {
@@ -6737,7 +6734,7 @@ L12247:
         curType.setRep(
             besm6_alloc_record<Types>(offsetof(Types, szScalar)));
         while (SY == IDENT) {
-            if (isDefined || curIdent == toText("*INPUT*") || curIdent == toText("*OUTPUT*"))
+            if (isDefined || curIdent == toText("STDIN") || curIdent == toText("STDOUT"))
                 error(errIdentAlreadyDefined);
             enumName = curIdent;
             enumBucket = bucket;
@@ -6978,7 +6975,7 @@ void fopenFile(IdentRecPtr fileSym, ExtFileRec * extFileP)
     }
     form1Insn(KVTM+I14 + fileAddr);
     form1Insn(KITS+14);
-    // The only files opened this way are *INPUT* and *OUTPUT*
+    // The only files opened this way are STDIN and STDOUT
     // with known characteristics (1 word, 8 bits).
     curVal.ii = fileBufSize * 010000000000L + 0100010;
     form1Insn(KXTS+getFCSToffset());
@@ -6987,7 +6984,7 @@ void fopenFile(IdentRecPtr fileSym, ExtFileRec * extFileP)
     } else {
         curVal.ii = extFileP->location;
         if (curVal.ii == 512)
-            // offset holds a packed file name (e.g. "*OUTPUT*"), not a number.
+            // offset holds a packed file name (e.g. "STDOUT"), not a number.
             curVal.ii = extFileP->offset;
         form1Insn(KXTS+getFCSToffset());
     }
@@ -9667,9 +9664,9 @@ initScalars::initScalars() :
     lineStartOffset = moduleOffset;
     l3var5z = 1;
     savedIdent.ii = curIdent;
-    curIdent = toText("*OUTPUT*");
+    curIdent = toText("STDOUT");
     defExtern();
-    curIdent = toText("*INPUT*");
+    curIdent = toText("STDIN");
     defExtern();
     curIdent = savedIdent.ii;
     lookupMode = lookUse;
@@ -10219,7 +10216,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
             while (moreDecls) {
                 if (externDecl and curProcNesting == 1) {
                     curIdent = d.name;
-                    if (curIdent == toText("*INPUT*") or curIdent == toText("*OUTPUT*"))
+                    if (curIdent == toText("STDIN") or curIdent == toText("STDOUT"))
                         error(errIdentAlreadyDefined);
                     else
                         defExtern();
@@ -10742,7 +10739,7 @@ void usage ()
     printf("    -f- -f+             Compile procedures as Pascal (-f-) or Fortran (-f+)\n");
     printf("    -F                  Sort FCST literals by their unsigned 48-bit values\n");
     printf("    -Hooooo             Set first host heap address in octal (9 zones)\n");
-    printf("    -i                  Enable automatic fopen/fclose for *INPUT*\n");
+    printf("    -i                  Enable automatic fopen/fclose for STDIN\n");
     printf("    -k0 -k1 ... -k23    Heap size in 1024-word chunks (default -k4)\n");
     printf("    -l0 -l1 -l2 -l3     Listing mode:\n");
     printf("                        -l0: No listing, only error messages\n");
