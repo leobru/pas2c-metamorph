@@ -5,11 +5,11 @@ C   chains the three startup steps:
 C     C/BX     - build the initial stack frame,
 C     C/EN     - set M1 := P/1D (the runtime constant base) and
 C                initialise that block,
-C     P/TRPAGE - build the drum/page free tables (only if not
+C     C/TRPAGE - build the drum/page free tables (only if not
 C                already done).
 C   Control then continues into the user program proper.
 C===========================================================
- P/TRPAGE:,SUBP,             . External: build drum/page free tables
+ C/TRPAGE:,SUBP,             . External: build drum/page free tables
  C/BX:,SUBP,                 . External: build the initial stack frame
  C/EN:,SUBP,                 . External: set up M1 = P/1D constant base
  11,VJM,C/BX                 . build the stack frame (return link in M11)
@@ -17,5 +17,5 @@ C===========================================================
  14,MTJ,13                   . M13 := M14 (carry the program-start link forward)
  10,XTA,2                    . ACC := mem[M10+2] (page tables already built?)
  13,U1A,                     . yes -> return via M13 into the user program
- ,UJ,P/TRPAGE                . no  -> build drum/page tables, then continue
+ ,UJ,C/TRPAGE                . no  -> build drum/page tables, then continue
  ,END,

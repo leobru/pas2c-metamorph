@@ -1,0 +1,20 @@
+/*=k9,l0*/
+//
+// Same flush obligation through halt(): several recursive frames, then an
+// unterminated write, then halt.  The text must appear; nothing after halt.
+//
+void halt() assembler;
+
+void deep(int n) {
+    if (n > 0) {
+        deep(n - 1);
+        return;
+    }
+    printf("NOEOL HALT");
+    halt();
+    printf("AFTER HALT");
+}
+
+void main(int argc, char **argv) {
+    deep(5);
+}

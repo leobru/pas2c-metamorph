@@ -6,7 +6,7 @@
  CCOM    :  , NAME,        .DTRAN  /01.06.84/
  FLGEX*  :  , LC  ,1
  MONITOR*:  , SUBP,
- P/PAGES :  , SUBP,
+ C/PAGES :  , SUBP,
  PASINFOR:  , LC  ,19
  MONCARD*:  , LC  ,14
  REFENTRY:  , LC  ,1
@@ -21,7 +21,7 @@
  PASMITXT:  , SUBP,
  PASISOCD:  , SUBP,
  PASLIST :  , SUBP,
- P/PAMPAM:  , SUBP,
+ C/PAMPAM:  , SUBP,
  PASCONTR :  , SUBP,
  C/WI    :  , SUBP,
  C*OUT   :  , SUBP,
@@ -43,7 +43,7 @@
             , ATX ,*0045B
  *0010B  : 9, VTM ,PASINFOR+1
           14, VTM ,-6
-          13, VJM ,P/PAMPAM
+          13, VJM ,C/PAMPAM
           13, VJM ,PASCONTR
           13, VJM ,PASCOMPL
             , XTA ,FLGEX*
@@ -57,7 +57,7 @@
           10, VTM ,*0053B  .=:001
           10, AOX ,
           11, ATX ,1
-          14, VJM ,P/PAGES
+          14, VJM ,C/PAGES
             , ITA ,9
             , ASN ,64-20
           11, AOX ,1
@@ -67,7 +67,7 @@
           15, *70 ,1
           14, VTM ,-9
            8, VTM ,PASINFOR+8
-          13, VJM ,P/PAMPAM
+          13, VJM ,C/PAMPAM
           15, *70 ,2
             , UJ  ,MONITOR*+2
  *0033B  :  , UTC ,MONCARD*

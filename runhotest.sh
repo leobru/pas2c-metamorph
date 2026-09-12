@@ -33,7 +33,6 @@ cat << EOF > tmp$$
 *disc:1/local
 *file:tmpbin,$lun
 *file:libc,43
-*libra:22
 *perso:$lun
 *perso:43,cont
 *no load list

@@ -18,11 +18,25 @@ cat << EOF > tmp$$
 *perso:43,cont
 *     taking the $work_module compiler module
 *libra:41
-*libra:22
-*call pashelp
-P 2 0 ${src_extent}B .
+*assem
+ PASCONTR:,NAME,DTRAN  /01.06.84/
+ PASINFOR:,LC,18
+ C/SETEXF:,SUBP,
+ RGEXPORT:,LC,1
+ 14,VTM,*0004B
+ 14,XTA,2
+ ,UTC,RGEXPORT
+ ,ATX,
+ 14,XTA,3
+ ,UTC,PASINFOR
+ ,ATX,3
+ ,UJ,C/SETEXF
+ *0004B:,TEXT,8HPASINPUT
+ ,LOG,${src_extent} 400
+ ,LOG,2
+ ,INT,0
+ ,END,
 *call ccom
-*copy:0,000000,000000
 *no load list
 EOF
 if [ -f "$call_file" ]; then

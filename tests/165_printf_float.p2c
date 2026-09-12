@@ -1,0 +1,35 @@
+/*=k9,l0*/
+//
+// C/WR formats a real for printf: %f is fixed-point, %e is scientific.
+// Width is a minimum field width (left blanks); precision is digits after
+// the decimal point.  Defaults are width 14 and precision 4.
+//
+void main(int argc, char **argv) {
+    float x, y, z;
+
+    x = 1.5;
+    y = -2.25;
+    z = 125.0;
+
+    /* Same value: fixed has no E, scientific always has one. */
+    printf("SAME F=%10.2f E=%12.3e\n", x, x);
+
+    /* Defaults: width 14, precision 4. */
+    printf("DEF F=%f E=%e\n", x, x);
+
+    /* Precision sets fraction digits; width left-pads. */
+    printf("PREC [%6.1f][%8.3f][%10.2f]\n", x, x, z);
+
+    /* A width below the digits needed does not truncate. */
+    printf("NARROW [%4.2f][%5.2e]\n", x, x);
+
+    /* Magnitudes that need a nonzero decimal exponent. */
+    printf("BIG %14.4e SMALL %14.4e\n", z, 0.015);
+    printf("BIGF %10.2f SMALLF %10.4f\n", z, 0.015);
+
+    /* Zero keeps a digit before the point in both modes. */
+    printf("ZERO %8.2f %12.2e\n", 0.0, 0.0);
+
+    /* Negatives: scientific pads then signs; fixed prints '-' then the field. */
+    printf("NEG F=%14.4f E=%14.4e\n", y, y);
+}

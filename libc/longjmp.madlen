@@ -17,6 +17,11 @@ C   the saved frame, calling any per-frame cleanup handler on the
 C   way, unwinds the saved-context chain at [M1+6] down to that
 C   level, and jumps to the setjmp return address with ACC = val.
 C   M12 bases the local cells (dest, frame, ret, e30to16).
+C
+C C/RC (ENTRY below) is the same walk with a different front and
+C the same tail: M13 is the stop-frame sentinel, M14 the return
+C link (14,VJM).  dest/frame/ret hold that link, the sentinel and
+C 0 so the shared *0020b exit returns through dest with ACC = 0.
 C===========================================================
                 , ntr , 7      . R := 7 (raw integer / bit mode)
             12  , base, area   . M12 = base register for the local cells
@@ -37,38 +42,56 @@ C --- restore the display registers by popping the jmp_buf ---
                 , atx , dest     . dest := env[0] (its low 15 bits = setjmp addr)
                 , asn , 64+15    . right-shift 15
                 , atx , frame    . frame := env[0] >> 15 (target frame pointer)
-C --- *0003b: unwind the frame chain (M7) up to the target frame ---
- *0003b  :      , ita , 7       . ACC := M7 (current frame pointer)
+                , uj  , walk
+C===========================================================
+ C/RC:          , entry,
+C===========================================================
+C C/RC - walk the activation chain rooted at M7 until M7 equals
+C the sentinel in M13 (usually M1), running any cleanup linked
+C from each frame's state word at mem[M7+1], then pop the
+C saved-context chain at [M1+6].  Called 14,VJM; returns via M14.
+C Port of P/RC, sharing longjmp's unwind tail.
+C===========================================================
+                , ntr , 3
+            12  , base, area   . same M12 map as longjmp
+                , ita , 14       . ACC := return link
+                , atx , dest     . dest := M14 (shared exit jumps here)
+                , ita , 13       . ACC := stop-frame sentinel
+                , atx , frame
+                , xta ,          . ACC := 0
+                , atx , ret      . shared exit loads ret into ACC
+C --- walk: unwind the frame chain (M7) up to the target frame ---
+ walk    :      , ita , 7       . ACC := M7 (current frame pointer)
                 , aex , frame    . compare with the target frame
-                , uza , *0014b   . reached it -> restore state (*0014b)
+                , uza , ctxpop   . reached it -> pop saved contexts
              7  , xta , 1        . ACC := mem[M7+1] (this frame's link word)
-                , aax , e30to16 . =77 7770 0000  . isolate the cleanup-handler field (bits 16..30)
-                , uza , *0011b   . no handler -> skip the call (*0011b)
+                , aax , e30to16 . =77 7770 0000  . isolate the cleanup-handler field
+                , uza , nextfr   . no handler -> skip the call
                 , asn , 64+15    . right-shift 15 -> handler address
                 , ati , 13       . M13 := handler address
             13  , utc ,          . C := M13
             13  , vjm ,          . call the per-frame cleanup handler
- *0011b  :  12  , vtm , area     . M12 := area (restore the base after the call)
+ nextfr  :  12  , vtm , area     . M12 := area (restore the base after the call)
              7  , mtj , 15       . SP := M7 (drop this frame)
              7  , xta ,          . ACC := mem[M7] (previous frame pointer)
                 , ati , 7        . M7 := previous frame
-                , uj  , *0003b    . continue unwinding
-C --- *0014b: pop the saved-context chain at [M1+6] to this level ---
- *0014b  :      , ita , 15       . ACC := SP (target stack level)
+                , uj  , walk
+C --- pop the saved-context chain at [M1+6] to this level ---
+ ctxpop  :      , ita , 15       . ACC := SP (target stack level)
              1  , a-x , 6        . compare with [M1+6] (chain head)
-                , uza , *0020b    . reached the target level -> *0020b
+                , uza , done     . reached the target level
              1  , wtc , 6        . C := [M1+6]
                 , xta ,          . ACC := mem[[M1+6]] (next chain link)
              1  , atx , 6        . [M1+6] := that (pop one saved context)
-                , uj  , *0014b    . loop
-C --- *0020b: resume execution inside setjmp ---
- *0020b  :      , xta , ret      . ACC := ret (the value setjmp returns)
-                , wtc , dest      . C := dest (setjmp's return address)
-                , uj  ,           . jump there: setjmp returns ACC
+                , uj  , ctxpop
+C --- done: longjmp resumes setjmp; C/RC returns through dest ---
+ done    :      , xta , ret      . ACC := ret (setjmp value, or 0 for C/RC)
+                , wtc , dest     . C := dest (setjmp addr, or C/RC return link)
+                , uj  ,           . jump there
 C --- local cells (M12-relative) ---
  area    :      , bss ,          . base anchor (0 words)
- dest    :      , log ,          . env[0]: low 15 bits = setjmp return address
- frame   :      , log ,          . env[0] >> 15 = target (saved) frame pointer
- ret     :      , log ,          . the value setjmp will return
+ dest    :      , log ,          . setjmp return address, or C/RC's M14
+ frame   :      , log ,          . target frame pointer / C/RC sentinel
+ ret     :      , log ,          . setjmp return value, or 0 for C/RC
  e30to16 :      , log , 77 7770 0000   . mask for bits 16..30 (handler field)
                 , end ,

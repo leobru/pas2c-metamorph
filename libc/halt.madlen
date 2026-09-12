@@ -11,7 +11,7 @@ C This is the Pascal runtime's P/HT (paslib/p_ht.asm), inlined instead of
 C tail-called:
 C   1. Invoke the user's post-mortem-dump entry if one was installed at
 C      PASPMDAD -- the same cell name and convention C/AH already uses.
-C   2. Call P/RC to walk back up the activation chain rooted at M7,
+C   2. Call C/RC to walk back up the activation chain rooted at M7,
 C      running any cleanup linked from each frame's state word at
 C      mem[M7+1].
 C   3. Patch the address field of the outermost frame's state word so
@@ -25,7 +25,7 @@ C===========================================================
  PASPMDAD:,LC,1              . user post-mortem-dump entry, or 0
  STOP*:,SUBP,                . runtime final exit (MS Dubna OS)
  C/E:,SUBP,                  . normal Pascal end-of-program
- P/RC:,SUBP,                 . activation-chain unwinder
+ C/RC:,SUBP,                 . activation-chain unwinder (in longjmp)
  C/EF:,SUBP,                 . forced end (runs patched cleanup)
  14,VTM,PASPMDAD             . M14 := &PASPMDAD
  14,XTA,                     . ACC := PASPMDAD
@@ -33,9 +33,9 @@ C===========================================================
  13,VTM,NOPMD                . arrange PMD to return here
  14,WTC,                     . C := PASPMDAD
  ,UJ,                        . jump into the PMD handler
- NOPMD:1,MTJ,13              . M13 := M1 (chain-end sentinel for P/RC:
+ NOPMD:1,MTJ,13              . M13 := M1 (chain-end sentinel for C/RC:
 C                              it stops when M7 == saved M13)
- 14,VJM,P/RC                 . unwind the activation chain
+ 14,VJM,C/RC                 . unwind the activation chain
  7,XTA,1                     . ACC := mem[M7+1] = outer frame's
 C                              state/return-link word
  ,UTC,ADDRMASK.=77 7770 0000 . C := address of high-bits mask
