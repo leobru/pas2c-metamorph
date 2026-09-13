@@ -8,20 +8,24 @@
 // Types shared across the boundary are re-declared locally rather than
 // imported (P2C has no such import): ifcb must stay the same 30-word shape
 // on both sides since FCST/INITBUF/PASINPUT/_CHILD_ are extern blocks the
-// loader merges by size, while pasinfotyp only needs the two leading fields
-// this file actually touches (listMode, errors) to land at the same offsets
-// as work.p2c's full definition.
+// loader merges by size.
 //
 const int false = 0U, true = 1U;
 //
 const __packed char boilerplate[] = " BESM-6 C THAT NEVER WAS (2026)\n";
 //
-typedef struct { int rest[30]; } ifcb;
+typedef int ifcb[30];
 typedef ifcb *pfcb;
-typedef struct {
-    /*0*/ int listMode;
-    /*1*/ int *errors;
-} pasinfotyp;
+// Listing verbosity, shared with work.p2c (extern int listMode; there).
+// Set from PASLIST() (libc/paslist.madlen) at startup, the same runtime
+// routine build-ccom.dub's own bootstrap calls for this; a source-level
+// {$L=n} pseudo-comment can override it afterward.
+int listMode;
+int PASLIST() assembler;
+// The monitor's own pass/fail flag (build-ccom.dub's FLGEX*) -- a real
+// global, not a struct field; pessimistic default set in work.p2c's
+// initOptions(), cleared here once a compile fully succeeds.
+extern int flgex_;
 //
 extern void programme(int *retSizePtr, void *procName, int bodyBlock);
 extern void initOptions();
@@ -37,7 +41,6 @@ extern int maxHeap;
 extern int jb9999[6];
 extern ifcb fcst, initbuf;
 extern ifcb pasinput, _child_;
-extern pasinfotyp pasinfor;
 //
 int setup() assembler;
 int setjmp(int *jmpbuf) assembler;
@@ -45,9 +48,10 @@ void fopen(pfcb, int, int) assembler;
 //
 void main(int argc, char **argv) {
     void puts(char *) assembler;
+    listMode  =  PASLIST();
     fopen(&PASINPUT, 010000100010, t'PASINPUT');
     fopen(&_CHILD_, 010000100000, t'*CHILD* ');
-    if (PASINFOR.listMode)
+    if (listMode)
         puts(boilerplate);
     printf(" INITHEAP = %05o\n", setup());
     if (setjmp(jb9999)) goto L9999;
@@ -61,7 +65,7 @@ void main(int argc, char **argv) {
 L9999:  printf(" IN %d LINES %d ERRORS\n", lineCnt-1, totalErrors);
     } else {
         finalize();
-        *PASINFOR.errors  =  false;
+        flgex_  =  false;
         printf(" MAXHEAP = %05o\n", maxHeap);
     }
 }

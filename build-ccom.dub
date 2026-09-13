@@ -9,18 +9,16 @@
  C/PAGES :  , SUBP,
  PASINFOR:  , LC  ,19
  MONCARD*:  , LC  ,14
- REFENTRY:  , LC  ,1
  ENTRY*  :  , LC  ,42
  ISOPGOST:  , LC  ,22
  ISOPTEXT:  , LC  ,11
  ISOPITM :  , LC  ,22
  ISOPRESV:  , LC  ,22
- *INPUT* :  , LC  ,30
- *OUTPUT*:  , LC  ,30
+ STDIN   :  , LC  ,30
+ STDOUT  :  , LC  ,30
  *CHILD* :  , LC  ,30
  PASMITXT:  , SUBP,
  PASISOCD:  , SUBP,
- PASLIST :  , SUBP,
  C/PAMPAM:  , SUBP,
  PASCONTR :  , SUBP,
  C/WI    :  , SUBP,
@@ -29,21 +27,6 @@
  PASCOMPL:  , SUBP,
  READ*   :  , SUBP,
           13, VJM ,PASISOCD
-          13, VJM ,PASLIST
-           8, VTM ,PASINFOR
-           8, ATX ,
-            , UTC ,*0054B  .=2
-            , XTA ,
-           8, ATX ,22B
-           8, VTM ,*0044B
-          14, VTM ,REFENTRY
-          14, XTA ,
-            , UZA ,*0010B
-          14, XTA ,
-            , ATX ,*0045B
- *0010B  : 9, VTM ,PASINFOR+1
-          14, VTM ,-6
-          13, VJM ,C/PAMPAM
           13, VJM ,PASCONTR
           13, VJM ,PASCOMPL
             , XTA ,FLGEX*
@@ -85,22 +68,7 @@
             , BSS ,1
             , ATX ,200B
             , ATX ,400B
- *0044B  :  , ATX ,
-            , Z00 ,FLGEX*
- *0045B  :  , ATX ,
-            , Z00 ,ENTRY*
-          13, ATX ,
-            , ATX ,
-            , ATX ,
-            , Z00 ,ISOPITM
-            , ATX ,
-            , Z00 ,ISOPGOST
-            , ATX ,
-            , Z00 ,ISOPRESV
-            , ATX ,
-            , Z00 ,ISOPTEXT
  *0053B  :  , OCT ,001
- *0054B  :  , LOG ,2
  *0055B  :  , LOG ,52
             , END ,
  PASMITXT:,NAME,

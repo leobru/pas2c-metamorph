@@ -474,7 +474,7 @@ typedef struct {
 typedef enum {DECIMAL, OCTAL, FULLWORD, HEX} NumberFormat;
 typedef irptr hashArray[128];
 typedef int:15 tok;
-typedef struct { int rest[30]; } ifcb;
+typedef int ifcb[30];
 const void *NULL = (void*)0;
 // A word ordered as a bit pattern: comparison of a one-word non-scalar is
 // unsigned, where a scalar's is arithmetic.  The FCST pool is sorted and
@@ -680,13 +680,30 @@ extern int maxHeap;
 extern ifcb fcst, initbuf;
 extern ifcb pasinput, _child_;
 //
+// Listing verbosity, defined in workmain.p2c and set from PASLIST() at
+// startup, the same runtime routine build-ccom.dub's own bootstrap calls
+// for this; a source-level {$L=n} pseudo-comment can override it.
+extern int listMode;
+// The compiler's own entry-point table and "did this compile fail" flag:
+// real, separately-declared runtime globals (build-ccom.dub), not fields
+// of any struct -- *call tcatalog reads entry_ back directly, and (by the
+// same mechanism pasContr/PASCOMPL use) flgex_ is the monitor's own
+// pass/fail signal.  isoptext is the fixed system character-encoding table
+// PASISOCD seeds at load time.
+extern int flgex_;
+extern entries entry_;
+extern textmap isoptext;
+/* Only sizes[8..17] of this block is still touched: finalize() writes it
+   and ccom's own bootstrap (build-ccom.dub) reads it back from this exact
+   memory, past PASCOMPL's return, to build the module's real catalog
+   entry -- a genuine external contract, unlike every other field, which
+   is either a fixed encoded bit pattern (startOffset) supplied by whatever
+   PASCONTR module the calling job links in, or (as just established)
+   backed by its own separate global instead.  The struct keeps the 
+   'unused' field, solely so sizes[] lands at its
+   externally-agreed word offset. */
 typedef struct {
-    /*0*/ int listMode;
-    /*1*/ int *errors;
-    /*2*/ entries *entryptr;
-    /*3*/ int startOffset;
-  /*4-6*/ charmap *a0, *a1, *a4;
-    /*7*/ textmap *a3;
+  /*0-7*/ int unused[8];
  /*8-17*/ int sizes[10];
    /*18*/ int flags;
 } pasinfotyp;
@@ -851,11 +868,10 @@ void error(int errno);
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 void endOfLine() {
-int err, errPos, prevPos, listMode,
+int err, errPos, prevPos,
     startPos, lastErr;
-    listMode  =  pasinfor.listMode;
     if (listMode || errsInLine) {
-        printf(" %05o%5d%3d%c", lineStartOffset + PASINFOR.startOffset,
+        printf(" %05o%5d%3d%c", lineStartOffset - 16384,
               lineCnt, lineNesting, commentModeCH);
         startPos  =  12;
         do
@@ -1368,7 +1384,7 @@ void readOptFlag(int *res) {
         switch (CH) {
         case 'F': readOptFlag(&checkFortran); break;
         case 'I': readOptFlag(&enableStdInput); break;
-        case 'L': PASINFOR.listMode = readOptVal(3); break;
+        case 'L': listMode = readOptVal(3); break;
         case 'C': readOptFlag(&checkTypes); break;
         case 'B': fileBufSize = readOptVal(4); break;
         case 'K': heapSize = readOptVal(23); break;
@@ -5997,7 +6013,7 @@ pair *curSlot;
         curField->pck.p.offset  =  cases.size;
         cases.size += typeSize(curField->typ);
     }
-    if (PASINFOR.listMode == 3) {
+    if (listMode == 3) {
         printf("%16c", ' ');
         if (curField->fpk.p.pckfield)
             printf("PACKED");
@@ -9188,7 +9204,7 @@ void exitScope(int a) {
                         curIdRec->value  =  moduleDataSize;
                     else
                         curIdRec->value  =  localSize;
-                    if (PASINFOR.listMode == 3) {
+                    if (listMode == 3) {
                         printf("%25s %t OFFSET (%d) %05oB. WORDS=%05oB\n",
                                "VARIABLE ", curDeclarator.name,
                                curProcNesting, curIdRec->value, jj);
@@ -9527,7 +9543,7 @@ static int resWordName[20] = {
     FcstCount  =  0;
     initInsnTemplates();
     skipToSet  =  blockBegSys | statBegSys & (~[SWITCHSY]);
-    unpackt(pasinfor.a3, &iso2text, 128 - '*');
+    unpackt(&isoptext, &iso2text, 128 - '*');
     iso2text['_'-'*'] = t'*';
     ftruncate(&_CHILD_);
     for (jdx = 1; jdx <= 10; ++jdx)
@@ -9576,7 +9592,7 @@ int idx, cnt;
     for (cnt = 0; cnt < longSymCnt; ++cnt)
         fputw(longSyms[cnt], &_CHILD_);
     fclose(&_CHILD_);
-    if (PASINFOR.listMode) {
+    if (listMode) {
         printf(
 "     MODULE HEADER:   HDR REL    0    0 LSYM NCODE   0 CONST DATA SETS\n%6d LINES STRUCTURE ",
             lineCnt - 1);
@@ -9585,16 +9601,15 @@ int idx, cnt;
         putln();
     }
     entryPtTable[entryPtCnt]  =  0U;
-    /* The table goes in the block the runtime owns and reads it from, so
-       the pointer cannot simply be pointed here; the terminator entryPtCnt
+    /* entry_ is the block the runtime owns and reads it from, so the
+       pointer cannot simply be pointed here; the terminator entryPtCnt
        names is the last word that matters. */
     for (idx = 0; idx <= entryPtCnt; ++idx)
-        (*pasinfor.entryptr)[idx]  =  entryPtTable[idx];
+        entry_[idx]  =  entryPtTable[idx];
 } /* finalize */
 //
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 extern void initOptions() {
-    pasinfor.startOffset  =  (pasinfor.startOffset & ~[0..6]) - 16384;
     commentModeCH  =  ' ';
     lineNesting  =  0;
     CH  =  ' ';
@@ -9617,7 +9632,7 @@ extern void initOptions() {
     errors  =  false;
     fileBufSize  =  1;
     longSymCnt  =  0;
-    *pasinfor.errors  =  true;
+    flgex_  =  true;
     symTabCnt  =  0;
     paseofcd  =  '*copy:';
 } /* initOptions */

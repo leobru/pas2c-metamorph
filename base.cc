@@ -1150,10 +1150,7 @@ int64_t constUses[MAXLIT];
 
 std::vector<int64_t> CHILD; // file of int64_t;
 
-struct PasInfor {
-    int64_t listMode;
-    int64_t startOffset;
-} PASINFOR;
+int64_t listMode = 0;
 
 static const char *koi2utf[64] = {
     "ю","а","б","ц","д","е","ф","г","х","и","й","к","л","м","н","о",
@@ -2283,12 +2280,11 @@ static void kputc(uint8_t c)
 
 void endOfLine()
 {
-    int64_t err, errPos, prevPos, listMode,
+    int64_t err, errPos, prevPos,
     startPos, lastErr;
 
-    listMode = PASINFOR.listMode;
     if ((listMode) or (errsInLine)) {
-        printf(" %05lo%5ld%3ld%c", (lineStartOffset + PASINFOR.startOffset),
+        printf(" %05lo%5ld%3ld%c", (lineStartOffset - 040000),
                lineCnt, lineNesting, commentModeCH);
         startPos = 12;
         do
@@ -2528,7 +2524,7 @@ parseComment::parseComment()
                 readOptFlag(enableStdInput);
                 break;
             case 'L': case 'l':
-                PASINFOR.listMode = readOptVal(3);
+                listMode = readOptVal(3);
                 break;
             case 'C': case 'c':
                 readOptFlag(checkTypes);
@@ -6587,7 +6583,7 @@ L11523:         curSlot = &cases.pairs[pairIdx];
     fld->pck.offset = cases.size;
     cases.size = cases.size + typeSize(fldType);
 L11622:
-    if (PASINFOR.listMode == 3) {
+    if (listMode == 3) {
         printf("%16c", ' ');
         if (fld->fpk.pckfield)
             printf("PACKED");
@@ -10269,7 +10265,7 @@ programme::programme(int64_t & l2arg1z, IdentRecPtr const l2idr2z_, bool bodyBlo
                         curIdRec->value() = moduleDataSize;
                     else
                         curIdRec->value() = localSize;
-                    if (PASINFOR.listMode == 3) {
+                    if (listMode == 3) {
                         /* 25, not 26: work.p2c writes 'VARIABLE ':26, and
                            the runtime counts the literal's terminator in the
                            padding without printing it, so a width of w comes
@@ -10704,7 +10700,7 @@ void finalize()
         CHILD.push_back(symTab[cnt]);
     for (cnt = 0; cnt < longSymCnt; ++cnt)
         CHILD.push_back(longSyms[cnt]);
-    if (PASINFOR.listMode) {
+    if (listMode) {
         printf("%6ld LINES STRUCTURE ", lineCnt - 1);
         for (idx=1; idx <=10; ++idx)
             printf("%ld ", sizes[idx]);
@@ -10756,7 +10752,6 @@ void usage ()
 
 void initOptions(int argc, char **argv)
 {
-    PASINFOR.startOffset -= 040000;
     commentModeCH = ' ';
     lineNesting = 0;
     CH = ' ';
@@ -10843,8 +10838,8 @@ void initOptions(int argc, char **argv)
             }
             continue;
         case 'l':
-            PASINFOR.listMode = strtoul(optarg, 0, 0);
-            if (PASINFOR.listMode > 3) {
+            listMode = strtoul(optarg, 0, 0);
+            if (listMode > 3) {
                 fprintf(stderr, "%s: Bad option -l\n", progname);
                 exit(-1);
             }
@@ -10999,9 +10994,9 @@ int main(int argc, char **argv)
     // Main program starts here
 
     // L0 by default: no listing, only errors
-    PASINFOR.listMode = 0;
+    listMode = 0;
     initOptions(argc, argv);
-    if (PASINFOR.listMode)
+    if (listMode)
         printf("%s\n", boilerplate);
     printf(" INITHEAP = %05lo\n", avail);
     curInsnTemplate = 0;
