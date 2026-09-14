@@ -18,15 +18,10 @@ C
 C   M14 bases the local cells; M12 is left free for the FCB.
 C
 C   The trailing two-instruction tail (vjm,C/co + uj,C/it) is
-C   the intended body but references paslib-only symbols that
-C   the libc-time linker cannot resolve, so those two lines
-C   are commented out below until paslib exposes them (or
-C   until this file is moved into paslib).  In the meantime
-C   the FILEINIT-style frame we just pushed is popped back
-C   off and the procedure returns through the caller's M13,
-C   so the calling convention is fully exercised and the
-C   compiler's existing implicit FILEINIT/C/EF mechanism
-C   still owns the actual buffer/track allocation.
+C   the actual body: it hands the FILEINIT-style frame just
+C   pushed to libc/c_co.madlen's C/CO, which does the real
+C   open, then tail-jumps into libc/c_it.madlen's C/IT, which
+C   pops the frame and returns through the caller's M13.
 C===========================================================
  C/co  :        , subp,
  C/it  :        , subp,
@@ -52,8 +47,7 @@ C      lays out the FCB.  The name is re-loaded just before VJM.
                 , its , 13     . push the 0 flag; ACC := M13
             15  , atx ,        . push M13 (return link, FILEINIT-style)
                 , xta , aname  . ACC := name (final input to C/CO)
-C ---- intended call C/CO (helper #69) and tail-jump to C/IT
-C      (helper #70).
+C ---- call C/CO and tail-jump to C/IT ----
             13  , vjm , C/co
                 , uj  , C/it
 C ---- local cells (M14-relative) ----

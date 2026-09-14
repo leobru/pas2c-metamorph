@@ -6,7 +6,7 @@ C library) that C/LDAR, C/RR and C/STAR read via M11.  work.p2c
 C picks the family member at compile time by OR-ing a width-
 C derived value into helperNames[21] (the base name, renamed
 C from P/00C to C/00C alongside this family) -- see
-C work.p2c:4212 and its base.cc mirror.
+C work.p2c:4269 and its base.cc mirror.
 C
 C This is a verbatim port of the Pascal runtime's P/01
 C (paslib/p_01.dtran): a short relocation-bearing header,

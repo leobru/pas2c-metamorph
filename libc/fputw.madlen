@@ -7,7 +7,7 @@ C   ACC        = f (pointer to the FCB)
 C   [SP-1]     = value
 C
 C C/PF expects M12 to address the FCB and f^ to contain the
-C value being written.  It is already an ENTRY in p_sys.asm.
+C value being written.  It is already an ENTRY in libc/c_pf.madlen.
 C
 C One word is pushed for the two arguments, so exactly one is
 C taken back, and STI is the whole of the pop: ATX stores f^

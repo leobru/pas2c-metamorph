@@ -14,8 +14,16 @@ C   popped from the jmp_buf here, while ACC still addresses it.
 C   The last pop leaves env[0] in the accumulator.
 C   longjmp then walks the C frame chain (M7 = frame pointer) up to
 C   the saved frame, calling any per-frame cleanup handler on the
-C   way, unwinds the saved-context chain at [M1+6] down to that
-C   level, and jumps to the setjmp return address with ACC = val.
+C   way, unwinds the saved-context chain at [M1+33B] (=27) down to
+C   that level, and jumps to the setjmp return address with ACC = val.
+C   The chain head lives at 33B rather than the low constant-block
+C   offsets (6, 8, ...) because those are shared literals baked into
+C   compiled code by the compiler's FCST-offset optimization
+C   (findLit/getFCSToffset in base.cc, ZERO/E1 in work.p2c); mutating
+C   one of those cells here would corrupt any literal 0 or 1 the
+C   optimization decided to fold into a reference to it instead of
+C   allocating a real FCST entry. 33B/34B (=27/28) are otherwise
+C   unused in the constant block.
 C   M12 bases the local cells (dest, frame, ret, e30to16).
 C
 C C/RC (ENTRY below) is the same walk with a different front and
@@ -49,7 +57,8 @@ C===========================================================
 C C/RC - walk the activation chain rooted at M7 until M7 equals
 C the sentinel in M13 (usually M1), running any cleanup linked
 C from each frame's state word at mem[M7+1], then pop the
-C saved-context chain at [M1+6].  Called 14,VJM; returns via M14.
+C saved-context chain at [M1+33B] (=27).  Called 14,VJM; returns
+C via M14.
 C Port of P/RC, sharing longjmp's unwind tail.
 C===========================================================
                 , ntr , 3
@@ -76,13 +85,13 @@ C --- walk: unwind the frame chain (M7) up to the target frame ---
              7  , xta ,          . ACC := mem[M7] (previous frame pointer)
                 , ati , 7        . M7 := previous frame
                 , uj  , walk
-C --- pop the saved-context chain at [M1+6] to this level ---
+C --- pop the saved-context chain at [M1+33B] (=27) to this level ---
  ctxpop  :      , ita , 15       . ACC := SP (target stack level)
-             1  , a-x , 6        . compare with [M1+6] (chain head)
+             1  , a-x , 33B      . compare with [M1+33B] (chain head)
                 , uza , done     . reached the target level
-             1  , wtc , 6        . C := [M1+6]
-                , xta ,          . ACC := mem[[M1+6]] (next chain link)
-             1  , atx , 6        . [M1+6] := that (pop one saved context)
+             1  , wtc , 33B      . C := [M1+33B]
+                , xta ,          . ACC := mem[[M1+33B]] (next chain link)
+             1  , atx , 33B      . [M1+33B] := that (pop one saved context)
                 , uj  , ctxpop
 C --- done: longjmp resumes setjmp; C/RC returns through dest ---
  done    :      , xta , ret      . ACC := ret (setjmp value, or 0 for C/RC)

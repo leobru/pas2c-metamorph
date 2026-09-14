@@ -1,16 +1,17 @@
  PASISOCD:,NAME,
 C===========================================================
-C PASISOCD - data-only historical runtime module.  Reserves four
-C shared cells (ISOPGOST, ISOPTEXT, ISOPITM, ISOPRESV -- the last two
-C written by other routines at runtime, never initialized here) and
-C seeds ISOPTEXT/ISOPGOST from a load-time image, exactly as P/1D's
-C own constant block is seeded in paslib/p_bx.asm.  Not reached by the
-C ordinary test corpus; part of library 22's P/SETEXF resolution batch
-C (self-hosting's own bootstrap).
+C PASISOCD - data-only runtime module.  Reserves four shared cells
+C (ISOPGOST, ISOPTEXT, ISOPITM, ISOPRESV -- the last two written by
+C other routines at runtime, never initialized here) and seeds
+C ISOPTEXT/ISOPGOST from a load-time image, exactly as P/1D's own
+C constant block is seeded in libc/c_bx.madlen.  build-ccom.dub calls
+C this unconditionally at the start of every compile, and work.p2c
+C reads ISOPTEXT directly (extern textmap isoptext) to build its own
+C lexer character-encoding table -- this is on the critical path for
+C every compile, not a vestigial self-hosting-only routine.
 C
 C This is a verbatim port of the Pascal runtime's PASISOCD
-C (paslib/pasisocd.dtran).  Structure and content are otherwise
-C unexamined; the fixpoint check verifies it.
+C (paslib/pasisocd.dtran).
 C===========================================================
  ISOPGOST:,LC,22
  ISOPTEXT:,LC,11

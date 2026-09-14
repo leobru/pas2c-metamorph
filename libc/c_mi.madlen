@@ -10,11 +10,11 @@ C work.p2c's mcMULTI macro emits a call to this right after a KMUL whose
 C result needs the signed low half rather than the unsigned one KYTA+64
 C gives (genFullExpr's opfMULMSK case, and the negative-stride packed-array
 C index case).  This is the Pascal runtime's P/MI (paslib/p_mi.dtran),
-C ported instruction for instruction: [M1+13B] is the "positive-mantissa
-C mask (bits 7..47)" from p_bx.asm's constant table; XOR-AND-XOR through it
-C replaces bits 7-47 of the naive value with YTA's non-logical
-C reconstruction from Y, keeping the sign (bit 48) and the low 6 bits from
-C the naive value.
+C ported instruction for instruction: [M1+13B] is MAXREAL (all ones
+C without the sign bit) from libc/c_bx.madlen's constant table;
+C XOR-AND-XOR through it replaces bits 7-47 of the naive value with
+C YTA's non-logical reconstruction from Y, keeping the sign (bit 48)
+C and the low 6 bits from the naive value.
 C===========================================================
            15   ,ATX ,1      . [SP+1] := ACC, the naive low half
                 ,YTA ,100B   . ACC := Y's mantissa, sign cleared, unshifted

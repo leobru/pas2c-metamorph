@@ -19,12 +19,10 @@ C   Calling convention (single arg, in ACC):
 C     ACC = fcb     (pointer to the file's FCB)
 C
 C   The trailing two-instruction tail (vjm,C/co + uj,C/it) is
-C   the intended body but references paslib-only symbols that
-C   the libc-time linker cannot resolve, so those two lines
-C   are commented out below until paslib exposes them (or
-C   until this file is moved into paslib).  In the meantime
-C   the FILEINIT-style frame we just pushed is popped back
-C   off and the procedure returns through the caller's M13.
+C   the actual body: it hands the FILEINIT-style frame just
+C   pushed to libc/c_co.madlen's C/CO, which takes the close
+C   branch on the non-zero marker, then tail-jumps into
+C   libc/c_it.madlen's C/IT, which pops the frame and returns.
 C===========================================================
  C/co  :        , subp,
  C/it  :        , subp,
@@ -36,8 +34,7 @@ C ---- FILEINIT-style frame, with a non-zero close marker ----
                 , its , 13     . push ACC; ACC := M13
             15  , atx ,        . [SP] := M13
                 , bss ,        . ACC is M13 (non-zero -> close marker into C/CO)
-C ---- intended call C/CO (helper #69) and tail-jump to C/IT
-C      (helper #70).
+C ---- call C/CO and tail-jump to C/IT ----
             13  , vjm , C/co
                 , uj  , C/it
                 , end ,

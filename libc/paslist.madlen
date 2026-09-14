@@ -1,13 +1,14 @@
  PASLIST:,NAME,
 C===========================================================
-C PASLIST - historical runtime routine, part of library 22's P/SETEXF
-C resolution batch (self-hosting's own bootstrap; not reached by the
-C ordinary test corpus).
+C PASLIST - computes the default listing verbosity: 2 if FULISFL* is
+C set, 0 if NOLISFL* is set, else 1.  workmain.p2c calls it directly
+C (listMode = PASLIST()) at the start of every compile; neither flag
+C is ever set by this project's own job control, so the "neither set"
+C branch is the only one exercised in practice, and a source-level
+C {$L=n} pseudo-comment is what actually varies listMode afterward.
 C
 C This is a verbatim port of the Pascal runtime's PASLIST
 C (paslib/paslist.dtran) -- fully self-contained, no SUBP dependencies.
-C Structure and content are otherwise unexamined; the fixpoint check
-C verifies it.
 C===========================================================
  FULISFL*:,LC,1
  NOLISFL*:,LC,1

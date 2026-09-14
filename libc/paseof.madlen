@@ -2,7 +2,7 @@
 C===========================================================
 C PASEOF - historical runtime routine, reached transitively from a
 C compiled program's own error/exit path (present in every test's link
-C map, per an empirical scan of all 174).
+C map, per an empirical scan of the full test suite).
 C
 C This is a verbatim port of the Pascal runtime's PASEOF
 C (paslib/paseof.asm) -- fully self-contained, no SUBP dependencies.
